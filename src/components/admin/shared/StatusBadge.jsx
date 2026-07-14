@@ -1,0 +1,30 @@
+const statusMap = {
+  'Pending Verification': 'warning',
+  'Pending Review': 'warning',
+  'Under Review': 'warning',
+  'Pending Approval': 'warning',
+  'Pending': 'warning',
+  'Planning': 'info',
+  Scheduled: 'info',
+  'In Progress': 'info',
+  Verified: 'success',
+  Approved: 'success',
+  Active: 'success',
+  Available: 'success',
+  Completed: 'success',
+  Generated: 'success',
+  Distributed: 'neutral',
+  Allocated: 'neutral',
+  Assigned: 'neutral',
+  Reserved: 'neutral',
+  'In Inventory': 'neutral',
+  'Low Stock': 'danger',
+  High: 'danger',
+  Medium: 'warning',
+  Low: 'info',
+}
+
+export default function StatusBadge({ status }) {
+  const variant = statusMap[status] || 'neutral'
+  return <span className={`status-badge status-badge--${variant}`}>{status}</span>
+}
