@@ -12,17 +12,19 @@ export default function StatCard({ label, value, change, trend, icon }) {
   const TrendIcon = trend === 'down' ? TrendingDown : TrendingUp
 
   return (
-    <article className={`admin-metric-card admin-metric-card--${trend}`}>
+    <article className={`admin-metric-card admin-metric-card--${trend || 'up'}`}>
       <div className="admin-metric-card__icon">
-        <Icon size={22} strokeWidth={2} />
+        <Icon size={20} strokeWidth={2} />
       </div>
       <div className="admin-metric-card__body">
         <span className="admin-metric-card__value">{value}</span>
         <span className="admin-metric-card__label">{label}</span>
-        <span className="admin-metric-card__change">
-          <TrendIcon size={14} />
-          {change}
-        </span>
+        {change && (
+          <span className="admin-metric-card__change">
+            <TrendIcon size={13} />
+            {change}
+          </span>
+        )}
       </div>
     </article>
   )

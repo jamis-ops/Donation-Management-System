@@ -31,15 +31,26 @@ export default function AssistancePage() {
         <div className="container container--narrow">
           {submitted ? (
             <div className="form-success">
+              <div style={{ fontSize: '2.5rem', marginBottom: '1rem' }}>✅</div>
               <h2>Request Submitted</h2>
-              <p>
-                Your assistance request has been received and is under review. You can track
-                progress using your reference code.
+              <p style={{ color: 'var(--color-text-muted)', marginBottom: '1.25rem' }}>
+                Your assistance request has been received and is under review. You will be
+                contacted within 3–5 business days.
               </p>
               <p className="tracking-code">
-                Reference: <code>AST-{Date.now().toString(36).toUpperCase()}</code>
+                Reference: <code>AST-{Math.random().toString(36).slice(2, 8).toUpperCase()}</code>
               </p>
-              <p>Status: <strong>Pending Review</strong></p>
+              <p style={{ marginTop: '0.5rem', color: 'var(--color-text-muted)', fontSize: '0.9rem' }}>
+                Status: <strong style={{ color: 'var(--color-brand)' }}>Pending Review</strong>
+              </p>
+              <button
+                type="button"
+                className="btn btn--outline"
+                style={{ marginTop: '1.5rem' }}
+                onClick={() => setSubmitted(false)}
+              >
+                Submit Another Request
+              </button>
             </div>
           ) : (
             <form className="form-card" onSubmit={handleSubmit}>

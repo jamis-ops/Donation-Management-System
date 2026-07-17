@@ -47,8 +47,8 @@ export default function VolunteerPage() {
       <section className="section">
         <div className="container container--narrow">
           <div className="info-panel">
-            <h2>Volunteer Dashboard (after approval)</h2>
-            <p>Once approved, volunteers can access their dashboard to:</p>
+            <h2>What volunteers get access to</h2>
+            <p>Once your application is approved, you can log in to your volunteer portal to:</p>
             <ul>
               <li>View assigned activities and upcoming schedules</li>
               <li>Track volunteer hours and attendance</li>
@@ -56,7 +56,7 @@ export default function VolunteerPage() {
               <li>Download certificates upon activity completion</li>
             </ul>
             <p className="info-panel__note">
-              Status tracking: {statusExamples.join(' · ')}
+              Application status flow: {statusExamples.join(' → ')}
             </p>
           </div>
 

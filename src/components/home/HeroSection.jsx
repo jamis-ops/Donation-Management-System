@@ -6,15 +6,26 @@ export default function HeroSection() {
     <section className="hero-section" style={{ backgroundImage: `url(${heroBg})` }}>
       <div className="hero-section__overlay" />
       <div className="container hero-section__content">
-        <h1 className="hero-section__title">Together we can make a difference</h1>
+        <div className="hero-section__badge">
+          Rise Above Foundation Cebu
+        </div>
+        <h1 className="hero-section__title">
+          Together we can<br />make a difference
+        </h1>
         <p className="hero-section__intro">
-          Rise Above Foundation Cebu brings hope through disaster relief, education, feeding programs,
-          medical missions, and community outreach.
+          Bringing hope through disaster relief, education, feeding programs,
+          medical missions, and community outreach across the Philippines.
         </p>
         <div className="hero-section__actions">
-          <Link to="/donate" className="btn btn--accent btn--lg">Give Now</Link>
-          <Link to="/volunteer" className="btn btn--outline-light btn--lg">Volunteer</Link>
-          <Link to="/assistance" className="btn btn--outline-light btn--lg">Request Assistance</Link>
+          <Link to="/donate" className="btn btn--primary btn--lg">
+            Give Now
+          </Link>
+          <Link to="/volunteer" className="btn btn--outline-light btn--lg">
+            Volunteer
+          </Link>
+          <Link to="/assistance" className="btn btn--outline-light btn--lg">
+            Request Assistance
+          </Link>
         </div>
       </div>
     </section>

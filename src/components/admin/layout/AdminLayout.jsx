@@ -1,7 +1,8 @@
 import { useState } from 'react'
 import { Outlet, useLocation } from 'react-router-dom'
-import { Menu } from 'lucide-react'
+import { Menu, Bell } from 'lucide-react'
 import AdminSidebar from './AdminSidebar'
+import { useAuth } from '../../../context/AuthContext'
 
 const pageTitles = {
   '/admin': 'Dashboard',
@@ -22,11 +23,13 @@ const pageTitles = {
 export default function AdminLayout() {
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const location = useLocation()
+  const { user } = useAuth()
   const title = pageTitles[location.pathname] || 'Admin'
 
   return (
     <div className="admin-layout">
       <AdminSidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} />
+
       <div className="admin-main">
         <header className="admin-topbar">
           <button
@@ -35,10 +38,31 @@ export default function AdminLayout() {
             aria-label="Toggle menu"
             onClick={() => setSidebarOpen(true)}
           >
-            <Menu size={20} />
+            <Menu size={19} />
           </button>
-          <h1 className="admin-topbar__title">{title}</h1>
+
+          <div className="admin-topbar__title-group">
+            <h1 className="admin-topbar__title">{title}</h1>
+          </div>
+
+          <div className="admin-topbar__spacer" />
+
+          <div className="admin-topbar__right">
+            <span className="admin-topbar__badge">
+              <span
+                style={{
+                  width: 7,
+                  height: 7,
+                  borderRadius: '50%',
+                  background: 'var(--admin-brand)',
+                  display: 'inline-block',
+                }}
+              />
+              Rise Above Foundation
+            </span>
+          </div>
         </header>
+
         <div className="admin-content">
           <Outlet />
         </div>

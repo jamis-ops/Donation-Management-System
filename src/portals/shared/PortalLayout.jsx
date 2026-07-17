@@ -4,43 +4,71 @@ import { Menu } from 'lucide-react'
 import PortalSidebar from './PortalSidebar'
 
 const titles = {
-  '/donor': 'Donor Dashboard',
-  '/donor/donations': 'My Donations',
-  '/donor/certificates': 'Certificates & Official Receipts',
-  '/volunteer-portal': 'Volunteer Dashboard',
-  '/volunteer-portal/tasks': 'My Tasks',
-  '/volunteer-portal/schedule': 'Volunteer Schedule',
-  '/volunteer-portal/hours': 'Volunteer Hours',
-  '/volunteer-portal/certificates': 'Volunteer Certificates',
-  '/beneficiary': 'Beneficiary Dashboard',
-  '/beneficiary/requests': 'My Assistance Requests',
-  '/beneficiary/distributions': 'Scheduled Distributions',
-  '/beneficiary/history': 'Assistance History',
-  '/staff': 'Staff Dashboard',
-  '/staff/donations': 'Donation Processing',
-  '/staff/inventory': 'Inventory',
-  '/staff/distributions': 'Distributions',
-  '/staff/tasks': 'My Tasks',
+  '/donor': { title: 'Donor Dashboard', sub: 'Track your donations and certificates.' },
+  '/donor/donations': { title: 'My Donations', sub: 'Full history of your contributions.' },
+  '/donor/certificates': { title: 'Certificates & Official Receipts', sub: 'Download and manage your documents.' },
+  '/volunteer-portal': { title: 'Volunteer Dashboard', sub: 'Your tasks, schedule, and hours.' },
+  '/volunteer-portal/tasks': { title: 'My Tasks', sub: 'Tasks assigned to you.' },
+  '/volunteer-portal/schedule': { title: 'Volunteer Schedule', sub: 'Upcoming events and shifts.' },
+  '/volunteer-portal/hours': { title: 'Volunteer Hours', sub: 'Logged hours and activity record.' },
+  '/volunteer-portal/certificates': { title: 'Certificates', sub: 'Service and participation certificates.' },
+  '/beneficiary': { title: 'Beneficiary Dashboard', sub: 'Your requests and assistance status.' },
+  '/beneficiary/requests': { title: 'My Assistance Requests', sub: 'Submit and track requests.' },
+  '/beneficiary/distributions': { title: 'Scheduled Distributions', sub: 'Upcoming pickups and deliveries.' },
+  '/beneficiary/history': { title: 'Assistance History', sub: 'Past assistance received.' },
+  '/staff': { title: 'Staff Dashboard', sub: 'Operations, tasks, and inventory.' },
+  '/staff/donations': { title: 'Donation Processing', sub: 'Donations pending your action.' },
+  '/staff/inventory': { title: 'Inventory', sub: 'Current stock levels.' },
+  '/staff/distributions': { title: 'Distributions', sub: 'Scheduled distribution events.' },
+  '/staff/tasks': { title: 'My Tasks', sub: 'Tasks assigned to you.' },
+}
+
+const roleBadgeColor = {
+  Donor: '#AF101A',
+  Volunteer: '#2563eb',
+  Beneficiary: '#16a34a',
+  Staff: '#d97706',
 }
 
 export default function PortalLayout({ role }) {
   const [open, setOpen] = useState(false)
   const location = useLocation()
-  const title = titles[location.pathname] || 'Portal'
+  const page = titles[location.pathname] || { title: 'Portal', sub: '' }
+  const badgeColor = roleBadgeColor[role] || '#AF101A'
 
   return (
     <div className="portal-layout">
       <PortalSidebar role={role} open={open} onClose={() => setOpen(false)} />
+
       <div className="portal-main">
         <header className="portal-topbar">
-          <button type="button" className="portal-topbar__menu" onClick={() => setOpen(true)} aria-label="Open menu">
-            <Menu size={20} />
+          <button
+            type="button"
+            className="portal-topbar__menu"
+            onClick={() => setOpen(true)}
+            aria-label="Open menu"
+          >
+            <Menu size={19} />
           </button>
-          <div>
-            <h1>{title}</h1>
-            <p>Welcome back. Manage your {role.toLowerCase()} activities here.</p>
+
+          <div className="portal-topbar__info">
+            <h1>{page.title}</h1>
+            {page.sub && <p>{page.sub}</p>}
+          </div>
+
+          <div style={{ marginLeft: 'auto' }}>
+            <span
+              className="portal-topbar__badge"
+              style={{
+                background: `${badgeColor}14`,
+                color: badgeColor,
+              }}
+            >
+              {role} Portal
+            </span>
           </div>
         </header>
+
         <div className="portal-content">
           <Outlet />
         </div>

@@ -5,6 +5,18 @@ const donationTypes = [
   { id: 'in-kind', label: 'In-Kind Donation' },
 ]
 
+const lifecycle = [
+  'Donation Submission',
+  'Tracking Code Generated',
+  'Donation Verification',
+  'Inventory Recording',
+  'Repacking (if needed)',
+  'Resource Allocation',
+  'Distribution Planning',
+  'Distribution to Beneficiaries',
+  'Certificate / Official Receipt',
+]
+
 export default function DonatePage() {
   const [submitted, setSubmitted] = useState(false)
   const [form, setForm] = useState({
@@ -29,46 +41,51 @@ export default function DonatePage() {
     <div className="page">
       <section className="page-hero">
         <div className="container">
-          <h1>Donate</h1>
-          <p>Your generosity powers relief, education, and community development.</p>
+          <h1>Make a Donation</h1>
+          <p>Your generosity powers relief, education, and community development across Cebu.</p>
         </div>
       </section>
 
       <section className="section">
         <div className="container container--narrow">
+          {/* Lifecycle stepper */}
           <div className="donation-lifecycle">
-            <h2>Donation Lifecycle</h2>
+            <h2>How Your Donation Gets There</h2>
             <ol className="lifecycle-steps">
-              <li>Donation Submission</li>
-              <li>Tracking Code Generated</li>
-              <li>Donation Verification</li>
-              <li>Inventory Recording</li>
-              <li>Repacking (if needed)</li>
-              <li>Resource Allocation</li>
-              <li>Distribution Planning</li>
-              <li>Distribution to Beneficiaries</li>
-              <li>Certificate / Official Receipt</li>
+              {lifecycle.map((step) => (
+                <li key={step}>{step}</li>
+              ))}
             </ol>
             <p className="info-panel__note">
-              Email notifications are sent at every major stage.
+              📧 Email notifications are sent at every major stage.
             </p>
           </div>
 
           {submitted ? (
             <div className="form-success">
-              <h2>Donation Submitted</h2>
-              <p>
-                Thank you for your donation. Use your tracking code to monitor verification and
-                distribution progress.
+              <div style={{ fontSize: '2.5rem', marginBottom: '1rem' }}>🎉</div>
+              <h2>Thank You for Your Donation!</h2>
+              <p style={{ color: 'var(--color-text-muted)', marginBottom: '1.25rem' }}>
+                Use your tracking code below to monitor verification and distribution progress.
               </p>
               <p className="tracking-code">
                 Tracking code: <code>{trackingCode}</code>
               </p>
-              <p>Status: <strong>Pending Verification</strong></p>
+              <p style={{ marginTop: '0.75rem', color: 'var(--color-text-muted)', fontSize: '0.9rem' }}>
+                Status: <strong style={{ color: 'var(--color-brand)' }}>Pending Verification</strong>
+              </p>
+              <button
+                type="button"
+                className="btn btn--outline"
+                style={{ marginTop: '1.5rem' }}
+                onClick={() => setSubmitted(false)}
+              >
+                Submit Another Donation
+              </button>
             </div>
           ) : (
             <form className="form-card" onSubmit={handleSubmit}>
-              <h2>Make a Donation</h2>
+              <h2>Donation Form</h2>
 
               <fieldset className="radio-group">
                 <legend>Donation Type *</legend>
@@ -92,15 +109,17 @@ export default function DonatePage() {
                   <input
                     type="text"
                     required
+                    placeholder="Juan dela Cruz"
                     value={form.donorName}
                     onChange={(e) => setForm({ ...form, donorName: e.target.value })}
                   />
                 </label>
                 <label>
-                  Email *
+                  Email Address *
                   <input
                     type="email"
                     required
+                    placeholder="you@email.com"
                     value={form.email}
                     onChange={(e) => setForm({ ...form, email: e.target.value })}
                   />
@@ -115,6 +134,7 @@ export default function DonatePage() {
                       type="number"
                       min="1"
                       required
+                      placeholder="500"
                       value={form.amount}
                       onChange={(e) => setForm({ ...form, amount: e.target.value })}
                     />
@@ -138,7 +158,7 @@ export default function DonatePage() {
                   <textarea
                     rows={4}
                     required
-                    placeholder="List items, quantities, and condition..."
+                    placeholder="List items, quantities, and condition (e.g., 10 canned goods, good condition)..."
                     value={form.items}
                     onChange={(e) => setForm({ ...form, items: e.target.value })}
                   />
@@ -152,18 +172,20 @@ export default function DonatePage() {
                   accept="image/*,.pdf"
                   onChange={(e) => setForm({ ...form, proof: e.target.files?.[0] ?? null })}
                 />
+                <span className="field-hint">Receipt, screenshot, or photo — JPG, PNG, or PDF</span>
               </label>
 
               <label>
                 Message (optional)
                 <textarea
-                  rows={2}
+                  rows={3}
+                  placeholder="Leave a note for the foundation..."
                   value={form.message}
                   onChange={(e) => setForm({ ...form, message: e.target.value })}
                 />
               </label>
 
-              <button type="submit" className="btn btn--primary btn--lg">
+              <button type="submit" className="btn btn--primary btn--lg" style={{ width: '100%' }}>
                 Submit Donation
               </button>
             </form>

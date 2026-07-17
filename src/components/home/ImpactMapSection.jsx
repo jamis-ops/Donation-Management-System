@@ -5,14 +5,18 @@ import 'leaflet/dist/leaflet.css'
 import { mapLocations, programs } from '../../data/mockData'
 import SectionHeading from '../shared/SectionHeading'
 
-const pinIcon = new L.Icon({
-  iconUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png',
-  iconRetinaUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon-2x.png',
-  shadowUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png',
-  iconSize: [25, 41],
-  iconAnchor: [12, 41],
-  popupAnchor: [1, -34],
-  shadowSize: [41, 41],
+// Crimson custom marker icon
+const pinIcon = new L.DivIcon({
+  html: `
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 36" width="24" height="36">
+      <path d="M12 0C5.373 0 0 5.373 0 12c0 9 12 24 12 24S24 21 24 12C24 5.373 18.627 0 12 0z"
+        fill="#AF101A"/>
+      <circle cx="12" cy="12" r="5" fill="#fff" opacity="0.9"/>
+    </svg>`,
+  className: '',
+  iconSize: [24, 36],
+  iconAnchor: [12, 36],
+  popupAnchor: [0, -36],
 })
 
 function MapBounds({ locations }) {
@@ -45,10 +49,10 @@ export default function ImpactMapSection() {
         <SectionHeading
           eyebrow="Impact Map"
           title="Where we serve"
-          description="Click a location to view program details and distribution statistics."
+          description="Click a location pin to see program details and distribution statistics."
         />
 
-        <div className="map-filters" role="group" aria-label="Filter by program type">
+        <div className="map-filters" role="group" aria-label="Filter by program">
           {programFilters.map((pf) => (
             <button
               key={pf.id}

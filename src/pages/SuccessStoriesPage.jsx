@@ -24,7 +24,7 @@ export default function SuccessStoriesPage() {
           <SectionHeading
             align="left"
             title="Impact stories"
-            description="Every story represents a life changed through the generosity of donors and dedication of volunteers."
+            description="Every story represents a life changed through the generosity of donors and the dedication of volunteers."
           />
           <div className="stories-list">
             {successStories.map((story) => (

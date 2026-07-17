@@ -28,7 +28,7 @@ export default function Header() {
   return (
     <header className="site-header">
       <div className="container site-header__inner">
-        <Logo onClick={() => setMenuOpen(false)} />
+        <Logo showText onClick={() => setMenuOpen(false)} />
 
         <button
           type="button"
@@ -40,7 +40,7 @@ export default function Header() {
           <span /><span /><span />
         </button>
 
-        <nav className={`site-nav ${menuOpen ? 'site-nav--open' : ''}`}>
+        <nav className={`site-nav${menuOpen ? ' site-nav--open' : ''}`} aria-label="Main navigation">
           <ul className="site-nav__links">
             {navLinks.map((link) => (
               <li key={link.label}>
@@ -73,24 +73,38 @@ export default function Header() {
           </ul>
 
           <div className="site-nav__actions">
-            <Link to="/volunteer" className="btn btn--outline btn--sm" onClick={() => setMenuOpen(false)}>
+            <Link
+              to="/volunteer"
+              className="btn btn--ghost-dark btn--sm"
+              onClick={() => setMenuOpen(false)}
+            >
               Volunteer
             </Link>
+
             {isAuthenticated ? (
               <Link
                 to={getHomeForRole(user?.role)}
-                className="btn btn--primary btn--sm"
+                className="btn btn--outline btn--sm"
                 onClick={() => setMenuOpen(false)}
               >
                 My Portal
               </Link>
             ) : (
-              <Link to="/login" className="btn btn--ghost-dark btn--sm" onClick={() => setMenuOpen(false)}>
+              <Link
+                to="/login"
+                className="btn btn--ghost-dark btn--sm"
+                onClick={() => setMenuOpen(false)}
+              >
                 Log In
               </Link>
             )}
-            <Link to="/donate" className="btn btn--accent btn--sm" onClick={() => setMenuOpen(false)}>
-              Give
+
+            <Link
+              to="/donate"
+              className="btn btn--primary btn--sm"
+              onClick={() => setMenuOpen(false)}
+            >
+              Give Now
             </Link>
           </div>
         </nav>

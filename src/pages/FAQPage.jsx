@@ -3,7 +3,6 @@ import { faqCategories } from '../data/mockData'
 
 export default function FAQPage() {
   const [openIndex, setOpenIndex] = useState(null)
-
   let globalIndex = 0
 
   return (
@@ -25,7 +24,10 @@ export default function FAQPage() {
                   const idx = globalIndex++
                   const isOpen = openIndex === idx
                   return (
-                    <div key={item.q} className={`faq-item${isOpen ? ' faq-item--open' : ''}`}>
+                    <div
+                      key={item.q}
+                      className={`faq-item${isOpen ? ' faq-item--open' : ''}`}
+                    >
                       <button
                         type="button"
                         className="faq-item__question"
@@ -37,7 +39,9 @@ export default function FAQPage() {
                           {isOpen ? '−' : '+'}
                         </span>
                       </button>
-                      {isOpen && <div className="faq-item__answer">{item.a}</div>}
+                      {isOpen && (
+                        <div className="faq-item__answer">{item.a}</div>
+                      )}
                     </div>
                   )
                 })}

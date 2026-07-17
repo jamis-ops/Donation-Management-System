@@ -19,7 +19,7 @@ export default function DataTable({ columns, data, onRowClick }) {
           ) : (
             data.map((row, i) => (
               <tr
-                key={row.id || i}
+                key={row.id ?? i}
                 onClick={() => onRowClick?.(row)}
                 className={onRowClick ? 'data-table__row--clickable' : ''}
               >
@@ -33,6 +33,15 @@ export default function DataTable({ columns, data, onRowClick }) {
           )}
         </tbody>
       </table>
+
+      {data.length > 0 && (
+        <div className="data-table__footer">
+          <span className="data-table__count">
+            Showing <strong>{data.length}</strong>{' '}
+            {data.length === 1 ? 'record' : 'records'}
+          </span>
+        </div>
+      )}
     </div>
   )
 }
