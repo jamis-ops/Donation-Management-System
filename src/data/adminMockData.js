@@ -6,20 +6,42 @@ export const adminUser = {
 }
 
 export const dashboardStats = [
-  { label: 'Pending Donations', value: 12, change: '+3 today', trend: 'up' },
-  { label: 'Active Beneficiaries', value: 847, change: '+24 this week', trend: 'up' },
-  { label: 'Inventory Items', value: '3,420', change: '18 low stock', trend: 'warn' },
-  { label: 'Scheduled Distributions', value: 8, change: '3 this week', trend: 'neutral' },
-  { label: 'Pending Volunteers', value: 15, change: '5 awaiting review', trend: 'warn' },
-  { label: 'Open Tasks', value: 23, change: '7 overdue', trend: 'down' },
+  { label: 'Total Donations', value: '12,428', change: '+12.5%', trend: 'up', icon: 'donations' },
+  { label: 'Active Beneficiaries', value: '3,241', change: '+8.2%', trend: 'up', icon: 'beneficiaries' },
+  { label: 'Items in Inventory', value: '8,528', change: '-5.4%', trend: 'down', icon: 'inventory' },
+  { label: 'Active Deliveries', value: '24', change: '+3', trend: 'up', icon: 'deliveries' },
+]
+
+export const dashboardLineChart = {
+  labels: ['Jan', 'Feb', 'Mar', 'Apr'],
+  series: [
+    { key: 'donations', label: 'Donations', color: '#AF101A', values: [3200, 4100, 3800, 4500] },
+    { key: 'distributed', label: 'Distributed', color: '#D64545', values: [2800, 3500, 3200, 3900] },
+    { key: 'beneficiaries', label: 'Beneficiaries', color: '#7A0B12', values: [2100, 2600, 2400, 3100] },
+  ],
+}
+
+export const dashboardCategoryChart = [
+  { label: 'Medical', value: 3200 },
+  { label: 'Food', value: 5800 },
+  { label: 'Both', value: 4100 },
+  { label: 'Education', value: 2400 },
+  { label: 'Relief', value: 3600 },
+]
+
+export const pendingTasks = [
+  { id: 1, title: 'Verify 15 pending donations', priority: 'High', icon: 'alert' },
+  { id: 2, title: 'Review 8 volunteer applications', priority: 'Medium', icon: 'check' },
+  { id: 3, title: 'Approve 3 beneficiary requests', priority: 'High', icon: 'alert' },
+  { id: 4, title: 'Restock 18 low inventory items', priority: 'Medium', icon: 'check' },
 ]
 
 export const recentActivity = [
-  { id: 1, action: 'Donation verified', detail: 'DON-K2F9A — ₱5,000 from Juan Reyes', time: '10 min ago', type: 'donation' },
-  { id: 2, action: 'Volunteer approved', detail: 'Ana Lim — Disaster Relief program', time: '25 min ago', type: 'volunteer' },
-  { id: 3, action: 'Distribution completed', detail: 'Talisay relief packs — 150 beneficiaries', time: '1 hr ago', type: 'distribution' },
-  { id: 4, action: 'Assistance request received', detail: 'AST-M3K1B — Medical assistance, Minglanilla', time: '2 hrs ago', type: 'beneficiary' },
-  { id: 5, action: 'Low stock alert', detail: 'Rice sacks — 45 remaining (threshold: 100)', time: '3 hrs ago', type: 'inventory' },
+  { id: 1, action: 'New donation received', detail: '₱25,000 from Juan dela Cruz', time: '5 min ago', type: 'donation' },
+  { id: 2, action: 'Distribution completed', detail: 'Talisay relief packs — 150 beneficiaries', time: '1 hr ago', type: 'distribution' },
+  { id: 3, action: 'Volunteer approved', detail: 'Ana Lim — Disaster Relief program', time: '2 hrs ago', type: 'volunteer' },
+  { id: 4, action: 'Assistance request received', detail: 'AST-M3K1B — Medical assistance, Minglanilla', time: '3 hrs ago', type: 'beneficiary' },
+  { id: 5, action: 'Low stock alert', detail: 'Rice sacks — 45 remaining (threshold: 100)', time: '4 hrs ago', type: 'inventory' },
 ]
 
 export const donations = [
@@ -149,6 +171,28 @@ export const chartData = {
     { program: 'Feeding', demand: 90, supply: 88 },
     { program: 'Medical', demand: 45, supply: 40 },
     { program: 'Outreach', demand: 55, supply: 50 },
+  ],
+  volunteerHoursByMonth: [
+    { month: 'Jan', hours: 220 },
+    { month: 'Feb', hours: 280 },
+    { month: 'Mar', hours: 310 },
+    { month: 'Apr', hours: 290 },
+    { month: 'May', hours: 340 },
+    { month: 'Jun', hours: 400 },
+  ],
+  beneficiariesByProgram: [
+    { program: 'Disaster Relief', count: 420 },
+    { program: 'Medical', count: 310 },
+    { program: 'Feeding', count: 380 },
+    { program: 'Education', count: 260 },
+    { program: 'Outreach', count: 190 },
+  ],
+  distributionByLocation: [
+    { location: 'Cebu City', count: 45 },
+    { location: 'Talisay', count: 38 },
+    { location: 'Minglanilla', count: 32 },
+    { location: 'Toledo', count: 28 },
+    { location: 'Lahug', count: 22 },
   ],
 }
 

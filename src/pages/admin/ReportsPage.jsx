@@ -1,27 +1,26 @@
-import { reportSummary, chartData } from '../../data/adminMockData'
+import { chartData, reportSummary } from '../../data/adminMockData'
 import PageHeader from '../../components/admin/shared/PageHeader'
+import LineChart from '../../components/admin/charts/LineChart'
+import BarChart from '../../components/admin/charts/BarChart'
+import DonutChart from '../../components/admin/charts/DonutChart'
 
-function BarChart({ data, valueKey, labelKey, unit = '' }) {
-  const max = Math.max(...data.map((d) => d[valueKey]))
-  return (
-    <div className="bar-chart">
-      {data.map((item) => (
-        <div key={item[labelKey]} className="bar-chart__item">
-          <span className="bar-chart__label">{item[labelKey]}</span>
-          <div className="bar-chart__track">
-            <div
-              className="bar-chart__fill"
-              style={{ width: `${(item[valueKey] / max) * 100}%` }}
-            />
-          </div>
-          <span className="bar-chart__value">
-            {unit}{typeof item[valueKey] === 'number' && item[valueKey] > 100 ? (item[valueKey] / 1000).toFixed(1) + 'K' : item[valueKey]}
-          </span>
-        </div>
-      ))}
-    </div>
-  )
-}
+const donationsSeries = [
+  {
+    key: 'donations',
+    label: 'Donations (₱K)',
+    color: '#AF101A',
+    values: chartData.donationsByMonth.map((d) => d.amount),
+  },
+]
+
+const volunteerSeries = [
+  {
+    key: 'hours',
+    label: 'Volunteer Hours',
+    color: '#AF101A',
+    values: chartData.volunteerHoursByMonth.map((d) => d.hours),
+  },
+]
 
 export default function ReportsPage() {
   return (
@@ -31,8 +30,8 @@ export default function ReportsPage() {
         description="Donation, inventory, distribution, volunteer, and beneficiary analytics."
         actions={
           <div className="table-actions">
-            <button type="button" className="btn btn--outline">Export CSV</button>
-            <button type="button" className="btn btn--outline">Export Excel</button>
+            <button type="button" className="btn btn--admin-outline">Export CSV</button>
+            <button type="button" className="btn btn--admin-outline">Export Excel</button>
           </div>
         }
       />
@@ -61,14 +60,45 @@ export default function ReportsPage() {
         </div>
       </div>
 
-      <div className="admin-dashboard-grid">
-        <section className="admin-panel">
-          <h2>Donations by Month (₱ thousands)</h2>
-          <BarChart data={chartData.donationsByMonth} valueKey="amount" labelKey="month" />
+      <div className="admin-charts-grid">
+        <section className="admin-panel admin-panel--chart">
+          <LineChart
+            title="Donations by Month (₱ thousands)"
+            labels={chartData.donationsByMonth.map((d) => d.month)}
+            series={donationsSeries}
+          />
         </section>
 
-        <section className="admin-panel">
-          <h2>Demand vs. Supply by Program (%)</h2>
+        <section className="admin-panel admin-panel--chart">
+          <LineChart
+            title="Volunteer Hours by Month"
+            labels={chartData.volunteerHoursByMonth.map((d) => d.month)}
+            series={volunteerSeries}
+          />
+        </section>
+      </div>
+
+      <div className="admin-charts-grid admin-charts-grid--3">
+        <section className="admin-panel admin-panel--chart">
+          <DonutChart
+            title="Beneficiaries by Program"
+            data={chartData.beneficiariesByProgram}
+            labelKey="program"
+            valueKey="count"
+          />
+        </section>
+
+        <section className="admin-panel admin-panel--chart">
+          <BarChart
+            title="Distribution by Location"
+            data={chartData.distributionByLocation}
+            valueKey="count"
+            labelKey="location"
+          />
+        </section>
+
+        <section className="admin-panel admin-panel--chart">
+          <h3 className="admin-chart__title">Demand vs. Supply by Program (%)</h3>
           <div className="demand-supply-grid demand-supply-grid--vertical">
             {chartData.demandVsSupply.map((item) => (
               <div key={item.program} className="demand-supply-card">

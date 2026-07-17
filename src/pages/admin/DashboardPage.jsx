@@ -1,23 +1,15 @@
-import { Link } from 'react-router-dom'
 import {
-  HeartHandshake,
-  UserCheck,
-  Users,
-  Package,
-  Truck,
-  ListTodo,
-} from 'lucide-react'
-import { dashboardStats, recentActivity } from '../../data/adminMockData'
+  dashboardStats,
+  dashboardLineChart,
+  dashboardCategoryChart,
+  pendingTasks,
+  recentActivity,
+} from '../../data/adminMockData'
 import PageHeader from '../../components/admin/shared/PageHeader'
-
-const quickActions = [
-  { to: '/admin/donations', icon: HeartHandshake, title: 'Verify Donations', meta: '12 pending' },
-  { to: '/admin/volunteers', icon: UserCheck, title: 'Review Volunteers', meta: '15 pending' },
-  { to: '/admin/beneficiaries', icon: Users, title: 'Approve Beneficiaries', meta: '2 pending' },
-  { to: '/admin/inventory', icon: Package, title: 'Check Inventory', meta: '18 low stock' },
-  { to: '/admin/distributions', icon: Truck, title: 'Plan Distribution', meta: '8 scheduled' },
-  { to: '/admin/tasks', icon: ListTodo, title: 'View Tasks', meta: '23 open' },
-]
+import StatCard from '../../components/admin/charts/StatCard'
+import LineChart from '../../components/admin/charts/LineChart'
+import BarChart from '../../components/admin/charts/BarChart'
+import { AlertCircle, CheckCircle2 } from 'lucide-react'
 
 export default function DashboardPage() {
   return (
@@ -27,17 +19,53 @@ export default function DashboardPage() {
         description="System overview and key metrics."
       />
 
-      <div className="admin-stats-grid">
+      <div className="admin-metrics-grid">
         {dashboardStats.map((stat) => (
-          <div key={stat.label} className={`admin-stat-card admin-stat-card--${stat.trend}`}>
-            <span className="admin-stat-card__value">{stat.value}</span>
-            <span className="admin-stat-card__label">{stat.label}</span>
-            <span className="admin-stat-card__change">{stat.change}</span>
-          </div>
+          <StatCard key={stat.label} {...stat} />
         ))}
       </div>
 
+      <div className="admin-charts-grid">
+        <section className="admin-panel admin-panel--chart">
+          <LineChart
+            title="Donations vs. Distributions"
+            labels={dashboardLineChart.labels}
+            series={dashboardLineChart.series}
+          />
+        </section>
+
+        <section className="admin-panel admin-panel--chart">
+          <BarChart
+            title="By Category"
+            data={dashboardCategoryChart}
+            valueKey="value"
+            labelKey="label"
+          />
+        </section>
+      </div>
+
       <div className="admin-dashboard-grid">
+        <section className="admin-panel">
+          <h2>Pending Tasks</h2>
+          <ul className="admin-task-list">
+            {pendingTasks.map((task) => (
+              <li key={task.id} className="admin-task-list__item">
+                <div className="admin-task-list__content">
+                  {task.icon === 'alert' ? (
+                    <AlertCircle size={18} className="admin-task-list__icon admin-task-list__icon--alert" />
+                  ) : (
+                    <CheckCircle2 size={18} className="admin-task-list__icon" />
+                  )}
+                  <span>{task.title}</span>
+                </div>
+                <span className={`admin-priority admin-priority--${task.priority.toLowerCase()}`}>
+                  {task.priority}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </section>
+
         <section className="admin-panel">
           <h2>Recent Activity</h2>
           <ul className="activity-feed">
@@ -51,24 +79,6 @@ export default function DashboardPage() {
               </li>
             ))}
           </ul>
-        </section>
-
-        <section className="admin-panel">
-          <h2>Quick Actions</h2>
-          <div className="quick-actions">
-            {quickActions.map((action) => {
-              const Icon = action.icon
-              return (
-                <Link key={action.to} to={action.to} className="quick-action">
-                  <Icon size={20} strokeWidth={2} />
-                  <div>
-                    <strong>{action.title}</strong>
-                    <span>{action.meta}</span>
-                  </div>
-                </Link>
-              )
-            })}
-          </div>
         </section>
       </div>
     </>
