@@ -11,6 +11,7 @@ const statusExamples = [
 
 export default function VolunteerPage() {
   const [submitted, setSubmitted] = useState(false)
+  const [trackingRef, setTrackingRef] = useState('')
   const [form, setForm] = useState({
     fullName: '',
     email: '',
@@ -32,6 +33,7 @@ export default function VolunteerPage() {
 
   const handleSubmit = (e) => {
     e.preventDefault()
+    setTrackingRef(`VOL-${Date.now().toString(36).toUpperCase()}`)
     setSubmitted(true)
   }
 
@@ -69,7 +71,7 @@ export default function VolunteerPage() {
                 processed.
               </p>
               <p className="tracking-code">
-                Tracking reference: <code>VOL-{Date.now().toString(36).toUpperCase()}</code>
+                Tracking reference: <code>{trackingRef}</code>
               </p>
             </div>
           ) : (

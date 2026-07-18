@@ -1,21 +1,28 @@
 import StatusBadge from '../../components/admin/shared/StatusBadge'
-import { volunteerPortal } from '../../data/portalMockData'
+import ApiState from '../../components/admin/shared/ApiState'
+import { tasksApi } from '../../api/resources'
+import { useApiList } from '../../hooks/useApiList'
 
 export default function VolunteerTasksPage() {
+  const { data, loading, error, reload } = useApiList(() =>
+    tasksApi.list().then((r) => ({
+      data: Array.isArray(r.data) ? r.data : (r.list || []),
+    }))
+  )
+
   return (
-    <section className="portal-panel">
-      <div className="portal-panel__header"><h2>My Tasks</h2></div>
-      <div className="portal-list">
-        {volunteerPortal.tasks.map((task) => (
-          <div key={task.id} className="portal-list-item">
-            <div>
-              <strong>{task.id} — {task.title}</strong>
-              <span>Due: {task.due}</span>
-            </div>
-            <StatusBadge status={task.status} />
-          </div>
-        ))}
-      </div>
-    </section>
+    <ApiState loading={loading} error={error} onRetry={reload}>
+      <section className="portal-panel">
+        <div className="portal-panel__header"><h2>My Tasks</h2></div>
+        <ul className="portal-task-list">
+          {data.map((t) => (
+            <li key={t.id} className="portal-task-item">
+              <div><strong>{t.title}</strong><span>Due: {t.due} · {t.module}</span></div>
+              <StatusBadge status={t.priority} />
+            </li>
+          ))}
+        </ul>
+      </section>
+    </ApiState>
   )
 }

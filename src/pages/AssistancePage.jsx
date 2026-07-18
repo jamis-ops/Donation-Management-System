@@ -3,6 +3,7 @@ import { programs } from '../data/mockData'
 
 export default function AssistancePage() {
   const [submitted, setSubmitted] = useState(false)
+  const [reference, setReference] = useState('')
   const [form, setForm] = useState({
     fullName: '',
     email: '',
@@ -15,6 +16,7 @@ export default function AssistancePage() {
 
   const handleSubmit = (e) => {
     e.preventDefault()
+    setReference(`AST-${Math.random().toString(36).slice(2, 8).toUpperCase()}`)
     setSubmitted(true)
   }
 
@@ -38,7 +40,7 @@ export default function AssistancePage() {
                 contacted within 3–5 business days.
               </p>
               <p className="tracking-code">
-                Reference: <code>AST-{Math.random().toString(36).slice(2, 8).toUpperCase()}</code>
+                Reference: <code>{reference}</code>
               </p>
               <p style={{ marginTop: '0.5rem', color: 'var(--color-text-muted)', fontSize: '0.9rem' }}>
                 Status: <strong style={{ color: 'var(--color-brand)' }}>Pending Review</strong>

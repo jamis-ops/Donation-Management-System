@@ -1,25 +1,29 @@
 import StatusBadge from '../../components/admin/shared/StatusBadge'
-
-const distributions = [
-  { location: 'Talisay', date: '2026-07-02', status: 'Scheduled' },
-  { location: 'Minglanilla', date: '2026-07-08', status: 'Planning' },
-]
+import ApiState from '../../components/admin/shared/ApiState'
+import { distributionsApi } from '../../api/resources'
+import { useApiList } from '../../hooks/useApiList'
 
 export default function StaffDistributionsPage() {
+  const { data, loading, error, reload } = useApiList(() => distributionsApi.list())
+
   return (
-    <section className="portal-panel">
-      <div className="portal-panel__header"><h2>Distribution Schedule</h2></div>
-      <div className="portal-list">
-        {distributions.map((d) => (
-          <div key={d.location} className="portal-list-item">
-            <div>
-              <strong>{d.location}</strong>
-              <span>{d.date}</span>
-            </div>
-            <StatusBadge status={d.status} />
-          </div>
-        ))}
-      </div>
-    </section>
+    <ApiState loading={loading} error={error} onRetry={reload}>
+      <section className="portal-panel">
+        <div className="portal-panel__header"><h2>Distribution Schedule</h2></div>
+        <div className="portal-table-wrap">
+          <table className="portal-table">
+            <thead><tr><th>Location</th><th>Program</th><th>Date</th><th>Status</th></tr></thead>
+            <tbody>
+              {data.map((d) => (
+                <tr key={d.id}>
+                  <td>{d.location}</td><td>{d.program}</td><td>{d.date}</td>
+                  <td><StatusBadge status={d.status} /></td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </section>
+    </ApiState>
   )
 }

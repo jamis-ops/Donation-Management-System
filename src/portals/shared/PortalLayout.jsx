@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { Outlet, useLocation } from 'react-router-dom'
 import { Menu } from 'lucide-react'
 import PortalSidebar from './PortalSidebar'
+import NotificationBell from '../../components/admin/shared/NotificationBell'
 
 const titles = {
   '/donor': { title: 'Donor Dashboard', sub: 'Track your donations and certificates.' },
@@ -15,6 +16,7 @@ const titles = {
   '/beneficiary': { title: 'Beneficiary Dashboard', sub: 'Your requests and assistance status.' },
   '/beneficiary/requests': { title: 'My Assistance Requests', sub: 'Submit and track requests.' },
   '/beneficiary/distributions': { title: 'Scheduled Distributions', sub: 'Upcoming pickups and deliveries.' },
+  '/beneficiary/proofs': { title: 'Submit Distribution Proof', sub: 'Upload photos or documents after receiving relief goods.' },
   '/beneficiary/history': { title: 'Assistance History', sub: 'Past assistance received.' },
   '/staff': { title: 'Staff Dashboard', sub: 'Operations, tasks, and inventory.' },
   '/staff/donations': { title: 'Donation Processing', sub: 'Donations pending your action.' },
@@ -56,7 +58,10 @@ export default function PortalLayout({ role }) {
             {page.sub && <p>{page.sub}</p>}
           </div>
 
-          <div style={{ marginLeft: 'auto' }}>
+          <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+            {(role === 'Staff' || role === 'Beneficiary' || role === 'Volunteer') && (
+              <NotificationBell linkPrefix={role === 'Staff' ? '/staff' : role === 'Volunteer' ? '/volunteer-portal' : '/beneficiary'} />
+            )}
             <span
               className="portal-topbar__badge"
               style={{

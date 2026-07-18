@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { submitPublicDonation } from '../api/resources'
 
 const donationTypes = [
   { id: 'monetary', label: 'Monetary Donation' },
@@ -19,6 +20,9 @@ const lifecycle = [
 
 export default function DonatePage() {
   const [submitted, setSubmitted] = useState(false)
+  const [trackingCode, setTrackingCode] = useState('')
+  const [submitError, setSubmitError] = useState('')
+  const [submitting, setSubmitting] = useState(false)
   const [form, setForm] = useState({
     type: 'monetary',
     donorName: '',
@@ -30,12 +34,27 @@ export default function DonatePage() {
     message: '',
   })
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault()
-    setSubmitted(true)
+    setSubmitError('')
+    setSubmitting(true)
+    try {
+      const res = await submitPublicDonation({
+        donorName: form.donorName,
+        email: form.email,
+        type: form.type === 'in-kind' ? 'In-Kind' : 'Monetary',
+        amount: form.type === 'monetary' ? Number(form.amount) : undefined,
+        items: form.type === 'in-kind' ? form.items : undefined,
+        message: form.message,
+      })
+      setTrackingCode(res.data.trackingCode)
+      setSubmitted(true)
+    } catch (err) {
+      setSubmitError(err.message || 'Failed to submit donation')
+    } finally {
+      setSubmitting(false)
+    }
   }
-
-  const trackingCode = `DON-${Date.now().toString(36).toUpperCase()}`
 
   return (
     <div className="page">
@@ -57,13 +76,12 @@ export default function DonatePage() {
               ))}
             </ol>
             <p className="info-panel__note">
-              📧 Email notifications are sent at every major stage.
+              Email notifications are sent at every major stage.
             </p>
           </div>
 
           {submitted ? (
             <div className="form-success">
-              <div style={{ fontSize: '2.5rem', marginBottom: '1rem' }}>🎉</div>
               <h2>Thank You for Your Donation!</h2>
               <p style={{ color: 'var(--color-text-muted)', marginBottom: '1.25rem' }}>
                 Use your tracking code below to monitor verification and distribution progress.
@@ -185,9 +203,10 @@ export default function DonatePage() {
                 />
               </label>
 
-              <button type="submit" className="btn btn--primary btn--lg" style={{ width: '100%' }}>
-                Submit Donation
+              <button type="submit" className="btn btn--primary btn--lg" style={{ width: '100%' }} disabled={submitting}>
+                {submitting ? 'Submitting...' : 'Submit Donation'}
               </button>
+              {submitError && <p style={{ color: '#c0392b', marginTop: '1rem' }}>{submitError}</p>}
             </form>
           )}
         </div>

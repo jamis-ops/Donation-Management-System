@@ -1,21 +1,29 @@
 import StatusBadge from '../../components/admin/shared/StatusBadge'
-import { beneficiaryPortal } from '../../data/portalMockData'
+import ApiState from '../../components/admin/shared/ApiState'
+import { distributionsApi } from '../../api/resources'
+import { useApiList } from '../../hooks/useApiList'
 
 export default function BeneficiaryDistributionsPage() {
+  const { data, loading, error, reload } = useApiList(() => distributionsApi.list())
+
   return (
-    <section className="portal-panel">
-      <div className="portal-panel__header"><h2>Scheduled Distributions</h2></div>
-      <div className="portal-list">
-        {beneficiaryPortal.distributions.map((d) => (
-          <div key={d.date + d.location} className="portal-list-item">
-            <div>
-              <strong>{d.location}</strong>
-              <span>{d.date} · {d.type}</span>
-            </div>
-            <StatusBadge status={d.status} />
-          </div>
-        ))}
-      </div>
-    </section>
+    <ApiState loading={loading} error={error} onRetry={reload}>
+      <section className="portal-panel">
+        <div className="portal-panel__header"><h2>Scheduled Distributions</h2></div>
+        <div className="portal-table-wrap">
+          <table className="portal-table">
+            <thead><tr><th>Date</th><th>Location</th><th>Type</th><th>Status</th></tr></thead>
+            <tbody>
+              {data.map((d) => (
+                <tr key={d.id}>
+                  <td>{d.date}</td><td>{d.location}</td><td>{d.type}</td>
+                  <td><StatusBadge status={d.status} /></td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </section>
+    </ApiState>
   )
 }

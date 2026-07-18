@@ -1,31 +1,39 @@
 import StatusBadge from '../../components/admin/shared/StatusBadge'
-
-const donations = [
-  { id: 'DON-P7M2C', donor: 'SM Foundation', type: 'In-Kind', status: 'Pending Verification' },
-  { id: 'DON-R4N8D', donor: 'Lisa Tan', type: 'Monetary', status: 'Pending Verification' },
-]
+import ApiState from '../../components/admin/shared/ApiState'
+import { donationsApi } from '../../api/resources'
+import { useApiList } from '../../hooks/useApiList'
 
 export default function StaffDonationsPage() {
+  const { data, loading, error, reload } = useApiList(() => donationsApi.list())
+
+  const handleVerify = async (row) => {
+    await donationsApi.update(row.dbId, { status: 'Verified' })
+    reload()
+  }
+
   return (
-    <section className="portal-panel">
-      <div className="portal-panel__header"><h2>Donations to Process</h2></div>
-      <div className="portal-table-wrap">
-        <table className="portal-table">
-          <thead>
-            <tr><th>Code</th><th>Donor</th><th>Type</th><th>Status</th></tr>
-          </thead>
-          <tbody>
-            {donations.map((d) => (
-              <tr key={d.id}>
-                <td>{d.id}</td>
-                <td>{d.donor}</td>
-                <td>{d.type}</td>
-                <td><StatusBadge status={d.status} /></td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-    </section>
+    <ApiState loading={loading} error={error} onRetry={reload}>
+      <section className="portal-panel">
+        <div className="portal-panel__header"><h2>Donations to Process</h2></div>
+        <div className="portal-table-wrap">
+          <table className="portal-table">
+            <thead><tr><th>Code</th><th>Donor</th><th>Amount</th><th>Status</th><th>Action</th></tr></thead>
+            <tbody>
+              {data.map((d) => (
+                <tr key={d.id}>
+                  <td>{d.trackingCode}</td><td>{d.donor}</td><td>{d.amount}</td>
+                  <td><StatusBadge status={d.status} /></td>
+                  <td>
+                    {d.status === 'Pending Verification' && (
+                      <button type="button" className="btn btn--sm btn--primary" onClick={() => handleVerify(d)}>Verify</button>
+                    )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </section>
+    </ApiState>
   )
 }

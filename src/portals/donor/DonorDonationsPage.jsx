@@ -1,36 +1,175 @@
+import { useState } from 'react'
+import { Link } from 'react-router-dom'
+import { Check, Clock, Search, X } from 'lucide-react'
 import StatusBadge from '../../components/admin/shared/StatusBadge'
-import { donorPortal } from '../../data/portalMockData'
+import ApiState from '../../components/admin/shared/ApiState'
+import { donationsApi, certificatesApi } from '../../api/resources'
+import { useApiList } from '../../hooks/useApiList'
+
+const TRACKING_STEPS = [
+  { key: 'submitted', label: 'Submitted', description: 'Donation received and tracking code issued' },
+  { key: 'verification', label: 'Verification', description: 'Our team confirms your donation' },
+  { key: 'allocation', label: 'Allocation', description: 'Resources assigned to a relief program' },
+  { key: 'distribution', label: 'Distribution', description: 'Delivered to beneficiary communities' },
+]
+
+function stageIndex(status) {
+  switch (status) {
+    case 'Pending Verification': return 1
+    case 'Verified': return 2
+    case 'Allocated': return 3
+    case 'Distributed':
+    case 'Completed': return 4
+    default: return 1
+  }
+}
+
+function TrackingTimeline({ status }) {
+  const reached = stageIndex(status)
+  return (
+    <ol className="track-timeline">
+      {TRACKING_STEPS.map((step, i) => {
+        const done = i < reached
+        const active = i === reached
+        return (
+          <li key={step.key} className={`track-step${done ? ' track-step--done' : ''}${active ? ' track-step--active' : ''}`}>
+            <span className="track-step__dot">
+              {done ? <Check size={13} /> : active ? <Clock size={13} /> : i + 1}
+            </span>
+            <div className="track-step__body">
+              <strong>{step.label}</strong>
+              <span>{step.description}</span>
+            </div>
+          </li>
+        )
+      })}
+    </ol>
+  )
+}
 
 export default function DonorDonationsPage() {
+  const { data, loading, error, reload } = useApiList(() => donationsApi.list())
+  const [selected, setSelected] = useState(null)
+  const [search, setSearch] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [notice, setNotice] = useState('')
+
+  const filtered = data.filter((d) =>
+    !search ||
+    d.trackingCode?.toLowerCase().includes(search.toLowerCase()) ||
+    d.status?.toLowerCase().includes(search.toLowerCase())
+  )
+
+  const handleCancel = async (row) => {
+    if (!window.confirm(`Cancel donation ${row.trackingCode}? This cannot be undone.`)) return
+    setBusy(true)
+    try {
+      await donationsApi.remove(row.dbId)
+      setSelected(null)
+      setNotice(`Donation ${row.trackingCode} was cancelled.`)
+      reload()
+    } catch (err) {
+      alert(err.message)
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const handleRequestCert = async (row) => {
+    setBusy(true)
+    try {
+      await certificatesApi.create({ type: 'Certificate of Donation', reference: row.trackingCode })
+      setSelected(null)
+      setNotice(`Certificate requested for ${row.trackingCode}. You will be notified once it is ready.`)
+    } catch (err) {
+      alert(err.message)
+    } finally {
+      setBusy(false)
+    }
+  }
+
   return (
-    <section className="portal-panel">
-      <div className="portal-panel__header">
-        <h2>Donation History</h2>
-      </div>
-      <div className="portal-table-wrap">
-        <table className="portal-table">
-          <thead>
-            <tr>
-              <th>Tracking Code</th>
-              <th>Type</th>
-              <th>Amount / Items</th>
-              <th>Date</th>
-              <th>Status</th>
-            </tr>
-          </thead>
-          <tbody>
-            {donorPortal.donations.map((d) => (
-              <tr key={d.id}>
-                <td>{d.id}</td>
-                <td>{d.type}</td>
-                <td>{d.amount}</td>
-                <td>{d.date}</td>
-                <td><StatusBadge status={d.status} /></td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-    </section>
+    <ApiState loading={loading} error={error} onRetry={reload}>
+      {notice && (
+        <div className="portal-notice">
+          <span>{notice}</span>
+          <button type="button" onClick={() => setNotice('')} aria-label="Dismiss"><X size={14} /></button>
+        </div>
+      )}
+
+      <section className="portal-panel">
+        <div className="portal-panel__header">
+          <h2>My Donations</h2>
+          <Link to="/donate" className="btn btn--sm btn--primary">+ Make a Donation</Link>
+        </div>
+
+        <div className="portal-search">
+          <Search size={15} />
+          <input
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Search by tracking code or status..."
+          />
+        </div>
+
+        <div className="portal-table-wrap">
+          <table className="portal-table">
+            <thead>
+              <tr><th>Tracking Code</th><th>Type</th><th>Amount / Items</th><th>Date</th><th>Status</th><th></th></tr>
+            </thead>
+            <tbody>
+              {filtered.length === 0 ? (
+                <tr><td colSpan={6} style={{ textAlign: 'center', color: '#6b7280' }}>No donations found.</td></tr>
+              ) : filtered.map((d) => (
+                <tr key={d.id}>
+                  <td><strong>{d.trackingCode}</strong></td>
+                  <td>{d.type}</td>
+                  <td>{d.amount}</td>
+                  <td>{d.date}</td>
+                  <td><StatusBadge status={d.status} /></td>
+                  <td>
+                    <button type="button" className="btn btn--sm btn--outline" onClick={() => setSelected(d)}>
+                      Track
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      {selected && (
+        <div className="admin-modal-overlay" onClick={() => setSelected(null)}>
+          <div className="admin-modal" onClick={(e) => e.stopPropagation()}>
+            <h2>Donation {selected.trackingCode}</h2>
+
+            <dl className="detail-list" style={{ marginBottom: '1.25rem' }}>
+              <dt>Type</dt><dd>{selected.type}</dd>
+              <dt>Amount / Items</dt><dd>{selected.amount}</dd>
+              <dt>Date</dt><dd>{selected.date}</dd>
+              <dt>Status</dt><dd><StatusBadge status={selected.status} /></dd>
+            </dl>
+
+            <h3 className="track-timeline__title">Donation Journey</h3>
+            <TrackingTimeline status={selected.status} />
+
+            <div className="admin-modal__actions">
+              {stageIndex(selected.status) >= 2 && (
+                <button type="button" className="btn btn--primary" disabled={busy} onClick={() => handleRequestCert(selected)}>
+                  Request Certificate
+                </button>
+              )}
+              {selected.status === 'Pending Verification' && (
+                <button type="button" className="btn btn--outline" disabled={busy} onClick={() => handleCancel(selected)}>
+                  Cancel Donation
+                </button>
+              )}
+              <button type="button" className="btn btn--ghost" onClick={() => setSelected(null)}>Close</button>
+            </div>
+          </div>
+        </div>
+      )}
+    </ApiState>
   )
 }

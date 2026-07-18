@@ -1,0 +1,601 @@
+/* =========================================================
+   UI/UX Enhancements — animations, transitions, polish
+   Purely additive: no layout or functional changes.
+   ========================================================= */
+
+@keyframes ui-fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes ui-scale-in {
+  from { opacity: 0; transform: scale(0.96) translateY(10px); }
+  to { opacity: 1; transform: scale(1) translateY(0); }
+}
+
+@keyframes ui-slide-down {
+  from { opacity: 0; transform: translateY(-8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes ui-slide-up {
+  from { opacity: 0; transform: translateY(12px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* ---------- Page content ---------- */
+
+.admin-content,
+.portal-content,
+.page {
+  animation: ui-fade-in 0.3s ease-out;
+}
+
+/* ---------- Modals ---------- */
+
+.admin-modal-overlay {
+  animation: ui-fade-in 0.18s ease-out;
+}
+
+.admin-modal {
+  animation: ui-scale-in 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* ---------- Notification panel & notices ---------- */
+
+.notif-panel {
+  animation: ui-slide-down 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.portal-notice {
+  animation: ui-slide-down 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.notif-bell__badge {
+  animation: ui-scale-in 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+/* ---------- Buttons ---------- */
+
+.btn {
+  transition: background 0.16s ease, color 0.16s ease, border-color 0.16s ease,
+    transform 0.16s ease, box-shadow 0.16s ease;
+}
+
+.btn:hover {
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+}
+
+.btn:active {
+  transform: translateY(0) scale(0.97);
+  box-shadow: none;
+}
+
+.btn:focus-visible {
+  outline: 2px solid #af101a;
+  outline-offset: 2px;
+}
+
+.btn--sm {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+}
+
+/* ---------- Tables ---------- */
+
+.data-table tbody tr,
+.portal-table tbody tr {
+  transition: background 0.15s ease;
+}
+
+.data-table tbody tr:hover,
+.portal-table tbody tr:hover {
+  background: rgba(175, 16, 26, 0.028);
+}
+
+.data-table tbody tr {
+  animation: ui-fade-in 0.25s ease-out;
+}
+
+/* ---------- Cards ---------- */
+
+.admin-stat-card,
+.portal-stat-card,
+.stock-summary__card,
+.cert-card,
+.demand-supply-card,
+.cert-type-card,
+.content-card {
+  transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease;
+}
+
+.admin-stat-card:hover,
+.portal-stat-card:hover,
+.stock-summary__card:hover,
+.cert-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.07);
+}
+
+.kanban-card {
+  animation: ui-slide-up 0.25s ease-out;
+}
+
+/* ---------- Tabs & filters ---------- */
+
+.admin-tab,
+.admin-filter {
+  transition: background 0.16s ease, color 0.16s ease, border-color 0.16s ease, transform 0.16s ease;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.admin-tab:active,
+.admin-filter:active {
+  transform: scale(0.96);
+}
+
+/* ---------- Status badges & stock bars ---------- */
+
+.status-badge {
+  transition: transform 0.15s ease;
+}
+
+.stock-bar__fill {
+  transition: width 0.6s cubic-bezier(0.22, 1, 0.36, 1), background 0.3s ease;
+}
+
+/* ---------- Workflow & tracking steps ---------- */
+
+.workflow-stepper__step,
+.track-step {
+  animation: ui-fade-in 0.3s ease-out;
+}
+
+.track-step__dot,
+.workflow-stepper__dot {
+  transition: background 0.25s ease, color 0.25s ease;
+}
+
+/* ---------- Sidebar links ---------- */
+
+.admin-sidebar a,
+.portal-sidebar__link {
+  transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease, padding-left 0.15s ease;
+}
+
+/* ---------- Form inputs ---------- */
+
+.admin-modal input,
+.admin-modal select,
+.admin-modal textarea,
+.portal-search,
+.form-card input,
+.form-card select,
+.form-card textarea {
+  transition: border-color 0.16s ease, box-shadow 0.16s ease;
+}
+
+.admin-modal input:focus,
+.admin-modal select:focus,
+.admin-modal textarea:focus {
+  border-color: #af101a;
+  box-shadow: 0 0 0 3px rgba(175, 16, 26, 0.08);
+  outline: none;
+}
+
+.portal-search:focus-within {
+  border-color: #af101a;
+  box-shadow: 0 0 0 3px rgba(175, 16, 26, 0.06);
+}
+
+/* =========================================================
+   Inventory management UI
+   ========================================================= */
+
+.inv-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+  margin-bottom: 1rem;
+}
+
+.inv-toolbar__search {
+  flex: 1;
+  min-width: 220px;
+  margin-bottom: 0;
+}
+
+.inv-toolbar__hint {
+  flex: 1;
+  min-width: 220px;
+  font-size: 0.78rem;
+  color: #6b7280;
+  margin: 0;
+}
+
+.inv-category {
+  font-size: 0.72rem;
+  color: #9ca3af;
+  margin-top: 0.15rem;
+}
+
+.stock-summary--4 {
+  grid-template-columns: repeat(4, 1fr);
+}
+
+@media (max-width: 900px) {
+  .stock-summary,
+  .stock-summary--4 {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (max-width: 480px) {
+  .stock-summary,
+  .stock-summary--4 {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* =========================================================
+   Public site dropdowns (mobile nav + FAQ accordion)
+   ========================================================= */
+
+@keyframes navItemDrop {
+  from { opacity: 0; transform: translateY(-10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* FAQ accordion: smooth expand/collapse using the grid-rows trick */
+.faq-item__answer-wrap {
+  display: grid;
+  grid-template-rows: 0fr;
+  transition: grid-template-rows 0.32s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.faq-item--open .faq-item__answer-wrap {
+  grid-template-rows: 1fr;
+}
+
+.faq-item__answer-wrap > .faq-item__answer {
+  overflow: hidden;
+  min-height: 0;
+}
+
+.faq-item .faq-item__answer {
+  border-top-color: transparent;
+  transition: border-top-color 0.3s ease;
+}
+
+.faq-item--open .faq-item__answer {
+  border-top-color: var(--color-border, #e5e7eb);
+}
+
+/* FAQ icon: rotate + into an x-like state instead of swapping characters */
+.faq-item__icon {
+  transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1), background 0.2s ease, color 0.2s ease;
+}
+
+.faq-item--open .faq-item__icon {
+  transform: rotate(45deg);
+}
+
+/* Dropdown feel for select elements (subtle focus/hover polish) */
+select {
+  transition: border-color 0.16s ease, box-shadow 0.16s ease, background 0.16s ease;
+  cursor: pointer;
+}
+
+/* =========================================================
+   Interactive charts (tooltips, load & hover animations)
+   ========================================================= */
+
+.admin-chart__plot {
+  position: relative;
+}
+
+.chart-tooltip {
+  position: absolute;
+  transform: translate(-50%, -118%);
+  background: #111827;
+  color: #fff;
+  padding: 0.5rem 0.7rem;
+  border-radius: 9px;
+  font-size: 0.72rem;
+  line-height: 1.4;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  pointer-events: none;
+  white-space: nowrap;
+  z-index: 30;
+  box-shadow: 0 8px 22px rgba(0, 0, 0, 0.24);
+  animation: chartTipIn 0.14s ease;
+}
+
+.chart-tooltip::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: 100%;
+  transform: translateX(-50%);
+  border: 5px solid transparent;
+  border-top-color: #111827;
+}
+
+.chart-tooltip__label {
+  color: #cbd5e1;
+  font-weight: 600;
+  font-size: 0.7rem;
+}
+
+.chart-tooltip__value {
+  font-size: 0.98rem;
+  font-weight: 700;
+}
+
+.chart-tooltip__change {
+  font-weight: 600;
+  font-size: 0.68rem;
+}
+
+.chart-tooltip__change--up { color: #4ade80; }
+.chart-tooltip__change--down { color: #f87171; }
+.chart-tooltip__change--flat { color: #cbd5e1; }
+
+.chart-tooltip__sub {
+  color: #94a3b8;
+  font-size: 0.68rem;
+}
+
+@keyframes chartTipIn {
+  from { opacity: 0; transform: translate(-50%, -108%); }
+  to { opacity: 1; transform: translate(-50%, -118%); }
+}
+
+@keyframes chartFadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+/* Line chart: draw-in stroke + interactive points */
+.admin-chart__line {
+  stroke-dasharray: 1;
+  animation: chartLineDraw 0.95s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+@keyframes chartLineDraw {
+  from { stroke-dashoffset: 1; }
+  to { stroke-dashoffset: 0; }
+}
+
+.admin-chart__point {
+  cursor: pointer;
+  transition: r 0.12s ease;
+  animation: chartFadeIn 0.4s ease backwards;
+}
+
+/* Bar chart: grow-in + hover highlight */
+.admin-bar-chart__fill {
+  transform-origin: left center;
+  animation: chartBarGrow 0.7s cubic-bezier(0.16, 1, 0.3, 1) backwards;
+  transition: filter 0.15s ease;
+}
+
+@keyframes chartBarGrow {
+  from { transform: scaleX(0); }
+  to { transform: scaleX(1); }
+}
+
+.admin-bar-chart__item {
+  cursor: pointer;
+}
+
+.admin-bar-chart__item:hover .admin-bar-chart__fill {
+  filter: brightness(1.09);
+}
+
+.admin-bar-chart__item:hover .admin-bar-chart__label {
+  color: var(--admin-text, #111827);
+}
+
+/* Donut chart: slice reveal + hover emphasis */
+.admin-donut__plot {
+  flex-shrink: 0;
+}
+
+.admin-donut__slice {
+  transform-box: fill-box;
+  transform-origin: center;
+  cursor: pointer;
+  transition: opacity 0.15s ease, transform 0.15s ease;
+  animation: chartFadeIn 0.5s ease backwards;
+}
+
+.admin-donut__svg--has-hover .admin-donut__slice:not(.is-active) {
+  opacity: 0.4;
+}
+
+.admin-donut__slice.is-active {
+  transform: scale(1.05);
+}
+
+.admin-donut__legend li {
+  cursor: pointer;
+  transition: background 0.15s ease;
+  border-radius: 6px;
+  padding-left: 0.3rem;
+  padding-right: 0.3rem;
+}
+
+.admin-donut__legend li.is-active {
+  background: var(--admin-bg, #f3f4f6);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .admin-chart__line,
+  .admin-chart__point,
+  .admin-bar-chart__fill,
+  .admin-donut__slice,
+  .chart-tooltip {
+    animation: none !important;
+  }
+}
+
+/* =========================================================
+   Dashboard charts & indicators
+   ========================================================= */
+
+.admin-chart__empty {
+  margin: 2rem 0;
+  text-align: center;
+  font-size: 0.85rem;
+  color: var(--admin-text-muted, #6b7280);
+}
+
+.dashboard-stock-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.9rem;
+}
+
+.dashboard-stock-list__item {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+
+.dashboard-stock-list__name {
+  font-size: 0.83rem;
+  font-weight: 600;
+  color: var(--admin-text, #111827);
+}
+
+.admin-panel__footer-link {
+  display: inline-block;
+  margin-top: 1rem;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--admin-brand, #af101a);
+  text-decoration: none;
+}
+
+.admin-panel__footer-link:hover {
+  text-decoration: underline;
+}
+
+/* =========================================================
+   Active navigation emphasis (admin + portal + public)
+   ========================================================= */
+
+.admin-sidebar__link--active::after {
+  content: '';
+  margin-left: auto;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--admin-brand, #af101a);
+  flex-shrink: 0;
+  animation: fadeIn 0.25s ease;
+}
+
+.portal-sidebar__link--active {
+  font-weight: 600;
+}
+
+.portal-sidebar__link--active::after {
+  content: '';
+  margin-left: auto;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+  flex-shrink: 0;
+  animation: fadeIn 0.25s ease;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+/* =========================================================
+   Responsive polish (tablet + mobile)
+   ========================================================= */
+
+@media (max-width: 1024px) {
+  .admin-content { padding: 1.25rem; }
+  .portal-content { padding: 1.25rem; }
+}
+
+@media (max-width: 768px) {
+  .admin-topbar__badge { display: none; }
+  .portal-topbar__badge { display: none; }
+
+  .admin-page-header {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.75rem;
+  }
+
+  .admin-modal-overlay { padding: 1rem; }
+
+  .admin-modal {
+    max-width: 100%;
+    max-height: calc(100vh - 2rem);
+    overflow-y: auto;
+    padding: 1.5rem;
+  }
+
+  .portal-stats,
+  .admin-stats-grid { gap: 0.75rem; }
+
+  .data-table th,
+  .data-table td { padding: 0.6rem 0.75rem; }
+
+  .portal-table th,
+  .portal-table td { padding: 0.65rem 0.75rem; }
+
+  .admin-donut { justify-content: center; }
+}
+
+@media (max-width: 480px) {
+  .admin-content { padding: 0.85rem; }
+  .portal-content { padding: 0.85rem; }
+
+  .admin-panel { padding: 1rem; }
+  .portal-panel { padding: 1rem; }
+
+  .admin-modal { padding: 1.15rem; }
+
+  .portal-stats { grid-template-columns: 1fr 1fr; }
+
+  .admin-page-header h1 { font-size: 1.15rem; }
+
+  .cert-card {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .data-table { font-size: 0.8rem; }
+  .portal-table { font-size: 0.8rem; }
+}
+
+/* =========================================================
+   Reduced motion
+   ========================================================= */
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}

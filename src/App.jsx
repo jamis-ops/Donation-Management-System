@@ -45,6 +45,7 @@ import BeneficiaryDashboard from './portals/beneficiary/BeneficiaryDashboard'
 import BeneficiaryRequestsPage from './portals/beneficiary/BeneficiaryRequestsPage'
 import BeneficiaryDistributionsPage from './portals/beneficiary/BeneficiaryDistributionsPage'
 import BeneficiaryHistoryPage from './portals/beneficiary/BeneficiaryHistoryPage'
+import BeneficiaryProofsPage from './portals/beneficiary/BeneficiaryProofsPage'
 import StaffDashboard from './portals/staff/StaffDashboard'
 import StaffDonationsPage from './portals/staff/StaffDonationsPage'
 import StaffInventoryPage from './portals/staff/StaffInventoryPage'
@@ -128,6 +129,7 @@ const router = createBrowserRouter([
       { index: true, element: <BeneficiaryDashboard /> },
       { path: 'requests', element: <BeneficiaryRequestsPage /> },
       { path: 'distributions', element: <BeneficiaryDistributionsPage /> },
+      { path: 'proofs', element: <BeneficiaryProofsPage /> },
       { path: 'history', element: <BeneficiaryHistoryPage /> },
     ],
   },

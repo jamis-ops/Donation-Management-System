@@ -1,25 +1,35 @@
-import StatusBadge from '../../components/admin/shared/StatusBadge'
-import PortalStats from '../shared/PortalStats'
-import { staffPortal } from '../../data/portalMockData'
+import ApiState from '../../components/admin/shared/ApiState'
+import { getPortalData } from '../../api/resources'
+import { useApiObject } from '../../hooks/useApiList'
 
 export default function StaffDashboard() {
+  const { data, loading, error, reload } = useApiObject(() => getPortalData())
+
   return (
-    <>
-      <PortalStats items={staffPortal.stats} />
-      <section className="portal-panel">
-        <div className="portal-panel__header"><h2>Assigned Tasks</h2></div>
-        <div className="portal-list">
-          {staffPortal.tasks.map((task) => (
-            <div key={task.id} className="portal-list-item">
-              <div>
-                <strong>{task.title}</strong>
-                <span>Due: {task.due}</span>
+    <ApiState loading={loading} error={error} onRetry={reload}>
+      {data && (
+        <>
+          <div className="portal-stats">
+            {data.stats.map((item) => (
+              <div key={item.label} className="portal-stat-card">
+                <span className="portal-stat-card__value">{item.value}</span>
+                <span className="portal-stat-card__label">{item.label}</span>
               </div>
-              <StatusBadge status={task.priority} />
-            </div>
-          ))}
-        </div>
-      </section>
-    </>
+            ))}
+          </div>
+          <section className="portal-panel">
+            <div className="portal-panel__header"><h2>Assigned Tasks</h2></div>
+            <ul className="portal-task-list">
+              {data.tasks.map((t) => (
+                <li key={t.id} className="portal-task-item">
+                  <div><strong>{t.title}</strong><span>Due: {t.due}</span></div>
+                  <span>{t.priority}</span>
+                </li>
+              ))}
+            </ul>
+          </section>
+        </>
+      )}
+    </ApiState>
   )
 }

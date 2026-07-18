@@ -666,3 +666,320 @@
   gap: 0.75rem;
   margin-top: 0.5rem;
 }
+
+/* =========================================================
+   Beneficiary Proof Upload
+   ========================================================= */
+
+.proof-upload-page {
+  display: grid;
+  gap: 1.5rem;
+  max-width: 720px;
+}
+
+.proof-upload-card {
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  padding: 1.5rem;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+}
+
+.proof-upload-card__header {
+  display: flex;
+  gap: 1rem;
+  margin-bottom: 1.25rem;
+  color: #16a34a;
+}
+
+.proof-upload-card__header h2 {
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: #111827;
+  margin: 0 0 0.35rem;
+}
+
+.proof-upload-card__header p {
+  font-size: 0.85rem;
+  color: #6b7280;
+  margin: 0;
+  line-height: 1.5;
+}
+
+.proof-upload-form label {
+  display: block;
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: #374151;
+  margin-bottom: 1rem;
+}
+
+.proof-upload-form select,
+.proof-upload-form textarea,
+.proof-upload-form input[type="file"] {
+  display: block;
+  width: 100%;
+  margin-top: 0.4rem;
+  padding: 0.6rem 0.75rem;
+  border: 1px solid #d1d5db;
+  border-radius: 8px;
+  font-family: inherit;
+  font-size: 0.875rem;
+}
+
+.proof-file-label {
+  border: 2px dashed #d1d5db;
+  border-radius: 10px;
+  padding: 1rem;
+  text-align: center;
+  cursor: pointer;
+  transition: border-color 0.15s;
+}
+
+.proof-file-label:hover { border-color: #16a34a; }
+.proof-file-label input[type="file"] { border: none; padding: 0.5rem 0; }
+.proof-file-name { display: block; margin-top: 0.5rem; font-weight: 500; color: #16a34a; }
+
+.proof-message {
+  padding: 0.75rem 1rem;
+  border-radius: 8px;
+  font-size: 0.85rem;
+  margin-bottom: 1rem;
+}
+.proof-message--success { background: rgba(22,163,74,0.1); color: #15803d; }
+.proof-message--error { background: rgba(220,38,38,0.1); color: #b91c1c; }
+
+.proof-history h3 {
+  font-size: 1rem;
+  font-weight: 700;
+  margin: 0 0 0.75rem;
+  color: #111827;
+}
+
+.proof-empty { font-size: 0.875rem; color: #6b7280; }
+
+.proof-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.proof-list__item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 1rem;
+  padding: 1rem;
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  flex-wrap: wrap;
+}
+
+.proof-list__item strong { display: block; font-size: 0.875rem; }
+.proof-list__item span { font-size: 0.8rem; color: #6b7280; }
+.proof-list__date { display: block; font-size: 0.72rem !important; margin-top: 0.2rem; }
+.proof-list__actions { display: flex; align-items: center; gap: 0.5rem; }
+
+.portal-topbar .notif-bell { position: relative; }
+
+/* =========================================================
+   Donor: notices, search, tracking timeline, certificates
+   ========================================================= */
+
+.portal-notice {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.75rem 1rem;
+  background: rgba(22, 163, 74, 0.1);
+  border: 1px solid rgba(22, 163, 74, 0.3);
+  color: #15803d;
+  border-radius: 10px;
+  font-size: 0.85rem;
+  margin-bottom: 1rem;
+}
+
+.portal-notice button {
+  background: none;
+  border: none;
+  color: inherit;
+  cursor: pointer;
+  display: flex;
+  padding: 0.2rem;
+}
+
+.portal-search {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 0.85rem;
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  background: #f9fafb;
+  margin-bottom: 1rem;
+  color: #9ca3af;
+}
+
+.portal-search input {
+  border: none;
+  background: transparent;
+  outline: none;
+  width: 100%;
+  font-size: 0.875rem;
+  color: #111827;
+}
+
+.portal-hint {
+  font-size: 0.78rem;
+  color: #6b7280;
+  margin: 0.25rem 0 0;
+}
+
+.track-timeline__title {
+  font-size: 0.85rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #6b7280;
+  margin: 0 0 0.75rem;
+}
+
+.track-timeline {
+  list-style: none;
+  margin: 0 0 0.5rem;
+  padding: 0;
+}
+
+.track-step {
+  display: flex;
+  gap: 0.85rem;
+  position: relative;
+  padding-bottom: 1.1rem;
+}
+
+.track-step:not(:last-child)::before {
+  content: '';
+  position: absolute;
+  left: 12px;
+  top: 26px;
+  bottom: 0;
+  width: 2px;
+  background: #e5e7eb;
+}
+
+.track-step--done:not(:last-child)::before { background: #16a34a; }
+
+.track-step__dot {
+  width: 25px;
+  height: 25px;
+  border-radius: 50%;
+  background: #e5e7eb;
+  color: #6b7280;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.72rem;
+  font-weight: 700;
+  flex-shrink: 0;
+  z-index: 1;
+}
+
+.track-step--done .track-step__dot { background: #16a34a; color: #fff; }
+.track-step--active .track-step__dot { background: #d97706; color: #fff; }
+
+.track-step__body strong {
+  display: block;
+  font-size: 0.85rem;
+  color: #111827;
+}
+
+.track-step--active .track-step__body strong { color: #d97706; }
+.track-step--done .track-step__body strong { color: #15803d; }
+
+.track-step__body span {
+  font-size: 0.75rem;
+  color: #6b7280;
+}
+
+.cert-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.cert-card {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 1rem;
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  background: #fff;
+  flex-wrap: wrap;
+}
+
+.cert-card__icon {
+  width: 44px;
+  height: 44px;
+  border-radius: 10px;
+  background: rgba(175, 16, 26, 0.08);
+  color: #af101a;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.cert-card__body {
+  flex: 1;
+  min-width: 180px;
+}
+
+.cert-card__body strong {
+  display: block;
+  font-size: 0.9rem;
+  color: #111827;
+}
+
+.cert-card__body span {
+  display: block;
+  font-size: 0.78rem;
+  color: #6b7280;
+}
+
+.cert-card__date { margin-top: 0.15rem; }
+
+.cert-card__side {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0.5rem;
+}
+
+.cert-card__actions {
+  display: flex;
+  gap: 0.4rem;
+}
+
+.cert-card__pending {
+  font-size: 0.75rem;
+  color: #9ca3af;
+  font-style: italic;
+}
+
+.cert-empty {
+  text-align: center;
+  padding: 2.5rem 1rem;
+  color: #9ca3af;
+}
+
+.cert-empty p {
+  margin-top: 0.75rem;
+  font-size: 0.875rem;
+}
+

@@ -35,13 +35,11 @@ export default function FAQPage() {
                         onClick={() => setOpenIndex(isOpen ? null : idx)}
                       >
                         {item.q}
-                        <span className="faq-item__icon" aria-hidden="true">
-                          {isOpen ? '−' : '+'}
-                        </span>
+                        <span className="faq-item__icon" aria-hidden="true">+</span>
                       </button>
-                      {isOpen && (
+                      <div className="faq-item__answer-wrap" aria-hidden={!isOpen}>
                         <div className="faq-item__answer">{item.a}</div>
-                      )}
+                      </div>
                     </div>
                   )
                 })}

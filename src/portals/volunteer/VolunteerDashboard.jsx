@@ -1,29 +1,36 @@
 import StatusBadge from '../../components/admin/shared/StatusBadge'
-import PortalStats from '../shared/PortalStats'
-import { volunteerPortal } from '../../data/portalMockData'
-import { Link } from 'react-router-dom'
+import ApiState from '../../components/admin/shared/ApiState'
+import { getPortalData } from '../../api/resources'
+import { useApiObject } from '../../hooks/useApiList'
 
 export default function VolunteerDashboard() {
+  const { data, loading, error, reload } = useApiObject(() => getPortalData())
+
   return (
-    <>
-      <PortalStats items={volunteerPortal.stats} />
-      <section className="portal-panel">
-        <div className="portal-panel__header">
-          <h2>Assigned Tasks</h2>
-          <Link to="/volunteer-portal/tasks" className="portal-link">View all</Link>
-        </div>
-        <div className="portal-list">
-          {volunteerPortal.tasks.map((task) => (
-            <div key={task.id} className="portal-list-item">
-              <div>
-                <strong>{task.title}</strong>
-                <span>Due: {task.due}</span>
+    <ApiState loading={loading} error={error} onRetry={reload}>
+      {data && (
+        <>
+          <div className="portal-stats">
+            {data.stats.map((item) => (
+              <div key={item.label} className="portal-stat-card">
+                <span className="portal-stat-card__value">{item.value}</span>
+                <span className="portal-stat-card__label">{item.label}</span>
               </div>
-              <StatusBadge status={task.status} />
-            </div>
-          ))}
-        </div>
-      </section>
-    </>
+            ))}
+          </div>
+          <section className="portal-panel">
+            <div className="portal-panel__header"><h2>My Tasks</h2></div>
+            <ul className="portal-task-list">
+              {data.tasks.map((t) => (
+                <li key={t.id} className="portal-task-item">
+                  <div><strong>{t.title}</strong><span>Due: {t.due}</span></div>
+                  <StatusBadge status={t.status} />
+                </li>
+              ))}
+            </ul>
+          </section>
+        </>
+      )}
+    </ApiState>
   )
 }

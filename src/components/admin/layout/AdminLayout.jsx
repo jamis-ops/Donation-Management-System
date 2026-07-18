@@ -1,8 +1,8 @@
 import { useState } from 'react'
 import { Outlet, useLocation } from 'react-router-dom'
-import { Menu, Bell } from 'lucide-react'
+import { Menu } from 'lucide-react'
 import AdminSidebar from './AdminSidebar'
-import { useAuth } from '../../../context/AuthContext'
+import NotificationBell from '../shared/NotificationBell'
 
 const pageTitles = {
   '/admin': 'Dashboard',
@@ -23,7 +23,6 @@ const pageTitles = {
 export default function AdminLayout() {
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const location = useLocation()
-  const { user } = useAuth()
   const title = pageTitles[location.pathname] || 'Admin'
 
   return (
@@ -48,6 +47,7 @@ export default function AdminLayout() {
           <div className="admin-topbar__spacer" />
 
           <div className="admin-topbar__right">
+            <NotificationBell linkPrefix="/admin" />
             <span className="admin-topbar__badge">
               <span
                 style={{
