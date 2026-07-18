@@ -97,6 +97,41 @@ for ($i = 5; $i >= 0; $i--) {
   ];
 }
 
+// -------- Trend datasets grouped by week / month / year (client toggles) --------
+$trends = ['donations' => [], 'beneficiaries' => []];
+foreach (['week', 'month', 'year'] as $gran) {
+  $periods = build_periods($gran);
+
+  $dExpr = period_group_expr('donation_date', $gran);
+  $trends['donations'][$gran] = trend_series(
+    $pdo,
+    "SELECT $dExpr AS k,
+            COALESCE(SUM(CASE WHEN type = 'Monetary' THEN amount ELSE 0 END), 0) AS amt,
+            COUNT(*) AS cnt
+     FROM donations GROUP BY k",
+    $periods,
+    fn($label, $row) => [
+      'month' => $label,
+      'amount' => $row ? round(((float) $row['amt']) / 1000, 1) : 0,
+      'count' => $row ? (int) $row['cnt'] : 0,
+    ]
+  );
+
+  $bExpr = period_group_expr('distribution_date', $gran);
+  $trends['beneficiaries'][$gran] = trend_series(
+    $pdo,
+    "SELECT $bExpr AS k, COALESCE(SUM(beneficiaries_count), 0) AS served
+     FROM distributions
+     WHERE status IN ('Completed','Delivered')
+     GROUP BY k",
+    $periods,
+    fn($label, $row) => [
+      'month' => $label,
+      'count' => $row ? (int) $row['served'] : 0,
+    ]
+  );
+}
+
 // -------- Beneficiaries by category (approved barangays) --------
 $beneficiariesByCategory = [];
 foreach ($pdo->query(
@@ -157,6 +192,7 @@ json_response([
     ],
     'donationsByMonth' => $donationsByMonth,
     'beneficiariesByMonth' => $beneficiariesByMonth,
+    'trends' => $trends,
     'beneficiariesByCategory' => $beneficiariesByCategory,
     'distributionByLocation' => $distributionByLocation,
     'programFulfillment' => $programFulfillment,

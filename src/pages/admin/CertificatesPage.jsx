@@ -2,10 +2,12 @@ import { useState } from 'react'
 import { Award, Download, Eye, Pencil, Printer, Trash2 } from 'lucide-react'
 import { certificatesApi, volunteersApi, donorsApi, donationsApi } from '../../api/resources'
 import { useApiList } from '../../hooks/useApiList'
+import { useFilters } from '../../hooks/useFilters'
 import PageHeader from '../../components/admin/shared/PageHeader'
 import DataTable from '../../components/admin/shared/DataTable'
 import StatusBadge from '../../components/admin/shared/StatusBadge'
 import ApiState from '../../components/admin/shared/ApiState'
+import FilterBar from '../../components/admin/shared/FilterBar'
 import CertificateView from '../../components/shared/CertificateView'
 import { printCertificate } from '../../components/shared/printCertificate'
 
@@ -18,6 +20,16 @@ const CERT_TYPES = [
 ]
 
 const STATUS_OPTIONS = ['Requested', 'Pending', 'Generated', 'Released']
+
+const filterConfig = {
+  searchKeys: ['id', 'recipient', 'reference', 'type'],
+  filters: [
+    { key: 'status', label: 'Status' },
+    { key: 'type', label: 'Type' },
+    { key: 'recipientType', label: 'Recipient', allLabel: 'All Recipients' },
+  ],
+  dateKey: 'date',
+}
 
 const emptyForm = {
   type: 'Certificate of Donation',
@@ -38,15 +50,13 @@ export default function CertificatesPage() {
   const { data: donors } = useApiList(() => donorsApi.list())
   const { data: donations } = useApiList(() => donationsApi.list())
 
-  const [filter, setFilter] = useState('all')
   const [showForm, setShowForm] = useState(false)
   const [editRow, setEditRow] = useState(null)
   const [preview, setPreview] = useState(null)
   const [form, setForm] = useState(emptyForm)
   const [saving, setSaving] = useState(false)
 
-  const filtered = filter === 'all' ? data : data.filter((c) => c.status === filter)
-  const statuses = ['all', ...new Set(data.map((c) => c.status))]
+  const filters = useFilters(data, filterConfig)
 
   const openCreate = () => {
     setEditRow(null)
@@ -195,16 +205,10 @@ export default function CertificatesPage() {
         <div className="admin-stat-card"><span className="admin-stat-card__value">{requestedCount}</span><span className="admin-stat-card__label">Pending Requests</span></div>
       </div>
 
-      <div className="admin-filters">
-        {statuses.map((s) => (
-          <button key={s} type="button" className={`admin-filter${filter === s ? ' admin-filter--active' : ''}`} onClick={() => setFilter(s)}>
-            {s === 'all' ? 'All' : s}
-          </button>
-        ))}
-      </div>
+      <FilterBar controller={filters} searchPlaceholder="Search by ID, recipient, or reference..." />
 
       <ApiState loading={loading} error={error} onRetry={reload}>
-        <DataTable columns={columns} data={filtered} onRowClick={setPreview} />
+        <DataTable columns={columns} data={filters.filtered} onRowClick={setPreview} />
       </ApiState>
 
       {showForm && (

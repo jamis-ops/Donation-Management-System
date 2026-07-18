@@ -1,13 +1,37 @@
 import { useState } from 'react'
 import { beneficiariesApi, assistanceRequestsApi, getDistributionProofs, reviewProof } from '../../api/resources'
 import { useApiList } from '../../hooks/useApiList'
+import { useFilters } from '../../hooks/useFilters'
 import PageHeader from '../../components/admin/shared/PageHeader'
 import DataTable from '../../components/admin/shared/DataTable'
 import StatusBadge from '../../components/admin/shared/StatusBadge'
 import ApiState from '../../components/admin/shared/ApiState'
+import FilterBar from '../../components/admin/shared/FilterBar'
 
 const STATUS_OPTIONS = ['Pending Approval', 'Approved', 'Active', 'Suspended']
 const PRIORITY_OPTIONS = ['Low', 'Medium', 'High']
+
+const barangayFilterConfig = {
+  searchKeys: ['id', 'barangay', 'municipality', 'representativeName'],
+  filters: [
+    { key: 'status', label: 'Status' },
+    { key: 'category', label: 'Program' },
+  ],
+}
+
+const requestFilterConfig = {
+  searchKeys: ['id', 'beneficiary', 'type'],
+  filters: [
+    { key: 'status', label: 'Status' },
+    { key: 'priority', label: 'Priority' },
+  ],
+  dateKey: 'date',
+}
+
+const proofFilterConfig = {
+  searchKeys: ['distributionCode', 'barangay', 'fileName'],
+  filters: [{ key: 'status', label: 'Status' }],
+}
 
 const emptyForm = {
   barangay: '', municipality: '', category: 'Disaster Relief', affectedFamilies: '',
@@ -18,6 +42,9 @@ export default function BeneficiariesPage() {
   const { data: beneficiaries, loading, error, reload } = useApiList(() => beneficiariesApi.list())
   const { data: assistanceRequests, loading: reqLoading, error: reqError, reload: reloadReq } = useApiList(() => assistanceRequestsApi.list())
   const { data: proofs, loading: proofLoading, error: proofError, reload: reloadProofs } = useApiList(() => getDistributionProofs())
+  const barangayFilters = useFilters(beneficiaries, barangayFilterConfig)
+  const requestFilters = useFilters(assistanceRequests, requestFilterConfig)
+  const proofFilters = useFilters(proofs, proofFilterConfig)
   const [tab, setTab] = useState('barangays')
   const [showForm, setShowForm] = useState(false)
   const [editRow, setEditRow] = useState(null)
@@ -171,19 +198,28 @@ export default function BeneficiariesPage() {
       </div>
 
       {tab === 'barangays' && (
-        <ApiState loading={loading} error={error} onRetry={reload}>
-          <DataTable columns={barangayColumns} data={beneficiaries} onRowClick={openEdit} />
-        </ApiState>
+        <>
+          <FilterBar controller={barangayFilters} searchPlaceholder="Search by code, barangay, city, or representative..." />
+          <ApiState loading={loading} error={error} onRetry={reload}>
+            <DataTable columns={barangayColumns} data={barangayFilters.filtered} onRowClick={openEdit} />
+          </ApiState>
+        </>
       )}
       {tab === 'requests' && (
-        <ApiState loading={reqLoading} error={reqError} onRetry={reloadReq}>
-          <DataTable columns={requestColumns} data={assistanceRequests} />
-        </ApiState>
+        <>
+          <FilterBar controller={requestFilters} searchPlaceholder="Search by reference, barangay, or type..." />
+          <ApiState loading={reqLoading} error={reqError} onRetry={reloadReq}>
+            <DataTable columns={requestColumns} data={requestFilters.filtered} />
+          </ApiState>
+        </>
       )}
       {tab === 'proofs' && (
-        <ApiState loading={proofLoading} error={proofError} onRetry={reloadProofs}>
-          <DataTable columns={proofColumns} data={proofs} />
-        </ApiState>
+        <>
+          <FilterBar controller={proofFilters} searchPlaceholder="Search by distribution, barangay, or file..." />
+          <ApiState loading={proofLoading} error={proofError} onRetry={reloadProofs}>
+            <DataTable columns={proofColumns} data={proofFilters.filtered} />
+          </ApiState>
+        </>
       )}
 
       {showForm && (

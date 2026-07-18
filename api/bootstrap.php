@@ -112,6 +112,64 @@ function distribution_workflow_steps(): array
   return ['Planning', 'Preparing', 'In Transit', 'Delivered', 'Awaiting Proof', 'Completed'];
 }
 
+/**
+ * Build an ordered list of time buckets for a trend chart.
+ * Returns [['key' => matchKey, 'label' => displayLabel], ...].
+ *  - week:  last 8 ISO weeks (key matches YEARWEEK(col, 3))
+ *  - month: last 6 months    (key matches DATE_FORMAT(col, '%Y-%m'))
+ *  - year:  last 4 years      (key matches YEAR(col))
+ */
+function build_periods(string $gran): array
+{
+  $out = [];
+  if ($gran === 'week') {
+    $monday = strtotime('monday this week');
+    for ($i = 7; $i >= 0; $i--) {
+      $ts = strtotime("-{$i} week", $monday);
+      $out[] = ['key' => date('oW', $ts), 'label' => date('M j', $ts)];
+    }
+  } elseif ($gran === 'year') {
+    $year = (int) date('Y');
+    for ($i = 3; $i >= 0; $i--) {
+      $yr = $year - $i;
+      $out[] = ['key' => (string) $yr, 'label' => (string) $yr];
+    }
+  } else {
+    for ($i = 5; $i >= 0; $i--) {
+      $ts = strtotime(date('Y-m-01') . " -{$i} months");
+      $out[] = ['key' => date('Y-m', $ts), 'label' => date("M 'y", $ts)];
+    }
+  }
+  return $out;
+}
+
+/** SQL grouping expression for a date column at the given granularity. */
+function period_group_expr(string $col, string $gran): string
+{
+  return match ($gran) {
+    'week' => "YEARWEEK($col, 3)",
+    'year' => "YEAR($col)",
+    default => "DATE_FORMAT($col, '%Y-%m')",
+  };
+}
+
+/**
+ * Run a grouped query (must SELECT the bucket as `k`) and map it onto the
+ * ordered periods, filling gaps via $valueFn($label, $rowOrNull).
+ */
+function trend_series(PDO $pdo, string $sql, array $periods, callable $valueFn): array
+{
+  $map = [];
+  foreach ($pdo->query($sql) as $row) {
+    $map[(string) $row['k']] = $row;
+  }
+  $out = [];
+  foreach ($periods as $p) {
+    $out[] = $valueFn($p['label'], $map[$p['key']] ?? null);
+  }
+  return $out;
+}
+
 function money_display(string $type, $amount, ?string $items = null): string
 {
   if ($type === 'In-Kind') {

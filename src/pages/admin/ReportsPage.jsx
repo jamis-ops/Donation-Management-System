@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { getReports } from '../../api/resources'
 import { useApiObject } from '../../hooks/useApiList'
 import PageHeader from '../../components/admin/shared/PageHeader'
@@ -6,16 +7,23 @@ import LineChart from '../../components/admin/charts/LineChart'
 import BarChart from '../../components/admin/charts/BarChart'
 import DonutChart from '../../components/admin/charts/DonutChart'
 
+const GRANULARITIES = [
+  { value: 'week', label: 'Week' },
+  { value: 'month', label: 'Month' },
+  { value: 'year', label: 'Year' },
+]
+
 function ChartEmpty({ message }) {
   return <p className="admin-chart__empty">{message}</p>
 }
 
 export default function ReportsPage() {
   const { data, loading, error, reload } = useApiObject(() => getReports())
+  const [gran, setGran] = useState('month')
 
   const summary = data?.summary
-  const donationsByMonth = data?.donationsByMonth || []
-  const beneficiariesByMonth = data?.beneficiariesByMonth || []
+  const donationsByMonth = data?.trends?.donations?.[gran] || data?.donationsByMonth || []
+  const beneficiariesByMonth = data?.trends?.beneficiaries?.[gran] || data?.beneficiariesByMonth || []
   const beneficiariesByCategory = (data?.beneficiariesByCategory || []).filter((d) => d.value > 0)
   const distributionByLocation = (data?.distributionByLocation || []).filter((d) => d.value > 0)
   const programFulfillment = data?.programFulfillment || []
@@ -44,6 +52,9 @@ export default function ReportsPage() {
     : changePct < 0 ? `▼ ${Math.abs(changePct)}% vs last month`
     : 'No change vs last month'
 
+  const granLabel = { week: 'Week', month: 'Month', year: 'Year' }[gran]
+  const granEmpty = { week: 'the last 8 weeks', month: 'the last 6 months', year: 'the last 4 years' }[gran]
+
   return (
     <>
       <PageHeader
@@ -51,6 +62,18 @@ export default function ReportsPage() {
         description="Live donation, inventory, distribution, volunteer, and beneficiary analytics from the database."
         actions={
           <div className="table-actions">
+            <div className="report-period" role="group" aria-label="Group trends by">
+              {GRANULARITIES.map((p) => (
+                <button
+                  key={p.value}
+                  type="button"
+                  className={`report-period__btn${gran === p.value ? ' report-period__btn--active' : ''}`}
+                  onClick={() => setGran(p.value)}
+                >
+                  {p.label}
+                </button>
+              ))}
+            </div>
             <button type="button" className="btn btn--admin-outline" onClick={reload}>Refresh</button>
           </div>
         }
@@ -87,14 +110,14 @@ export default function ReportsPage() {
               <section className="admin-panel admin-panel--chart">
                 {donationsByMonth.some((d) => d.amount > 0) ? (
                   <LineChart
-                    title="Donations by Month (₱ thousands)"
+                    title={`Donations by ${granLabel} (₱ thousands)`}
                     labels={donationsByMonth.map((d) => d.month)}
                     series={donationsSeries}
                   />
                 ) : (
                   <>
-                    <h3 className="admin-chart__title">Donations by Month (₱ thousands)</h3>
-                    <ChartEmpty message="No monetary donations recorded in the last 6 months." />
+                    <h3 className="admin-chart__title">Donations by {granLabel} (₱ thousands)</h3>
+                    <ChartEmpty message={`No monetary donations recorded in ${granEmpty}.`} />
                   </>
                 )}
               </section>
@@ -102,14 +125,14 @@ export default function ReportsPage() {
               <section className="admin-panel admin-panel--chart">
                 {beneficiariesByMonth.some((d) => d.count > 0) ? (
                   <LineChart
-                    title="Beneficiaries Served by Month"
+                    title={`Beneficiaries Served by ${granLabel}`}
                     labels={beneficiariesByMonth.map((d) => d.month)}
                     series={beneficiariesSeries}
                   />
                 ) : (
                   <>
-                    <h3 className="admin-chart__title">Beneficiaries Served by Month</h3>
-                    <ChartEmpty message="No completed distributions in the last 6 months." />
+                    <h3 className="admin-chart__title">Beneficiaries Served by {granLabel}</h3>
+                    <ChartEmpty message={`No completed distributions in ${granEmpty}.`} />
                   </>
                 )}
               </section>

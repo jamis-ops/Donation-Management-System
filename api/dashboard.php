@@ -40,6 +40,25 @@ for ($i = 5; $i >= 0; $i--) {
   ];
 }
 
+// Donation trend grouped by week / month / year (client toggles between them)
+$trend = [];
+foreach (['week', 'month', 'year'] as $gran) {
+  $expr = period_group_expr('created_at', $gran);
+  $trend[$gran] = trend_series(
+    $pdo,
+    "SELECT $expr AS k,
+            COUNT(*) AS cnt,
+            COALESCE(SUM(CASE WHEN type = 'Monetary' THEN amount ELSE 0 END), 0) AS amt
+     FROM donations GROUP BY k",
+    build_periods($gran),
+    fn($label, $row) => [
+      'month' => $label,
+      'count' => $row ? (int) $row['cnt'] : 0,
+      'amount' => $row ? (float) $row['amt'] : 0.0,
+    ]
+  );
+}
+
 // Donation type breakdown
 $donationTypes = [];
 foreach ($pdo->query('SELECT type, COUNT(*) AS cnt FROM donations GROUP BY type ORDER BY cnt DESC')->fetchAll() as $row) {
@@ -91,6 +110,7 @@ json_response([
     ],
     'charts' => [
       'monthlyTrend' => $monthlyTrend,
+      'trend' => $trend,
       'donationTypes' => $donationTypes,
       'distributionStatus' => $distributionStatus,
       'inventoryLevels' => $inventoryLevels,

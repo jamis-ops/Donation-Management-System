@@ -1,17 +1,29 @@
-import { useState } from 'react'
 import { volunteersApi } from '../../api/resources'
 import { useApiList } from '../../hooks/useApiList'
+import { useFilters } from '../../hooks/useFilters'
 import PageHeader from '../../components/admin/shared/PageHeader'
 import DataTable from '../../components/admin/shared/DataTable'
 import StatusBadge from '../../components/admin/shared/StatusBadge'
 import ApiState from '../../components/admin/shared/ApiState'
+import FilterBar from '../../components/admin/shared/FilterBar'
+
+const filterConfig = {
+  searchKeys: ['id', 'name', 'email'],
+  filters: [
+    { key: 'status', label: 'Status' },
+    {
+      key: 'program',
+      label: 'Program',
+      deriveOptions: (data) =>
+        Array.from(new Set(data.flatMap((v) => v.programs || []))).sort(),
+      match: (row, val) => (row.programs || []).includes(val),
+    },
+  ],
+}
 
 export default function VolunteersPage() {
   const { data: volunteers, loading, error, reload } = useApiList(() => volunteersApi.list())
-  const [filter, setFilter] = useState('all')
-
-  const filtered = filter === 'all' ? volunteers : volunteers.filter((v) => v.status === filter)
-  const statuses = ['all', ...new Set(volunteers.map((v) => v.status))]
+  const filters = useFilters(volunteers, filterConfig)
 
   const handleApprove = async (row) => {
     await volunteersApi.update(row.dbId, { status: 'Approved' })
@@ -42,15 +54,9 @@ export default function VolunteersPage() {
   return (
     <>
       <PageHeader title="Volunteer Management" description="Review applications, assign programs, track hours, and generate certificates." />
-      <div className="admin-filters">
-        {statuses.map((s) => (
-          <button key={s} type="button" className={`admin-filter${filter === s ? ' admin-filter--active' : ''}`} onClick={() => setFilter(s)}>
-            {s === 'all' ? 'All' : s}
-          </button>
-        ))}
-      </div>
+      <FilterBar controller={filters} searchPlaceholder="Search by ID, name, or email..." />
       <ApiState loading={loading} error={error} onRetry={reload}>
-        <DataTable columns={columns} data={filtered} />
+        <DataTable columns={columns} data={filters.filtered} />
       </ApiState>
     </>
   )

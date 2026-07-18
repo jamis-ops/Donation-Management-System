@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { HeartHandshake, UserCheck, Users, Package, Truck, ListTodo } from 'lucide-react'
 import { getDashboard } from '../../api/resources'
@@ -7,6 +8,12 @@ import ApiState from '../../components/admin/shared/ApiState'
 import LineChart from '../../components/admin/charts/LineChart'
 import DonutChart from '../../components/admin/charts/DonutChart'
 import StockLevelBar from '../../components/admin/shared/StockLevelBar'
+
+const GRANULARITIES = [
+  { value: 'week', label: 'Week' },
+  { value: 'month', label: 'Month' },
+  { value: 'year', label: 'Year' },
+]
 
 const quickActions = [
   { to: '/admin/donations', icon: HeartHandshake, title: 'Verify Donations' },
@@ -23,9 +30,11 @@ function ChartEmpty({ message }) {
 
 export default function DashboardPage() {
   const { data, loading, error, reload } = useApiObject(() => getDashboard())
+  const [gran, setGran] = useState('month')
 
   const charts = data?.charts || {}
-  const trend = charts.monthlyTrend || []
+  const trend = charts.trend?.[gran] || charts.monthlyTrend || []
+  const granLabel = { week: 'Week', month: 'Month', year: 'Year' }[gran]
   const donationTypes = (charts.donationTypes || []).filter((d) => d.value > 0)
   const distributionStatus = (charts.distributionStatus || []).filter((d) => d.value > 0)
   const inventoryLevels = charts.inventoryLevels || []
@@ -63,17 +72,28 @@ export default function DashboardPage() {
 
             <div className="admin-charts-grid">
               <section className="admin-panel admin-panel--chart">
-                {trend.length > 0 ? (
+                <div className="admin-chart__toolbar">
+                  <h3 className="admin-chart__title admin-chart__title--inline">Donation Trend by {granLabel}</h3>
+                  <div className="report-period" role="group" aria-label="Group trend by">
+                    {GRANULARITIES.map((p) => (
+                      <button
+                        key={p.value}
+                        type="button"
+                        className={`report-period__btn${gran === p.value ? ' report-period__btn--active' : ''}`}
+                        onClick={() => setGran(p.value)}
+                      >
+                        {p.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                {trend.some((m) => m.count > 0 || m.amount > 0) ? (
                   <LineChart
-                    title="Monthly Donation Trend (last 6 months)"
                     labels={trend.map((m) => m.month)}
                     series={trendSeries}
                   />
                 ) : (
-                  <>
-                    <h3 className="admin-chart__title">Monthly Donation Trend</h3>
-                    <ChartEmpty message="No donation data yet." />
-                  </>
+                  <ChartEmpty message="No donation data for this period yet." />
                 )}
               </section>
 

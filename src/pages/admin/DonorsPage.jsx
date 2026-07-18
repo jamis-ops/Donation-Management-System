@@ -1,12 +1,20 @@
 import { useState } from 'react'
 import { donorsApi } from '../../api/resources'
 import { useApiList } from '../../hooks/useApiList'
+import { useFilters } from '../../hooks/useFilters'
 import PageHeader from '../../components/admin/shared/PageHeader'
 import DataTable from '../../components/admin/shared/DataTable'
 import ApiState from '../../components/admin/shared/ApiState'
+import FilterBar from '../../components/admin/shared/FilterBar'
+
+const filterConfig = {
+  searchKeys: ['id', 'name', 'email', 'phone'],
+  filters: [],
+}
 
 export default function DonorsPage() {
   const { data: donors, loading, error, reload } = useApiList(() => donorsApi.list())
+  const filters = useFilters(donors, filterConfig)
   const [showForm, setShowForm] = useState(false)
   const [form, setForm] = useState({ name: '', email: '', phone: '' })
   const [saving, setSaving] = useState(false)
@@ -58,8 +66,9 @@ export default function DonorsPage() {
         description="Manage donor profiles, donation history, and communications."
         actions={<button type="button" className="btn btn--primary" onClick={() => setShowForm(true)}>+ Add Donor</button>}
       />
+      <FilterBar controller={filters} searchPlaceholder="Search by ID, name, email, or phone..." />
       <ApiState loading={loading} error={error} onRetry={reload}>
-        <DataTable columns={columns} data={donors} />
+        <DataTable columns={columns} data={filters.filtered} />
       </ApiState>
 
       {showForm && (

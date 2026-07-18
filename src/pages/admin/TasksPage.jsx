@@ -1,10 +1,21 @@
 import { useState } from 'react'
 import { tasksApi, volunteersApi } from '../../api/resources'
 import { useApiObject, useApiList } from '../../hooks/useApiList'
+import { useFilters } from '../../hooks/useFilters'
 import PageHeader from '../../components/admin/shared/PageHeader'
 import StatusBadge from '../../components/admin/shared/StatusBadge'
 import ApiState from '../../components/admin/shared/ApiState'
+import FilterBar from '../../components/admin/shared/FilterBar'
 import { User, Calendar, Pencil } from 'lucide-react'
+
+const filterConfig = {
+  searchKeys: ['id', 'title', 'assignee'],
+  filters: [
+    { key: 'priority', label: 'Priority', options: ['Low', 'Medium', 'High', 'Critical'] },
+    { key: 'module', label: 'Module' },
+  ],
+  dateKey: 'dueDate',
+}
 
 const MODULE_OPTIONS = ['Donations', 'Volunteers', 'Beneficiaries', 'Inventory', 'Distribution', 'Reports', 'General']
 const PRIORITY_OPTIONS = ['Low', 'Medium', 'High', 'Critical']
@@ -57,11 +68,17 @@ export default function TasksPage() {
   const [form, setForm] = useState(emptyForm)
   const [saving, setSaving] = useState(false)
 
+  const allTasks = tasks
+    ? [...(tasks.todo || []), ...(tasks.inProgress || []), ...(tasks.review || []), ...(tasks.done || [])]
+    : []
+  const filters = useFilters(allTasks, filterConfig)
+  const matchedIds = new Set(filters.filtered.map((t) => t.dbId))
+
   const columns = tasks ? [
-    { id: 'todo', label: 'To Do', items: tasks.todo || [] },
-    { id: 'inProgress', label: 'In Progress', items: tasks.inProgress || [] },
-    { id: 'review', label: 'In Review', items: tasks.review || [] },
-    { id: 'done', label: 'Done', items: tasks.done || [] },
+    { id: 'todo', label: 'To Do', items: (tasks.todo || []).filter((t) => matchedIds.has(t.dbId)) },
+    { id: 'inProgress', label: 'In Progress', items: (tasks.inProgress || []).filter((t) => matchedIds.has(t.dbId)) },
+    { id: 'review', label: 'In Review', items: (tasks.review || []).filter((t) => matchedIds.has(t.dbId)) },
+    { id: 'done', label: 'Done', items: (tasks.done || []).filter((t) => matchedIds.has(t.dbId)) },
   ] : []
 
   const openCreate = () => {
@@ -155,6 +172,8 @@ export default function TasksPage() {
         description="Create tasks and assign them to volunteers. Assigned volunteers are notified in their portal."
         actions={<button type="button" className="btn btn--primary" onClick={openCreate}>+ Create Task</button>}
       />
+
+      <FilterBar controller={filters} searchPlaceholder="Search tasks by ID, title, or assignee..." />
 
       <ApiState loading={loading} error={error} onRetry={reload}>
         <div className="kanban-board">

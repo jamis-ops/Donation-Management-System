@@ -1,10 +1,12 @@
 import { useState } from 'react'
 import { donationsApi } from '../../api/resources'
 import { useApiList } from '../../hooks/useApiList'
+import { useFilters } from '../../hooks/useFilters'
 import PageHeader from '../../components/admin/shared/PageHeader'
 import DataTable from '../../components/admin/shared/DataTable'
 import StatusBadge from '../../components/admin/shared/StatusBadge'
 import ApiState from '../../components/admin/shared/ApiState'
+import FilterBar from '../../components/admin/shared/FilterBar'
 
 const lifecycle = [
   'Submission', 'Tracking Code', 'Verification', 'Inventory', 'Repacking',
@@ -15,16 +17,23 @@ const emptyForm = {
   donorName: '', email: '', type: 'Monetary', amount: '', items: '', status: 'Pending Verification',
 }
 
+const filterConfig = {
+  searchKeys: ['trackingCode', 'donor', 'email'],
+  filters: [
+    { key: 'status', label: 'Status' },
+    { key: 'type', label: 'Type' },
+  ],
+  dateKey: 'date',
+}
+
 export default function DonationsPage() {
   const { data: donations, loading, error, reload } = useApiList(() => donationsApi.list())
-  const [filter, setFilter] = useState('all')
   const [selected, setSelected] = useState(null)
   const [showForm, setShowForm] = useState(false)
   const [form, setForm] = useState(emptyForm)
   const [saving, setSaving] = useState(false)
 
-  const filtered = filter === 'all' ? donations : donations.filter((d) => d.status === filter)
-  const statuses = ['all', ...new Set(donations.map((d) => d.status))]
+  const filters = useFilters(donations, filterConfig)
 
   const handleVerify = async (row) => {
     await donationsApi.update(row.dbId, { status: 'Verified' })
@@ -107,16 +116,10 @@ export default function DonationsPage() {
         ))}
       </div>
 
-      <div className="admin-filters">
-        {statuses.map((s) => (
-          <button key={s} type="button" className={`admin-filter${filter === s ? ' admin-filter--active' : ''}`} onClick={() => setFilter(s)}>
-            {s === 'all' ? 'All' : s}
-          </button>
-        ))}
-      </div>
+      <FilterBar controller={filters} searchPlaceholder="Search by tracking code, donor, or email..." />
 
       <ApiState loading={loading} error={error} onRetry={reload}>
-        <DataTable columns={columns} data={filtered} onRowClick={setSelected} />
+        <DataTable columns={columns} data={filters.filtered} onRowClick={setSelected} />
       </ApiState>
 
       {showForm && (

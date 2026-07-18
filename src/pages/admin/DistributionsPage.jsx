@@ -1,14 +1,27 @@
 import { useState } from 'react'
 import { distributionsApi, beneficiariesApi } from '../../api/resources'
 import { useApiList } from '../../hooks/useApiList'
+import { useFilters } from '../../hooks/useFilters'
 import PageHeader from '../../components/admin/shared/PageHeader'
 import DataTable from '../../components/admin/shared/DataTable'
 import StatusBadge from '../../components/admin/shared/StatusBadge'
 import WorkflowStepper from '../../components/admin/shared/WorkflowStepper'
 import ApiState from '../../components/admin/shared/ApiState'
+import FilterBar from '../../components/admin/shared/FilterBar'
 
 const WORKFLOW = ['Planning', 'Preparing', 'In Transit', 'Delivered', 'Awaiting Proof', 'Completed']
 const PROOF_STATUS = ['Not Required', 'Awaiting Proof', 'Proof Submitted', 'Proof Verified', 'Proof Rejected']
+
+const filterConfig = {
+  searchKeys: ['id', 'barangay', 'location', 'program', 'coordinator'],
+  filters: [
+    { key: 'status', label: 'Status' },
+    { key: 'proofStatus', label: 'Proof', allLabel: 'All Proof States' },
+    { key: 'type', label: 'Type' },
+    { key: 'program', label: 'Program' },
+  ],
+  dateKey: 'date',
+}
 
 const emptyForm = {
   location: '', beneficiaryId: '', program: '', distributionDate: '',
@@ -19,6 +32,7 @@ const emptyForm = {
 export default function DistributionsPage() {
   const { data, loading, error, reload } = useApiList(() => distributionsApi.list())
   const { data: barangays } = useApiList(() => beneficiariesApi.list())
+  const filters = useFilters(data, filterConfig)
   const [detailRow, setDetailRow] = useState(null)
   const [editRow, setEditRow] = useState(null)
   const [showCreate, setShowCreate] = useState(false)
@@ -161,8 +175,10 @@ export default function DistributionsPage() {
         actions={<button type="button" className="btn btn--primary" onClick={() => { setShowCreate(true); setForm(emptyForm) }}>+ Plan Distribution</button>}
       />
 
+      <FilterBar controller={filters} searchPlaceholder="Search by ID, barangay, location, or coordinator..." />
+
       <ApiState loading={loading} error={error} onRetry={reload}>
-        <DataTable columns={columns} data={data} onRowClick={setDetailRow} />
+        <DataTable columns={columns} data={filters.filtered} onRowClick={setDetailRow} />
       </ApiState>
 
       {detailRow && (

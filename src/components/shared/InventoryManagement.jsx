@@ -1,11 +1,27 @@
 import { useCallback, useState } from 'react'
-import { Package, PackagePlus, Pencil, Play, CheckCircle2, XCircle, Trash2, Search, X } from 'lucide-react'
+import { Package, PackagePlus, Pencil, Play, CheckCircle2, XCircle, Trash2, X } from 'lucide-react'
 import { inventoryApi, repackingApi } from '../../api/resources'
 import { useApiList } from '../../hooks/useApiList'
+import { useFilters } from '../../hooks/useFilters'
 import DataTable from '../admin/shared/DataTable'
 import StatusBadge from '../admin/shared/StatusBadge'
 import StockLevelBar from '../admin/shared/StockLevelBar'
 import ApiState from '../admin/shared/ApiState'
+import FilterBar from '../admin/shared/FilterBar'
+
+const inventoryFilterConfig = {
+  searchKeys: ['item', 'category'],
+  filters: [
+    { key: 'category', label: 'Category' },
+    { key: 'status', label: 'Stock Status', allLabel: 'All Stock' },
+  ],
+}
+
+const repackingFilterConfig = {
+  searchKeys: ['id', 'output', 'source', 'assignedTo'],
+  filters: [{ key: 'status', label: 'Status' }],
+  dateKey: 'dueDateRaw',
+}
 
 const emptyItemForm = {
   item: '', category: '', quantity: '', unit: 'units',
@@ -21,7 +37,6 @@ export default function InventoryManagement() {
   const [tab, setTab] = useState('inventory')
   const [invSummary, setInvSummary] = useState(null)
   const [rpkSummary, setRpkSummary] = useState(null)
-  const [search, setSearch] = useState('')
   const [notice, setNotice] = useState('')
 
   const [itemModal, setItemModal] = useState(null)   // null | 'create' | row
@@ -47,11 +62,8 @@ export default function InventoryManagement() {
 
   const reloadAll = () => { reload(); reloadRpk() }
 
-  const filteredItems = items.filter((i) =>
-    !search ||
-    i.item?.toLowerCase().includes(search.toLowerCase()) ||
-    i.category?.toLowerCase().includes(search.toLowerCase())
-  )
+  const invFilters = useFilters(items, inventoryFilterConfig)
+  const rpkFilters = useFilters(batches, repackingFilterConfig)
 
   /* ---------- Inventory handlers ---------- */
 
@@ -330,16 +342,14 @@ export default function InventoryManagement() {
             </div>
           )}
 
-          <div className="inv-toolbar">
-            <div className="portal-search inv-toolbar__search">
-              <Search size={15} />
-              <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search items or categories..." />
-            </div>
+          <div className="inv-toolbar inv-toolbar--end">
             <button type="button" className="btn btn--primary" onClick={openItemCreate}>+ Add Item</button>
           </div>
 
+          <FilterBar controller={invFilters} searchPlaceholder="Search items or categories..." />
+
           <ApiState loading={loading} error={error} onRetry={reload}>
-            <DataTable columns={inventoryColumns} data={filteredItems} onRowClick={openItemEdit} />
+            <DataTable columns={inventoryColumns} data={invFilters.filtered} onRowClick={openItemEdit} />
           </ApiState>
         </>
       )}
@@ -370,8 +380,10 @@ export default function InventoryManagement() {
             <button type="button" className="btn btn--primary" onClick={openBatchCreate}>+ New Repacking Batch</button>
           </div>
 
+          <FilterBar controller={rpkFilters} searchPlaceholder="Search by batch, output, source, or assignee..." />
+
           <ApiState loading={rpkLoading} error={rpkError} onRetry={reloadRpk}>
-            <DataTable columns={repackingColumns} data={batches} />
+            <DataTable columns={repackingColumns} data={rpkFilters.filtered} />
           </ApiState>
         </>
       )}
