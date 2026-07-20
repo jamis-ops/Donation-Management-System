@@ -77,6 +77,7 @@ if ($method === 'POST') {
       'Requested',
     ]);
     notify_admins($pdo, 'certificate', 'Certificate requested', "{$user['name']} requested a certificate" . ($reference ? " for {$reference}" : ''), '/admin/certificates');
+    audit_log($pdo, 'request', 'certificate', $code, "{$user['name']} requested a certificate");
     $stmt = $pdo->prepare('SELECT * FROM certificates WHERE id = ?');
     $stmt->execute([(int) $pdo->lastInsertId()]);
     json_response(['ok' => true, 'data' => map_certificate($stmt->fetch())], 201);
@@ -108,13 +109,25 @@ if ($method === 'POST') {
   $newId = (int) $pdo->lastInsertId();
 
   // Notify the recipient if they have a portal account.
-  $findUser = $pdo->prepare('SELECT id FROM users WHERE name = ? LIMIT 1');
+  $findUser = $pdo->prepare('SELECT id, email FROM users WHERE full_name = ? LIMIT 1');
   $findUser->execute([$recipient]);
-  $recipientUserId = $findUser->fetchColumn();
-  if ($recipientUserId) {
+  $recipientRow = $findUser->fetch();
+  if ($recipientRow) {
     $link = ($body['recipientType'] ?? 'Donor') === 'Volunteer' ? '/volunteer-portal/certificates' : '/donor/certificates';
-    create_notification($pdo, 'certificate', 'Certificate ready', "Your {$body['type']} ({$code}) is ready to view and download.", $link, (int) $recipientUserId);
+    create_notification($pdo, 'certificate', 'Certificate ready', "Your {$body['type']} ({$code}) is ready to view and download.", $link, (int) $recipientRow['id']);
+    if (!empty($recipientRow['email']) && ($body['status'] ?? 'Generated') === 'Generated') {
+      send_mail(
+        $recipientRow['email'],
+        $recipient,
+        "Your certificate {$code} is ready",
+        "<p>Hello {$recipient},</p>"
+          . "<p>Your <strong>{$body['type']}</strong> (Certificate No. <strong>{$code}</strong>) has been issued.</p>"
+          . "<p>Log in to your portal to view, download, or print it.</p>"
+      );
+    }
   }
+
+  audit_log($pdo, 'create', 'certificate', $code, "Issued {$body['type']} for {$recipient}");
 
   $stmt = $pdo->prepare('SELECT * FROM certificates WHERE id = ?');
   $stmt->execute([$newId]);
@@ -149,14 +162,26 @@ if ($method === 'PUT') {
 
   $newStatus = $body['status'] ?? $existing['status'];
   if ($newStatus === 'Generated' && $existing['status'] !== 'Generated') {
-    $findUser = $pdo->prepare('SELECT id FROM users WHERE name = ? LIMIT 1');
+    $findUser = $pdo->prepare('SELECT id, email FROM users WHERE full_name = ? LIMIT 1');
     $findUser->execute([$existing['recipient_name']]);
-    $recipientUserId = $findUser->fetchColumn();
-    if ($recipientUserId) {
+    $recipientRow = $findUser->fetch();
+    if ($recipientRow) {
       $link = ($existing['recipient_type'] ?? 'Donor') === 'Volunteer' ? '/volunteer-portal/certificates' : '/donor/certificates';
-      create_notification($pdo, 'certificate', 'Certificate ready', "Your {$existing['cert_type']} ({$existing['code']}) is ready to view and download.", $link, (int) $recipientUserId);
+      create_notification($pdo, 'certificate', 'Certificate ready', "Your {$existing['cert_type']} ({$existing['code']}) is ready to view and download.", $link, (int) $recipientRow['id']);
+      if (!empty($recipientRow['email'])) {
+        send_mail(
+          $recipientRow['email'],
+          $existing['recipient_name'],
+          "Your certificate {$existing['code']} is ready",
+          "<p>Hello {$existing['recipient_name']},</p>"
+            . "<p>Your <strong>{$existing['cert_type']}</strong> (Certificate No. <strong>{$existing['code']}</strong>) has been issued.</p>"
+            . "<p>Log in to your portal to view, download, or print it.</p>"
+        );
+      }
     }
   }
+
+  audit_log($pdo, 'update', 'certificate', $existing['code'], "Updated certificate" . ($newStatus !== $existing['status'] ? " (status: {$newStatus})" : ''));
 
   $stmt = $pdo->prepare('SELECT * FROM certificates WHERE id = ?');
   $stmt->execute([$id]);
@@ -167,7 +192,11 @@ if ($method === 'DELETE') {
   if (!$id) {
     json_response(['ok' => false, 'error' => 'Certificate id is required'], 400);
   }
+  $del = $pdo->prepare('SELECT code FROM certificates WHERE id = ?');
+  $del->execute([$id]);
+  $delCode = $del->fetchColumn();
   $pdo->prepare('DELETE FROM certificates WHERE id = ?')->execute([$id]);
+  audit_log($pdo, 'delete', 'certificate', $delCode ?: (string) $id, 'Deleted certificate');
   json_response(['ok' => true]);
 }
 

@@ -20,23 +20,40 @@ function map_beneficiary(PDO $pdo, array $row): array
   $proofs->execute([$row['id']]);
   $proofCount = (int) $proofs->fetchColumn();
 
+  $needs = [];
+  if (!empty($row['needs'])) {
+    $decoded = json_decode((string) $row['needs'], true);
+    $needs = is_array($decoded) ? $decoded : [];
+  }
+
   return [
     'id' => $row['code'],
     'dbId' => (int) $row['id'],
     'name' => $row['full_name'],
     'barangay' => $row['barangay'] ?? $row['full_name'],
+    'barangayType' => $row['barangay_type'] ?? '',
     'municipality' => $row['municipality'] ?? '',
+    'address' => $row['address'] ?? '',
     'affectedFamilies' => (int) ($row['affected_families'] ?? 0),
     'representativeName' => $row['representative_name'] ?? '',
     'representativePhone' => $row['representative_phone'] ?? '',
     'representativeEmail' => $row['representative_email'] ?? '',
     'category' => $row['category'],
+    'needs' => $needs,
     'status' => $row['status'],
     'notes' => $row['notes'] ?? '',
     'requests' => $requestCount,
     'proofsSubmitted' => $proofCount,
     'lastAssistance' => format_date($lastDate ?: null),
   ];
+}
+
+function encode_needs($needs): ?string
+{
+  if (!is_array($needs) || count($needs) === 0) {
+    return null;
+  }
+  return json_encode(array_values(array_filter(array_map('strval', $needs), fn($n) => $n !== '')));
 }
 
 $user = require_auth(['Admin', 'Staff', 'Beneficiary']);
@@ -75,25 +92,34 @@ if ($method === 'POST') {
     json_response(['ok' => false, 'error' => 'Barangay name is required'], 400);
   }
   $code = generate_code('BEN');
+  $needsArr = is_array($body['needs'] ?? null) ? array_values(array_map('strval', $body['needs'])) : [];
+  // The "Category" now represents the beneficiary's needs.
+  $category = count($needsArr) > 0 ? implode(', ', $needsArr) : ($body['category'] ?? null);
   $stmt = $pdo->prepare('
-    INSERT INTO beneficiaries (code, full_name, category, barangay, municipality, affected_families, representative_name, representative_phone, representative_email, notes, status)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    INSERT INTO beneficiaries (code, full_name, category, barangay_type, barangay, municipality, address, affected_families, representative_name, representative_phone, representative_email, needs, notes, status)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   ');
   $stmt->execute([
     $code,
     $barangay,
-    $body['category'] ?? 'Disaster Relief',
+    $category,
+    $body['barangayType'] ?? null,
     $barangay,
     $body['municipality'] ?? null,
+    $body['address'] ?? null,
     (int) ($body['affectedFamilies'] ?? 0),
     $body['representativeName'] ?? null,
     $body['representativePhone'] ?? null,
     $body['representativeEmail'] ?? null,
+    encode_needs($body['needs'] ?? null),
     $body['notes'] ?? null,
     $body['status'] ?? 'Pending Approval',
   ]);
   $newId = (int) $pdo->lastInsertId();
   notify_admins($pdo, 'beneficiary', 'New barangay registered', "{$barangay} registered with " . ($body['affectedFamilies'] ?? 0) . ' affected families', '/admin/beneficiaries');
+
+  audit_log($pdo, 'create', 'beneficiary', $code, "Registered barangay {$barangay}");
+
   $stmt = $pdo->prepare('SELECT * FROM beneficiaries WHERE id = ?');
   $stmt->execute([$newId]);
   json_response(['ok' => true, 'data' => map_beneficiary($pdo, $stmt->fetch())], 201);
@@ -113,20 +139,31 @@ if ($method === 'PUT') {
   $barangay = trim((string) ($body['barangay'] ?? $body['name'] ?? $existing['full_name']));
   $newStatus = $body['status'] ?? $existing['status'];
 
+  $needsValue = array_key_exists('needs', $body) ? encode_needs($body['needs']) : $existing['needs'];
+  // Keep the category in sync with the selected needs.
+  if (array_key_exists('needs', $body) && is_array($body['needs']) && count($body['needs']) > 0) {
+    $category = implode(', ', array_values(array_map('strval', $body['needs'])));
+  } else {
+    $category = $body['category'] ?? $existing['category'];
+  }
+
   $update = $pdo->prepare('
-    UPDATE beneficiaries SET full_name = ?, category = ?, barangay = ?, municipality = ?, affected_families = ?,
-    representative_name = ?, representative_phone = ?, representative_email = ?, notes = ?, status = ?
+    UPDATE beneficiaries SET full_name = ?, category = ?, barangay_type = ?, barangay = ?, municipality = ?, address = ?, affected_families = ?,
+    representative_name = ?, representative_phone = ?, representative_email = ?, needs = ?, notes = ?, status = ?
     WHERE id = ?
   ');
   $update->execute([
     $barangay,
-    $body['category'] ?? $existing['category'],
+    $category,
+    $body['barangayType'] ?? $existing['barangay_type'],
     $barangay,
     $body['municipality'] ?? $existing['municipality'],
+    $body['address'] ?? $existing['address'],
     (int) ($body['affectedFamilies'] ?? $existing['affected_families']),
     $body['representativeName'] ?? $existing['representative_name'],
     $body['representativePhone'] ?? $existing['representative_phone'],
     $body['representativeEmail'] ?? $existing['representative_email'],
+    $needsValue,
     $body['notes'] ?? $existing['notes'],
     $newStatus,
     $id,
@@ -135,6 +172,8 @@ if ($method === 'PUT') {
   if ($newStatus !== $existing['status']) {
     notify_admins($pdo, 'status_update', 'Barangay status updated', "{$barangay} status changed to {$newStatus}", '/admin/beneficiaries');
   }
+
+  audit_log($pdo, 'update', 'beneficiary', $existing['code'], "Updated {$barangay}" . ($newStatus !== $existing['status'] ? " (status: {$newStatus})" : ''));
 
   $stmt = $pdo->prepare('SELECT * FROM beneficiaries WHERE id = ?');
   $stmt->execute([$id]);
@@ -145,7 +184,13 @@ if ($method === 'DELETE') {
   if (!$id) {
     json_response(['ok' => false, 'error' => 'Barangay id is required'], 400);
   }
+  $del = $pdo->prepare('SELECT code, full_name FROM beneficiaries WHERE id = ?');
+  $del->execute([$id]);
+  $delRow = $del->fetch();
   $pdo->prepare('DELETE FROM beneficiaries WHERE id = ?')->execute([$id]);
+  if ($delRow) {
+    audit_log($pdo, 'delete', 'beneficiary', $delRow['code'], "Deleted barangay {$delRow['full_name']}");
+  }
   json_response(['ok' => true]);
 }
 

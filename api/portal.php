@@ -67,12 +67,25 @@ switch ($user['role']) {
           ['label' => 'Upcoming Events', 'value' => (string) count($schedule)],
           ['label' => 'Certificates', 'value' => '1'],
         ],
-        'tasks' => array_map(static fn($t) => [
-          'id' => $t['code'],
-          'title' => $t['title'],
-          'due' => format_date($t['due_date']),
-          'status' => ucfirst($t['board_column']),
-        ], $taskRows),
+        'tasks' => array_map(static function ($t) {
+          $duty = [];
+          if (!empty($t['duty_start']) && !empty($t['duty_end'])) {
+            $s = strtotime($t['duty_start']);
+            $e = strtotime($t['duty_end']);
+            $duty[] = ($s ? date('g:i A', $s) : $t['duty_start']) . ' – ' . ($e ? date('g:i A', $e) : $t['duty_end']);
+          }
+          if (isset($t['duty_hours']) && $t['duty_hours'] !== null && (float) $t['duty_hours'] > 0) {
+            $h = rtrim(rtrim(number_format((float) $t['duty_hours'], 2), '0'), '.');
+            $duty[] = "{$h} hrs";
+          }
+          return [
+            'id' => $t['code'],
+            'title' => $t['title'],
+            'due' => format_date($t['due_date']),
+            'duty' => implode(' · ', $duty),
+            'status' => ucfirst($t['board_column']),
+          ];
+        }, $taskRows),
         'schedule' => $schedule,
       ],
     ]);

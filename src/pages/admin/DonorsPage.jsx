@@ -66,7 +66,11 @@ export default function DonorsPage() {
         description="Manage donor profiles, donation history, and communications."
         actions={<button type="button" className="btn btn--primary" onClick={() => setShowForm(true)}>+ Add Donor</button>}
       />
-      <FilterBar controller={filters} searchPlaceholder="Search by ID, name, email, or phone..." />
+      <FilterBar
+        controller={filters}
+        searchPlaceholder="Search by ID, name, email, or phone..."
+        exportConfig={{ filename: 'donor-report', title: 'Donor Report', columns, rows: filters.filtered }}
+      />
       <ApiState loading={loading} error={error} onRetry={reload}>
         <DataTable columns={columns} data={filters.filtered} />
       </ApiState>

@@ -5,29 +5,60 @@ require __DIR__ . '/bootstrap.php';
 $pdo = db();
 $user = require_auth(['Admin', 'Staff', 'Beneficiary']);
 
+function normalize_proof_status(?string $status): string
+{
+  $status = trim((string) $status);
+  return match ($status) {
+    'Verified', 'Proof Verified', 'Approved' => 'Approved',
+    'Rejected', 'Proof Rejected' => 'Rejected',
+    'Pending Review', 'Under Review', 'Pending', '' => 'Pending',
+    default => $status !== '' ? $status : 'Pending',
+  };
+}
+
 function map_proof(PDO $pdo, array $row): array
 {
-  $dist = $pdo->prepare('SELECT code, location, program FROM distributions WHERE id = ?');
-  $dist->execute([$row['distribution_id']]);
-  $distribution = $dist->fetch() ?: [];
+  $distStmt = $pdo->prepare('SELECT code, event_name, location, program, status, distribution_date FROM distributions WHERE id = ?');
+  $distStmt->execute([$row['distribution_id']]);
+  $distribution = $distStmt->fetch() ?: [];
 
   $ben = $pdo->prepare('SELECT code, full_name, barangay FROM beneficiaries WHERE id = ?');
   $ben->execute([$row['beneficiary_id']]);
   $beneficiary = $ben->fetch() ?: [];
 
+  $eventName = trim((string) ($distribution['event_name'] ?? ''));
+  if ($eventName === '') {
+    $eventName = trim(($distribution['code'] ?? '') . ' — ' . ($distribution['location'] ?? ''));
+  }
+
+  $fileType = (string) ($row['file_type'] ?? '');
+  $fileName = (string) ($row['file_name'] ?? '');
+  $isImage = str_starts_with($fileType, 'image/')
+    || (bool) preg_match('/\.(jpe?g|png|gif|webp)$/i', $fileName);
+
+  $status = normalize_proof_status($row['status'] ?? 'Pending');
+
   return [
     'id' => (int) $row['id'],
     'distributionId' => (int) $row['distribution_id'],
     'distributionCode' => $distribution['code'] ?? '',
+    'eventName' => $eventName,
     'distributionLocation' => $distribution['location'] ?? '',
+    'distributionDate' => format_date($distribution['distribution_date'] ?? null),
+    'distributionStatus' => $distribution['status'] ?? '',
     'program' => $distribution['program'] ?? '',
     'beneficiaryId' => (int) $row['beneficiary_id'],
     'barangay' => $beneficiary['full_name'] ?? $beneficiary['barangay'] ?? '',
-    'fileName' => $row['file_name'],
-    'fileType' => $row['file_type'],
-    'fileUrl' => '/api/uploads/proofs/' . basename($row['file_path']),
+    'fileName' => $fileName,
+    'fileType' => $fileType,
+    'isImage' => $isImage,
+    'fileUrl' => '/api/uploads/proofs/' . basename((string) $row['file_path']),
     'notes' => $row['notes'],
-    'status' => $row['status'],
+    'status' => $status,
+    'reviewRemarks' => $row['review_remarks'] ?? '',
+    'reviewedByUserId' => isset($row['reviewed_by_user_id']) && $row['reviewed_by_user_id'] !== null
+      ? (int) $row['reviewed_by_user_id']
+      : null,
     'submittedAt' => $row['submitted_at'],
     'reviewedAt' => $row['reviewed_at'],
   ];
@@ -37,6 +68,8 @@ $method = $_SERVER['REQUEST_METHOD'] ?? 'GET';
 $id = get_id_param();
 
 if ($method === 'GET') {
+  $beneficiaryFilter = isset($_GET['beneficiaryId']) ? (int) $_GET['beneficiaryId'] : 0;
+
   if ($user['role'] === 'Beneficiary') {
     $ben = $pdo->prepare('SELECT id FROM beneficiaries WHERE user_id = ? LIMIT 1');
     $ben->execute([$user['id']]);
@@ -46,6 +79,9 @@ if ($method === 'GET') {
     }
     $stmt = $pdo->prepare('SELECT * FROM distribution_proofs WHERE beneficiary_id = ? ORDER BY submitted_at DESC');
     $stmt->execute([$benId]);
+  } elseif ($beneficiaryFilter > 0) {
+    $stmt = $pdo->prepare('SELECT * FROM distribution_proofs WHERE beneficiary_id = ? ORDER BY submitted_at DESC');
+    $stmt->execute([$beneficiaryFilter]);
   } else {
     $stmt = $pdo->query('SELECT * FROM distribution_proofs ORDER BY submitted_at DESC');
   }
@@ -58,7 +94,7 @@ if ($method === 'POST') {
     json_response(['ok' => false, 'error' => 'Only barangay representatives can upload proof'], 403);
   }
 
-  $ben = $pdo->prepare('SELECT id, full_name FROM beneficiaries WHERE user_id = ? LIMIT 1');
+  $ben = $pdo->prepare('SELECT * FROM beneficiaries WHERE user_id = ? LIMIT 1');
   $ben->execute([$user['id']]);
   $beneficiary = $ben->fetch();
   if (!$beneficiary) {
@@ -69,7 +105,26 @@ if ($method === 'POST') {
   $notes = trim((string) ($_POST['notes'] ?? ''));
 
   if ($distributionId <= 0) {
-    json_response(['ok' => false, 'error' => 'Distribution is required'], 400);
+    json_response(['ok' => false, 'error' => 'Please select a distribution event'], 400);
+  }
+
+  $distCheck = $pdo->prepare('SELECT * FROM distributions WHERE id = ?');
+  $distCheck->execute([$distributionId]);
+  $distribution = $distCheck->fetch();
+  if (!$distribution) {
+    json_response(['ok' => false, 'error' => 'Distribution event not found'], 404);
+  }
+  if (!distribution_belongs_to_beneficiary($distribution, $beneficiary)) {
+    json_response(['ok' => false, 'error' => 'This distribution event is not assigned to your barangay'], 403);
+  }
+  if (($distribution['proof_status'] ?? '') === 'Proof Verified') {
+    json_response(['ok' => false, 'error' => 'Proof for this distribution event has already been approved'], 400);
+  }
+
+  if (empty($distribution['beneficiary_id'])) {
+    $pdo->prepare('UPDATE distributions SET beneficiary_id = ? WHERE id = ?')
+      ->execute([$beneficiary['id'], $distributionId]);
+    $distribution['beneficiary_id'] = $beneficiary['id'];
   }
 
   if (!isset($_FILES['proof']) || $_FILES['proof']['error'] !== UPLOAD_ERR_OK) {
@@ -101,8 +156,9 @@ if ($method === 'POST') {
   }
 
   $stmt = $pdo->prepare('
-    INSERT INTO distribution_proofs (distribution_id, beneficiary_id, submitted_by_user_id, file_path, file_name, file_type, notes)
-    VALUES (?, ?, ?, ?, ?, ?, ?)
+    INSERT INTO distribution_proofs
+      (distribution_id, beneficiary_id, submitted_by_user_id, file_path, file_name, file_type, notes, status, review_remarks, reviewed_at, reviewed_by_user_id)
+    VALUES (?, ?, ?, ?, ?, ?, ?, \'Pending\', NULL, NULL, NULL)
   ');
   $stmt->execute([
     $distributionId,
@@ -117,16 +173,12 @@ if ($method === 'POST') {
   $pdo->prepare("UPDATE distributions SET proof_status = 'Proof Submitted', status = 'Awaiting Proof' WHERE id = ?")
     ->execute([$distributionId]);
 
-  $dist = $pdo->prepare('SELECT code, location FROM distributions WHERE id = ?');
-  $dist->execute([$distributionId]);
-  $d = $dist->fetch();
-
   notify_admins(
     $pdo,
     'proof_submitted',
     'Distribution proof submitted',
-    ($beneficiary['full_name'] ?? 'Barangay') . ' uploaded proof for distribution ' . ($d['code'] ?? '') . ' at ' . ($d['location'] ?? ''),
-    '/admin/distributions'
+    ($beneficiary['full_name'] ?? 'Barangay') . ' uploaded proof for ' . ($distribution['code'] ?? '') . '. Review it under Beneficiaries → Proofs.',
+    '/admin/beneficiaries'
   );
 
   $proofId = (int) $pdo->lastInsertId();
@@ -141,9 +193,22 @@ if ($method === 'PUT') {
     json_response(['ok' => false, 'error' => 'Proof id required'], 400);
   }
   $body = read_json_body();
-  $status = $body['status'] ?? 'Verified';
-  if (!in_array($status, ['Verified', 'Rejected', 'Pending Review'], true)) {
-    $status = 'Verified';
+  $rawStatus = (string) ($body['status'] ?? 'Approved');
+  // Accept legacy + new labels from the UI
+  $status = normalize_proof_status(
+    in_array($rawStatus, ['Verified', 'Approve', 'approve'], true) ? 'Approved'
+      : (in_array($rawStatus, ['Reject', 'reject'], true) ? 'Rejected' : $rawStatus)
+  );
+  if (!in_array($status, ['Pending', 'Approved', 'Rejected'], true)) {
+    json_response(['ok' => false, 'error' => 'Invalid proof status'], 400);
+  }
+
+  $remarks = trim((string) ($body['remarks'] ?? $body['reviewRemarks'] ?? ''));
+  if ($status === 'Rejected' && $remarks === '') {
+    json_response(['ok' => false, 'error' => 'Please provide a reason when rejecting a proof'], 400);
+  }
+  if ($status !== 'Rejected') {
+    $remarks = $remarks !== '' ? $remarks : null;
   }
 
   $stmt = $pdo->prepare('SELECT * FROM distribution_proofs WHERE id = ?');
@@ -153,12 +218,41 @@ if ($method === 'PUT') {
     json_response(['ok' => false, 'error' => 'Proof not found'], 404);
   }
 
-  $pdo->prepare('UPDATE distribution_proofs SET status = ?, reviewed_at = NOW() WHERE id = ?')
-    ->execute([$status, $id]);
+  $pdo->prepare('UPDATE distribution_proofs SET status = ?, review_remarks = ?, reviewed_at = NOW(), reviewed_by_user_id = ? WHERE id = ?')
+    ->execute([$status, $remarks, $user['id'], $id]);
 
-  if ($status === 'Verified') {
+  if ($status === 'Approved') {
     $pdo->prepare("UPDATE distributions SET proof_status = 'Proof Verified', status = 'Completed' WHERE id = ?")
       ->execute([$proof['distribution_id']]);
+  } elseif ($status === 'Rejected') {
+    $pdo->prepare("UPDATE distributions SET proof_status = 'Proof Rejected', status = 'Awaiting Proof' WHERE id = ?")
+      ->execute([$proof['distribution_id']]);
+  }
+
+  // Notify the barangay portal user if linked.
+  $benUser = $pdo->prepare('SELECT user_id, full_name FROM beneficiaries WHERE id = ?');
+  $benUser->execute([$proof['beneficiary_id']]);
+  $benRow = $benUser->fetch();
+  if ($benRow && !empty($benRow['user_id'])) {
+    if ($status === 'Approved') {
+      create_notification(
+        $pdo,
+        'proof_approved',
+        'Proof approved',
+        'Your distribution proof was approved. Thank you for submitting documentation.',
+        '/beneficiary/proofs',
+        (int) $benRow['user_id']
+      );
+    } elseif ($status === 'Rejected') {
+      create_notification(
+        $pdo,
+        'proof_rejected',
+        'Proof needs revision',
+        'Your proof was rejected. Reason: ' . $remarks . ' Please resubmit a corrected file.',
+        '/beneficiary/proofs',
+        (int) $benRow['user_id']
+      );
+    }
   }
 
   $stmt = $pdo->prepare('SELECT * FROM distribution_proofs WHERE id = ?');

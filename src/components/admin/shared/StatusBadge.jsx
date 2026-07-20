@@ -3,8 +3,8 @@ const statusMap = {
   'Pending Review': 'warning',
   'Under Review': 'warning',
   'Pending Approval': 'warning',
-  'Pending': 'warning',
-  'Planning': 'info',
+  Pending: 'warning',
+  Planning: 'info',
   Scheduled: 'info',
   'In Progress': 'info',
   Verified: 'success',
@@ -13,6 +13,15 @@ const statusMap = {
   Available: 'success',
   Completed: 'success',
   Generated: 'success',
+  Received: 'success',
+  'Awaiting Confirmation': 'warning',
+  'Not Received': 'danger',
+  Disputed: 'danger',
+  Rejected: 'danger',
+  'Proof Rejected': 'danger',
+  'Proof Submitted': 'warning',
+  'Proof Verified': 'success',
+  'Awaiting Proof': 'warning',
   Distributed: 'neutral',
   Allocated: 'neutral',
   Assigned: 'neutral',
@@ -23,7 +32,6 @@ const statusMap = {
   Medium: 'warning',
   Low: 'info',
 }
-
 export default function StatusBadge({ status }) {
   const variant = statusMap[status] || 'neutral'
   return <span className={`status-badge status-badge--${variant}`}>{status}</span>

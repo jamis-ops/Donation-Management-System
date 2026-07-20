@@ -1,21 +1,23 @@
 import { useState } from 'react'
-import { beneficiariesApi, assistanceRequestsApi, getDistributionProofs, reviewProof } from '../../api/resources'
+import { beneficiariesApi, assistanceRequestsApi, getDistributionProofs } from '../../api/resources'
 import { useApiList } from '../../hooks/useApiList'
+import { NEEDS, BARANGAY_TYPES } from '../../constants/options'
 import { useFilters } from '../../hooks/useFilters'
 import PageHeader from '../../components/admin/shared/PageHeader'
 import DataTable from '../../components/admin/shared/DataTable'
 import StatusBadge from '../../components/admin/shared/StatusBadge'
 import ApiState from '../../components/admin/shared/ApiState'
 import FilterBar from '../../components/admin/shared/FilterBar'
+import AdminProofReview from '../../components/admin/shared/AdminProofReview'
 
 const STATUS_OPTIONS = ['Pending Approval', 'Approved', 'Active', 'Suspended']
 const PRIORITY_OPTIONS = ['Low', 'Medium', 'High']
 
 const barangayFilterConfig = {
-  searchKeys: ['id', 'barangay', 'municipality', 'representativeName'],
+  searchKeys: ['id', 'barangay', 'municipality', 'representativeName', 'address', 'representativeEmail'],
   filters: [
     { key: 'status', label: 'Status' },
-    { key: 'category', label: 'Program' },
+    { key: 'barangayType', label: 'Type' },
   ],
 }
 
@@ -29,19 +31,21 @@ const requestFilterConfig = {
 }
 
 const proofFilterConfig = {
-  searchKeys: ['distributionCode', 'barangay', 'fileName'],
-  filters: [{ key: 'status', label: 'Status' }],
+  searchKeys: ['distributionCode', 'eventName', 'barangay', 'fileName'],
+  filters: [{ key: 'status', label: 'Status', options: ['Pending', 'Approved', 'Rejected'] }],
 }
 
 const emptyForm = {
-  barangay: '', municipality: '', category: 'Disaster Relief', affectedFamilies: '',
-  representativeName: '', representativePhone: '', representativeEmail: '', notes: '', status: 'Pending Approval',
+  barangay: '', barangayType: '', municipality: '', address: '', affectedFamilies: '',
+  needs: [], representativeName: '', representativePhone: '', representativeEmail: '', notes: '', status: 'Pending Approval',
 }
 
 export default function BeneficiariesPage() {
   const { data: beneficiaries, loading, error, reload } = useApiList(() => beneficiariesApi.list())
   const { data: assistanceRequests, loading: reqLoading, error: reqError, reload: reloadReq } = useApiList(() => assistanceRequestsApi.list())
   const { data: proofs, loading: proofLoading, error: proofError, reload: reloadProofs } = useApiList(() => getDistributionProofs())
+  const barangayTypes = BARANGAY_TYPES
+  const needOptions = NEEDS
   const barangayFilters = useFilters(beneficiaries, barangayFilterConfig)
   const requestFilters = useFilters(assistanceRequests, requestFilterConfig)
   const proofFilters = useFilters(proofs, proofFilterConfig)
@@ -50,15 +54,23 @@ export default function BeneficiariesPage() {
   const [editRow, setEditRow] = useState(null)
   const [form, setForm] = useState(emptyForm)
   const [saving, setSaving] = useState(false)
+  const [proofRecord, setProofRecord] = useState(null)
+
+  const openProofsFor = (row) => {
+    setProofRecord(row)
+    reloadProofs()
+  }
 
   const openCreate = () => { setEditRow(null); setForm(emptyForm); setShowForm(true) }
   const openEdit = (row) => {
     setEditRow(row)
     setForm({
       barangay: row.barangay || row.name,
+      barangayType: row.barangayType || '',
       municipality: row.municipality || '',
-      category: row.category || '',
+      address: row.address || '',
       affectedFamilies: row.affectedFamilies || '',
+      needs: Array.isArray(row.needs) ? row.needs : [],
       representativeName: row.representativeName || '',
       representativePhone: row.representativePhone || '',
       representativeEmail: row.representativeEmail || '',
@@ -74,9 +86,11 @@ export default function BeneficiariesPage() {
     try {
       const payload = {
         barangay: form.barangay,
+        barangayType: form.barangayType,
         municipality: form.municipality,
-        category: form.category,
+        address: form.address,
         affectedFamilies: Number(form.affectedFamilies) || 0,
+        needs: form.needs,
         representativeName: form.representativeName,
         representativePhone: form.representativePhone,
         representativeEmail: form.representativeEmail,
@@ -102,18 +116,42 @@ export default function BeneficiariesPage() {
   const barangayColumns = [
     { key: 'id', label: 'Code' },
     { key: 'barangay', label: 'Barangay' },
+    { key: 'barangayType', label: 'Type', render: (row) => row.barangayType || '—' },
     { key: 'municipality', label: 'Municipality/City' },
     { key: 'affectedFamilies', label: 'Affected Families' },
     { key: 'representativeName', label: 'Representative' },
-    { key: 'category', label: 'Program' },
+    {
+      key: 'needs',
+      label: 'Needs',
+      render: (row) => (Array.isArray(row.needs) && row.needs.length ? row.needs.join(', ') : '—'),
+    },
     { key: 'status', label: 'Status', render: (row) => <StatusBadge status={row.status} /> },
-    { key: 'proofsSubmitted', label: 'Proofs' },
+    {
+      key: 'proofsSubmitted',
+      label: 'Proofs',
+      render: (row) => {
+        const forBen = proofs.filter((p) => Number(p.beneficiaryId) === Number(row.dbId))
+        const pending = forBen.filter((p) => p.status === 'Pending' || p.status === 'Pending Review').length
+        return (
+          <button
+            type="button"
+            className={`proof-count-btn${pending > 0 ? ' proof-count-btn--pending' : ''}`}
+            onClick={(e) => { e.stopPropagation(); openProofsFor(row) }}
+            title="View proofs for this barangay"
+          >
+            {forBen.length}
+            {pending > 0 ? <em>{pending} pending</em> : null}
+          </button>
+        )
+      },
+    },
     {
       key: 'actions',
       label: 'Actions',
       render: (row) => (
         <div className="table-actions">
-          <button type="button" className="btn btn--sm btn--outline" onClick={() => openEdit(row)}>Edit</button>
+          <button type="button" className="btn btn--sm btn--outline" onClick={(e) => { e.stopPropagation(); openEdit(row) }}>Edit</button>
+          <button type="button" className="btn btn--sm btn--outline" onClick={(e) => { e.stopPropagation(); openProofsFor(row) }}>Proofs</button>
         </div>
       ),
     },
@@ -155,51 +193,44 @@ export default function BeneficiariesPage() {
   ]
 
   const proofColumns = [
-    { key: 'distributionCode', label: 'Distribution' },
     { key: 'barangay', label: 'Barangay' },
+    { key: 'eventName', label: 'Distribution Event', render: (row) => row.eventName || row.distributionCode },
     { key: 'fileName', label: 'File' },
     { key: 'submittedAt', label: 'Submitted' },
     { key: 'status', label: 'Status', render: (row) => <StatusBadge status={row.status} /> },
-    {
-      key: 'actions',
-      label: 'Actions',
-      render: (row) => (
-        <div className="table-actions">
-          <a href={row.fileUrl} target="_blank" rel="noreferrer" className="btn btn--sm btn--outline">View</a>
-          {row.status === 'Pending Review' && (
-            <>
-              <button type="button" className="btn btn--sm btn--primary" onClick={() => reviewProof(row.id, 'Verified').then(reloadProofs)}>Verify</button>
-              <button type="button" className="btn btn--sm btn--outline" onClick={() => reviewProof(row.id, 'Rejected').then(reloadProofs)}>Reject</button>
-            </>
-          )}
-        </div>
-      ),
-    },
   ]
+
+  const pendingProofs = proofs.filter((p) => p.status === 'Pending' || p.status === 'Pending Review').length
 
   return (
     <>
       <PageHeader
         title="Barangay Beneficiary Management"
-        description="Manage barangays, affected families, assistance requests, and distribution proof submissions."
+        description="Manage barangays, assistance requests, and review distribution proofs submitted by each barangay."
         actions={<button type="button" className="btn btn--primary" onClick={openCreate}>+ Register Barangay</button>}
       />
 
       <div className="admin-stats-grid admin-stats-grid--compact">
         <div className="admin-stat-card"><span className="admin-stat-card__value">{beneficiaries.length}</span><span className="admin-stat-card__label">Barangays Registered</span></div>
         <div className="admin-stat-card"><span className="admin-stat-card__value">{totalFamilies.toLocaleString()}</span><span className="admin-stat-card__label">Total Affected Families</span></div>
-        <div className="admin-stat-card"><span className="admin-stat-card__value">{proofs.filter((p) => p.status === 'Pending Review').length}</span><span className="admin-stat-card__label">Proofs Pending Review</span></div>
+        <div className="admin-stat-card"><span className="admin-stat-card__value">{pendingProofs}</span><span className="admin-stat-card__label">Proofs Pending Review</span></div>
       </div>
 
       <div className="admin-tabs">
         <button type="button" className={`admin-tab${tab === 'barangays' ? ' admin-tab--active' : ''}`} onClick={() => setTab('barangays')}>Barangays</button>
         <button type="button" className={`admin-tab${tab === 'requests' ? ' admin-tab--active' : ''}`} onClick={() => setTab('requests')}>Assistance Requests</button>
-        <button type="button" className={`admin-tab${tab === 'proofs' ? ' admin-tab--active' : ''}`} onClick={() => setTab('proofs')}>Distribution Proofs</button>
+        <button type="button" className={`admin-tab${tab === 'proofs' ? ' admin-tab--active' : ''}`} onClick={() => setTab('proofs')}>
+          Proofs{pendingProofs > 0 ? ` (${pendingProofs})` : ''}
+        </button>
       </div>
 
       {tab === 'barangays' && (
         <>
-          <FilterBar controller={barangayFilters} searchPlaceholder="Search by code, barangay, city, or representative..." />
+          <FilterBar
+            controller={barangayFilters}
+            searchPlaceholder="Search by code, barangay, city, or representative..."
+            exportConfig={{ filename: 'barangay-report', title: 'Barangay Report', columns: barangayColumns, rows: barangayFilters.filtered }}
+          />
           <ApiState loading={loading} error={error} onRetry={reload}>
             <DataTable columns={barangayColumns} data={barangayFilters.filtered} onRowClick={openEdit} />
           </ApiState>
@@ -215,9 +246,13 @@ export default function BeneficiariesPage() {
       )}
       {tab === 'proofs' && (
         <>
-          <FilterBar controller={proofFilters} searchPlaceholder="Search by distribution, barangay, or file..." />
+          <FilterBar
+            controller={proofFilters}
+            searchPlaceholder="Search by barangay, event, or file name..."
+            exportConfig={{ filename: 'barangay-proofs', title: 'Barangay Proof Report', columns: proofColumns, rows: proofFilters.filtered }}
+          />
           <ApiState loading={proofLoading} error={proofError} onRetry={reloadProofs}>
-            <DataTable columns={proofColumns} data={proofFilters.filtered} />
+            <AdminProofReview proofs={proofFilters.filtered} onChanged={reloadProofs} />
           </ApiState>
         </>
       )}
@@ -229,17 +264,49 @@ export default function BeneficiariesPage() {
             <form onSubmit={handleSave}>
               <div className="form-row">
                 <label>Barangay Name<input required value={form.barangay} onChange={(e) => setForm({ ...form, barangay: e.target.value })} placeholder="Brgy. Talisay" /></label>
+                <label>Barangay Type
+                  <select value={form.barangayType} onChange={(e) => setForm({ ...form, barangayType: e.target.value })}>
+                    <option value="">Select type...</option>
+                    {barangayTypes.map((t) => <option key={t} value={t}>{t}</option>)}
+                    {form.barangayType && !barangayTypes.includes(form.barangayType) && (
+                      <option value={form.barangayType}>{form.barangayType}</option>
+                    )}
+                  </select>
+                </label>
+              </div>
+              <div className="form-row">
                 <label>Municipality/City<input value={form.municipality} onChange={(e) => setForm({ ...form, municipality: e.target.value })} placeholder="Talisay City" /></label>
-              </div>
-              <div className="form-row">
                 <label>Affected Families<input type="number" min="0" required value={form.affectedFamilies} onChange={(e) => setForm({ ...form, affectedFamilies: e.target.value })} /></label>
-                <label>Program Category<input value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value })} /></label>
               </div>
+              <label>Complete Address<input required value={form.address} onChange={(e) => setForm({ ...form, address: e.target.value })} placeholder="Purok / Street, Barangay, City, Province" /></label>
+              <fieldset className="needs-fieldset">
+                <legend>Type of Beneficiary — Needs (select all that apply)</legend>
+                <div className="needs-grid">
+                  {needOptions.map((n) => {
+                    const checked = form.needs.includes(n)
+                    return (
+                      <label key={n} className="need-check">
+                        <input
+                          type="checkbox"
+                          checked={checked}
+                          onChange={(e) => setForm((prev) => ({
+                            ...prev,
+                            needs: e.target.checked
+                              ? [...prev.needs, n]
+                              : prev.needs.filter((x) => x !== n),
+                          }))}
+                        />
+                        {n}
+                      </label>
+                    )
+                  })}
+                </div>
+              </fieldset>
               <div className="form-row">
-                <label>Representative Name<input value={form.representativeName} onChange={(e) => setForm({ ...form, representativeName: e.target.value })} /></label>
-                <label>Representative Phone<input value={form.representativePhone} onChange={(e) => setForm({ ...form, representativePhone: e.target.value })} /></label>
+                <label>Point of Contact (POC)<input required value={form.representativeName} onChange={(e) => setForm({ ...form, representativeName: e.target.value })} placeholder="Representative full name" /></label>
+                <label>Contact Number<input required value={form.representativePhone} onChange={(e) => setForm({ ...form, representativePhone: e.target.value })} placeholder="+63 9xx xxx xxxx" /></label>
               </div>
-              <label>Representative Email<input type="email" value={form.representativeEmail} onChange={(e) => setForm({ ...form, representativeEmail: e.target.value })} /></label>
+              <label>Email Address<input type="email" required value={form.representativeEmail} onChange={(e) => setForm({ ...form, representativeEmail: e.target.value })} placeholder="poc@email.com" /></label>
               <label>Status
                 <select value={form.status} onChange={(e) => setForm({ ...form, status: e.target.value })}>
                   {STATUS_OPTIONS.map((s) => <option key={s} value={s}>{s}</option>)}
@@ -251,6 +318,32 @@ export default function BeneficiariesPage() {
                 <button type="button" className="btn btn--ghost" onClick={() => setShowForm(false)}>Cancel</button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {proofRecord && (
+        <div className="admin-modal-overlay" onClick={() => setProofRecord(null)}>
+          <div className="admin-modal admin-modal--xl proof-record-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="proof-record-modal__head">
+              <div>
+                <h2>Distribution Proofs</h2>
+                <p>
+                  {proofRecord.barangay || proofRecord.name}
+                  {proofRecord.municipality ? ` · ${proofRecord.municipality}` : ''}
+                </p>
+              </div>
+              <button type="button" className="btn btn--ghost" onClick={() => setProofRecord(null)}>Close</button>
+            </div>
+            <ApiState loading={proofLoading} error={proofError} onRetry={reloadProofs}>
+              <AdminProofReview
+                proofs={proofs}
+                onChanged={reloadProofs}
+                lockedBeneficiaryId={proofRecord.dbId}
+                lockedBarangay={proofRecord.barangay || proofRecord.name}
+                hideBarangayFilter
+              />
+            </ApiState>
           </div>
         </div>
       )}

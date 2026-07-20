@@ -1,37 +1,56 @@
 import { useState } from 'react'
-import { Upload, FileCheck, Image } from 'lucide-react'
+import { Upload, FileCheck, Image, Calendar, MapPin, AlertTriangle, CheckCircle2, Clock3, Download } from 'lucide-react'
 import { distributionsApi, getDistributionProofs, uploadDistributionProof } from '../../api/resources'
 import { useApiList } from '../../hooks/useApiList'
 import ApiState from '../../components/admin/shared/ApiState'
 import StatusBadge from '../../components/admin/shared/StatusBadge'
 
+function eventLabel(d) {
+  if (d.eventName) return `${d.eventName} (${d.status})`
+  const parts = [d.id, d.location, d.date].filter(Boolean)
+  if (d.program) parts.push(d.program)
+  return `${parts.join(' · ')} — ${d.status}`
+}
+
+function statusIcon(status) {
+  if (status === 'Approved') return <CheckCircle2 size={16} />
+  if (status === 'Rejected') return <AlertTriangle size={16} />
+  return <Clock3 size={16} />
+}
+
 export default function BeneficiaryProofsPage() {
-  const { data: distributions, loading: distLoading, error: distError, reload: reloadDist } = useApiList(() => distributionsApi.list())
-  const { data: proofs, loading: proofLoading, error: proofError, reload: reloadProofs } = useApiList(() => getDistributionProofs())
+  const { data: events, loading: distLoading, error: distError, reload: reloadDist } = useApiList(() =>
+    distributionsApi.listForProof()
+  )
+  const { data: proofs, loading: proofLoading, error: proofError, reload: reloadProofs } = useApiList(() =>
+    getDistributionProofs()
+  )
   const [form, setForm] = useState({ distributionId: '', notes: '', file: null })
   const [uploading, setUploading] = useState(false)
   const [message, setMessage] = useState('')
 
-  const eligible = distributions.filter((d) =>
-    ['Delivered', 'Awaiting Proof', 'In Transit'].includes(d.status)
-  )
+  const selected = events.find((d) => String(d.dbId) === String(form.distributionId))
 
   const handleSubmit = async (e) => {
     e.preventDefault()
-    if (!form.distributionId || !form.file) {
-      setMessage('Please select a distribution and upload a file.')
+    if (!form.distributionId) {
+      setMessage('Please select a distribution event before submitting proof.')
+      return
+    }
+    if (!form.file) {
+      setMessage('Please upload a photo or document.')
       return
     }
     setUploading(true)
     setMessage('')
     try {
       const fd = new FormData()
-      fd.append('distributionId', form.distributionId)
+      fd.append('distributionId', String(form.distributionId))
       fd.append('notes', form.notes)
       fd.append('proof', form.file)
       await uploadDistributionProof(fd)
       setForm({ distributionId: '', notes: '', file: null })
-      setMessage('Proof submitted successfully. The organization has been notified.')
+      setMessage('Proof submitted successfully. Status is now Pending until an administrator reviews it.')
       reloadProofs()
       reloadDist()
     } catch (err) {
@@ -48,27 +67,45 @@ export default function BeneficiaryProofsPage() {
           <FileCheck size={22} />
           <div>
             <h2>Submit Distribution Proof</h2>
-            <p>Upload photos or documents confirming your barangay received the relief goods. The organization will be notified immediately.</p>
+            <p>Select your distribution event and upload photos or documents. An administrator will Approve or Reject your submission.</p>
           </div>
         </div>
 
         <ApiState loading={distLoading} error={distError} onRetry={reloadDist}>
           <form onSubmit={handleSubmit} className="proof-upload-form">
             <label>
-              Distribution Event
+              Distribution Event <span className="proof-required">*</span>
               <select
                 required
                 value={form.distributionId}
                 onChange={(e) => setForm({ ...form, distributionId: e.target.value })}
               >
-                <option value="">Select distribution</option>
-                {eligible.map((d) => (
+                <option value="">Select distribution event…</option>
+                {events.map((d) => (
                   <option key={d.dbId} value={d.dbId}>
-                    {d.id} — {d.location} ({d.date}) — {d.status}
+                    {eventLabel(d)}
                   </option>
                 ))}
               </select>
+              {events.length === 0 && (
+                <span className="proof-field-hint">
+                  No distribution events are available right now. If a previous proof was rejected, resubmit after the admin updates the event — or ask them to assign a distribution to your barangay.
+                </span>
+              )}
             </label>
+
+            {selected && (
+              <div className="proof-event-summary">
+                <strong>{selected.eventName || selected.id}</strong>
+                <span className="proof-event-summary__row"><MapPin size={14} /> {selected.location}</span>
+                <span className="proof-event-summary__row">
+                  <Calendar size={14} /> {selected.date}
+                  {selected.scheduleTime ? ` at ${selected.scheduleTime}` : ''}
+                </span>
+                {selected.itemsSummary && <span className="proof-event-summary__items">{selected.itemsSummary}</span>}
+                <StatusBadge status={selected.status} />
+              </div>
+            )}
 
             <label className="proof-file-label">
               <Image size={18} />
@@ -87,17 +124,17 @@ export default function BeneficiaryProofsPage() {
                 rows={3}
                 value={form.notes}
                 onChange={(e) => setForm({ ...form, notes: e.target.value })}
-                placeholder="Brief description: e.g. relief goods received at barangay hall, 50 family packs distributed..."
+                placeholder="Brief description: e.g. relief goods received at barangay hall…"
               />
             </label>
 
             {message && (
-              <p className={`proof-message${message.includes('success') ? ' proof-message--success' : ' proof-message--error'}`}>
+              <p className={`proof-message${message.includes('success') || message.includes('Pending') ? ' proof-message--success' : ' proof-message--error'}`}>
                 {message}
               </p>
             )}
 
-            <button type="submit" className="btn btn--primary" disabled={uploading}>
+            <button type="submit" className="btn btn--primary" disabled={uploading || events.length === 0}>
               <Upload size={16} />
               {uploading ? 'Uploading...' : 'Submit Proof'}
             </button>
@@ -106,22 +143,51 @@ export default function BeneficiaryProofsPage() {
       </div>
 
       <div className="proof-history">
-        <h3>Submitted Proofs</h3>
+        <h3>Your Proof Submissions</h3>
         <ApiState loading={proofLoading} error={proofError} onRetry={reloadProofs}>
           {proofs.length === 0 ? (
             <p className="proof-empty">No proofs submitted yet.</p>
           ) : (
-            <ul className="proof-list">
+            <ul className="proof-list proof-list--rich">
               {proofs.map((p) => (
-                <li key={p.id} className="proof-list__item">
-                  <div>
-                    <strong>{p.distributionCode}</strong>
-                    <span>{p.fileName}</span>
-                    <span className="proof-list__date">{p.submittedAt}</span>
+                <li key={p.id} className={`proof-list__item proof-list__item--${(p.status || 'Pending').toLowerCase()}`}>
+                  <div className="proof-list__preview">
+                    {p.isImage ? (
+                      <a href={p.fileUrl} target="_blank" rel="noreferrer">
+                        <img src={p.fileUrl} alt={p.fileName} />
+                      </a>
+                    ) : (
+                      <div className="proof-list__doc"><FileCheck size={22} /></div>
+                    )}
+                  </div>
+                  <div className="proof-list__info">
+                    <strong>{p.eventName || p.distributionCode}</strong>
+                    <span>
+                      {p.distributionLocation}
+                      {p.distributionDate && p.distributionDate !== '—' ? ` · ${p.distributionDate}` : ''}
+                    </span>
+                    <span className="proof-list__date">Submitted {p.submittedAt}</span>
+                    {p.status === 'Rejected' && p.reviewRemarks && (
+                      <div className="proof-list__reject">
+                        <AlertTriangle size={14} />
+                        <div>
+                          <strong>Rejected — please resubmit</strong>
+                          <p>{p.reviewRemarks}</p>
+                        </div>
+                      </div>
+                    )}
+                    {p.status === 'Approved' && (
+                      <span className="proof-list__ok">Approved{p.reviewedAt ? ` · ${p.reviewedAt}` : ''}</span>
+                    )}
                   </div>
                   <div className="proof-list__actions">
-                    <StatusBadge status={p.status} />
-                    <a href={p.fileUrl} target="_blank" rel="noreferrer" className="btn btn--sm btn--outline">View File</a>
+                    <span className="proof-status-pill">
+                      {statusIcon(p.status)}
+                      <StatusBadge status={p.status} />
+                    </span>
+                    <a href={p.fileUrl} target="_blank" rel="noreferrer" className="btn btn--sm btn--outline">
+                      <Download size={13} /> View
+                    </a>
                   </div>
                 </li>
               ))}

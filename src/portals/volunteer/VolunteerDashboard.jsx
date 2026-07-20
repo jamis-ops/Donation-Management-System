@@ -23,7 +23,10 @@ export default function VolunteerDashboard() {
             <ul className="portal-task-list">
               {data.tasks.map((t) => (
                 <li key={t.id} className="portal-task-item">
-                  <div><strong>{t.title}</strong><span>Due: {t.due}</span></div>
+                  <div>
+                    <strong>{t.title}</strong>
+                    <span>Due: {t.due}{t.duty ? ` · Duty: ${t.duty}` : ''}</span>
+                  </div>
                   <StatusBadge status={t.status} />
                 </li>
               ))}

@@ -54,7 +54,11 @@ export default function VolunteersPage() {
   return (
     <>
       <PageHeader title="Volunteer Management" description="Review applications, assign programs, track hours, and generate certificates." />
-      <FilterBar controller={filters} searchPlaceholder="Search by ID, name, or email..." />
+      <FilterBar
+        controller={filters}
+        searchPlaceholder="Search by ID, name, or email..."
+        exportConfig={{ filename: 'volunteer-report', title: 'Volunteer Report', columns, rows: filters.filtered }}
+      />
       <ApiState loading={loading} error={error} onRetry={reload}>
         <DataTable columns={columns} data={filters.filtered} />
       </ApiState>

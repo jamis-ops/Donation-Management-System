@@ -1,6 +1,8 @@
 import { useState } from 'react'
+import { Download, FileText, FileSpreadsheet, Printer } from 'lucide-react'
 import { getReports } from '../../api/resources'
 import { useApiObject } from '../../hooks/useApiList'
+import { exportCsv, exportExcel, printPdf } from '../../utils/exportData'
 import PageHeader from '../../components/admin/shared/PageHeader'
 import ApiState from '../../components/admin/shared/ApiState'
 import LineChart from '../../components/admin/charts/LineChart'
@@ -55,6 +57,40 @@ export default function ReportsPage() {
   const granLabel = { week: 'Week', month: 'Month', year: 'Year' }[gran]
   const granEmpty = { week: 'the last 8 weeks', month: 'the last 6 months', year: 'the last 4 years' }[gran]
 
+  // ---- Export datasets ----
+  const summaryColumns = [{ key: 'metric', label: 'Metric' }, { key: 'value', label: 'Value' }]
+  const summaryRows = summary
+    ? [
+        { metric: 'Donations This Month', value: summary.donationsThisMonth },
+        { metric: 'Change vs Last Month', value: `${changePct}%` },
+        { metric: 'Beneficiaries Served (YTD)', value: summary.beneficiariesServed },
+        { metric: 'Distributions Completed (YTD)', value: summary.distributionsCompleted },
+        { metric: 'Volunteer Hours', value: summary.volunteerHours },
+        { metric: 'Inventory Turnover', value: summary.inventoryTurnover },
+      ]
+    : []
+  const donationTrendColumns = [{ key: 'month', label: granLabel }, { key: 'amount', label: 'Donations (₱K)' }]
+  const servedTrendColumns = [{ key: 'month', label: granLabel }, { key: 'count', label: 'Beneficiaries Served' }]
+  const categoryColumns = [{ key: 'label', label: 'Category' }, { key: 'value', label: 'Beneficiaries' }]
+  const locationColumns = [{ key: 'label', label: 'Location' }, { key: 'value', label: 'Beneficiaries Reached' }]
+  const programColumns = [
+    { key: 'program', label: 'Program' },
+    { key: 'allocated', label: 'Allocated' },
+    { key: 'distributed', label: 'Distributed' },
+  ]
+  const reportSections = [
+    { heading: 'Summary', columns: summaryColumns, rows: summaryRows },
+    { heading: `Donations by ${granLabel} (₱ thousands)`, columns: donationTrendColumns, rows: donationsByMonth },
+    { heading: `Beneficiaries Served by ${granLabel}`, columns: servedTrendColumns, rows: beneficiariesByMonth },
+    { heading: 'Beneficiaries by Category', columns: categoryColumns, rows: beneficiariesByCategory },
+    { heading: 'Distribution Reach by Location', columns: locationColumns, rows: distributionByLocation },
+    { heading: 'Allocated vs. Distributed by Program', columns: programColumns, rows: programFulfillment },
+  ]
+  const closeMenu = (e) => {
+    const details = e.currentTarget.closest('details')
+    if (details) details.open = false
+  }
+
   return (
     <>
       <PageHeader
@@ -74,6 +110,20 @@ export default function ReportsPage() {
                 </button>
               ))}
             </div>
+            <details className="export-menu">
+              <summary className="btn btn--admin-outline export-menu__trigger"><Download size={14} /> Export</summary>
+              <div className="export-menu__list">
+                <button type="button" disabled={!summary} onClick={(e) => { exportCsv('analytics-summary', summaryColumns, summaryRows); closeMenu(e) }}>
+                  <FileText size={14} /> Summary CSV
+                </button>
+                <button type="button" disabled={!summary} onClick={(e) => { exportExcel('donation-trends', donationTrendColumns, donationsByMonth); closeMenu(e) }}>
+                  <FileSpreadsheet size={14} /> Trends Excel
+                </button>
+                <button type="button" disabled={!data} onClick={(e) => { printPdf('Analytics Report', reportSections); closeMenu(e) }}>
+                  <Printer size={14} /> Full Report PDF
+                </button>
+              </div>
+            </details>
             <button type="button" className="btn btn--admin-outline" onClick={reload}>Refresh</button>
           </div>
         }

@@ -28,6 +28,19 @@ export async function login(email, password) {
   })
 }
 
+export async function register(payload) {
+  return apiFetch('/api/signup.php', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  })
+}
+
+export async function verifyEmail(token) {
+  return apiFetch(`/api/verify.php?token=${encodeURIComponent(token)}&format=json`, {
+    method: 'GET',
+  })
+}
+
 export async function logout() {
   return apiFetch('/api/logout.php', { method: 'POST', body: '{}' })
 }

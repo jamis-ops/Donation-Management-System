@@ -12,6 +12,10 @@ dist
 dist-ssr
 *.local
 
+# Email
+api/mail_config.php
+api/logs/mail_outbox/*.html
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json

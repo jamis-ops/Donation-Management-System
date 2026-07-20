@@ -1,4 +1,5 @@
 import { Search, X, RotateCcw } from 'lucide-react'
+import ExportMenu from './ExportMenu'
 
 function optionValue(opt) {
   return typeof opt === 'object' && opt !== null ? opt.value : opt
@@ -8,7 +9,7 @@ function optionLabel(opt) {
   return typeof opt === 'object' && opt !== null ? opt.label : opt
 }
 
-export default function FilterBar({ controller, searchPlaceholder = 'Search records...' }) {
+export default function FilterBar({ controller, searchPlaceholder = 'Search records...', exportConfig = null }) {
   const {
     config, search, setSearch, values, setValue,
     dateFrom, setDateFrom, dateTo, setDateTo, reset, activeCount, options,
@@ -88,6 +89,15 @@ export default function FilterBar({ controller, searchPlaceholder = 'Search reco
           <RotateCcw size={13} />
           Reset{activeCount > 0 ? ` (${activeCount})` : ''}
         </button>
+
+        {exportConfig && (
+          <ExportMenu
+            filename={exportConfig.filename}
+            title={exportConfig.title}
+            columns={exportConfig.columns}
+            rows={exportConfig.rows}
+          />
+        )}
       </div>
     </div>
   )

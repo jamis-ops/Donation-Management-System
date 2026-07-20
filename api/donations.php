@@ -15,6 +15,7 @@ function map_donation(array $row): array
     'donor' => $row['donor_name'],
     'donorEmail' => $row['donor_email'],
     'type' => $row['type'],
+    'category' => $row['category'] ?? '',
     'amount' => money_display($row['type'], $row['amount'], $row['items_description']),
     'amountRaw' => $row['amount'],
     'itemsDescription' => $row['items_description'],
@@ -78,14 +79,16 @@ if ($method === 'POST') {
     $donorId = $find->fetchColumn() ?: null;
   }
 
-  $stmt = $pdo->prepare('INSERT INTO donations (tracking_code, donor_id, donor_name, donor_email, type, amount, items_description, status, donation_date, notes) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)');
-  $stmt->execute([$tracking, $donorId, $donorName, $donorEmail ?: null, $type, $amount, $items, $status, $donationDate, $notes ?: null]);
+  $category = trim((string) ($body['category'] ?? '')) ?: null;
+  $stmt = $pdo->prepare('INSERT INTO donations (tracking_code, donor_id, donor_name, donor_email, type, category, amount, items_description, status, donation_date, notes) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)');
+  $stmt->execute([$tracking, $donorId, $donorName, $donorEmail ?: null, $type, $category, $amount, $items, $status, $donationDate, $notes ?: null]);
 
   $newId = (int) $pdo->lastInsertId();
   $stmt = $pdo->prepare('SELECT * FROM donations WHERE id = ?');
   $stmt->execute([$newId]);
   $donation = map_donation($stmt->fetch());
   notify_admins($pdo, 'donation', 'New donation received', "{$donation['donor']} submitted {$donation['amount']} ({$donation['trackingCode']})", '/admin/donations');
+  audit_log($pdo, 'create', 'donation', $tracking, "{$donorName} donated {$donation['amount']}", $public ? ['name' => $donorName, 'role' => 'Public'] : null);
   json_response(['ok' => true, 'data' => $donation], 201);
 }
 
@@ -111,10 +114,15 @@ if ($method === 'DELETE') {
     }
     $pdo->prepare('DELETE FROM donations WHERE id = ?')->execute([$id]);
     notify_admins($pdo, 'donation', 'Donation cancelled', "{$user['name']} cancelled donation {$row['tracking_code']}", '/admin/donations');
+    audit_log($pdo, 'cancel', 'donation', $row['tracking_code'], 'Donor cancelled pending donation');
     json_response(['ok' => true]);
   }
 
+  $delRow = $pdo->prepare('SELECT tracking_code FROM donations WHERE id = ?');
+  $delRow->execute([$id]);
+  $delCode = $delRow->fetchColumn();
   $pdo->prepare('DELETE FROM donations WHERE id = ?')->execute([$id]);
+  audit_log($pdo, 'delete', 'donation', $delCode ?: (string) $id, 'Deleted donation');
   json_response(['ok' => true]);
 }
 
@@ -139,15 +147,28 @@ if ($method === 'PUT') {
   $items = $type === 'In-Kind' ? trim((string) ($body['itemsDescription'] ?? $existing['items_description'])) : null;
   $donationDate = (string) ($body['donationDate'] ?? $existing['donation_date']);
 
-  $update = $pdo->prepare('UPDATE donations SET donor_name = ?, type = ?, amount = ?, items_description = ?, status = ?, donation_date = ? WHERE id = ?');
-  $update->execute([$donorName, $type, $amount, $items, $status, $donationDate, $id]);
+  $category = array_key_exists('category', $body) ? (trim((string) $body['category']) ?: null) : ($existing['category'] ?? null);
+  $update = $pdo->prepare('UPDATE donations SET donor_name = ?, type = ?, category = ?, amount = ?, items_description = ?, status = ?, donation_date = ? WHERE id = ?');
+  $update->execute([$donorName, $type, $category, $amount, $items, $status, $donationDate, $id]);
 
   $stmt = $pdo->prepare('SELECT * FROM donations WHERE id = ?');
   $stmt->execute([$id]);
   $donation = map_donation($stmt->fetch());
   if ($status !== $existing['status']) {
     notify_admins($pdo, 'status_update', 'Donation status updated', "{$donation['trackingCode']} is now {$status}", '/admin/donations');
+    if (!empty($existing['donor_email'])) {
+      send_mail(
+        $existing['donor_email'],
+        $existing['donor_name'],
+        "Donation {$existing['tracking_code']} status update",
+        "<p>Hello {$existing['donor_name']},</p>"
+          . "<p>Your donation <strong>{$existing['tracking_code']}</strong> has been updated to "
+          . "<strong>{$status}</strong>.</p>"
+          . "<p>You can track its full progress anytime from your donor portal.</p>"
+      );
+    }
   }
+  audit_log($pdo, 'update', 'donation', $existing['tracking_code'], "Updated donation" . ($status !== $existing['status'] ? " (status: {$status})" : ''));
   json_response(['ok' => true, 'data' => $donation]);
 }
 

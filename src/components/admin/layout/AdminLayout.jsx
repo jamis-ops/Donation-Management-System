@@ -17,7 +17,7 @@ const pageTitles = {
   '/admin/tasks': 'Task Management',
   '/admin/reports': 'Reports & Analytics',
   '/admin/certificates': 'Certificates & Official Receipts',
-  '/admin/content': 'Website Content',
+  '/admin/content': 'Content Management',
 }
 
 export default function AdminLayout() {

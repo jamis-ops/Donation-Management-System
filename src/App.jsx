@@ -15,6 +15,8 @@ import AssistancePage from './pages/AssistancePage'
 import ContactPage from './pages/ContactPage'
 import FAQPage from './pages/FAQPage'
 import UserLoginPage from './pages/LoginPage'
+import RegisterPage from './pages/RegisterPage'
+import VerifyPage from './pages/VerifyPage'
 
 // Admin pages
 import AdminLoginPage from './pages/admin/LoginPage'
@@ -54,6 +56,8 @@ import StaffTasksPage from './portals/staff/StaffTasksPage'
 
 const router = createBrowserRouter([
   { path: 'login', element: <UserLoginPage /> },
+  { path: 'register', element: <RegisterPage /> },
+  { path: 'verify', element: <VerifyPage /> },
   {
     element: <PublicLayout />,
     children: [

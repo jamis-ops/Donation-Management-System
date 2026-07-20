@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { donationsApi } from '../../api/resources'
 import { useApiList } from '../../hooks/useApiList'
+import { DONATION_CATEGORIES } from '../../constants/options'
 import { useFilters } from '../../hooks/useFilters'
 import PageHeader from '../../components/admin/shared/PageHeader'
 import DataTable from '../../components/admin/shared/DataTable'
@@ -14,7 +15,7 @@ const lifecycle = [
 ]
 
 const emptyForm = {
-  donorName: '', email: '', type: 'Monetary', amount: '', items: '', status: 'Pending Verification',
+  donorName: '', email: '', type: 'Monetary', category: '', amount: '', items: '', status: 'Pending Verification',
 }
 
 const filterConfig = {
@@ -22,12 +23,14 @@ const filterConfig = {
   filters: [
     { key: 'status', label: 'Status' },
     { key: 'type', label: 'Type' },
+    { key: 'category', label: 'Category' },
   ],
   dateKey: 'date',
 }
 
 export default function DonationsPage() {
   const { data: donations, loading, error, reload } = useApiList(() => donationsApi.list())
+  const categoryOptions = DONATION_CATEGORIES
   const [selected, setSelected] = useState(null)
   const [showForm, setShowForm] = useState(false)
   const [form, setForm] = useState(emptyForm)
@@ -49,6 +52,7 @@ export default function DonationsPage() {
         donorName: form.donorName,
         email: form.email,
         type: form.type,
+        category: form.category,
         amount: form.type === 'Monetary' ? Number(form.amount) : undefined,
         items: form.type === 'In-Kind' ? form.items : undefined,
         status: form.status,
@@ -74,6 +78,7 @@ export default function DonationsPage() {
     { key: 'trackingCode', label: 'Tracking Code' },
     { key: 'donor', label: 'Donor' },
     { key: 'type', label: 'Type' },
+    { key: 'category', label: 'Category', render: (row) => row.category || '—' },
     { key: 'amount', label: 'Amount / Items' },
     { key: 'date', label: 'Date' },
     { key: 'status', label: 'Status', render: (row) => <StatusBadge status={row.status} /> },
@@ -116,7 +121,11 @@ export default function DonationsPage() {
         ))}
       </div>
 
-      <FilterBar controller={filters} searchPlaceholder="Search by tracking code, donor, or email..." />
+      <FilterBar
+        controller={filters}
+        searchPlaceholder="Search by tracking code, donor, or email..."
+        exportConfig={{ filename: 'donation-report', title: 'Donation Report', columns, rows: filters.filtered }}
+      />
 
       <ApiState loading={loading} error={error} onRetry={reload}>
         <DataTable columns={columns} data={filters.filtered} onRowClick={setSelected} />
@@ -129,12 +138,20 @@ export default function DonationsPage() {
             <form onSubmit={handleSave}>
               <label>Donor Name<input required value={form.donorName} onChange={(e) => setForm({ ...form, donorName: e.target.value })} /></label>
               <label>Email<input type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} /></label>
-              <label>Type
-                <select value={form.type} onChange={(e) => setForm({ ...form, type: e.target.value })}>
-                  <option value="Monetary">Monetary</option>
-                  <option value="In-Kind">In-Kind</option>
-                </select>
-              </label>
+              <div className="form-row">
+                <label>Type
+                  <select value={form.type} onChange={(e) => setForm({ ...form, type: e.target.value })}>
+                    <option value="Monetary">Monetary</option>
+                    <option value="In-Kind">In-Kind</option>
+                  </select>
+                </label>
+                <label>Category
+                  <select value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value })}>
+                    <option value="">Uncategorized</option>
+                    {categoryOptions.map((c) => <option key={c} value={c}>{c}</option>)}
+                  </select>
+                </label>
+              </div>
               {form.type === 'Monetary' ? (
                 <label>Amount (PHP)<input type="number" required value={form.amount} onChange={(e) => setForm({ ...form, amount: e.target.value })} /></label>
               ) : (
@@ -157,6 +174,7 @@ export default function DonationsPage() {
               <dt>Tracking Code</dt><dd>{selected.trackingCode}</dd>
               <dt>Donor</dt><dd>{selected.donor}</dd>
               <dt>Type</dt><dd>{selected.type}</dd>
+              <dt>Category</dt><dd>{selected.category || '—'}</dd>
               <dt>Amount</dt><dd>{selected.amount}</dd>
               <dt>Status</dt><dd><StatusBadge status={selected.status} /></dd>
               <dt>Date</dt><dd>{selected.date}</dd>

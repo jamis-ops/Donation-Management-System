@@ -21,6 +21,12 @@ export function AuthProvider({ children }) {
     return { success: true, user: res.user }
   }
 
+  const register = async (payload) => {
+    // Accounts now require email verification before sign-in, so we do NOT
+    // authenticate the user here. Return the server response for the UI.
+    return authApi.register(payload)
+  }
+
   const logout = async () => {
     try {
       await authApi.logout()
@@ -30,7 +36,7 @@ export function AuthProvider({ children }) {
   }
 
   return (
-    <AuthContext.Provider value={{ user, loading, login, logout, isAuthenticated: !!user }}>
+    <AuthContext.Provider value={{ user, loading, login, register, logout, isAuthenticated: !!user }}>
       {children}
     </AuthContext.Provider>
   )

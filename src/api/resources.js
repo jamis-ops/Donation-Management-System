@@ -35,7 +35,10 @@ export const assistanceRequestsApi = resourceApi('/api/assistance_requests.php')
 export const inventoryApi = resourceApi('/api/inventory.php')
 export const volunteersApi = resourceApi('/api/volunteers.php')
 export const tasksApi = resourceApi('/api/tasks.php')
-export const distributionsApi = resourceApi('/api/distributions.php')
+export const distributionsApi = {
+  ...resourceApi('/api/distributions.php'),
+  listForProof: () => apiFetch('/api/distributions.php?forProof=1'),
+}
 export const allocationsApi = resourceApi('/api/allocations.php')
 export const certificatesApi = resourceApi('/api/certificates.php')
 
@@ -81,8 +84,9 @@ export function markAllNotificationsRead() {
   return apiFetch('/api/notifications.php', { method: 'PUT', body: JSON.stringify({ markAllRead: true }) })
 }
 
-export function getDistributionProofs() {
-  return apiFetch('/api/distribution_proofs.php')
+export function getDistributionProofs(beneficiaryId = null) {
+  const qs = beneficiaryId ? `?beneficiaryId=${beneficiaryId}` : ''
+  return apiFetch(`/api/distribution_proofs.php${qs}`)
 }
 
 export async function uploadDistributionProof(formData) {
@@ -96,10 +100,10 @@ export async function uploadDistributionProof(formData) {
   return data
 }
 
-export function reviewProof(id, status) {
+export function reviewProof(id, status, remarks = '') {
   return apiFetch(`/api/distribution_proofs.php?id=${id}`, {
     method: 'PUT',
-    body: JSON.stringify({ status }),
+    body: JSON.stringify({ status, remarks }),
   })
 }
 

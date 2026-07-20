@@ -16,6 +16,8 @@ CREATE TABLE IF NOT EXISTS roles (
   name VARCHAR(50) NOT NULL UNIQUE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
+INSERT IGNORE INTO roles (name) VALUES ('Admin'), ('Staff'), ('Donor'), ('Volunteer'), ('Beneficiary');
+
 CREATE TABLE IF NOT EXISTS users (
   id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
   role_id INT UNSIGNED NOT NULL,
@@ -23,6 +25,9 @@ CREATE TABLE IF NOT EXISTS users (
   email VARCHAR(190) NOT NULL UNIQUE,
   password_hash VARCHAR(255) NOT NULL,
   status ENUM('ACTIVE','PENDING','DISABLED') NOT NULL DEFAULT 'ACTIVE',
+  email_verified_at TIMESTAMP NULL,
+  verification_token VARCHAR(64) NULL,
+  verification_sent_at TIMESTAMP NULL,
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   CONSTRAINT fk_users_role_id FOREIGN KEY (role_id) REFERENCES roles(id)
@@ -49,6 +54,7 @@ CREATE TABLE IF NOT EXISTS donations (
   donor_name VARCHAR(120) NOT NULL,
   donor_email VARCHAR(190) NULL,
   type ENUM('Monetary','In-Kind') NOT NULL DEFAULT 'Monetary',
+  category VARCHAR(60) NULL,
   amount DECIMAL(12,2) NULL,
   items_description VARCHAR(255) NULL,
   status VARCHAR(50) NOT NULL DEFAULT 'Pending Verification',
@@ -66,7 +72,16 @@ CREATE TABLE IF NOT EXISTS beneficiaries (
   code VARCHAR(20) NOT NULL UNIQUE,
   full_name VARCHAR(120) NOT NULL,
   category VARCHAR(80) NULL,
+  barangay_type VARCHAR(60) NULL,
   barangay VARCHAR(80) NULL,
+  municipality VARCHAR(80) NULL,
+  address VARCHAR(255) NULL,
+  affected_families INT UNSIGNED NOT NULL DEFAULT 0,
+  representative_name VARCHAR(120) NULL,
+  representative_phone VARCHAR(40) NULL,
+  representative_email VARCHAR(190) NULL,
+  needs TEXT NULL,
+  notes TEXT NULL,
   status VARCHAR(50) NOT NULL DEFAULT 'Pending Approval',
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
@@ -139,14 +154,28 @@ CREATE TABLE IF NOT EXISTS allocations (
 CREATE TABLE IF NOT EXISTS distributions (
   id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
   code VARCHAR(20) NOT NULL UNIQUE,
+  event_name VARCHAR(160) NULL,
   location VARCHAR(120) NOT NULL,
+  beneficiary_id BIGINT UNSIGNED NULL,
+  items_summary TEXT NULL,
+  coordinator VARCHAR(120) NULL,
+  notes TEXT NULL,
   program VARCHAR(80) NULL,
   distribution_date DATE NULL,
+  schedule_time VARCHAR(20) NULL,
   beneficiaries_count INT UNSIGNED NOT NULL DEFAULT 0,
   volunteers_count INT UNSIGNED NOT NULL DEFAULT 0,
   vehicles_count INT UNSIGNED NOT NULL DEFAULT 0,
+  distance_km DECIMAL(7,1) NULL,
+  fuel_liters DECIMAL(8,2) NULL,
+  fuel_cost DECIMAL(10,2) NULL,
   status VARCHAR(50) NOT NULL DEFAULT 'Planning',
   distribution_type VARCHAR(50) NOT NULL DEFAULT 'Delivery',
+  proof_status ENUM('Not Required','Awaiting Proof','Proof Submitted','Proof Verified') NOT NULL DEFAULT 'Not Required',
+  receipt_status VARCHAR(40) NOT NULL DEFAULT 'Awaiting Confirmation',
+  received_quantity INT UNSIGNED NULL,
+  received_at TIMESTAMP NULL,
+  receipt_notes TEXT NULL,
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
@@ -186,6 +215,9 @@ CREATE TABLE IF NOT EXISTS tasks (
   assignee_user_id BIGINT UNSIGNED NULL,
   priority VARCHAR(20) NOT NULL DEFAULT 'Medium',
   due_date DATE NULL,
+  duty_start VARCHAR(10) NULL,
+  duty_end VARCHAR(10) NULL,
+  duty_hours DECIMAL(5,2) NULL,
   module VARCHAR(50) NULL,
   board_column ENUM('todo','inProgress','review','done') NOT NULL DEFAULT 'todo',
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -255,4 +287,40 @@ CREATE TABLE IF NOT EXISTS success_stories (
   story_date DATE NOT NULL,
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- ---------- NOTIFICATIONS ----------
+CREATE TABLE IF NOT EXISTS notifications (
+  id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  user_id BIGINT UNSIGNED NULL,
+  role_target VARCHAR(50) NULL,
+  type VARCHAR(50) NOT NULL,
+  title VARCHAR(200) NOT NULL,
+  message TEXT NOT NULL,
+  link VARCHAR(255) NULL,
+  is_read TINYINT(1) NOT NULL DEFAULT 0,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  INDEX idx_notifications_user (user_id, is_read),
+  INDEX idx_notifications_role (role_target, is_read),
+  CONSTRAINT fk_notifications_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- ---------- DISTRIBUTION PROOFS ----------
+CREATE TABLE IF NOT EXISTS distribution_proofs (
+  id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  distribution_id BIGINT UNSIGNED NOT NULL,
+  beneficiary_id BIGINT UNSIGNED NOT NULL,
+  submitted_by_user_id BIGINT UNSIGNED NULL,
+  file_path VARCHAR(255) NOT NULL,
+  file_name VARCHAR(255) NOT NULL,
+  file_type VARCHAR(80) NULL,
+  notes TEXT NULL,
+  status VARCHAR(40) NOT NULL DEFAULT 'Pending',
+  review_remarks TEXT NULL,
+  reviewed_by_user_id BIGINT UNSIGNED NULL,
+  submitted_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  reviewed_at TIMESTAMP NULL,
+  CONSTRAINT fk_proof_distribution FOREIGN KEY (distribution_id) REFERENCES distributions(id) ON DELETE CASCADE,
+  CONSTRAINT fk_proof_beneficiary FOREIGN KEY (beneficiary_id) REFERENCES beneficiaries(id) ON DELETE CASCADE,
+  CONSTRAINT fk_proof_user FOREIGN KEY (submitted_by_user_id) REFERENCES users(id) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;

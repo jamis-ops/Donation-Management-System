@@ -6,8 +6,55 @@ $pdo = db();
 $method = request_method();
 $id = get_id_param();
 
+function format_duty_time(?string $time): string
+{
+  if (!$time) {
+    return '';
+  }
+  $ts = strtotime($time);
+  return $ts ? date('g:i A', $ts) : $time;
+}
+
+function duty_label(?string $start, ?string $end, $hours): string
+{
+  $parts = [];
+  if ($start && $end) {
+    $parts[] = format_duty_time($start) . ' – ' . format_duty_time($end);
+  } elseif ($start) {
+    $parts[] = 'From ' . format_duty_time($start);
+  }
+  if ($hours !== null && (float) $hours > 0) {
+    $h = rtrim(rtrim(number_format((float) $hours, 2), '0'), '.');
+    $parts[] = "{$h} hr" . ((float) $hours == 1.0 ? '' : 's');
+  }
+  return implode(' · ', $parts);
+}
+
+/**
+ * Derive total duty hours from a start/end time pair (handles overnight shifts).
+ */
+function hours_between(?string $start, ?string $end): ?float
+{
+  if (!$start || !$end) {
+    return null;
+  }
+  $s = strtotime("1970-01-01 {$start}");
+  $e = strtotime("1970-01-01 {$end}");
+  if ($s === false || $e === false) {
+    return null;
+  }
+  $diff = ($e - $s) / 3600;
+  if ($diff <= 0) {
+    $diff += 24;
+  }
+  return round($diff, 2);
+}
+
 function map_task(array $row): array
 {
+  $dutyStart = $row['duty_start'] ?? null;
+  $dutyEnd = $row['duty_end'] ?? null;
+  $dutyHours = isset($row['duty_hours']) && $row['duty_hours'] !== null ? (float) $row['duty_hours'] : null;
   return [
     'id' => $row['code'],
     'dbId' => (int) $row['id'],
@@ -16,9 +63,30 @@ function map_task(array $row): array
     'priority' => $row['priority'],
     'due' => format_date($row['due_date']),
     'dueDate' => $row['due_date'],
+    'dutyStart' => $dutyStart ?: '',
+    'dutyEnd' => $dutyEnd ?: '',
+    'dutyHours' => $dutyHours,
+    'dutyLabel' => duty_label($dutyStart, $dutyEnd, $dutyHours),
     'module' => $row['module'],
     'boardColumn' => $row['board_column'],
   ];
+}
+
+/**
+ * Normalize the duty-hours fields from a request body.
+ * Returns [start, end, hours] — hours is auto-computed from start/end when omitted.
+ */
+function read_duty_fields(array $body): array
+{
+  $start = trim((string) ($body['dutyStart'] ?? '')) ?: null;
+  $end = trim((string) ($body['dutyEnd'] ?? '')) ?: null;
+  $hours = isset($body['dutyHours']) && $body['dutyHours'] !== '' && $body['dutyHours'] !== null
+    ? (float) $body['dutyHours']
+    : null;
+  if ($hours === null) {
+    $hours = hours_between($start, $end);
+  }
+  return [$start, $end, $hours];
 }
 
 $user = require_auth(['Admin', 'Staff', 'Volunteer']);
@@ -94,7 +162,13 @@ if ($method === 'POST') {
     }
   }
 
-  $stmt = $pdo->prepare('INSERT INTO tasks (code, title, assignee, assignee_user_id, priority, due_date, module, board_column) VALUES (?, ?, ?, ?, ?, ?, ?, ?)');
+  [$dutyStart, $dutyEnd, $dutyHours] = read_duty_fields($body);
+  // Duty hours are required when the task is assigned to someone.
+  if (($assignee || $assigneeUserId) && !$dutyStart && ($dutyHours === null || $dutyHours <= 0)) {
+    json_response(['ok' => false, 'error' => 'Duty hours are required: set a start/end time or total hours.'], 400);
+  }
+
+  $stmt = $pdo->prepare('INSERT INTO tasks (code, title, assignee, assignee_user_id, priority, due_date, duty_start, duty_end, duty_hours, module, board_column) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)');
   $stmt->execute([
     $code,
     $title,
@@ -102,6 +176,9 @@ if ($method === 'POST') {
     $assigneeUserId,
     $body['priority'] ?? 'Medium',
     $body['dueDate'] ?? null,
+    $dutyStart,
+    $dutyEnd,
+    $dutyHours,
     $body['module'] ?? null,
     $column,
   ]);
@@ -111,11 +188,12 @@ if ($method === 'POST') {
   $task = map_task($stmt->fetch());
 
   if ($assigneeUserId) {
+    $duty = duty_label($dutyStart, $dutyEnd, $dutyHours);
     create_notification(
       $pdo,
       'task_assigned',
       'New task assigned',
-      "You have been assigned: {$title}",
+      "You have been assigned: {$title}" . ($duty ? " (Duty: {$duty})" : ''),
       '/volunteer-portal/tasks',
       $assigneeUserId
     );
@@ -161,24 +239,41 @@ if ($method === 'PUT') {
     }
   }
 
-  $update = $pdo->prepare('UPDATE tasks SET title = ?, assignee = ?, assignee_user_id = ?, priority = ?, due_date = ?, module = ?, board_column = ? WHERE id = ?');
+  // Preserve existing duty hours unless the request explicitly touches them.
+  $dutyTouched = array_key_exists('dutyStart', $body) || array_key_exists('dutyEnd', $body) || array_key_exists('dutyHours', $body);
+  if ($dutyTouched) {
+    [$dutyStart, $dutyEnd, $dutyHours] = read_duty_fields($body);
+    if (($assignee || $assigneeUserId) && !$dutyStart && ($dutyHours === null || $dutyHours <= 0)) {
+      json_response(['ok' => false, 'error' => 'Duty hours are required: set a start/end time or total hours.'], 400);
+    }
+  } else {
+    $dutyStart = $existing['duty_start'] ?? null;
+    $dutyEnd = $existing['duty_end'] ?? null;
+    $dutyHours = isset($existing['duty_hours']) && $existing['duty_hours'] !== null ? (float) $existing['duty_hours'] : null;
+  }
+
+  $update = $pdo->prepare('UPDATE tasks SET title = ?, assignee = ?, assignee_user_id = ?, priority = ?, due_date = ?, duty_start = ?, duty_end = ?, duty_hours = ?, module = ?, board_column = ? WHERE id = ?');
   $update->execute([
     $body['title'] ?? $existing['title'],
     $assignee ?: null,
     $assigneeUserId,
     $body['priority'] ?? $existing['priority'],
     $body['dueDate'] ?? $existing['due_date'],
+    $dutyStart,
+    $dutyEnd,
+    $dutyHours,
     $body['module'] ?? $existing['module'],
     $column,
     $id,
   ]);
 
   if ($assigneeUserId && (int) $assigneeUserId !== (int) ($existing['assignee_user_id'] ?? 0)) {
+    $duty = duty_label($dutyStart, $dutyEnd, $dutyHours);
     create_notification(
       $pdo,
       'task_assigned',
       'New task assigned',
-      'You have been assigned: ' . ($body['title'] ?? $existing['title']),
+      'You have been assigned: ' . ($body['title'] ?? $existing['title']) . ($duty ? " (Duty: {$duty})" : ''),
       '/volunteer-portal/tasks',
       $assigneeUserId
     );

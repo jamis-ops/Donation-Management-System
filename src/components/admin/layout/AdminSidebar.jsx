@@ -49,7 +49,7 @@ const navGroups = [
       { to: '/admin/tasks', label: 'Task Board', icon: ListTodo },
       { to: '/admin/reports', label: 'Reports', icon: BarChart3 },
       { to: '/admin/certificates', label: 'Certificates & OR', icon: FileBadge },
-      { to: '/admin/content', label: 'Website Content', icon: Globe },
+      { to: '/admin/content', label: 'Content Management', icon: Globe },
     ],
   },
 ]

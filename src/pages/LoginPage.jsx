@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { getHomeForRole } from '../utils/roleRoutes'
 import Logo from '../components/shared/Logo'
@@ -21,6 +21,8 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false)
   const { login } = useAuth()
   const navigate = useNavigate()
+  const [params] = useSearchParams()
+  const justVerified = params.get('verified') === '1'
 
   const handleSubmit = async (e) => {
     e.preventDefault()
@@ -50,6 +52,12 @@ export default function LoginPage() {
           <Logo className="auth-card__logo" />
           <h1>Welcome back</h1>
           <p className="auth-card__subtitle">Sign in to access your donor, volunteer, or beneficiary portal.</p>
+
+          {justVerified && (
+            <div className="auth-card__success" role="status">
+              Email verified successfully. You can sign in now.
+            </div>
+          )}
 
           {error && <div className="auth-card__error" role="alert">{error}</div>}
 
@@ -94,6 +102,10 @@ export default function LoginPage() {
               {loading ? 'Signing in...' : 'Log In'}
             </button>
           </form>
+
+          <p className="auth-alt">
+            New here? <Link to="/register">Create an account</Link>
+          </p>
 
           <div className="auth-demo">
             <h3>Demo accounts</h3>

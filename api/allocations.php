@@ -66,6 +66,7 @@ if ($method === 'POST') {
     $body['allocationDate'] ?? date('Y-m-d'),
   ]);
   notify_admins($pdo, 'allocation', 'New resource allocation', "Allocated {$body['resource']} for {$body['beneficiary']}", '/admin/allocation');
+  audit_log($pdo, 'create', 'allocation', $code, "Allocated {$body['resource']} for {$body['beneficiary']}");
   $newId = (int) $pdo->lastInsertId();
   $stmt = $pdo->prepare('SELECT * FROM allocations WHERE id = ?');
   $stmt->execute([$newId]);
@@ -105,6 +106,8 @@ if ($method === 'PUT') {
     notify_admins($pdo, 'status_update', 'Allocation updated', "Allocation {$existing['code']} → status: {$newStatus}, priority: {$priority}", '/admin/allocation');
   }
 
+  audit_log($pdo, 'update', 'allocation', $existing['code'], "Updated allocation (status: {$newStatus}, priority: {$priority})");
+
   $stmt = $pdo->prepare('SELECT * FROM allocations WHERE id = ?');
   $stmt->execute([$id]);
   json_response(['ok' => true, 'data' => map_allocation($pdo, $stmt->fetch())]);
@@ -114,7 +117,11 @@ if ($method === 'DELETE') {
   if (!$id) {
     json_response(['ok' => false, 'error' => 'Allocation id is required'], 400);
   }
+  $del = $pdo->prepare('SELECT code FROM allocations WHERE id = ?');
+  $del->execute([$id]);
+  $delCode = $del->fetchColumn();
   $pdo->prepare('DELETE FROM allocations WHERE id = ?')->execute([$id]);
+  audit_log($pdo, 'delete', 'allocation', $delCode ?: (string) $id, 'Deleted allocation');
   json_response(['ok' => true]);
 }
 

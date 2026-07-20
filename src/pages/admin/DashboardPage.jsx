@@ -7,6 +7,7 @@ import PageHeader from '../../components/admin/shared/PageHeader'
 import ApiState from '../../components/admin/shared/ApiState'
 import LineChart from '../../components/admin/charts/LineChart'
 import DonutChart from '../../components/admin/charts/DonutChart'
+import BarChart from '../../components/admin/charts/BarChart'
 import StockLevelBar from '../../components/admin/shared/StockLevelBar'
 
 const GRANULARITIES = [
@@ -38,6 +39,9 @@ export default function DashboardPage() {
   const donationTypes = (charts.donationTypes || []).filter((d) => d.value > 0)
   const distributionStatus = (charts.distributionStatus || []).filter((d) => d.value > 0)
   const inventoryLevels = charts.inventoryLevels || []
+  const beneficiaryTypes = (charts.beneficiaryTypes || []).filter((d) => d.value > 0)
+  const flowComparison = (charts.flowComparison || []).filter((d) => d.value > 0)
+  const forecast = charts.forecast || []
 
   const trendSeries = [
     {
@@ -142,6 +146,57 @@ export default function DashboardPage() {
                     <h3 className="admin-chart__title">Distributions by Status</h3>
                     <ChartEmpty message="No distributions recorded yet." />
                   </>
+                )}
+              </section>
+            </div>
+
+            <div className="admin-charts-grid admin-charts-grid--3">
+              <section className="admin-panel admin-panel--chart">
+                {beneficiaryTypes.length > 0 ? (
+                  <DonutChart title="Active Beneficiaries by Type" data={beneficiaryTypes} />
+                ) : (
+                  <>
+                    <h3 className="admin-chart__title">Active Beneficiaries by Type</h3>
+                    <ChartEmpty message="No approved barangays with a type set yet." />
+                  </>
+                )}
+              </section>
+
+              <section className="admin-panel admin-panel--chart">
+                {flowComparison.length > 0 ? (
+                  <BarChart title="Donations vs. Distribution vs. Need" data={flowComparison} />
+                ) : (
+                  <>
+                    <h3 className="admin-chart__title">Donations vs. Distribution vs. Need</h3>
+                    <ChartEmpty message="No inventory movement recorded yet." />
+                  </>
+                )}
+              </section>
+
+              <section className="admin-panel admin-panel--chart">
+                <h3 className="admin-chart__title">Inventory Forecast</h3>
+                {forecast.length > 0 ? (
+                  <ul className="forecast-list">
+                    {forecast.map((f) => (
+                      <li key={f.item} className={`forecast-list__item forecast-list__item--${f.status}`}>
+                        <div className="forecast-list__head">
+                          <span className="forecast-list__name">{f.item}</span>
+                          <span className="forecast-list__qty">{f.quantity.toLocaleString()} {f.unit}</span>
+                        </div>
+                        <span className="forecast-list__eta">
+                          {f.daysLeft === null
+                            ? 'No recent outflow — stable'
+                            : f.daysLeft < 14
+                              ? `≈ ${f.daysLeft} days left — reorder now`
+                              : f.daysLeft < 30
+                                ? `≈ ${f.daysLeft} days left — monitor`
+                                : `≈ ${f.daysLeft} days of stock`}
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <ChartEmpty message="No inventory items to forecast yet." />
                 )}
               </section>
             </div>

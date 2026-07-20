@@ -32,8 +32,11 @@ if (!$user) {
   json_response(['ok' => false, 'error' => 'Invalid email or password'], 401);
 }
 
+if ($user['status'] === 'PENDING') {
+  json_response(['ok' => false, 'error' => 'Please verify your email before signing in. Check your inbox for the verification link.'], 403);
+}
 if ($user['status'] !== 'ACTIVE') {
-  json_response(['ok' => false, 'error' => 'Account is not active'], 403);
+  json_response(['ok' => false, 'error' => 'This account is not active. Please contact the administrator.'], 403);
 }
 
 if (!password_verify($password, $user['password_hash'])) {

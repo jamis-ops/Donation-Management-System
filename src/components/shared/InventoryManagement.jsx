@@ -2,6 +2,7 @@ import { useCallback, useState } from 'react'
 import { Package, PackagePlus, Pencil, Play, CheckCircle2, XCircle, Trash2, X } from 'lucide-react'
 import { inventoryApi, repackingApi } from '../../api/resources'
 import { useApiList } from '../../hooks/useApiList'
+import { DONATION_CATEGORIES } from '../../constants/options'
 import { useFilters } from '../../hooks/useFilters'
 import DataTable from '../admin/shared/DataTable'
 import StatusBadge from '../admin/shared/StatusBadge'
@@ -59,6 +60,7 @@ export default function InventoryManagement() {
 
   const { data: items, loading, error, reload } = useApiList(fetchInventory)
   const { data: batches, loading: rpkLoading, error: rpkError, reload: reloadRpk } = useApiList(fetchRepacking)
+  const categoryOptions = DONATION_CATEGORIES
 
   const reloadAll = () => { reload(); reloadRpk() }
 
@@ -346,7 +348,11 @@ export default function InventoryManagement() {
             <button type="button" className="btn btn--primary" onClick={openItemCreate}>+ Add Item</button>
           </div>
 
-          <FilterBar controller={invFilters} searchPlaceholder="Search items or categories..." />
+          <FilterBar
+            controller={invFilters}
+            searchPlaceholder="Search items or categories..."
+            exportConfig={{ filename: 'inventory-report', title: 'Inventory Report', columns: inventoryColumns, rows: invFilters.filtered }}
+          />
 
           <ApiState loading={loading} error={error} onRetry={reload}>
             <DataTable columns={inventoryColumns} data={invFilters.filtered} onRowClick={openItemEdit} />
@@ -380,7 +386,11 @@ export default function InventoryManagement() {
             <button type="button" className="btn btn--primary" onClick={openBatchCreate}>+ New Repacking Batch</button>
           </div>
 
-          <FilterBar controller={rpkFilters} searchPlaceholder="Search by batch, output, source, or assignee..." />
+          <FilterBar
+            controller={rpkFilters}
+            searchPlaceholder="Search by batch, output, source, or assignee..."
+            exportConfig={{ filename: 'repacking-report', title: 'Repacking Report', columns: repackingColumns, rows: rpkFilters.filtered }}
+          />
 
           <ApiState loading={rpkLoading} error={rpkError} onRetry={reloadRpk}>
             <DataTable columns={repackingColumns} data={rpkFilters.filtered} />
@@ -395,7 +405,12 @@ export default function InventoryManagement() {
             <form onSubmit={handleItemSave}>
               <div className="form-row">
                 <label>Item Name<input required value={itemForm.item} onChange={(e) => setItemForm({ ...itemForm, item: e.target.value })} placeholder="e.g. Rice (25kg sacks)" /></label>
-                <label>Category<input value={itemForm.category} onChange={(e) => setItemForm({ ...itemForm, category: e.target.value })} placeholder="e.g. Food, Hygiene, Medical" /></label>
+                <label>Category
+                  <input list="inv-category-options" value={itemForm.category} onChange={(e) => setItemForm({ ...itemForm, category: e.target.value })} placeholder="e.g. Food, Hygiene, Medical" />
+                  <datalist id="inv-category-options">
+                    {categoryOptions.map((c) => <option key={c} value={c} />)}
+                  </datalist>
+                </label>
               </div>
               <div className="form-row">
                 <label>Quantity<input type="number" min="0" required value={itemForm.quantity} onChange={(e) => setItemForm({ ...itemForm, quantity: e.target.value })} /></label>

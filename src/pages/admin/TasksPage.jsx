@@ -1,12 +1,13 @@
 import { useState } from 'react'
 import { tasksApi, volunteersApi } from '../../api/resources'
 import { useApiObject, useApiList } from '../../hooks/useApiList'
+import { TASK_TYPES } from '../../constants/options'
 import { useFilters } from '../../hooks/useFilters'
 import PageHeader from '../../components/admin/shared/PageHeader'
 import StatusBadge from '../../components/admin/shared/StatusBadge'
 import ApiState from '../../components/admin/shared/ApiState'
 import FilterBar from '../../components/admin/shared/FilterBar'
-import { User, Calendar, Pencil } from 'lucide-react'
+import { User, Calendar, Clock, Pencil } from 'lucide-react'
 
 const filterConfig = {
   searchKeys: ['id', 'title', 'assignee'],
@@ -17,7 +18,7 @@ const filterConfig = {
   dateKey: 'dueDate',
 }
 
-const MODULE_OPTIONS = ['Donations', 'Volunteers', 'Beneficiaries', 'Inventory', 'Distribution', 'Reports', 'General']
+const MODULE_OPTIONS = [...new Set([...TASK_TYPES, 'Donations', 'Volunteers', 'Beneficiaries', 'Inventory', 'Distribution', 'Reports', 'General'])]
 const PRIORITY_OPTIONS = ['Low', 'Medium', 'High', 'Critical']
 const COLUMN_OPTIONS = [
   { value: 'todo', label: 'To Do' },
@@ -32,8 +33,20 @@ const emptyForm = {
   assignee: '',
   priority: 'Medium',
   dueDate: '',
+  dutyStart: '',
+  dutyEnd: '',
+  dutyHours: '',
   module: 'General',
   boardColumn: 'todo',
+}
+
+function computeDutyHours(start, end) {
+  if (!start || !end) return null
+  const [sh, sm] = start.split(':').map(Number)
+  const [eh, em] = end.split(':').map(Number)
+  let diff = (eh * 60 + em - (sh * 60 + sm)) / 60
+  if (diff <= 0) diff += 24
+  return Math.round(diff * 100) / 100
 }
 
 function TaskCard({ task, onEdit }) {
@@ -51,6 +64,11 @@ function TaskCard({ task, onEdit }) {
         <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.3rem' }}>
           <Calendar size={12} />{task.due || 'No due date'}
         </span>
+        {task.dutyLabel && (
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.3rem' }}>
+            <Clock size={12} />{task.dutyLabel}
+          </span>
+        )}
       </div>
       <div className="kanban-card__footer">
         <span className="kanban-card__module">{task.module}</span>
@@ -63,6 +81,7 @@ function TaskCard({ task, onEdit }) {
 export default function TasksPage() {
   const { data: tasks, loading, error, reload } = useApiObject(() => tasksApi.list())
   const { data: volunteers } = useApiList(() => volunteersApi.list())
+  const taskTypeOptions = MODULE_OPTIONS
   const [showForm, setShowForm] = useState(false)
   const [editRow, setEditRow] = useState(null)
   const [form, setForm] = useState(emptyForm)
@@ -96,6 +115,9 @@ export default function TasksPage() {
       assignee: task.assignee || '',
       priority: task.priority || 'Medium',
       dueDate: task.dueDate || '',
+      dutyStart: task.dutyStart || '',
+      dutyEnd: task.dutyEnd || '',
+      dutyHours: task.dutyHours != null ? String(task.dutyHours) : '',
       module: task.module || 'General',
       boardColumn: task.boardColumn || 'todo',
     })
@@ -117,12 +139,22 @@ export default function TasksPage() {
       alert('Task title is required.')
       return
     }
+    const hasAssignee = form.volunteerId || form.assignee.trim()
+    const hasSchedule = form.dutyStart && form.dutyEnd
+    const hasHours = Number(form.dutyHours) > 0
+    if (hasAssignee && !hasSchedule && !hasHours) {
+      alert('Duty Hours are required: set a start and end time, or enter total hours.')
+      return
+    }
     setSaving(true)
     try {
       const payload = {
         title: form.title.trim(),
         priority: form.priority,
         dueDate: form.dueDate || null,
+        dutyStart: form.dutyStart || null,
+        dutyEnd: form.dutyEnd || null,
+        dutyHours: hasHours ? Number(form.dutyHours) : (computeDutyHours(form.dutyStart, form.dutyEnd) ?? null),
         module: form.module,
         boardColumn: form.boardColumn,
       }
@@ -241,9 +273,12 @@ export default function TasksPage() {
                   </select>
                 </label>
                 <label>
-                  Module
+                  Task Type / Module
                   <select value={form.module} onChange={(e) => setForm({ ...form, module: e.target.value })}>
-                    {MODULE_OPTIONS.map((m) => <option key={m} value={m}>{m}</option>)}
+                    {taskTypeOptions.map((m) => <option key={m} value={m}>{m}</option>)}
+                    {form.module && !taskTypeOptions.includes(form.module) && (
+                      <option value={form.module}>{form.module}</option>
+                    )}
                   </select>
                 </label>
               </div>
@@ -260,6 +295,32 @@ export default function TasksPage() {
                   </select>
                 </label>
               </div>
+
+              <fieldset className="duty-fieldset">
+                <legend>Duty Hours {form.volunteerId || form.assignee.trim() ? '(required)' : ''}</legend>
+                <div className="form-row">
+                  <label>
+                    Start Time
+                    <input type="time" value={form.dutyStart} onChange={(e) => setForm({ ...form, dutyStart: e.target.value })} />
+                  </label>
+                  <label>
+                    End Time
+                    <input type="time" value={form.dutyEnd} onChange={(e) => setForm({ ...form, dutyEnd: e.target.value })} />
+                  </label>
+                </div>
+                <label>
+                  Total Hours {form.dutyStart && form.dutyEnd ? '(auto-computed if left blank)' : ''}
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.5"
+                    value={form.dutyHours}
+                    onChange={(e) => setForm({ ...form, dutyHours: e.target.value })}
+                    placeholder={form.dutyStart && form.dutyEnd ? String(computeDutyHours(form.dutyStart, form.dutyEnd) ?? '') : 'e.g. 4'}
+                  />
+                </label>
+                <p className="duty-hint">Set a start &amp; end time, or just the total hours. The volunteer sees this with the task.</p>
+              </fieldset>
 
               <div className="admin-modal__actions">
                 <button type="submit" className="btn btn--primary" disabled={saving}>

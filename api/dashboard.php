@@ -18,6 +18,14 @@ $openTasks = (int) $pdo->query("SELECT COUNT(*) FROM tasks WHERE board_column IN
 $beneficiariesServed = (int) $pdo->query("SELECT COALESCE(SUM(beneficiaries_count), 0) FROM distributions WHERE status IN ('Completed','Delivered')")->fetchColumn();
 $familiesAffected = (int) $pdo->query("SELECT COALESCE(SUM(affected_families), 0) FROM beneficiaries WHERE status = 'Approved'")->fetchColumn();
 
+// Cash vs in-kind totals
+$cashTotal = (float) $pdo->query("SELECT COALESCE(SUM(amount), 0) FROM donations WHERE type = 'Monetary'")->fetchColumn();
+$inKindCount = (int) $pdo->query("SELECT COUNT(*) FROM donations WHERE type = 'In-Kind'")->fetchColumn();
+
+// Repacked inventory available + deliveries currently in transit
+$repackedAvailable = (int) $pdo->query("SELECT COALESCE(SUM(quantity), 0) FROM repacking_jobs WHERE status = 'Completed'")->fetchColumn();
+$inTransit = (int) $pdo->query("SELECT COUNT(*) FROM distributions WHERE status = 'In Transit'")->fetchColumn();
+
 // Monthly donation trend (last 6 months, missing months filled with zeros)
 $trendRows = $pdo->query(
   "SELECT DATE_FORMAT(created_at, '%Y-%m') AS ym,
@@ -86,6 +94,39 @@ foreach ($pdo->query('SELECT item_name, quantity, unit, low_stock_threshold, mod
   ];
 }
 
+// Active beneficiaries broken down by barangay type
+$beneficiaryTypes = [];
+foreach ($pdo->query("SELECT COALESCE(NULLIF(barangay_type, ''), 'Unspecified') AS label, COUNT(*) AS cnt FROM beneficiaries WHERE status = 'Approved' GROUP BY label ORDER BY cnt DESC")->fetchAll() as $row) {
+  $beneficiaryTypes[] = ['label' => $row['label'], 'value' => (int) $row['cnt']];
+}
+
+// Donations vs. distribution vs. need for distribution (inventory item units)
+$invFlow = $pdo->query('SELECT COALESCE(SUM(quantity), 0) AS onhand, COALESCE(SUM(allocated), 0) AS allocated, COALESCE(SUM(distributed), 0) AS distributed FROM inventory_items')->fetch();
+$flowComparison = [
+  ['label' => 'Available', 'value' => (int) $invFlow['onhand']],
+  ['label' => 'Allocated (Need)', 'value' => (int) $invFlow['allocated']],
+  ['label' => 'Distributed', 'value' => (int) $invFlow['distributed']],
+];
+
+// Inventory forecasting — estimate days of stock left from recent outflow
+$forecast = [];
+foreach ($pdo->query('SELECT item_name, quantity, unit, distributed, low_stock_threshold FROM inventory_items ORDER BY quantity ASC LIMIT 6')->fetchAll() as $row) {
+  $qty = (int) $row['quantity'];
+  $dist = (int) $row['distributed'];
+  $dailyRate = $dist > 0 ? $dist / 90 : 0; // assume distributed over ~90 days of activity
+  $daysLeft = $dailyRate > 0 ? (int) floor($qty / $dailyRate) : null;
+  $status = $daysLeft === null
+    ? 'stable'
+    : ($daysLeft < 14 ? 'critical' : ($daysLeft < 30 ? 'watch' : 'healthy'));
+  $forecast[] = [
+    'item' => $row['item_name'],
+    'quantity' => $qty,
+    'unit' => $row['unit'],
+    'daysLeft' => $daysLeft,
+    'status' => $status,
+  ];
+}
+
 $recentDonations = $pdo->query('SELECT donor_name, amount, type, items_description, created_at FROM donations ORDER BY created_at DESC LIMIT 3')->fetchAll();
 $recentActivity = [];
 foreach ($recentDonations as $i => $d) {
@@ -102,10 +143,11 @@ json_response([
   'ok' => true,
   'data' => [
     'stats' => [
-      ['label' => 'Total Donations', 'value' => number_format($donationCount), 'change' => "+{$pendingDonations} pending", 'trend' => 'up'],
+      ['label' => 'Total Cash Donations', 'value' => '₱' . number_format($cashTotal, 0), 'change' => "{$inKindCount} in-kind gifts", 'trend' => 'up'],
       ['label' => 'Active Beneficiaries', 'value' => number_format($beneficiaryCount), 'change' => "+{$pendingBeneficiaries} pending", 'trend' => 'up'],
       ['label' => 'Items in Inventory', 'value' => number_format($inventoryQty), 'change' => "{$lowStock} low stock", 'trend' => $lowStock > 0 ? 'warn' : 'up'],
-      ['label' => 'Active Deliveries', 'value' => (string) $activeDeliveries, 'change' => "{$openTasks} open tasks", 'trend' => 'up'],
+      ['label' => 'Repacked Inventory', 'value' => number_format($repackedAvailable), 'change' => 'packs available', 'trend' => 'up'],
+      ['label' => 'Active Deliveries', 'value' => (string) $activeDeliveries, 'change' => "{$inTransit} in transit", 'trend' => 'up'],
       ['label' => 'Beneficiaries Served', 'value' => number_format($beneficiariesServed), 'change' => number_format($familiesAffected) . ' families covered', 'trend' => 'up'],
     ],
     'charts' => [
@@ -114,6 +156,9 @@ json_response([
       'donationTypes' => $donationTypes,
       'distributionStatus' => $distributionStatus,
       'inventoryLevels' => $inventoryLevels,
+      'beneficiaryTypes' => $beneficiaryTypes,
+      'flowComparison' => $flowComparison,
+      'forecast' => $forecast,
     ],
     'recentActivity' => $recentActivity,
     'quickActions' => [
