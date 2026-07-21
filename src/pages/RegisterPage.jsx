@@ -1,7 +1,9 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
-import { BARANGAY_TYPES, NEEDS } from '../constants/options'
+import { BARANGAY_TYPES, DONOR_TYPES, NEEDS, REPRESENTATIVE_POSITIONS } from '../constants/options'
+import { MUNICIPALITIES, barangaysForMunicipality } from '../constants/locations'
+import Req from '../components/shared/Req'
 import Logo from '../components/shared/Logo'
 import { heroBg } from '../assets'
 
@@ -13,7 +15,10 @@ const ROLES = [
 
 const emptyForm = {
   name: '', email: '', password: '', phone: '',
-  barangay: '', municipality: '', barangayType: '', address: '', affectedFamilies: '', needs: [],
+  donorType: 'Individual', organization: '', country: '', address: '',
+  barangay: '', municipality: '', barangayType: '', affectedFamilies: '', needs: [],
+  representativePosition: '',
+  acceptedPolicies: false,
 }
 
 export default function RegisterPage() {
@@ -26,12 +31,22 @@ export default function RegisterPage() {
 
   const barangayTypes = BARANGAY_TYPES
   const needOptions = NEEDS
+  const isCompany = form.donorType === 'Company'
+  const isBarangay = role === 'Beneficiary'
 
   const set = (key, value) => setForm((prev) => ({ ...prev, [key]: value }))
 
   const handleSubmit = async (e) => {
     e.preventDefault()
     setError('')
+    if (!form.acceptedPolicies) {
+      setError('Please accept the Data Privacy Policy and Terms & Conditions.')
+      return
+    }
+    if (role === 'Donor' && isCompany && !form.organization.trim()) {
+      setError('Company / Organization Name is required.')
+      return
+    }
     setLoading(true)
     try {
       const payload = {
@@ -40,6 +55,17 @@ export default function RegisterPage() {
         email: form.email,
         password: form.password,
         phone: form.phone,
+        acceptedPolicies: true,
+      }
+      if (role === 'Donor') {
+        Object.assign(payload, {
+          donorType: form.donorType,
+          country: form.country,
+          address: form.address,
+        })
+        if (isCompany) {
+          payload.organization = form.organization
+        }
       }
       if (role === 'Beneficiary') {
         Object.assign(payload, {
@@ -49,18 +75,22 @@ export default function RegisterPage() {
           address: form.address,
           affectedFamilies: Number(form.affectedFamilies) || 0,
           needs: form.needs,
+          representativePosition: form.representativePosition,
         })
       }
       const result = await register(payload)
-      setDone({ email: form.email, verifyUrl: result.verifyUrl || '' })
+      setDone({
+        email: form.email,
+        emailSent: Boolean(result.emailSent),
+        mailError: result.mailError || '',
+        message: result.message || '',
+      })
     } catch (err) {
       setError(err.message || 'Registration failed')
     } finally {
       setLoading(false)
     }
   }
-
-  const isBarangay = role === 'Beneficiary'
 
   if (done) {
     return (
@@ -75,20 +105,22 @@ export default function RegisterPage() {
           <div className="auth-card">
             <Logo className="auth-card__logo" />
             <h1>Check your email</h1>
-            <p className="auth-card__subtitle">
-              We sent a <strong>Verify it&apos;s you</strong> email to <strong>{done.email}</strong>.
-              Open it and click the button to activate your account, then sign in with the password you chose.
-            </p>
-            {done.verifyUrl && (
-              <div className="auth-verify-cta">
-                <p>Didn&apos;t get the email? Use this button to verify now:</p>
-                <a href={done.verifyUrl} className="btn btn--primary btn--lg auth-form__submit">
-                  Verify it&apos;s you
-                </a>
-              </div>
+            {done.emailSent ? (
+              <p className="auth-card__subtitle">
+                We sent a verification email to <strong>{done.email}</strong>.
+                Open that message and click <strong>Verify it&apos;s you</strong> to activate your account.
+                Then sign in with the <strong>same password</strong> you just created — no new password is needed.
+                The link expires in 24 hours.
+              </p>
+            ) : (
+              <p className="auth-card__subtitle">
+                Your account was created for <strong>{done.email}</strong>, but the verification email
+                could not be delivered{done.mailError ? `: ${done.mailError}` : '.'}
+                {' '}Please contact support or try registering again later.
+              </p>
             )}
-            <Link to="/login" className="auth-alt" style={{ display: 'block', marginTop: '1rem' }}>
-              Already verified? Sign in
+            <Link to="/login" className="btn btn--primary btn--lg auth-form__submit" style={{ display: 'inline-block', textAlign: 'center' }}>
+              Go to Sign In
             </Link>
             <Link to="/" className="auth-back-link">Back to website</Link>
           </div>
@@ -129,21 +161,79 @@ export default function RegisterPage() {
           {error && <div className="auth-card__error" role="alert">{error}</div>}
 
           <form onSubmit={handleSubmit} className="auth-form">
-            <label>
-              {isBarangay ? 'Point of Contact Name' : 'Full Name'}
-              <input required value={form.name} onChange={(e) => set('name', e.target.value)}
-                placeholder={isBarangay ? 'Barangay representative' : 'Your full name'} autoComplete="name" />
-            </label>
+            {role === 'Donor' && (
+              <label>
+                <Req required>Donor Type</Req>
+                <select
+                  required
+                  value={form.donorType}
+                  onChange={(e) => setForm((prev) => ({
+                    ...prev,
+                    donorType: e.target.value,
+                    organization: e.target.value === 'Individual' ? '' : prev.organization,
+                  }))}
+                >
+                  {DONOR_TYPES.map((t) => (
+                    <option key={t.value} value={t.value}>{t.label}</option>
+                  ))}
+                </select>
+              </label>
+            )}
+
+            {role === 'Donor' && isCompany && (
+              <label>
+                <Req required>Company / Organization Name</Req>
+                <input
+                  required
+                  value={form.organization}
+                  onChange={(e) => set('organization', e.target.value)}
+                  placeholder="Acme Foundation Inc."
+                />
+              </label>
+            )}
 
             <label>
-              Email
+              <Req required>
+                {isBarangay
+                  ? 'Representative Full Name'
+                  : role === 'Donor' && isCompany
+                    ? 'Contact Person'
+                    : 'Full Name'}
+              </Req>
+              <input
+                required
+                value={form.name}
+                onChange={(e) => set('name', e.target.value)}
+                placeholder={isBarangay ? 'Barangay representative' : 'Your full name'}
+                autoComplete="name"
+              />
+            </label>
+
+            {isBarangay && (
+              <label>
+                <Req required>Position / Role</Req>
+                <select
+                  required
+                  value={form.representativePosition}
+                  onChange={(e) => set('representativePosition', e.target.value)}
+                >
+                  <option value="">Select position…</option>
+                  {REPRESENTATIVE_POSITIONS.map((p) => (
+                    <option key={p} value={p}>{p}</option>
+                  ))}
+                </select>
+              </label>
+            )}
+
+            <label>
+              <Req required>Email</Req>
               <input type="email" required value={form.email} onChange={(e) => set('email', e.target.value)}
                 placeholder="you@email.com" autoComplete="username" />
             </label>
 
             <div className="auth-form__row auth-form__row--split">
               <label>
-                Password
+                <Req required>Password</Req>
                 <input type="password" required minLength={6} value={form.password}
                   onChange={(e) => set('password', e.target.value)} placeholder="Min. 6 characters" autoComplete="new-password" />
               </label>
@@ -153,16 +243,54 @@ export default function RegisterPage() {
               </label>
             </div>
 
+            {role === 'Donor' && (
+              <div className="auth-form__row auth-form__row--split">
+                <label>
+                  Country
+                  <input value={form.country} onChange={(e) => set('country', e.target.value)} placeholder="Philippines" />
+                </label>
+                <label>
+                  Address
+                  <input value={form.address} onChange={(e) => set('address', e.target.value)} placeholder="Street, City" />
+                </label>
+              </div>
+            )}
+
             {isBarangay && (
               <>
                 <div className="auth-form__row auth-form__row--split">
                   <label>
-                    Barangay Name
-                    <input required value={form.barangay} onChange={(e) => set('barangay', e.target.value)} placeholder="Brgy. Talisay" />
+                    <Req required>Municipality / City</Req>
+                    <select
+                      required
+                      value={form.municipality}
+                      onChange={(e) => setForm((prev) => ({
+                        ...prev,
+                        municipality: e.target.value,
+                        barangay: '',
+                      }))}
+                    >
+                      <option value="">Select municipality/city…</option>
+                      {MUNICIPALITIES.map((m) => (
+                        <option key={m} value={m}>{m}</option>
+                      ))}
+                    </select>
                   </label>
                   <label>
-                    Municipality / City
-                    <input value={form.municipality} onChange={(e) => set('municipality', e.target.value)} placeholder="Talisay City" />
+                    <Req required>Barangay Name</Req>
+                    <select
+                      required
+                      value={form.barangay}
+                      disabled={!form.municipality}
+                      onChange={(e) => set('barangay', e.target.value)}
+                    >
+                      <option value="">
+                        {form.municipality ? 'Select barangay…' : 'Select municipality first…'}
+                      </option>
+                      {barangaysForMunicipality(form.municipality).map((b) => (
+                        <option key={b} value={b}>{b}</option>
+                      ))}
+                    </select>
                   </label>
                 </div>
                 <div className="auth-form__row auth-form__row--split">
@@ -174,7 +302,7 @@ export default function RegisterPage() {
                     </select>
                   </label>
                   <label>
-                    Affected Families
+                    Number of Affected Families
                     <input type="number" min="0" value={form.affectedFamilies} onChange={(e) => set('affectedFamilies', e.target.value)} />
                   </label>
                 </div>
@@ -204,6 +332,22 @@ export default function RegisterPage() {
                 )}
               </>
             )}
+
+            <label className="auth-policy-check">
+              <input
+                type="checkbox"
+                required
+                checked={form.acceptedPolicies}
+                onChange={(e) => set('acceptedPolicies', e.target.checked)}
+              />
+              <span>
+                I accept the{' '}
+                <Link to="/privacy" target="_blank" rel="noreferrer">Data Privacy Policy</Link>
+                {' '}and{' '}
+                <Link to="/terms" target="_blank" rel="noreferrer">Terms &amp; Conditions</Link>
+                <Req required />
+              </span>
+            </label>
 
             <button type="submit" className="btn btn--primary btn--lg auth-form__submit" disabled={loading}>
               {loading ? 'Creating account...' : 'Create Account'}

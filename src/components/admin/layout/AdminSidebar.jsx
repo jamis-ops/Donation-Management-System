@@ -26,21 +26,21 @@ const navGroups = [
     ],
   },
   {
-    label: 'Operations',
-    items: [
-      { to: '/admin/donations', label: 'Donations', icon: HeartHandshake },
-      { to: '/admin/inventory', label: 'Inventory', icon: Package },
-      { to: '/admin/allocation', label: 'Resource Allocation', icon: GitBranch },
-      { to: '/admin/distributions', label: 'Logistics & Distribution', icon: Truck },
-    ],
-  },
-  {
     label: 'People',
     items: [
       { to: '/admin/beneficiaries', label: 'Beneficiaries', icon: Users },
       { to: '/admin/donors', label: 'Donors', icon: HeartHandshake },
       { to: '/admin/volunteers', label: 'Volunteers', icon: UserCheck },
       { to: '/admin/staff', label: 'Staff', icon: UserCog },
+    ],
+  },
+  {
+    label: 'Operations',
+    items: [
+      { to: '/admin/donations', label: 'Donations', icon: HeartHandshake },
+      { to: '/admin/inventory', label: 'Inventory', icon: Package },
+      { to: '/admin/allocation', label: 'Resource Allocation', icon: GitBranch },
+      { to: '/admin/distributions', label: 'Logistics & Distribution', icon: Truck },
     ],
   },
   {

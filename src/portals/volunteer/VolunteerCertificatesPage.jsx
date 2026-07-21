@@ -6,6 +6,7 @@ import CertificateView from '../../components/shared/CertificateView'
 import { printCertificate } from '../../components/shared/printCertificate'
 import { certificatesApi } from '../../api/resources'
 import { useApiList } from '../../hooks/useApiList'
+import ModalHeader from '../../components/admin/shared/ModalHeader'
 
 export default function VolunteerCertificatesPage() {
   const { data, loading, error, reload } = useApiList(() => certificatesApi.list())
@@ -55,8 +56,8 @@ export default function VolunteerCertificatesPage() {
       {preview && (
         <div className="admin-modal-overlay" onClick={() => setPreview(null)}>
           <div className="admin-modal admin-modal--cert" onClick={(e) => e.stopPropagation()}>
+            <ModalHeader title={preview.type} onClose={() => setPreview(null)} />
             <div className="cert-preview-toolbar">
-              <h2>{preview.type}</h2>
               <div className="cert-preview-toolbar__actions">
                 <button type="button" className="btn btn--sm btn--outline" onClick={() => printCertificate(preview)}>
                   <Printer size={14} /> Print
@@ -64,7 +65,6 @@ export default function VolunteerCertificatesPage() {
                 <button type="button" className="btn btn--sm btn--primary" onClick={() => printCertificate(preview)}>
                   <Download size={14} /> Download PDF
                 </button>
-                <button type="button" className="btn btn--sm btn--ghost" onClick={() => setPreview(null)}>Close</button>
               </div>
             </div>
             <CertificateView cert={preview} />

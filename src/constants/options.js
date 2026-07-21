@@ -42,3 +42,16 @@ export const TASK_TYPES = [
   'Logistics',
   'Outreach',
 ]
+
+export const DONOR_TYPES = [
+  { value: 'Individual', label: 'Individual' },
+  { value: 'Company', label: 'Company / Organization' },
+]
+
+export const REPRESENTATIVE_POSITIONS = [
+  'Barangay Captain',
+  'Kagawad',
+  'Barangay Secretary',
+  'DRRM Officer',
+  'Representative',
+]

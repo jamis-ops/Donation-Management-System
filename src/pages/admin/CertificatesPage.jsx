@@ -10,6 +10,7 @@ import ApiState from '../../components/admin/shared/ApiState'
 import FilterBar from '../../components/admin/shared/FilterBar'
 import CertificateView from '../../components/shared/CertificateView'
 import { printCertificate } from '../../components/shared/printCertificate'
+import ModalHeader from '../../components/admin/shared/ModalHeader'
 
 const CERT_TYPES = [
   'Certificate of Donation',
@@ -214,7 +215,10 @@ export default function CertificatesPage() {
       {showForm && (
         <div className="admin-modal-overlay" onClick={() => setShowForm(false)}>
           <div className="admin-modal admin-modal--wide" onClick={(e) => e.stopPropagation()}>
-            <h2>{editRow ? `Edit Certificate ${editRow.id}` : 'New Certificate'}</h2>
+            <ModalHeader
+              title={editRow ? `Edit Certificate ${editRow.id}` : 'New Certificate'}
+              onClose={() => setShowForm(false)}
+            />
             <form onSubmit={handleSave}>
               <div className="form-row">
                 <label>Recipient Type
@@ -296,8 +300,8 @@ export default function CertificatesPage() {
       {preview && (
         <div className="admin-modal-overlay" onClick={() => setPreview(null)}>
           <div className="admin-modal admin-modal--cert" onClick={(e) => e.stopPropagation()}>
+            <ModalHeader title={preview.type} onClose={() => setPreview(null)} />
             <div className="cert-preview-toolbar">
-              <h2>{preview.type}</h2>
               <div className="cert-preview-toolbar__actions">
                 <button type="button" className="btn btn--sm btn--outline" onClick={() => printCertificate(preview)}>
                   <Printer size={14} /> Print
@@ -305,7 +309,6 @@ export default function CertificatesPage() {
                 <button type="button" className="btn btn--sm btn--primary" onClick={() => printCertificate(preview)}>
                   <Download size={14} /> Download PDF
                 </button>
-                <button type="button" className="btn btn--sm btn--ghost" onClick={() => setPreview(null)}>Close</button>
               </div>
             </div>
             <CertificateView cert={preview} />

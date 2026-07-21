@@ -15,6 +15,7 @@ dist-ssr
 # Email
 api/mail_config.php
 api/logs/mail_outbox/*.html
+mail-service/.env
 
 # Editor directories and files
 .vscode/*

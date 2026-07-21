@@ -35,12 +35,6 @@ export async function register(payload) {
   })
 }
 
-export async function verifyEmail(token) {
-  return apiFetch(`/api/verify.php?token=${encodeURIComponent(token)}&format=json`, {
-    method: 'GET',
-  })
-}
-
 export async function logout() {
   return apiFetch('/api/logout.php', { method: 'POST', body: '{}' })
 }

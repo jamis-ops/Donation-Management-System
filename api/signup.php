@@ -29,6 +29,9 @@ if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
 if (strlen($password) < 6) {
   json_response(['ok' => false, 'error' => 'Password must be at least 6 characters.'], 400);
 }
+if (empty($body['acceptedPolicies']) && empty($body['termsAccepted'])) {
+  json_response(['ok' => false, 'error' => 'You must accept the Data Privacy Policy and Terms & Conditions.'], 400);
+}
 if (email_taken($pdo, $email)) {
   json_response(['ok' => false, 'error' => 'An account with this email already exists.'], 409);
 }
@@ -42,10 +45,37 @@ try {
   $userId = create_user_account($pdo, $role, $name, $email, $password, 'PENDING');
   $pdo->prepare('UPDATE users SET verification_token = ?, verification_sent_at = NOW() WHERE id = ?')
     ->execute([$token, $userId]);
+  accept_privacy_terms($pdo, $userId);
 
   if ($role === 'Donor') {
-    $stmt = $pdo->prepare('INSERT INTO donors (code, full_name, email, phone, user_id) VALUES (?, ?, ?, ?, ?)');
-    $stmt->execute([generate_code('DNR'), $name, $email, $body['phone'] ?? null, $userId]);
+    $donorTypeRaw = trim((string) ($body['donorType'] ?? $body['donor_type'] ?? 'Individual'));
+    $donorType = (strcasecmp($donorTypeRaw, 'Company') === 0 || strcasecmp($donorTypeRaw, 'Organization') === 0)
+      ? 'Company'
+      : 'Individual';
+    $organization = $donorType === 'Company'
+      ? trim((string) ($body['organization'] ?? $body['company'] ?? ''))
+      : '';
+    $country = trim((string) ($body['country'] ?? ''));
+    $address = trim((string) ($body['address'] ?? ''));
+    if ($donorType === 'Company' && $organization === '') {
+      throw new RuntimeException('Company / Organization Name is required.');
+    }
+    if ($organization !== '' && donor_name_taken($pdo, $name, $organization)) {
+      throw new RuntimeException('A donor with the same name or company already exists.');
+    }
+    $stmt = $pdo->prepare('INSERT INTO donors (code, full_name, donor_type, organization, contact_person, email, phone, country, address, user_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)');
+    $stmt->execute([
+      generate_code('DNR'),
+      $organization !== '' ? $organization : $name,
+      $donorType,
+      $organization !== '' ? $organization : null,
+      $name,
+      $email,
+      $body['phone'] ?? null,
+      $country !== '' ? $country : null,
+      $address !== '' ? $address : null,
+      $userId,
+    ]);
   } elseif ($role === 'Volunteer') {
     $programs = $body['programs'] ?? [];
     if (!is_array($programs)) {
@@ -59,7 +89,7 @@ try {
     $needsJson = (is_array($needs) && count($needs) > 0)
       ? json_encode(array_values(array_map('strval', $needs)))
       : null;
-    $stmt = $pdo->prepare('INSERT INTO beneficiaries (code, full_name, category, barangay_type, barangay, municipality, address, affected_families, representative_name, representative_phone, representative_email, needs, status, user_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)');
+    $stmt = $pdo->prepare('INSERT INTO beneficiaries (code, full_name, category, barangay_type, barangay, municipality, address, affected_families, representative_name, representative_position, representative_phone, representative_email, needs, status, user_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)');
     $stmt->execute([
       generate_code('BEN'),
       $barangay,
@@ -70,6 +100,7 @@ try {
       $body['address'] ?? null,
       (int) ($body['affectedFamilies'] ?? 0),
       $name,
+      $body['representativePosition'] ?? $body['position'] ?? null,
       $body['phone'] ?? null,
       $email,
       $needsJson,
@@ -79,6 +110,11 @@ try {
   }
 
   $pdo->commit();
+} catch (RuntimeException $e) {
+  if ($pdo->inTransaction()) {
+    $pdo->rollBack();
+  }
+  json_response(['ok' => false, 'error' => $e->getMessage()], 409);
 } catch (Throwable $e) {
   if ($pdo->inTransaction()) {
     $pdo->rollBack();
@@ -99,13 +135,19 @@ try {
   // ignore
 }
 
-// Send the "Verify it's you" email.
+// Send the "Verify it's you" email via NodeMailer.
 $result = send_verification_email($email, $name, $token);
+$emailSent = (bool) ($result['sent'] ?? false);
+$mailTransport = (string) ($result['transport'] ?? '');
+$mailError = (string) ($result['error'] ?? '');
 
 json_response([
   'ok' => true,
   'pending' => true,
-  'message' => 'Account created. Please check your email and click “Verify it’s you” to activate your account before signing in.',
-  'emailSent' => (bool) ($result['sent'] ?? false),
-  'verifyUrl' => $result['url'] ?? '',
+  'message' => $emailSent
+    ? 'Account created. Check your email and click “Verify it’s you” to activate your account, then sign in.'
+    : 'Account created, but the verification email could not be sent. Please try again later or contact support.',
+  'emailSent' => $emailSent && in_array($mailTransport, ['nodemailer', 'smtp'], true),
+  'mailTransport' => $mailTransport,
+  'mailError' => $emailSent ? '' : $mailError,
 ], 201);

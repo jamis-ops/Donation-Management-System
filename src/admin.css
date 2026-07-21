@@ -2188,3 +2188,296 @@
   background: var(--admin-border);
   margin: 0 0.15rem;
 }
+
+/* Icon-only table actions */
+.icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: 1px solid var(--admin-border, #e2e8f0);
+  border-radius: 8px;
+  background: #fff;
+  color: #475569;
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease, transform 0.15s ease;
+}
+.icon-btn:hover {
+  background: #f8fafc;
+  border-color: #cbd5e1;
+  color: #0f172a;
+  transform: translateY(-1px);
+}
+.icon-btn--danger { color: #dc2626; }
+.icon-btn--danger:hover { background: #fef2f2; border-color: #fecaca; color: #b91c1c; }
+.icon-btn--success { color: #16a34a; }
+.icon-btn--success:hover { background: #f0fdf4; border-color: #bbf7d0; color: #15803d; }
+
+.policy-box {
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+  margin: 0.75rem 0 1rem;
+  padding: 0.85rem 1rem;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  background: #f8fafc;
+}
+
+.donation-proof-panel {
+  margin: 1rem 0 0.5rem;
+  padding: 1rem;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  background: #f8fafc;
+}
+.donation-proof-panel h3 {
+  margin: 0 0 0.75rem;
+  font-size: 0.95rem;
+}
+.donation-proof-panel__preview {
+  display: block;
+  margin-bottom: 0.75rem;
+  border-radius: 10px;
+  overflow: hidden;
+  border: 1px solid #e2e8f0;
+  background: #0f172a;
+}
+.donation-proof-panel__preview img {
+  display: block;
+  width: 100%;
+  max-height: 320px;
+  object-fit: contain;
+}
+.donation-proof-panel__doc {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-bottom: 0.75rem;
+  padding: 0.75rem;
+  border-radius: 10px;
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  color: #475569;
+}
+.donation-proof-panel__doc p {
+  margin: 0.15rem 0 0;
+  font-size: 0.8rem;
+  color: #94a3b8;
+}
+
+/* Modal header with visible X close */
+.admin-modal__header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+.admin-modal__header h2 {
+  margin: 0;
+}
+.admin-modal__subtitle {
+  margin: 0.35rem 0 0;
+  font-size: 0.88rem;
+  color: #64748b;
+  font-weight: 500;
+}
+.admin-modal__close {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  margin: -0.25rem -0.25rem 0 0;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  background: #fff;
+  color: #64748b;
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease, transform 0.15s ease;
+}
+.admin-modal__close:hover {
+  background: #fef2f2;
+  border-color: #fecaca;
+  color: #b91c1c;
+  transform: scale(1.04);
+}
+
+.req {
+  color: #dc2626;
+  font-weight: 700;
+  margin-left: 0.15em;
+}
+
+/* Beneficiary view modal */
+.beneficiary-view-modal {
+  max-height: min(92vh, 900px);
+  display: flex;
+  flex-direction: column;
+}
+
+.beneficiary-view-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin: 0 0 1rem;
+  padding-bottom: 0.75rem;
+  border-bottom: 1px solid var(--admin-border);
+}
+
+.beneficiary-view-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.45rem 0.85rem;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--admin-text-muted);
+  font-size: 0.82rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+}
+
+.beneficiary-view-tab:hover {
+  background: #f8fafc;
+  color: var(--admin-text);
+}
+
+.beneficiary-view-tab--active {
+  background: #fef2f2;
+  border-color: #fecaca;
+  color: #af101a;
+}
+
+.beneficiary-view-tab__count {
+  display: inline-flex;
+  min-width: 1.25rem;
+  height: 1.25rem;
+  padding: 0 0.35rem;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  background: #e2e8f0;
+  color: #334155;
+  font-size: 0.72rem;
+  font-weight: 700;
+}
+
+.beneficiary-view-tab--active .beneficiary-view-tab__count {
+  background: #af101a;
+  color: #fff;
+}
+
+.beneficiary-view-section {
+  overflow: auto;
+  flex: 1;
+  min-height: 0;
+  padding-right: 0.15rem;
+}
+
+.beneficiary-view-section__title {
+  margin: 1.15rem 0 0.65rem;
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--admin-text-muted);
+}
+
+.beneficiary-view-section__title:first-child {
+  margin-top: 0;
+}
+
+.beneficiary-needs-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.beneficiary-need-chip {
+  display: inline-flex;
+  padding: 0.28rem 0.65rem;
+  border-radius: 999px;
+  background: #f1f5f9;
+  border: 1px solid #e2e8f0;
+  color: #334155;
+  font-size: 0.78rem;
+  font-weight: 600;
+}
+
+.beneficiary-view-notes {
+  margin: 0;
+  padding: 0.85rem 1rem;
+  border-radius: 10px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  color: var(--admin-text);
+  font-size: 0.88rem;
+  line-height: 1.5;
+  white-space: pre-wrap;
+}
+
+.beneficiary-view-empty {
+  margin: 0.5rem 0 0;
+  color: var(--admin-text-muted);
+  font-size: 0.9rem;
+}
+
+.beneficiary-assist-list {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.beneficiary-assist-card {
+  padding: 0.9rem 1rem;
+  border: 1px solid var(--admin-border);
+  border-radius: 12px;
+  background: #fff;
+}
+
+.beneficiary-assist-card__top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-bottom: 0.35rem;
+}
+
+.beneficiary-assist-card__type {
+  margin: 0 0 0.45rem;
+  font-size: 0.92rem;
+  font-weight: 600;
+  color: var(--admin-text);
+}
+
+.beneficiary-assist-card__meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem 1.25rem;
+  color: var(--admin-text-muted);
+  font-size: 0.8rem;
+}
+
+.beneficiary-assist-card__notes {
+  margin: 0.55rem 0 0;
+  font-size: 0.84rem;
+  color: var(--admin-text-muted);
+  line-height: 1.45;
+}
+
+@media (max-width: 640px) {
+  .beneficiary-view-tabs {
+    flex-direction: column;
+  }
+
+  .beneficiary-view-tab {
+    width: 100%;
+    justify-content: center;
+  }
+}

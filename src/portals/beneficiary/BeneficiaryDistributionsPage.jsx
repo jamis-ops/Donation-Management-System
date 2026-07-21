@@ -4,6 +4,7 @@ import StatusBadge from '../../components/admin/shared/StatusBadge'
 import ApiState from '../../components/admin/shared/ApiState'
 import { distributionsApi } from '../../api/resources'
 import { useApiList } from '../../hooks/useApiList'
+import ModalHeader from '../../components/admin/shared/ModalHeader'
 
 export default function BeneficiaryDistributionsPage() {
   const { data, loading, error, reload } = useApiList(() => distributionsApi.list())
@@ -92,7 +93,10 @@ export default function BeneficiaryDistributionsPage() {
       {modal && (
         <div className="admin-modal-overlay" onClick={() => setModal(null)}>
           <div className="admin-modal" onClick={(e) => e.stopPropagation()}>
-            <h2>{modal.mode === 'receive' ? 'Confirm Receipt' : 'Report Not Received'}</h2>
+            <ModalHeader
+              title={modal.mode === 'receive' ? 'Confirm Receipt' : 'Report Not Received'}
+              onClose={() => setModal(null)}
+            />
             <p className="portal-hint">{modal.row.location} — {modal.row.date}</p>
             <form onSubmit={submit}>
               {modal.mode === 'receive' && (

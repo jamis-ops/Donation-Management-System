@@ -9,6 +9,7 @@ import StatusBadge from '../admin/shared/StatusBadge'
 import StockLevelBar from '../admin/shared/StockLevelBar'
 import ApiState from '../admin/shared/ApiState'
 import FilterBar from '../admin/shared/FilterBar'
+import ModalHeader from '../admin/shared/ModalHeader'
 
 const inventoryFilterConfig = {
   searchKeys: ['item', 'category'],
@@ -401,7 +402,10 @@ export default function InventoryManagement() {
       {itemModal && (
         <div className="admin-modal-overlay" onClick={() => setItemModal(null)}>
           <div className="admin-modal" onClick={(e) => e.stopPropagation()}>
-            <h2>{itemModal === 'create' ? 'Add Inventory Item' : `Update Stock — ${itemModal.item}`}</h2>
+            <ModalHeader
+              title={itemModal === 'create' ? 'Add Inventory Item' : `Update Stock — ${itemModal.item}`}
+              onClose={() => setItemModal(null)}
+            />
             <form onSubmit={handleItemSave}>
               <div className="form-row">
                 <label>Item Name<input required value={itemForm.item} onChange={(e) => setItemForm({ ...itemForm, item: e.target.value })} placeholder="e.g. Rice (25kg sacks)" /></label>
@@ -436,7 +440,10 @@ export default function InventoryManagement() {
       {batchModal && (
         <div className="admin-modal-overlay" onClick={() => setBatchModal(null)}>
           <div className="admin-modal admin-modal--wide" onClick={(e) => e.stopPropagation()}>
-            <h2>{batchModal === 'create' ? 'New Repacking Batch' : `Edit Batch ${batchModal.id}`}</h2>
+            <ModalHeader
+              title={batchModal === 'create' ? 'New Repacking Batch' : `Edit Batch ${batchModal.id}`}
+              onClose={() => setBatchModal(null)}
+            />
             <form onSubmit={handleBatchSave}>
               {batchModal === 'create' ? (
                 <div className="form-row">

@@ -8,6 +8,7 @@ import StatusBadge from '../../components/admin/shared/StatusBadge'
 import WorkflowStepper from '../../components/admin/shared/WorkflowStepper'
 import ApiState from '../../components/admin/shared/ApiState'
 import FilterBar from '../../components/admin/shared/FilterBar'
+import ModalHeader from '../../components/admin/shared/ModalHeader'
 
 const WORKFLOW = ['Planning', 'Preparing', 'In Transit', 'Delivered', 'Awaiting Proof', 'Completed']
 const PROOF_STATUS = ['Not Required', 'Awaiting Proof', 'Proof Submitted', 'Proof Verified', 'Proof Rejected']
@@ -276,7 +277,7 @@ export default function DistributionsPage() {
       {detailRow && (
         <div className="admin-modal-overlay" onClick={() => setDetailRow(null)}>
           <div className="admin-modal admin-modal--wide" onClick={(e) => e.stopPropagation()}>
-            <h2>Distribution {detailRow.id}</h2>
+            <ModalHeader title={`Distribution ${detailRow.id}`} onClose={() => setDetailRow(null)} />
             <WorkflowStepper steps={WORKFLOW} currentStatus={detailRow.status} />
             <dl className="detail-list">
               <dt>Barangay</dt><dd>{detailRow.barangay || '—'}</dd>
@@ -309,7 +310,10 @@ export default function DistributionsPage() {
       {(editRow || showCreate) && (
         <div className="admin-modal-overlay" onClick={() => { setEditRow(null); setShowCreate(false) }}>
           <div className="admin-modal admin-modal--wide" onClick={(e) => e.stopPropagation()}>
-            <h2>{editRow ? `Edit ${editRow.id}` : 'Plan New Distribution'}</h2>
+            <ModalHeader
+              title={editRow ? `Edit ${editRow.id}` : 'Plan New Distribution'}
+              onClose={() => { setEditRow(null); setShowCreate(false) }}
+            />
             {editRow && <WorkflowStepper steps={WORKFLOW} currentStatus={form.status} />}
             <form onSubmit={handleSave}>
               {FormFields}

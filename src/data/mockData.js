@@ -1,241 +1,463 @@
+import {
+  carousel1, carousel2, carousel3, carousel4, carousel5,
+  carousel6, carousel7, carousel8, carousel9, carousel10,
+  teamFlemmingElisabet, teamIreneoJovita, teamAbigail, teamEsther,
+  teamCarmen, teamLudmila, teamRomeo, teamBienvenida,
+  partnerRoskilde, partnerSNI, partnerNovo, partnerDWC, partnerRAFI, partnerGOP,
+  projectCommunityCenter, projectVolunteer, projectLivelihood, projectToothbrushing,
+  projectEducational, projectFood, projectChildMinding, projectChristmas,
+  projectLibrary, projectConstruction, projectDisaster, projectHope,
+  projectInternship, projectDental, projectMedical, projectPWD,
+  storyEducation, storyDental, storyWhereKindness,
+} from '../assets'
+
 export const foundation = {
-  name: 'Rise Above Foundation',
-  tagline: 'Lifting communities through compassion, action, and hope.',
-  mission:
-    'To provide timely relief, sustainable development, and educational opportunities to underserved communities across the Philippines.',
+  name: 'Rise Above Foundation Cebu, Inc.',
+  shortName: 'Rise Above Foundation Cebu',
+  tagline: 'Action speaks louder than words',
+  mission: 'An improved quality of life for those struggling with poverty in Cebu',
   vision:
-    'A nation where every family has access to basic needs, education, and the support to rise above adversity.',
-  address: '123 Compassion Street, Cebu City, Philippines 6000',
-  phone: '+63 32 123 4567',
-  email: 'info@riseabovefoundation.org',
+    'Enabling the next generation of Cebuanos to rise above the challenges of the future through access to education, livelihood and healthcare',
+  goal:
+    'To improve the poor condition of the people in Cebu Province through provision of programs and services on education and training, health & hygiene, and creative livelihood opportunities in a community-based setting',
+  aboutIntro:
+    'Since November 2000, we have been working as volunteers in Cebu City, Philippines. Our team is striving to help improve the quality of life for the underprivileged by means of providing educational opportunities, livelihood training, and health and hygiene programs.',
+  aboutBody: [
+    'We connect and cooperate with volunteers from all over the world and help facilitate their work and accommodations in Cebu. We establish contact with schools and institutions for students in our internship program, and give free treatment to those in need through Dental Missions. Dentists and dental hygienists from several western countries participate in our projects to provide treatment as well as oral education for underprivileged children and adolescents.',
+    'Our vision is to give people a chance to lead better lives through education and training. You can help make that dream a reality through financial contributions or through working as a volunteer.',
+  ],
+  address: '252, I. Limkakeng St., Happy Valley Subd., Guadalupe, 6000 Cebu City, Philippines',
+  officeHours: '9am – 5pm, Mon – Fri',
+  phone: '+63 32 255 1063',
+  phoneAlt: '+63 32 255 1973',
+  mobile: '+63 927 222 2262',
+  email: 'riseabove@riseabove-cebu.org',
   social: {
-    facebook: 'https://facebook.com',
-    instagram: 'https://instagram.com',
-    twitter: 'https://twitter.com',
+    facebook: 'https://www.facebook.com/riseabovefoundationcebu',
+    instagram: 'https://www.instagram.com/',
+    twitter: 'https://twitter.com/',
   },
+}
+
+export const carouselSlides = [
+  { id: 1, src: carousel1, alt: 'Rise Above Foundation Cebu community program' },
+  { id: 2, src: carousel2, alt: 'Children and families supported by Rise Above' },
+  { id: 3, src: carousel3, alt: 'Volunteer activities in Cebu' },
+  { id: 4, src: carousel4, alt: 'Education and youth programs' },
+  { id: 5, src: carousel5, alt: 'Health and hygiene outreach' },
+  { id: 6, src: carousel6, alt: 'Community center activities' },
+  { id: 7, src: carousel7, alt: 'Livelihood and craft programs' },
+  { id: 8, src: carousel8, alt: 'Dental and medical missions' },
+  { id: 9, src: carousel9, alt: 'Food sharing and child care' },
+  { id: 10, src: carousel10, alt: 'Partnerships and community impact' },
+]
+
+export const teamMembers = [
+  {
+    id: 'flemming-elisabet',
+    name: 'Flemming and Elisabet Hansen',
+    role: 'President & Project Manager',
+    image: teamFlemmingElisabet,
+    focus: 'center 20%',
+    bio: 'Flemming and Elisabet came to Cebu in 2000 and have since established the Rise Above Foundation Cebu. Flemming is the president and Elisabet a project manager. They have come to love the Filipino people and see that there is a good possibility of families pulling out of poverty. Many have not the education nor the means to change their present situation, but with education, training and livelihood programs, they believe that the children and youth can make the change both for themselves and their families.',
+  },
+  {
+    id: 'ireneo-jovita',
+    name: 'Ireneo and Jovita Tangalin',
+    role: 'Board Members · Family Care & Construction',
+    image: teamIreneoJovita,
+    focus: 'center 22%',
+    bio: 'Ireneo (Gabe) and Jovita (Marie) joined up with Flemming and Elisabet in 2001 and have since worked together in the Foundation. Jovita is heading the Family Care Center and the Educational Sponsorship Program while Ireneo is the Construction and Maintenance Manager. They are both on the board of directors and are making a lasting change in the lives of the people they touch.',
+  },
+  {
+    id: 'abigail',
+    name: 'Abigail Biard',
+    role: 'Livelihood Program · Rise Up Craft Creations',
+    image: teamAbigail,
+    focus: 'center 18%',
+    bio: 'Abi joined the team in 2008 as a volunteer and has been a great help in making the livelihood program, Rise Up Craft Creations, what it is today. She has inspired women to rise up out of poverty by teaching and training them in weaving bags, mats, purses etc. These women today are teaching other women to do the same. The trendy items are popular, and it has given the women a sense of fulfillment, prospering and making a difference for their families and others.',
+  },
+  {
+    id: 'esther',
+    name: 'Esther Amor Tangalin',
+    role: 'In-house Dentist · Board Member',
+    image: teamEsther,
+    focus: 'center 15%',
+    bio: 'Esther is our “in house” dentist. Being the daughter of Gabe and Marie, she got to experience being part of the dental missions, so in an early age, she already knew she also wanted to become a dentist. She now has her own clinic and is the local dentist who always joins the different dental missions. She is also a member of the board of Rise Above Foundation.',
+  },
+  {
+    id: 'carmen',
+    name: 'Carmen San Jose',
+    role: 'Social Worker',
+    image: teamCarmen,
+    focus: 'center 12%',
+    bio: 'Carmen is our Social Worker. As the goal of the Foundation is to improve the quality of life for struggling families, Carmen’s work is a big challenge, as she deals with problems that our beneficiaries face, be it in education, family life and poverty. She is the newest member on our team, but the energy and motivation she’s showing, wanting to make a difference and being a help to the needy people she faces, has given us a deep respect for her and we are thankful to have her on our team.',
+  },
+  {
+    id: 'adie',
+    name: 'Ludmila Adie Macasil',
+    role: 'Community Center Leader',
+    image: teamLudmila,
+    focus: 'center 18%',
+    bio: 'Adie is the center leader of the Rise Above Community Center. Children ages 3 – 17 come to the center to learn, play and study. She arranges activities for them, teaches them good morals and behavior, helps them with their homework, etc. She oversees the kids that are part of the Sponsorship for Education Program in her part of the city, checking on them that they indeed go to school and arranges for the mothers to cook the children’s snacks and lunch that they come and pick up on their way to school. She receives the volunteers to our Center and sees to it that their time with us is fun and fruitful and helps coordinate the volunteer’s duties and work while with us. She is a multi-tasker, and it doesn’t seem to be anything she is not able to handle. She has made the Center what it is today.',
+  },
+  {
+    id: 'septimo',
+    name: 'Romeo and Carmelita Septimo',
+    role: 'Family Care Center Caretakers',
+    image: teamRomeo,
+    focus: 'center center',
+    bio: 'Romeo and Carmelita have been the caretakers of the Family Care Center since 2009. Carmelita sees to it that the center is clean and presentable. She cooks the lunch and snacks for over 60 students of our Sponsorship for Education Program every morning, and also cooks for the children who come to the Center Monday-Friday. Romeo was our handyman and helped Gabe in all the construction, renovation and maintenance of our Centers. He sadly passed away in 2025 after a long illness. His cheerfulness, faithfulness and diligence were outstanding, and we miss him.',
+  },
+  {
+    id: 'nida',
+    name: 'Bienvenida Pacaldo',
+    role: 'Child-Minding Teacher · Family Care Center',
+    image: teamBienvenida,
+    focus: 'center 15%',
+    bio: 'Nida works at the Family Care Center as the teacher for the little kids (3-6 years old) in our Child-Minding Program. When interns work at the FCC, she is their overseer. She has a lot of love for the kids who come from very poor families and helps them learn and grow, giving them a different perspective of life. She prepares them for entering elementary school and inspires them to be good and to enjoy learning.',
+  },
+]
+
+/** Featured project colors matching the foundation’s project grid look */
+const COLORS = {
+  blue: '#2563eb',
+  lime: '#84cc16',
+  green: '#15803d',
+  purple: '#7c3aed',
+  yellow: '#eab308',
+  cyan: '#06b6d4',
+  orange: '#ea580c',
+  pink: '#db2777',
+  teal: '#0d9488',
+  indigo: '#4f46e5',
+  rose: '#e11d48',
+  sky: '#0284c7',
+  amber: '#d97706',
+  emerald: '#059669',
+  violet: '#8b5cf6',
+  slate: '#475569',
 }
 
 export const programs = [
   {
-    id: 'disaster-relief',
-    name: 'Disaster Relief',
+    id: 'community-center',
+    name: 'Community Center',
+    short: 'A neighborhood hub with clinic, kitchen, playground, and Children’s Library.',
     description:
-      'Rapid response operations delivering food, water, shelter materials, and medical supplies to disaster-affected areas.',
+      'Located in a neighborhood where low-to-no income families reside, the Rise Above Community Center was built to reach these families and children from this community. It is equipped with a dental clinic, a kitchen, playground and a Children’s Library. We offer free dental treatment at the Rise Above Clinic, education for out-of-school youth via the “Alternative Learning System” (ALS), and run the food sharing program for undernourished children. The Center also has 6 air-conditioned rooms for rent, for volunteers and interns.',
+    image: projectCommunityCenter,
+    color: COLORS.blue,
+    active: true,
+  },
+  {
+    id: 'volunteer-program',
+    name: 'Volunteer Program',
+    short: 'Individuals and groups from around the world give time, talent, and treasure.',
+    description:
+      'Volunteers from all over the world work together with us at the Rise Above Community Center, the Family Care Center, and the Rise Above Office. These groups or individuals often take time out from their holiday in the Philippines to visit the Centers and give back through teaching, supporting, and cooking for the children. Some build houses, paint, and help with construction work, while others share whatever time, talent, or treasure they have in order to help or simply inspire the children and their families in any way they can.',
+    image: projectVolunteer,
+    color: COLORS.purple,
+    active: true,
+  },
+  {
+    id: 'livelihood-program',
+    name: 'Livelihood Program',
+    short: 'Rise Up Crafts trains mothers to weave sustainable products from upcycled materials.',
+    description:
+      'Rise Up Crafts is a livelihood program designed to help poverty-stricken families by helping mothers gain a steady income to provide food and education for their children. Women receive training in weaving bags, mats, purses and more from recycled rice, flour and feed sacks to create trendy and sustainable products from upcycled materials. You can purchase these products to support the program.',
+    image: projectLivelihood,
+    color: COLORS.cyan,
+    active: true,
+  },
+  {
+    id: 'toothbrushing-handwashing',
+    name: 'Toothbrushing & Handwashing Program',
+    short: 'Daily hygiene education in elementary schools for about $1 per child per year.',
+    description:
+      'As oral health in the Philippines is ranked as one of the worst in the world, Rise Above runs an ongoing Toothbrushing and Handwashing Program in several elementary schools. For only 1 US$ per child per year, we supply toothbrushes, toothpaste, and hand soap for the program. School teachers, whom our volunteers have trained on proper dental and hand hygiene, oversee the daily toothbrushing and handwashing.',
+    image: projectToothbrushing,
+    color: COLORS.lime,
     active: true,
   },
   {
     id: 'educational-sponsorship',
     name: 'Educational Sponsorship',
+    short: 'Sponsored children receive materials, uniforms, bags, and daily meals.',
     description:
-      'Scholarships, school supplies, and mentorship for students from low-income families pursuing their academic goals.',
+      'For a monthly pledge of only 40 US$ for elementary students and 45 US$ for high school students, sponsored children will already receive educational materials, uniforms, school bags, as well as daily lunch and snacks. To this day, over 120 children are being sponsored for their elementary and high school education. Some generous sponsors continue to provide financial assistance so students can proceed to vocational schools and colleges after graduating from high school.',
+    image: projectEducational,
+    color: COLORS.green,
     active: true,
   },
   {
-    id: 'feeding-programs',
-    name: 'Feeding Programs',
+    id: 'food-program',
+    name: 'Food Program',
+    short: 'Sponsor a meal for 500 children — or cook and serve with your team.',
     description:
-      'Community kitchens and meal distributions serving nutritious food to children, seniors, and vulnerable families.',
+      'Food is the most important ingredient for survival, yet in the Philippines, around 2.1 million families experience hunger due to lack of food and go to bed with empty stomachs. For only 210 US$, you can sponsor the Food Sharing Program and provide a simple meal to feed 500 children! You can also help by preparing, cook and serve the food yourself or with your team/family.',
+    image: projectFood,
+    color: COLORS.orange,
     active: true,
   },
   {
-    id: 'community-outreach',
-    name: 'Community Outreach',
+    id: 'child-minding',
+    name: 'Child-Minding Program',
+    short: 'Free care and pre-school education for children ages 3–5 at the Family Care Center.',
     description:
-      'Livelihood training, skills development, and neighborhood programs that empower communities toward self-sufficiency.',
+      'Children ages 3-5 years old receive free care and pre-school education at the Family Care Center. They all come from underprivileged families who do not have the means to send them to school or care for them while they find sources of income that are usually temporary. They learn in a clean and healthy environment and are provided with food. You can help these children through Educational Sponsorship.',
+    image: projectChildMinding,
+    color: COLORS.pink,
+    active: true,
+  },
+  {
+    id: 'christmas-gift-giving',
+    name: 'Christmas Gift-Giving',
+    short: 'Help families in the slums celebrate Christmas with joy and dignity.',
+    description:
+      'It’s all about giving! It is said that Christmas is the “children’s celebration,” but many children in the slums do not experience Christmas as something extraordinary. There is no extra money for good food and gifts, so Christmas is just like any other day of the year to them. We want to give families a chance to celebrate and make Christmas a joyous family event. You can support this effort through donations, and in return you will receive photos and the story of how you made a difference!',
+    image: projectChristmas,
+    color: COLORS.rose,
+    active: true,
+  },
+  {
+    id: 'childrens-library',
+    name: "Children's Library",
+    short: 'A welcoming space to read, learn, and play for children in the neighborhood.',
+    description:
+      'The Children’s Library building was inaugurated in April 2015, and the first volunteers started coming in by June. Children from the neighborhood aged 3-6 years old spent their time with us, while the older ones came in the afternoon after school. They read, learn, and played in and around the Children’s Library filled with the books and toys bought and donated especially for them.',
+    image: projectLibrary,
+    color: COLORS.indigo,
+    active: true,
+  },
+  {
+    id: 'construction-renovation',
+    name: 'Construction and Renovation',
+    short: 'Volunteer teams build and renovate where communities need it most.',
+    description:
+      'Since 2010, we have arranged construction projects for foreign volunteers, and the program is sponsored solely by the incoming team. Whenever we are contacted for this purpose, we give suggestions as to where a construction project is needed – be it in schools, communities, or areas with families in need. Rise Above arranges accommodation and transportation, purchases materials with an already agreed on budget, and works alongside the volunteer team in making the project a success.',
+    image: projectConstruction,
+    color: COLORS.yellow,
+    active: true,
+  },
+  {
+    id: 'disaster-relief',
+    name: 'Disaster Relief and House Building',
+    short: 'Ready to facilitate aid when disaster strikes across Cebu.',
+    description:
+      'Typhoon Haiyan (Yolanda) caused terrible destruction in the Philippines. Donations started pouring in as people wanted to team up with a local NGO (Rise Above) to help families who had lost everything. 105 simple houses were built, and buildings were renovated in the Camoboan area (Tabogon). Additionally, a school was built in Medellin, the northernmost part of the Cebu island. When disaster strikes, we are ready and able to facilitate aid in Cebu.',
+    image: projectDisaster,
+    color: COLORS.amber,
+    active: true,
+  },
+  {
+    id: 'hope-encouragement',
+    name: 'Hope and Encouragement',
+    short: 'Parties, puppet shows, hospital visits — spreading hope and joy.',
+    description:
+      'It is a known fact that many people are suffering all over the world, and that there will always be a need to spread hope and joy into the lives of these people. Over the years, Rise Above has found many ways to do just that – acting as clowns, setting-up children’s and seniors’ parties and puppet shows, sharing food, goods, and cash, as well as bringing medicine to children with life-threatening diseases in hospitals.',
+    image: projectHope,
+    color: COLORS.violet,
+    active: true,
+  },
+  {
+    id: 'internship-program',
+    name: 'Internship Program',
+    short: 'Around 80 university interns placed yearly in partner institutions.',
+    description:
+      'Annually, Rise Above receives around 80 university/college student interns in Cebu as part of their education. They are placed in 20 different institutions, including schools, hospitals, and social centers we work closely with. Most students have educational backgrounds in Pedagogy, Education, Nursing, Global Health & Nutrition, Social Work, and other courses related to health, social, and community development.',
+    image: projectInternship,
+    color: COLORS.teal,
+    active: true,
+  },
+  {
+    id: 'dental-mission',
+    name: 'Dental Mission',
+    short: 'Free dental care for over 45,000 patients to date.',
+    description:
+      'Foreign and local dentists, dental hygienists, dental technicians, and other support personnel volunteer for Dental Missions held in depressed areas around the province of Cebu in the Philippines. To date, we have given free dental treatment to over 45,000 patients.',
+    image: projectDental,
+    color: COLORS.sky,
     active: true,
   },
   {
     id: 'medical-missions',
-    name: 'Medical Missions',
+    name: 'Medical Mission',
+    short: 'Monthly free medical missions at the Community Center.',
     description:
-      'Free health checkups, medicines, dental care, and wellness education in remote and underserved barangays.',
+      'Once a month, when medical personnel volunteer, we hold a free medical mission at the Rise Above Community Center. This is when our volunteer doctors and staff address the health and medical needs of the community, bringing relief to those who simply do not have enough resources to visit a clinic.',
+    image: projectMedical,
+    color: COLORS.emerald,
     active: true,
   },
-]
-
-export const announcements = [
   {
-    id: 1,
-    title: 'Typhoon Response: Relief Operations in Cebu South',
-    date: '2026-06-28',
-    category: 'Disaster Response',
-    excerpt:
-      'Our teams are actively distributing relief packs in Talisay and Minglanilla. Volunteers needed for repacking shifts.',
-  },
-  {
-    id: 2,
-    title: 'Volunteer Orientation — July 5, 2026',
-    date: '2026-07-01',
-    category: 'Volunteer Opportunities',
-    excerpt:
-      'New volunteers are invited to attend orientation at our Cebu City headquarters. Register online to reserve your slot.',
-  },
-  {
-    id: 3,
-    title: 'Back-to-School Drive Now Open',
-    date: '2026-06-15',
-    category: 'Foundation News',
-    excerpt:
-      'Help us equip 500 students with school supplies for the upcoming academic year. Monetary and in-kind donations accepted.',
-  },
-]
-
-export const impactStats = [
-  { label: 'Total Donations Received', value: '₱12.4M' },
-  { label: 'Beneficiaries Assisted', value: '18,750' },
-  { label: 'Relief Packs Distributed', value: '42,300' },
-  { label: 'Active Volunteers', value: '1,240' },
-  { label: 'Active Programs', value: '5' },
-  { label: 'Partner Organizations', value: '36' },
-  { label: 'Communities Served', value: '89' },
-]
-
-export const mapLocations = [
-  {
-    id: 'cebu-city',
-    name: 'Cebu City',
-    lat: 10.3157,
-    lng: 123.8854,
-    programs: ['Feeding Programs', 'Educational Sponsorship'],
-    stats: { beneficiaries: 3200, reliefPacks: 8500 },
-  },
-  {
-    id: 'talisay',
-    name: 'Talisay',
-    lat: 10.2447,
-    lng: 123.8494,
-    programs: ['Disaster Relief', 'Community Outreach'],
-    stats: { beneficiaries: 1850, reliefPacks: 4200 },
-  },
-  {
-    id: 'minglanilla',
-    name: 'Minglanilla',
-    lat: 10.2449,
-    lng: 123.7964,
-    programs: ['Disaster Relief', 'Feeding Programs'],
-    stats: { beneficiaries: 1420, reliefPacks: 3800 },
-  },
-  {
-    id: 'toledo',
-    name: 'Toledo',
-    lat: 10.386,
-    lng: 123.648,
-    programs: ['Medical Missions', 'Community Outreach'],
-    stats: { beneficiaries: 980, reliefPacks: 2100 },
-  },
-  {
-    id: 'bohol',
-    name: 'Bohol',
-    lat: 9.6729,
-    lng: 123.873,
-    programs: ['Educational Sponsorship', 'Medical Missions'],
-    stats: { beneficiaries: 2100, reliefPacks: 5600 },
+    id: 'pwd-assistance',
+    name: 'Persons With Disability Assistance',
+    short: 'Supporting students with disabilities when aids are out of reach.',
+    description:
+      'Rise Above provided direct support to a number of students in Cebu who have disabilities. Being in a third world country, the government can only provide minimal support to the PWDs, and many continue to live under miserable conditions as aids such as crutches, wheelchairs and prosthetics are beyond their financial capabilities. It is often left to friends, families, and organizations such as Rise Above to support and help people in these conditions.',
+    image: projectPWD,
+    color: COLORS.slate,
+    active: true,
   },
 ]
 
 export const partners = [
   {
     id: 1,
-    name: 'Cebu Business Council',
-    category: 'Corporate Partners',
-    description: 'Providing corporate sponsorship for disaster relief operations and employee volunteer programs.',
-    website: 'https://example.com',
-    initials: 'CBC',
+    name: 'Roskilde Rotary Club',
+    location: 'Denmark',
+    logo: partnerRoskilde,
+    description:
+      'We want to extend our heartfelt thank you to the members of Roskilde Rotary Club. We were contacted by them several years ago as they wanted to support a good cause, and we shared with them the need for College Education for Junevieve Pales, who at 13 years of age lost her leg due to bone cancer. Rise Above arranged sponsorship for her to receive a prosthetic leg. Being able to walk again, she wanted to pursue her education, and Roskilde Rotary Club graciously made the decision to sponsor her College Education for 4 years. Junevieve has been a good student and graduated in August 2020. She is eternally grateful to Roskilde Rotary Club for giving her a chance of a better life.',
   },
   {
     id: 2,
-    name: 'University of San Carlos',
-    category: 'Educational Partners',
-    description: 'Partnering on scholarship programs and student volunteer initiatives.',
-    website: 'https://example.com',
-    initials: 'USC',
+    name: 'Sponsorship Network International',
+    location: 'Switzerland',
+    logo: partnerSNI,
+    description:
+      'SNI has sponsored our efforts in Cebu several times for which we are very grateful — including sharing the cost of a Mitsubishi L300 vehicle, sponsoring medicines and materials for Dental Missions, and funding renovation of the annex to the Rise Above Community Center.',
   },
   {
     id: 3,
-    name: 'Philippine Red Cross — Cebu Chapter',
-    category: 'NGO Partners',
-    description: 'Collaborating on medical missions and emergency response logistics.',
-    website: 'https://example.com',
-    initials: 'PRC',
+    name: 'Medarbejdernes Honorarfond I Novo Gruppen',
+    location: 'Denmark',
+    logo: partnerNovo,
+    description:
+      'This Fond has done incredibly much for the Rise Above Foundation — supporting mobile dental units, medicines and materials, a new van, the Community Center, typhoon Yolanda relief, and equipment for students at the Children’s Library.',
   },
   {
     id: 4,
-    name: 'DSWD Region VII',
-    category: 'Government Partners',
-    description: 'Coordinating beneficiary verification and large-scale distribution efforts.',
-    website: 'https://example.com',
-    initials: 'DSWD',
+    name: 'Developing World Connections',
+    location: 'Canada',
+    logo: partnerDWC,
+    description:
+      'They have partnered with us for 10 years, sending volunteers from Canada and the USA. They have built several houses, school buildings, and the dorm at our Community Center. Our partnership with them is ongoing.',
   },
   {
     id: 5,
-    name: 'Barangay Lahug Council',
-    category: 'Community Partners',
-    description: 'Local community coordination for feeding programs and outreach activities.',
-    website: 'https://example.com',
-    initials: 'BLC',
+    name: 'Ramon Aboitiz Foundation Inc.',
+    location: 'Cebu',
+    logo: partnerRAFI,
+    description:
+      'When it was time to build our Community Center, RAFI donated 70% of the cost of Building 1 and later Building 2, and sponsored books, furniture, and equipment for the Children’s Library.',
   },
   {
     id: 6,
-    name: 'SM Foundation',
-    category: 'Corporate Partners',
-    description: 'Supporting school supply drives and community development projects.',
-    website: 'https://example.com',
-    initials: 'SMF',
+    name: 'Giving on Purpose',
+    location: 'USA',
+    logo: partnerGOP,
+    description:
+      'We extend our heartfelt thank you to Giving on Purpose for their continuous support towards our projects in Cebu — enhancing quality of life through health, environment, and guidance services.',
+  },
+]
+
+export const announcements = [
+  {
+    id: 1,
+    title: 'Where Kindness Meets Purpose | Accounts All Sorted',
+    date: '2026-07-01',
+    category: 'Education',
+    excerpt:
+      'Accounts All Sorted, a company from Australia, visited Rise Above Foundation Cebu as part of their team-building activity that included outreach and a donation drive.',
+    image: storyWhereKindness,
+  },
+  {
+    id: 2,
+    title: 'A Testament to Resilience, Family & Purpose',
+    date: '2026-06-15',
+    category: 'Purpose',
+    excerpt:
+      'A story of perseverance and the life-changing impact of Rise Above Foundation Cebu’s educational assistance program.',
+    image: storyEducation,
+  },
+  {
+    id: 3,
+    title: 'Serving Smiles: Free Dental Clinic at Barangay Tejero',
+    date: '2026-02-10',
+    category: 'Education',
+    excerpt:
+      'Rise Above Foundation Cebu Inc. conducted a Free Dental Clinic at Barangay Tejero Sports Complex, serving 494 patients with restorations, extractions teeth, and prophylaxis.',
+    image: storyDental,
+  },
+]
+
+export const impactStats = [
+  { label: 'Dental Patients Served', value: '45,000+' },
+  { label: 'Children Sponsored', value: '120+' },
+  { label: 'University Interns / Year', value: '80' },
+  { label: 'Houses Built (Yolanda)', value: '105' },
+  { label: 'Years of Service', value: '25+' },
+  { label: 'Partner Organizations', value: '6+' },
+]
+
+export const mapLocations = [
+  {
+    id: 'cebu-city',
+    name: 'Cebu City · Guadalupe',
+    lat: 10.3157,
+    lng: 123.8854,
+    programs: ['Community Center', 'Educational Sponsorship', 'Dental Mission'],
+    stats: { beneficiaries: 3200, reliefPacks: 8500 },
+  },
+  {
+    id: 'tabogon',
+    name: 'Tabogon · Camoboan',
+    lat: 10.728,
+    lng: 124.0,
+    programs: ['Disaster Relief and House Building'],
+    stats: { beneficiaries: 1050, reliefPacks: 2100 },
+  },
+  {
+    id: 'medellin',
+    name: 'Medellin',
+    lat: 11.1286,
+    lng: 123.9622,
+    programs: ['Disaster Relief and House Building'],
+    stats: { beneficiaries: 800, reliefPacks: 1500 },
   },
 ]
 
 export const successStories = [
   {
     id: 1,
-    title: 'Rise Above Foundation Scholar Graduates from College',
-    date: '2026-05-20',
+    title: 'From Dreamer to Cum Laude: A Journey of Perseverance',
+    date: '2026-06-15',
     category: 'Educational Sponsorship',
     excerpt:
-      'Maria Santos, a scholar since 2020, graduated cum laude with a degree in Social Work — now giving back to her community.',
+      'A Rise Above scholar’s story of resilience, family sacrifice, and the life-changing impact of educational assistance.',
     content:
-      'Maria grew up in a family of five supported solely by her mother\'s income as a market vendor. Through the Rise Above Educational Sponsorship Program, she received tuition assistance, school supplies, and mentorship for four years. Today, Maria works with a local NGO helping other families navigate social services.',
+      'Through the Educational Sponsorship Program, sponsored children receive educational materials, uniforms, school bags, and daily lunch and snacks. Some generous sponsors continue support so students can proceed to vocational schools and colleges after high school.',
     testimonial:
-      '"The foundation didn\'t just pay for my education — they believed in me when I doubted myself. I am forever grateful." — Maria Santos',
-    image: null,
+      '"Education gave me a chance my family alone could not provide. I am forever grateful to Rise Above and my sponsors."',
+    image: storyEducation,
   },
   {
     id: 2,
-    title: '200 Families Receive Relief After Flooding in Talisay',
-    date: '2026-03-12',
-    category: 'Disaster Relief',
+    title: 'Serving Smiles at Barangay Tejero',
+    date: '2026-02-10',
+    category: 'Dental Mission',
     excerpt:
-      'Within 48 hours of severe flooding, our disaster response team delivered relief packs to 200 affected families.',
+      'A free dental clinic served 494 patients — 238 teeth restored, 518 extracted, and 191 received prophylaxis.',
     content:
-      'Heavy rains caused widespread flooding in low-lying barangays of Talisay. Rise Above Foundation mobilized volunteers, coordinated with local government, and distributed food packs, clean water, hygiene kits, and temporary shelter materials.',
+      'Rise Above Foundation Cebu Inc. conducted a Free Dental Clinic at Barangay Tejero Sports Complex, made possible through volunteer dental teams from the Philippines, Denmark, and Germany. To date, we have given free dental treatment to over 45,000 patients.',
     testimonial:
-      '"We lost everything in the flood, but the foundation came quickly with help. My children had food and clean water the same day." — Roberto Dela Cruz',
-    image: null,
+      '"I never thought I could afford dental care. The mission changed that for my whole family."',
+    image: storyDental,
   },
   {
     id: 3,
-    title: 'Medical Mission Serves 450 Patients in Toledo',
-    date: '2026-02-08',
-    category: 'Medical Missions',
+    title: 'Where Kindness Meets Purpose',
+    date: '2026-07-01',
+    category: 'Volunteer Program',
     excerpt:
-      'A joint medical mission with partner NGOs provided free consultations, medicines, and dental care.',
+      'Accounts All Sorted visited RAFC for a team-building activity that included outreach and a donation drive.',
     content:
-      'Volunteer doctors, nurses, and dentists joined Rise Above Foundation for a two-day medical mission in Toledo, Cebu. Services included general checkups, pediatric care, dental extractions, and distribution of maintenance medicines.',
+      'Volunteers from all over the world work with us at the Rise Above Community Center, the Family Care Center, and the Rise Above Office — teaching, supporting, cooking, building, and inspiring children and families.',
     testimonial:
-      '"I hadn\'t seen a doctor in three years. This mission gave me the medicine I needed for my hypertension." — Elena Reyes',
-    image: null,
-  },
-  {
-    id: 4,
-    title: 'Community Garden Project Transforms Barangay Lahug',
-    date: '2025-11-30',
-    category: 'Community Outreach',
-    excerpt:
-      'Residents now grow vegetables for their families and sell surplus produce at the local market.',
-    content:
-      'The Community Garden Project trained 35 families in sustainable urban farming. With seeds, tools, and ongoing mentorship from foundation staff, participants established a shared garden that now supplies fresh produce to the neighborhood.',
-    testimonial:
-      '"Our garden feeds my family and brings extra income. We learned skills we can pass to our children." — Josefa Mendoza',
-    image: null,
+      '"Giving our time in Cebu reminded us why kindness and purpose belong together."',
+    image: storyWhereKindness,
   },
 ]
 
@@ -245,7 +467,7 @@ export const faqCategories = [
     items: [
       {
         q: 'How can I donate?',
-        a: 'You can donate online through our Donate page (monetary or in-kind), via bank transfer, or in person at our Cebu City office. Upload proof of payment for tracking.',
+        a: 'You can donate online through our Donate page, via bank transfer, or in person at our Guadalupe office (Mon–Fri, 9am–5pm). Upload proof of payment for tracking.',
       },
       {
         q: 'Will I receive a receipt for my donation?',
@@ -253,7 +475,7 @@ export const faqCategories = [
       },
       {
         q: 'What in-kind items do you accept?',
-        a: 'We accept rice, canned goods, hygiene kits, clothing, school supplies, and medical supplies. Contact us before donating large quantities.',
+        a: 'We accept food items, hygiene kits, school supplies, books, craft materials, and medical/dental supplies. Contact us before donating large quantities.',
       },
     ],
   },
@@ -262,11 +484,11 @@ export const faqCategories = [
     items: [
       {
         q: 'How do I become a volunteer?',
-        a: 'Fill out the volunteer registration form on our Volunteer page. Select your preferred programs, share your skills, and optionally upload your CV.',
+        a: 'Fill out the volunteer registration form on our Volunteer page. Select your preferred programs, share your skills, and optionally upload your CV. We welcome individuals and groups from around the world.',
       },
       {
-        q: 'How long does approval take?',
-        a: 'Applications are typically reviewed within 5–7 business days. You will receive email updates on your application status.',
+        q: 'Where do volunteers serve?',
+        a: 'Volunteers work with us at the Rise Above Community Center, the Family Care Center, and the Rise Above Office — teaching, cooking, construction, dental missions, and more.',
       },
       {
         q: 'Can I get a volunteer certificate?',
@@ -279,11 +501,11 @@ export const faqCategories = [
     items: [
       {
         q: 'Who can request assistance?',
-        a: 'Individuals and families facing hardship due to disaster, medical needs, educational barriers, or food insecurity may apply through our Assistance Request form.',
+        a: 'Families and individuals in Cebu facing hardship related to education, health, food insecurity, or disability support may apply through our Assistance Request form.',
       },
       {
         q: 'What documents are required?',
-        a: 'Valid ID, barangay certificate, and supporting documents relevant to your request (e.g., medical records, photos of damage) help us process your application faster.',
+        a: 'Valid ID, barangay certificate, and supporting documents relevant to your request help us process your application faster.',
       },
       {
         q: 'How do I track my request?',
@@ -292,28 +514,15 @@ export const faqCategories = [
     ],
   },
   {
-    name: 'Certificates & Official Receipts',
-    items: [
-      {
-        q: 'When can I download my donation certificate?',
-        a: 'Certificates are available after your donation is verified and recorded in our system.',
-      },
-      {
-        q: 'How do I request an Official Receipt?',
-        a: 'Registered donors can request an OR from their donor dashboard after donation verification.',
-      },
-    ],
-  },
-  {
     name: 'Programs and Activities',
     items: [
       {
         q: 'What programs does the foundation run?',
-        a: 'We operate Disaster Relief, Educational Sponsorship, Feeding Programs, Community Outreach, and Medical Missions across Cebu and neighboring provinces.',
+        a: 'We run education and training, health & hygiene, livelihood, food sharing, volunteer and internship programs, dental and medical missions, construction, disaster relief, and more — all in a community-based setting in Cebu.',
       },
       {
         q: 'How can I stay updated on activities?',
-        a: 'Check our Latest News section on the home page, follow us on social media, or subscribe to email notifications when you register.',
+        a: 'Check our Latest News section on the home page, follow us on social media, or contact riseabove@riseabove-cebu.org.',
       },
     ],
   },

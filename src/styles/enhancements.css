@@ -926,6 +926,42 @@ select {
   font-size: 0.9rem;
 }
 
+.auth-card__success--verified {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.65rem;
+  line-height: 1.45;
+}
+
+.auth-card__success-check {
+  flex-shrink: 0;
+  width: 1.5rem;
+  height: 1.5rem;
+  border-radius: 50%;
+  background: #16a34a;
+  color: #fff;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.85rem;
+  font-weight: 700;
+}
+
+.auth-card--verified {
+  text-align: center;
+}
+
+.auth-card--verified .auth-verify-status {
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.auth-card--verified .auth-form__submit {
+  display: inline-block;
+  text-align: center;
+  margin-top: 0.5rem;
+}
+
 .auth-form__row--split {
   display: grid;
   grid-template-columns: 1fr 1fr;

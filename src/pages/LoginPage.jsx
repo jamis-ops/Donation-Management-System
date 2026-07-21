@@ -3,6 +3,7 @@ import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { getHomeForRole } from '../utils/roleRoutes'
 import Logo from '../components/shared/Logo'
+import Req from '../components/shared/Req'
 import { heroBg } from '../assets'
 
 const demoAccounts = [
@@ -54,8 +55,12 @@ export default function LoginPage() {
           <p className="auth-card__subtitle">Sign in to access your donor, volunteer, or beneficiary portal.</p>
 
           {justVerified && (
-            <div className="auth-card__success" role="status">
-              Email verified successfully. You can sign in now.
+            <div className="auth-card__success auth-card__success--verified" role="status">
+              <span className="auth-card__success-check" aria-hidden>✓</span>
+              <span>
+                <strong>Your account has been successfully verified.</strong>
+                {' '}Sign in with the password you created during registration.
+              </span>
             </div>
           )}
 
@@ -63,7 +68,7 @@ export default function LoginPage() {
 
           <form onSubmit={handleSubmit} className="auth-form">
             <label>
-              Email
+              <Req required>Email</Req>
               <input
                 type="email"
                 required
@@ -75,7 +80,7 @@ export default function LoginPage() {
             </label>
 
             <label>
-              Password
+              <Req required>Password</Req>
               <input
                 type="password"
                 required

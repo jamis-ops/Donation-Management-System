@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { foundation } from '../data/mockData'
-import { MapPin, Phone, Mail, Share2 } from 'lucide-react'
+import { MapPin, Phone, Mail, Clock, Share2 } from 'lucide-react'
 
 export default function ContactPage() {
   const [submitted, setSubmitted] = useState(false)
@@ -16,16 +16,16 @@ export default function ContactPage() {
       <section className="page-hero">
         <div className="container">
           <h1>Contact Us</h1>
-          <p>We'd love to hear from you. Reach out anytime.</p>
+          <p>We&apos;d love to hear from you. Reach out anytime.</p>
         </div>
       </section>
 
       <section className="section">
         <div className="container">
           <div className="contact-grid">
-            {/* Contact info */}
             <div className="contact-info">
               <h2>Get in Touch</h2>
+              <p className="contact-info__org">{foundation.name}</p>
 
               <div className="contact-info__item">
                 <strong><MapPin size={13} style={{ verticalAlign: 'middle', marginRight: 4 }} />Address</strong>
@@ -33,9 +33,23 @@ export default function ContactPage() {
               </div>
 
               <div className="contact-info__item">
-                <strong><Phone size={13} style={{ verticalAlign: 'middle', marginRight: 4 }} />Phone</strong>
+                <strong><Clock size={13} style={{ verticalAlign: 'middle', marginRight: 4 }} />Office Hours</strong>
+                <p>{foundation.officeHours}</p>
+              </div>
+
+              <div className="contact-info__item">
+                <strong><Phone size={13} style={{ verticalAlign: 'middle', marginRight: 4 }} />Landline</strong>
                 <p>
-                  <a href={`tel:${foundation.phone}`}>{foundation.phone}</a>
+                  <a href={`tel:${foundation.phone.replace(/\s/g, '')}`}>{foundation.phone}</a>
+                  {' / '}
+                  <a href={`tel:${foundation.phoneAlt.replace(/\s/g, '')}`}>{foundation.phoneAlt}</a>
+                </p>
+              </div>
+
+              <div className="contact-info__item">
+                <strong><Phone size={13} style={{ verticalAlign: 'middle', marginRight: 4 }} />Mobile</strong>
+                <p>
+                  <a href={`tel:${foundation.mobile.replace(/\s/g, '')}`}>{foundation.mobile}</a>
                 </p>
               </div>
 
@@ -52,23 +66,16 @@ export default function ContactPage() {
                   <a href={foundation.social.facebook} target="_blank" rel="noreferrer">
                     Facebook
                   </a>
-                  <a href={foundation.social.instagram} target="_blank" rel="noreferrer">
-                    Instagram
-                  </a>
-                  <a href={foundation.social.twitter} target="_blank" rel="noreferrer">
-                    Twitter
-                  </a>
                 </div>
               </div>
             </div>
 
-            {/* Contact form */}
             {submitted ? (
               <div className="form-success">
                 <div style={{ fontSize: '2.5rem', marginBottom: '1rem' }}>✉️</div>
                 <h2>Message Sent!</h2>
                 <p style={{ color: 'var(--color-text-muted)' }}>
-                  Thank you for reaching out. We'll respond within 2–3 business days.
+                  Thank you for reaching out. We&apos;ll respond within 2–3 business days.
                 </p>
                 <button
                   type="button"

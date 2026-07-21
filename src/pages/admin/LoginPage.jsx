@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { Link, Navigate, useLocation, useNavigate } from 'react-router-dom'
 import { useAuth } from '../../context/AuthContext'
 import Logo from '../../components/shared/Logo'
+import Req from '../../components/shared/Req'
 import { adminBg } from '../../assets'
 
 export default function LoginPage() {
@@ -57,7 +58,7 @@ export default function LoginPage() {
             {error && <div className="admin-login__error">{error}</div>}
 
             <label>
-              Email
+              <Req required>Email</Req>
               <input
                 type="email"
                 value={email}
@@ -68,7 +69,7 @@ export default function LoginPage() {
             </label>
 
             <label>
-              Password
+              <Req required>Password</Req>
               <input
                 type="password"
                 value={password}

@@ -5,6 +5,7 @@ import StatusBadge from '../../components/admin/shared/StatusBadge'
 import ApiState from '../../components/admin/shared/ApiState'
 import { donationsApi, certificatesApi } from '../../api/resources'
 import { useApiList } from '../../hooks/useApiList'
+import ModalHeader from '../../components/admin/shared/ModalHeader'
 
 const TRACKING_STEPS = [
   { key: 'submitted', label: 'Submitted', description: 'Donation received and tracking code issued' },
@@ -142,7 +143,7 @@ export default function DonorDonationsPage() {
       {selected && (
         <div className="admin-modal-overlay" onClick={() => setSelected(null)}>
           <div className="admin-modal" onClick={(e) => e.stopPropagation()}>
-            <h2>Donation {selected.trackingCode}</h2>
+            <ModalHeader title={`Donation ${selected.trackingCode}`} onClose={() => setSelected(null)} />
 
             <dl className="detail-list" style={{ marginBottom: '1.25rem' }}>
               <dt>Type</dt><dd>{selected.type}</dd>

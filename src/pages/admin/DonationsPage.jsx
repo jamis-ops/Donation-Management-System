@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { Eye, CheckCircle2, Download, FileText } from 'lucide-react'
 import { donationsApi } from '../../api/resources'
 import { useApiList } from '../../hooks/useApiList'
 import { DONATION_CATEGORIES } from '../../constants/options'
@@ -8,6 +9,7 @@ import DataTable from '../../components/admin/shared/DataTable'
 import StatusBadge from '../../components/admin/shared/StatusBadge'
 import ApiState from '../../components/admin/shared/ApiState'
 import FilterBar from '../../components/admin/shared/FilterBar'
+import ModalHeader from '../../components/admin/shared/ModalHeader'
 
 const lifecycle = [
   'Submission', 'Tracking Code', 'Verification', 'Inventory', 'Repacking',
@@ -19,7 +21,7 @@ const emptyForm = {
 }
 
 const filterConfig = {
-  searchKeys: ['trackingCode', 'donor', 'email'],
+  searchKeys: ['trackingCode', 'donor', 'donorEmail'],
   filters: [
     { key: 'status', label: 'Status' },
     { key: 'type', label: 'Type' },
@@ -88,12 +90,24 @@ export default function DonationsPage() {
       render: (row) => (
         <div className="table-actions">
           {row.status === 'Pending Verification' && (
-            <button type="button" className="btn btn--sm btn--primary" onClick={(e) => { e.stopPropagation(); handleVerify(row) }}>
-              Verify
+            <button
+              type="button"
+              className="icon-btn icon-btn--success"
+              title="Verify"
+              aria-label="Verify"
+              onClick={(e) => { e.stopPropagation(); handleVerify(row) }}
+            >
+              <CheckCircle2 size={15} />
             </button>
           )}
-          <button type="button" className="btn btn--sm btn--outline" onClick={(e) => { e.stopPropagation(); setSelected(row) }}>
-            View
+          <button
+            type="button"
+            className="icon-btn"
+            title="View"
+            aria-label="View"
+            onClick={(e) => { e.stopPropagation(); setSelected(row) }}
+          >
+            <Eye size={15} />
           </button>
         </div>
       ),
@@ -104,7 +118,7 @@ export default function DonationsPage() {
     <>
       <PageHeader
         title="Donation Processing"
-        description="Verify donations, monitor status, and manage the donation lifecycle."
+        description="Verify donations, review uploaded proof, and manage the donation lifecycle."
         actions={
           <button type="button" className="btn btn--primary" onClick={() => setShowForm(true)}>
             + Record Donation
@@ -134,7 +148,7 @@ export default function DonationsPage() {
       {showForm && (
         <div className="admin-modal-overlay" onClick={() => setShowForm(false)}>
           <div className="admin-modal" onClick={(e) => e.stopPropagation()}>
-            <h2>Record Donation</h2>
+            <ModalHeader title="Record Donation" onClose={() => setShowForm(false)} />
             <form onSubmit={handleSave}>
               <label>Donor Name<input required value={form.donorName} onChange={(e) => setForm({ ...form, donorName: e.target.value })} /></label>
               <label>Email<input type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} /></label>
@@ -168,17 +182,43 @@ export default function DonationsPage() {
 
       {selected && (
         <div className="admin-modal-overlay" onClick={() => setSelected(null)}>
-          <div className="admin-modal" onClick={(e) => e.stopPropagation()}>
-            <h2>Donation Details</h2>
+          <div className="admin-modal admin-modal--wide" onClick={(e) => e.stopPropagation()}>
+            <ModalHeader title="Donation Details" onClose={() => setSelected(null)} />
             <dl className="detail-list">
               <dt>Tracking Code</dt><dd>{selected.trackingCode}</dd>
               <dt>Donor</dt><dd>{selected.donor}</dd>
+              <dt>Email</dt><dd>{selected.donorEmail || '—'}</dd>
               <dt>Type</dt><dd>{selected.type}</dd>
               <dt>Category</dt><dd>{selected.category || '—'}</dd>
               <dt>Amount</dt><dd>{selected.amount}</dd>
+              <dt>Payment Method</dt><dd>{selected.paymentMethod || '—'}</dd>
               <dt>Status</dt><dd><StatusBadge status={selected.status} /></dd>
               <dt>Date</dt><dd>{selected.date}</dd>
+              <dt>Notes</dt><dd>{selected.notes || '—'}</dd>
             </dl>
+
+            {selected.hasProof && (
+              <div className="donation-proof-panel">
+                <h3>Uploaded Proof</h3>
+                {selected.proofIsImage ? (
+                  <a href={selected.proofUrl} target="_blank" rel="noreferrer" className="donation-proof-panel__preview">
+                    <img src={selected.proofUrl} alt={selected.proofFileName || 'Donation proof'} />
+                  </a>
+                ) : (
+                  <div className="donation-proof-panel__doc">
+                    <FileText size={28} />
+                    <div>
+                      <strong>{selected.proofFileName || 'Document'}</strong>
+                      <p>{selected.proofFileType || 'File'}</p>
+                    </div>
+                  </div>
+                )}
+                <a href={selected.proofUrl} target="_blank" rel="noreferrer" className="btn btn--sm btn--outline" download={selected.proofFileName}>
+                  <Download size={14} /> View / Download
+                </a>
+              </div>
+            )}
+
             <div className="admin-modal__actions">
               {selected.status === 'Pending Verification' && (
                 <button type="button" className="btn btn--primary" onClick={() => handleVerify(selected)}>Verify &amp; Approve</button>

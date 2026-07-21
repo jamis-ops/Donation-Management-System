@@ -138,6 +138,38 @@ function email_taken(PDO $pdo, string $email): bool
   return (bool) $stmt->fetchColumn();
 }
 
+function donor_name_taken(PDO $pdo, string $name, string $organization = '', ?int $excludeId = null): bool
+{
+  $name = trim($name);
+  $organization = trim($organization);
+  $checks = [];
+  $params = [];
+  if ($name !== '') {
+    $checks[] = 'LOWER(full_name) = LOWER(?)';
+    $params[] = $name;
+    $checks[] = '(organization IS NOT NULL AND organization <> "" AND LOWER(organization) = LOWER(?))';
+    $params[] = $name;
+  }
+  if ($organization !== '') {
+    $checks[] = 'LOWER(full_name) = LOWER(?)';
+    $params[] = $organization;
+    $checks[] = '(organization IS NOT NULL AND organization <> "" AND LOWER(organization) = LOWER(?))';
+    $params[] = $organization;
+  }
+  if (!$checks) {
+    return false;
+  }
+  $sql = 'SELECT id FROM donors WHERE (' . implode(' OR ', $checks) . ')';
+  if ($excludeId) {
+    $sql .= ' AND id <> ?';
+    $params[] = $excludeId;
+  }
+  $sql .= ' LIMIT 1';
+  $stmt = $pdo->prepare($sql);
+  $stmt->execute($params);
+  return (bool) $stmt->fetchColumn();
+}
+
 function create_user_account(PDO $pdo, string $role, string $name, string $email, string $password, string $status = 'ACTIVE'): int
 {
   $rid = role_id($pdo, $role);
@@ -182,50 +214,143 @@ function api_verify_url(string $token): string
 }
 
 /**
- * Build the absolute URL a user clicks to verify their email.
- * Prefers the frontend /verify route so the user lands back in the app.
+ * Absolute URL the user clicks in the verification email.
+ * Hits the API directly (via Vite /api proxy in local, or API_PUBLIC_URL in production).
+ * No in-app "Verify" page — activation happens from the email link alone.
  */
 function build_verify_url(string $token): string
 {
-  return frontend_url('/verify?token=' . urlencode($token));
+  if (defined('API_PUBLIC_URL') && API_PUBLIC_URL !== '') {
+    return rtrim((string) API_PUBLIC_URL, '/') . '/verify.php?token=' . urlencode($token);
+  }
+  return frontend_url('/api/verify.php?token=' . urlencode($token));
 }
 
 /**
- * Send a "Verify it's you" activation email.
- * Returns ['url' => string, 'sent' => bool].
+ * Send a "Verify it's you" activation email via NodeMailer (preferred).
+ * Returns ['url' => string, 'sent' => bool, 'transport' => string, 'error' => string].
  */
 function send_verification_email(string $toEmail, string $name, string $token): array
 {
   $url = build_verify_url($token);
-  $safeName = htmlspecialchars($name, ENT_QUOTES, 'UTF-8');
-  $safeUrl = htmlspecialchars($url, ENT_QUOTES, 'UTF-8');
-
-  $subject = "Verify it's you";
-  $html = "<p style=\"margin:0 0 12px;font-size:1.15rem;font-weight:700;color:#0f172a\">Verify it's you</p>"
-    . "<p style=\"margin:0 0 14px\">Hi {$safeName},</p>"
-    . '<p style="margin:0 0 14px">We received a request to create a <strong>Rise Above Foundation</strong> account with this email address. '
-    . 'Click the button below to verify it\'s you and activate your account.</p>'
-    . '<p style="margin:24px 0;text-align:center">'
-    . '<a href="' . $safeUrl . '" style="display:inline-block;background:#AF101A;color:#ffffff;padding:14px 28px;border-radius:8px;text-decoration:none;font-weight:700;font-size:1rem">Verify it\'s you</a>'
-    . '</p>'
-    . '<p style="margin:0 0 10px;color:#64748b;font-size:0.88rem">Or copy and paste this link into your browser:</p>'
-    . '<p style="margin:0 0 18px;word-break:break-all;font-size:0.85rem"><a href="' . $safeUrl . '" style="color:#2563eb">' . $safeUrl . '</a></p>'
-    . '<p style="margin:0;color:#64748b;font-size:0.88rem">If you did not create this account, you can safely ignore this email.</p>';
-
   $sent = false;
-  if (function_exists('send_mail')) {
-    $sent = send_mail($toEmail, $name, $subject, $html);
+
+  if (function_exists('nodemailer_send_verification') && function_exists('mail_resolved_transport') && mail_resolved_transport() === 'nodemailer') {
+    $sent = nodemailer_send_verification($toEmail, $name, $url);
+  } elseif (function_exists('send_mail')) {
+    $safeName = htmlspecialchars($name, ENT_QUOTES, 'UTF-8');
+    $safeUrl = htmlspecialchars($url, ENT_QUOTES, 'UTF-8');
+    $subject = "Verify it's you";
+    $html = "<p style=\"margin:0 0 12px;font-size:1.15rem;font-weight:700;color:#0f172a\">Verify it's you</p>"
+      . "<p style=\"margin:0 0 14px\">Hi {$safeName},</p>"
+      . '<p style="margin:0 0 14px">We received a request to create a <strong>Rise Above Foundation</strong> account with this email address. '
+      . 'Click the button below to verify your email and activate your account. '
+      . 'Then sign in with the <strong>same password you created during registration</strong> — you will not be asked to set a new one. '
+      . 'This link expires in 24 hours.</p>'
+      . '<p style="margin:24px 0;text-align:center">'
+      . '<a href="' . $safeUrl . '" style="display:inline-block;background:#AF101A;color:#ffffff;padding:14px 28px;border-radius:8px;text-decoration:none;font-weight:700;font-size:1rem">Verify it\'s you</a>'
+      . '</p>'
+      . '<p style="margin:0 0 10px;color:#64748b;font-size:0.88rem">Or copy and paste this link into your browser:</p>'
+      . '<p style="margin:0 0 18px;word-break:break-all;font-size:0.85rem"><a href="' . $safeUrl . '" style="color:#2563eb">' . $safeUrl . '</a></p>'
+      . '<p style="margin:0;color:#64748b;font-size:0.88rem">If you did not create this account, you can safely ignore this email.</p>';
+    $sent = (bool) send_mail($toEmail, $name, $subject, $html);
   }
-  return ['url' => $url, 'sent' => $sent];
+
+  $result = function_exists('mail_last_result') ? mail_last_result() : ['ok' => $sent, 'transport' => '', 'error' => ''];
+  return [
+    'url' => $url,
+    'sent' => $sent,
+    'transport' => (string) ($result['transport'] ?? ''),
+    'error' => (string) ($result['error'] ?? ''),
+  ];
 }
 
 /**
- * Legacy stub retained for compatibility — credential emails are no longer sent.
+ * Send login credentials when an admin creates an account for a user.
+ * Uses NodeMailer (preferred) with a professional HTML template.
+ * Returns ['sent' => bool, 'transport' => string, 'error' => string].
  */
-function send_account_credentials(string $toEmail, string $name, string $loginEmail, string $password, string $role): bool
+function send_account_credentials(string $toEmail, string $name, string $loginEmail, string $password, string $role): array
 {
-  error_log("[credentials] deprecated — accounts now self-register with email verification ({$toEmail})");
-  return false;
+  $sent = false;
+
+  if (function_exists('nodemailer_send_credentials') && mail_resolved_transport() === 'nodemailer') {
+    $sent = nodemailer_send_credentials($toEmail, $name, $loginEmail, $password, $role);
+  } elseif (function_exists('send_mail')) {
+    // Fallback template (PHP SMTP / outbox) — still portal-focused, no Gmail-control language
+    $safeName = htmlspecialchars($name, ENT_QUOTES, 'UTF-8');
+    $safeEmail = htmlspecialchars($loginEmail, ENT_QUOTES, 'UTF-8');
+    $safePassword = htmlspecialchars($password, ENT_QUOTES, 'UTF-8');
+    $safeRole = htmlspecialchars($role, ENT_QUOTES, 'UTF-8');
+    $loginUrl = htmlspecialchars(frontend_url('/login'), ENT_QUOTES, 'UTF-8');
+    $recoveryUrl = defined('RECOVERY_URL') && RECOVERY_URL !== ''
+      ? htmlspecialchars((string) RECOVERY_URL, ENT_QUOTES, 'UTF-8')
+      : $loginUrl;
+
+    $subject = 'Your Rise Above Foundation account credentials';
+    $html = "<p style=\"margin:0 0 12px;font-size:1.15rem;font-weight:700;color:#0f172a\">Welcome — your {$safeRole} account is ready</p>"
+      . "<p style=\"margin:0 0 14px\">Hi {$safeName},</p>"
+      . "<p style=\"margin:0 0 14px\">An administrator created a <strong>{$safeRole}</strong> account for you on the Rise Above Foundation portal. Use these credentials to sign in:</p>"
+      . '<table style="border-collapse:collapse;margin:0 0 18px;width:100%;max-width:420px">'
+      . "<tr><td style=\"padding:8px 12px;background:#f8fafc;border:1px solid #e2e8f0;font-weight:600\">Email</td>"
+      . "<td style=\"padding:8px 12px;border:1px solid #e2e8f0\">{$safeEmail}</td></tr>"
+      . "<tr><td style=\"padding:8px 12px;background:#f8fafc;border:1px solid #e2e8f0;font-weight:600\">Temporary password</td>"
+      . "<td style=\"padding:8px 12px;border:1px solid #e2e8f0;font-family:monospace\">{$safePassword}</td></tr>"
+      . "<tr><td style=\"padding:8px 12px;background:#f8fafc;border:1px solid #e2e8f0;font-weight:600\">Recovery number</td>"
+      . "<td style=\"padding:8px 12px;border:1px solid #e2e8f0\">None yet</td></tr>"
+      . '</table>'
+      . '<p style="margin:20px 0;text-align:center">'
+      . '<a href="' . $loginUrl . '" style="display:inline-block;background:#AF101A;color:#ffffff;padding:14px 28px;border-radius:8px;text-decoration:none;font-weight:700">Sign in to your account</a>'
+      . '</p>'
+      . '<p style="margin:0 0 18px;text-align:center">'
+      . '<a href="' . $recoveryUrl . '" style="display:inline-block;background:#ffffff;color:#AF101A;padding:12px 22px;border-radius:8px;text-decoration:none;font-weight:700;border:2px solid #AF101A">Add Recovery Number Now</a>'
+      . '</p>'
+      . '<p style="margin:0;color:#64748b;font-size:0.88rem">This temporary password is only for your Rise Above Foundation portal account. Please change it after signing in.</p>';
+
+    $sent = (bool) send_mail($toEmail, $name, $subject, $html);
+  }
+
+  $result = function_exists('mail_last_result') ? mail_last_result() : ['ok' => $sent, 'transport' => '', 'error' => ''];
+  return [
+    'sent' => $sent,
+    'transport' => (string) ($result['transport'] ?? ''),
+    'error' => (string) ($result['error'] ?? ''),
+  ];
+}
+
+/**
+ * Cryptographically random temporary password (uppercase, lowercase, digits, symbols).
+ * Plaintext is emailed once; only password_hash() is stored in the database.
+ */
+function generate_temp_password(int $length = 14): string
+{
+  $length = max(12, $length);
+  $upper = 'ABCDEFGHJKLMNPQRSTUVWXYZ';
+  $lower = 'abcdefghijkmnopqrstuvwxyz';
+  $digits = '23456789';
+  $symbols = '!@#$%&*?';
+  $all = $upper . $lower . $digits . $symbols;
+
+  $chars = [
+    $upper[random_int(0, strlen($upper) - 1)],
+    $lower[random_int(0, strlen($lower) - 1)],
+    $digits[random_int(0, strlen($digits) - 1)],
+    $symbols[random_int(0, strlen($symbols) - 1)],
+  ];
+  for ($i = count($chars); $i < $length; $i++) {
+    $chars[] = $all[random_int(0, strlen($all) - 1)];
+  }
+  for ($i = count($chars) - 1; $i > 0; $i--) {
+    $j = random_int(0, $i);
+    [$chars[$i], $chars[$j]] = [$chars[$j], $chars[$i]];
+  }
+  return implode('', $chars);
+}
+
+function accept_privacy_terms(PDO $pdo, int $userId): void
+{
+  $pdo->prepare('UPDATE users SET terms_accepted_at = NOW(), privacy_accepted_at = NOW() WHERE id = ?')
+    ->execute([$userId]);
 }
 
 function distribution_workflow_steps(): array

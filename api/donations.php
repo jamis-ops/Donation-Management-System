@@ -6,8 +6,21 @@ $pdo = db();
 $method = request_method();
 $id = get_id_param();
 
+function donation_proof_is_image(?string $mime, ?string $fileName): bool
+{
+  $mime = (string) $mime;
+  $fileName = (string) $fileName;
+  return str_starts_with($mime, 'image/')
+    || (bool) preg_match('/\.(jpe?g|png|gif|webp)$/i', $fileName);
+}
+
 function map_donation(array $row): array
 {
+  $proofPath = $row['proof_path'] ?? null;
+  $proofName = $row['proof_file_name'] ?? null;
+  $proofType = $row['proof_file_type'] ?? null;
+  $hasProof = !empty($proofPath);
+
   return [
     'id' => $row['tracking_code'],
     'dbId' => (int) $row['id'],
@@ -23,6 +36,49 @@ function map_donation(array $row): array
     'date' => format_date($row['donation_date']),
     'donationDate' => $row['donation_date'],
     'notes' => $row['notes'],
+    'paymentMethod' => $row['payment_method'] ?? '',
+    'hasProof' => $hasProof,
+    'proofFileName' => $proofName,
+    'proofFileType' => $proofType,
+    'proofIsImage' => $hasProof && donation_proof_is_image($proofType, $proofName),
+    'proofUrl' => $hasProof ? ('/api/uploads/donation_proofs/' . basename((string) $proofPath)) : null,
+  ];
+}
+
+function save_donation_proof_upload(): ?array
+{
+  if (!isset($_FILES['proof']) || $_FILES['proof']['error'] === UPLOAD_ERR_NO_FILE) {
+    return null;
+  }
+  if ($_FILES['proof']['error'] !== UPLOAD_ERR_OK) {
+    json_response(['ok' => false, 'error' => 'Proof upload failed'], 400);
+  }
+
+  $file = $_FILES['proof'];
+  $allowed = ['image/jpeg', 'image/png', 'image/webp', 'image/gif', 'application/pdf'];
+  $mime = mime_content_type($file['tmp_name']) ?: ($file['type'] ?? '');
+  if (!in_array($mime, $allowed, true)) {
+    json_response(['ok' => false, 'error' => 'Proof must be JPG, PNG, WEBP, GIF, or PDF'], 400);
+  }
+  if ($file['size'] > 5 * 1024 * 1024) {
+    json_response(['ok' => false, 'error' => 'Proof file must be under 5MB'], 400);
+  }
+
+  $dir = __DIR__ . '/uploads/donation_proofs';
+  if (!is_dir($dir)) {
+    mkdir($dir, 0755, true);
+  }
+
+  $ext = pathinfo($file['name'], PATHINFO_EXTENSION) ?: 'bin';
+  $safeName = 'donation_' . time() . '_' . bin2hex(random_bytes(4)) . '.' . $ext;
+  if (!move_uploaded_file($file['tmp_name'], $dir . '/' . $safeName)) {
+    json_response(['ok' => false, 'error' => 'Failed to save proof file'], 500);
+  }
+
+  return [
+    'path' => $safeName,
+    'name' => $file['name'],
+    'type' => $mime,
   ];
 }
 
@@ -53,17 +109,46 @@ if ($method === 'GET') {
 }
 
 if ($method === 'POST') {
-  $body = read_json_body();
-  $public = !empty($body['public']);
+  $isMultipart = isset($_SERVER['CONTENT_TYPE'])
+    && stripos((string) $_SERVER['CONTENT_TYPE'], 'multipart/form-data') !== false;
+
+  if ($isMultipart) {
+    $body = $_POST;
+    $public = !empty($body['public']);
+  } else {
+    $body = read_json_body();
+    $public = !empty($body['public']);
+  }
   $user = $public ? null : require_auth(['Admin', 'Staff']);
 
-  $type = ($body['type'] ?? 'Monetary') === 'In-Kind' ? 'In-Kind' : 'Monetary';
-  $donorName = trim((string) ($body['donorName'] ?? $body['donor_name'] ?? ''));
+  $type = (($body['type'] ?? 'Monetary') === 'In-Kind') ? 'In-Kind' : 'Monetary';
+  $contactPerson = trim((string) ($body['contactPerson'] ?? $body['contact_person'] ?? $body['donorName'] ?? $body['donor_name'] ?? ''));
   $donorEmail = strtolower(trim((string) ($body['email'] ?? $body['donor_email'] ?? '')));
   $donationDate = (string) ($body['donationDate'] ?? $body['donation_date'] ?? date('Y-m-d'));
 
+  $donorTypeRaw = trim((string) ($body['donorType'] ?? $body['donor_type'] ?? 'Individual'));
+  $donorType = (strcasecmp($donorTypeRaw, 'Company') === 0 || strcasecmp($donorTypeRaw, 'Organization') === 0)
+    ? 'Company'
+    : 'Individual';
+  $organization = $donorType === 'Company'
+    ? trim((string) ($body['organization'] ?? $body['company'] ?? ''))
+    : '';
+  $phone = trim((string) ($body['phone'] ?? ''));
+  $country = trim((string) ($body['country'] ?? ''));
+  $address = trim((string) ($body['address'] ?? ''));
+
+  // donors.full_name: organization for Company, contact person for Individual.
+  $fullName = $donorType === 'Company' && $organization !== ''
+    ? $organization
+    : $contactPerson;
+  // donations.donor_name prefers contact person; fall back to organization.
+  $donorName = $contactPerson !== '' ? $contactPerson : $fullName;
+
   if ($donorName === '') {
     json_response(['ok' => false, 'error' => 'Donor name is required'], 400);
+  }
+  if ($public && $donorType === 'Company' && $organization === '') {
+    json_response(['ok' => false, 'error' => 'Company / Organization Name is required'], 400);
   }
 
   $tracking = generate_code('DON');
@@ -71,17 +156,83 @@ if ($method === 'POST') {
   $items = $type === 'In-Kind' ? trim((string) ($body['items'] ?? $body['itemsDescription'] ?? '')) : null;
   $status = trim((string) ($body['status'] ?? 'Pending Verification'));
   $notes = trim((string) ($body['notes'] ?? $body['message'] ?? ''));
+  $paymentMethod = trim((string) ($body['paymentMethod'] ?? $body['payment_method'] ?? '')) ?: null;
+  $category = trim((string) ($body['category'] ?? '')) ?: null;
+
+  $proof = $isMultipart ? save_donation_proof_upload() : null;
 
   $donorId = null;
   if ($donorEmail !== '') {
     $find = $pdo->prepare('SELECT id FROM donors WHERE email = ? LIMIT 1');
     $find->execute([$donorEmail]);
-    $donorId = $find->fetchColumn() ?: null;
+    $existingDonorId = $find->fetchColumn();
+
+    if ($existingDonorId) {
+      $donorId = (int) $existingDonorId;
+      // Public give-now: refresh profile fields from the form.
+      if ($public) {
+        $upd = $pdo->prepare('
+          UPDATE donors
+          SET full_name = ?, donor_type = ?, organization = ?, contact_person = ?,
+              phone = COALESCE(NULLIF(?, ""), phone),
+              country = COALESCE(NULLIF(?, ""), country),
+              address = COALESCE(NULLIF(?, ""), address)
+          WHERE id = ?
+        ');
+        $upd->execute([
+          $fullName,
+          $donorType,
+          $organization !== '' ? $organization : null,
+          $contactPerson !== '' ? $contactPerson : null,
+          $phone,
+          $country,
+          $address,
+          $donorId,
+        ]);
+      }
+    } elseif ($public) {
+      // Create a donor row for public donations so they appear in Admin → Donors.
+      $ins = $pdo->prepare('
+        INSERT INTO donors (code, full_name, donor_type, organization, contact_person, email, phone, country, address)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+      ');
+      $ins->execute([
+        generate_code('DNR'),
+        $fullName,
+        $donorType,
+        $organization !== '' ? $organization : null,
+        $contactPerson !== '' ? $contactPerson : null,
+        $donorEmail,
+        $phone !== '' ? $phone : null,
+        $country !== '' ? $country : null,
+        $address !== '' ? $address : null,
+      ]);
+      $donorId = (int) $pdo->lastInsertId();
+    }
   }
 
-  $category = trim((string) ($body['category'] ?? '')) ?: null;
-  $stmt = $pdo->prepare('INSERT INTO donations (tracking_code, donor_id, donor_name, donor_email, type, category, amount, items_description, status, donation_date, notes) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)');
-  $stmt->execute([$tracking, $donorId, $donorName, $donorEmail ?: null, $type, $category, $amount, $items, $status, $donationDate, $notes ?: null]);
+  $stmt = $pdo->prepare('
+    INSERT INTO donations
+      (tracking_code, donor_id, donor_name, donor_email, type, category, amount, items_description, status, donation_date, notes, payment_method, proof_path, proof_file_name, proof_file_type)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  ');
+  $stmt->execute([
+    $tracking,
+    $donorId,
+    $donorName,
+    $donorEmail ?: null,
+    $type,
+    $category,
+    $amount,
+    $items,
+    $status,
+    $donationDate,
+    $notes ?: null,
+    $paymentMethod,
+    $proof['path'] ?? null,
+    $proof['name'] ?? null,
+    $proof['type'] ?? null,
+  ]);
 
   $newId = (int) $pdo->lastInsertId();
   $stmt = $pdo->prepare('SELECT * FROM donations WHERE id = ?');
@@ -99,7 +250,6 @@ if ($method === 'DELETE') {
   }
 
   if ($user['role'] === 'Donor') {
-    // Donors may only cancel their own donations while still pending.
     $stmt = $pdo->prepare('SELECT * FROM donations WHERE id = ? LIMIT 1');
     $stmt->execute([$id]);
     $row = $stmt->fetch();

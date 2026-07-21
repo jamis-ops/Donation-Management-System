@@ -15,6 +15,8 @@ const footerLinks = [
   {
     title: 'Explore',
     links: [
+      { to: '/about', label: 'About Us' },
+      { to: '/#programs', label: 'Projects' },
       { to: '/stories', label: 'Success Stories' },
       { to: '/faq', label: 'FAQ' },
       { to: '/contact', label: 'Contact Us' },
@@ -30,6 +32,7 @@ export default function Footer() {
         <div className="site-footer__brand">
           <Logo to="/" className="brand-logo--footer" />
           <p className="site-footer__tagline">{foundation.tagline}</p>
+          <p className="site-footer__hours">{foundation.officeHours}</p>
           <div className="site-footer__social">
             <a href={foundation.social.facebook} target="_blank" rel="noreferrer" aria-label="Facebook">
               <Share2 size={18} />
@@ -37,7 +40,7 @@ export default function Footer() {
             <a href={foundation.social.instagram} target="_blank" rel="noreferrer" aria-label="Instagram">
               <Globe size={18} />
             </a>
-            <a href={foundation.social.twitter} target="_blank" rel="noreferrer" aria-label="Twitter">
+            <a href={`mailto:${foundation.email}`} aria-label="Email">
               <Mail size={18} />
             </a>
           </div>
@@ -61,7 +64,12 @@ export default function Footer() {
           <address>
             <p>{foundation.address}</p>
             <p>
-              <a href={`tel:${foundation.phone}`}>{foundation.phone}</a>
+              <a href={`tel:${foundation.phone.replace(/\s/g, '')}`}>{foundation.phone}</a>
+              {' / '}
+              <a href={`tel:${foundation.phoneAlt.replace(/\s/g, '')}`}>{foundation.phoneAlt}</a>
+            </p>
+            <p>
+              <a href={`tel:${foundation.mobile.replace(/\s/g, '')}`}>{foundation.mobile}</a>
             </p>
             <p>
               <a href={`mailto:${foundation.email}`}>{foundation.email}</a>

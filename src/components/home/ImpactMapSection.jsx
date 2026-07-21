@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet'
 import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
-import { mapLocations, programs } from '../../data/mockData'
+import { mapLocations } from '../../data/mockData'
 import SectionHeading from '../shared/SectionHeading'
 
 // Crimson custom marker icon
@@ -33,9 +33,16 @@ function MapBounds({ locations }) {
 export default function ImpactMapSection() {
   const [filter, setFilter] = useState('all')
 
+  const featuredFilters = [
+    'Community Center',
+    'Educational Sponsorship',
+    'Dental Mission',
+    'Disaster Relief and House Building',
+  ]
+
   const programFilters = [
     { id: 'all', label: 'All Programs' },
-    ...programs.map((p) => ({ id: p.name, label: p.name })),
+    ...featuredFilters.map((name) => ({ id: name, label: name })),
   ]
 
   const filteredLocations = useMemo(() => {

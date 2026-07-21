@@ -1,5 +1,8 @@
 import { useState } from 'react'
+import { Link } from 'react-router-dom'
 import { submitPublicDonation } from '../api/resources'
+import { DONOR_TYPES } from '../constants/options'
+import Req from '../components/shared/Req'
 
 const donationTypes = [
   { id: 'monetary', label: 'Monetary Donation' },
@@ -18,37 +21,71 @@ const lifecycle = [
   'Certificate / Official Receipt',
 ]
 
+const emptyForm = {
+  type: 'monetary',
+  donorType: 'Individual',
+  organization: '',
+  donorName: '',
+  email: '',
+  phone: '',
+  country: '',
+  address: '',
+  amount: '',
+  items: '',
+  paymentMethod: 'bank-transfer',
+  proof: null,
+  message: '',
+  acceptedPolicies: false,
+}
+
 export default function DonatePage() {
   const [submitted, setSubmitted] = useState(false)
   const [trackingCode, setTrackingCode] = useState('')
   const [submitError, setSubmitError] = useState('')
   const [submitting, setSubmitting] = useState(false)
-  const [form, setForm] = useState({
-    type: 'monetary',
-    donorName: '',
-    email: '',
-    amount: '',
-    items: '',
-    paymentMethod: 'bank-transfer',
-    proof: null,
-    message: '',
-  })
+  const [form, setForm] = useState(emptyForm)
+
+  const isCompany = form.donorType === 'Company'
 
   const handleSubmit = async (e) => {
     e.preventDefault()
     setSubmitError('')
+
+    if (isCompany && !form.organization.trim()) {
+      setSubmitError('Company / Organization Name is required.')
+      return
+    }
+    if (!form.acceptedPolicies) {
+      setSubmitError('Please accept the Data Privacy Policy and Terms & Conditions.')
+      return
+    }
+
     setSubmitting(true)
     try {
-      const res = await submitPublicDonation({
-        donorName: form.donorName,
-        email: form.email,
-        type: form.type === 'in-kind' ? 'In-Kind' : 'Monetary',
-        amount: form.type === 'monetary' ? Number(form.amount) : undefined,
-        items: form.type === 'in-kind' ? form.items : undefined,
-        message: form.message,
-      })
+      const fd = new FormData()
+      fd.append('public', '1')
+      fd.append('donorType', form.donorType)
+      if (isCompany) fd.append('organization', form.organization)
+      fd.append('donorName', form.donorName)
+      fd.append('contactPerson', form.donorName)
+      fd.append('email', form.email)
+      if (form.phone) fd.append('phone', form.phone)
+      if (form.country) fd.append('country', form.country)
+      if (form.address) fd.append('address', form.address)
+      fd.append('acceptedPolicies', '1')
+      fd.append('type', form.type === 'in-kind' ? 'In-Kind' : 'Monetary')
+      if (form.type === 'monetary') {
+        fd.append('amount', String(form.amount))
+        fd.append('paymentMethod', form.paymentMethod)
+      } else {
+        fd.append('items', form.items)
+      }
+      if (form.message) fd.append('message', form.message)
+      if (form.proof) fd.append('proof', form.proof)
+      const res = await submitPublicDonation(fd)
       setTrackingCode(res.data.trackingCode)
       setSubmitted(true)
+      setForm(emptyForm)
     } catch (err) {
       setSubmitError(err.message || 'Failed to submit donation')
     } finally {
@@ -106,7 +143,7 @@ export default function DonatePage() {
               <h2>Donation Form</h2>
 
               <fieldset className="radio-group">
-                <legend>Donation Type *</legend>
+                <legend><Req required>Donation Type</Req></legend>
                 {donationTypes.map((dt) => (
                   <label key={dt.id} className="radio-label">
                     <input
@@ -121,9 +158,39 @@ export default function DonatePage() {
                 ))}
               </fieldset>
 
+              <label>
+                <Req required>Donor Type</Req>
+                <select
+                  required
+                  value={form.donorType}
+                  onChange={(e) => setForm({
+                    ...form,
+                    donorType: e.target.value,
+                    organization: e.target.value === 'Individual' ? '' : form.organization,
+                  })}
+                >
+                  {DONOR_TYPES.map((t) => (
+                    <option key={t.value} value={t.value}>{t.label}</option>
+                  ))}
+                </select>
+              </label>
+
+              {isCompany && (
+                <label>
+                  <Req required>Company / Organization Name</Req>
+                  <input
+                    type="text"
+                    required
+                    placeholder="Acme Foundation Inc."
+                    value={form.organization}
+                    onChange={(e) => setForm({ ...form, organization: e.target.value })}
+                  />
+                </label>
+              )}
+
               <div className="form-row">
                 <label>
-                  Donor Name *
+                  <Req required>{isCompany ? 'Contact Person' : 'Full Name'}</Req>
                   <input
                     type="text"
                     required
@@ -133,7 +200,7 @@ export default function DonatePage() {
                   />
                 </label>
                 <label>
-                  Email Address *
+                  <Req required>Email</Req>
                   <input
                     type="email"
                     required
@@ -144,10 +211,41 @@ export default function DonatePage() {
                 </label>
               </div>
 
+              <div className="form-row">
+                <label>
+                  Contact Number
+                  <input
+                    type="text"
+                    placeholder="+63 9xx xxx xxxx"
+                    value={form.phone}
+                    onChange={(e) => setForm({ ...form, phone: e.target.value })}
+                  />
+                </label>
+                <label>
+                  Country
+                  <input
+                    type="text"
+                    placeholder="Philippines"
+                    value={form.country}
+                    onChange={(e) => setForm({ ...form, country: e.target.value })}
+                  />
+                </label>
+              </div>
+
+              <label>
+                Address
+                <input
+                  type="text"
+                  placeholder="Street, City, Province"
+                  value={form.address}
+                  onChange={(e) => setForm({ ...form, address: e.target.value })}
+                />
+              </label>
+
               {form.type === 'monetary' ? (
                 <>
                   <label>
-                    Amount (PHP) *
+                    <Req required>Amount (PHP)</Req>
                     <input
                       type="number"
                       min="1"
@@ -172,7 +270,7 @@ export default function DonatePage() {
                 </>
               ) : (
                 <label>
-                  Items Description *
+                  <Req required>Items Description</Req>
                   <textarea
                     rows={4}
                     required
@@ -201,6 +299,22 @@ export default function DonatePage() {
                   value={form.message}
                   onChange={(e) => setForm({ ...form, message: e.target.value })}
                 />
+              </label>
+
+              <label className="auth-policy-check" style={{ display: 'flex', gap: '0.5rem', alignItems: 'flex-start', marginBottom: '1rem' }}>
+                <input
+                  type="checkbox"
+                  required
+                  checked={form.acceptedPolicies}
+                  onChange={(e) => setForm({ ...form, acceptedPolicies: e.target.checked })}
+                />
+                <span>
+                  I accept the{' '}
+                  <Link to="/privacy" target="_blank" rel="noreferrer">Data Privacy Policy</Link>
+                  {' '}and{' '}
+                  <Link to="/terms" target="_blank" rel="noreferrer">Terms &amp; Conditions</Link>
+                  <Req required />
+                </span>
               </label>
 
               <button type="submit" className="btn btn--primary btn--lg" style={{ width: '100%' }} disabled={submitting}>

@@ -1,46 +1,43 @@
-import {
-  Waves,
-  GraduationCap,
-  Utensils,
-  Handshake,
-  Stethoscope,
-} from 'lucide-react'
+import { Link } from 'react-router-dom'
+import { ArrowRight } from 'lucide-react'
 import { programs } from '../../data/mockData'
 import SectionHeading from '../shared/SectionHeading'
-
-const programIcons = {
-  'disaster-relief': Waves,
-  'educational-sponsorship': GraduationCap,
-  'feeding-programs': Utensils,
-  'community-outreach': Handshake,
-  'medical-missions': Stethoscope,
-}
+import Reveal from '../shared/Reveal'
 
 export default function ProgramsSection() {
+  const active = programs.filter((p) => p.active)
+
   return (
-    <section id="programs" className="section programs-section">
+    <section id="programs" className="section projects-section">
       <div className="container">
-        <SectionHeading
-          eyebrow="Current Programs"
-          title="Core programs and services"
-          description="Active initiatives delivering real impact to communities across the region."
-        />
-        <div className="programs-grid">
-          {programs
-            .filter((p) => p.active)
-            .map((program) => {
-              const Icon = programIcons[program.id]
-              return (
-                <article key={program.id} className="program-card">
-                  <span className="program-card__icon" aria-hidden="true">
-                    {Icon && <Icon size={28} strokeWidth={2} />}
-                  </span>
-                  <h3>{program.name}</h3>
-                  <p>{program.description}</p>
-                  <span className="program-card__badge">Active</span>
-                </article>
-              )
-            })}
+        <Reveal>
+          <SectionHeading
+            eyebrow="Our Projects"
+            title="Together we can help"
+            description="Community-based programs in education, livelihood, health & hygiene, and hope across Cebu."
+          />
+        </Reveal>
+
+        <div className="projects-grid">
+          {active.map((program, i) => (
+            <Reveal key={program.id} as="article" className="project-card" delay={Math.min(i * 40, 280)}>
+              <div className="project-card__media" style={{ '--project-accent': program.color }}>
+                {program.image ? (
+                  <img src={program.image} alt="" loading="lazy" />
+                ) : (
+                  <div className="project-card__fallback" style={{ background: program.color }} />
+                )}
+                <span className="project-card__tint" />
+              </div>
+              <div className="project-card__body">
+                <h3>{program.name}</h3>
+                <p>{program.short}</p>
+                <Link to={`/projects/${program.id}`} className="project-card__link">
+                  Read more <ArrowRight size={14} />
+                </Link>
+              </div>
+            </Reveal>
+          ))}
         </div>
       </div>
     </section>

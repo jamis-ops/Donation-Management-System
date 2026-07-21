@@ -3,6 +3,7 @@ import {
   CheckCircle2, XCircle, Eye, Download, FileText, MapPin, Calendar, Building2,
 } from 'lucide-react'
 import StatusBadge from './StatusBadge'
+import ModalHeader from './ModalHeader'
 import { reviewProof } from '../../../api/resources'
 
 function isPending(status) {
@@ -205,11 +206,12 @@ export default function AdminProofReview({
       {preview && (
         <div className="admin-modal-overlay" onClick={() => setPreview(null)}>
           <div className="admin-modal admin-modal--wide proof-preview-modal" onClick={(e) => e.stopPropagation()}>
+            <ModalHeader
+              title={preview.eventName || preview.distributionCode}
+              subtitle={`${preview.barangay} · ${preview.fileName}`}
+              onClose={() => setPreview(null)}
+            />
             <div className="proof-preview-modal__head">
-              <div>
-                <h2>{preview.eventName || preview.distributionCode}</h2>
-                <p>{preview.barangay} · {preview.fileName}</p>
-              </div>
               <StatusBadge status={preview.status} />
             </div>
             <div className="proof-preview-modal__body">
@@ -246,7 +248,7 @@ export default function AdminProofReview({
       {rejecting && (
         <div className="admin-modal-overlay" onClick={() => setRejecting(null)}>
           <div className="admin-modal" onClick={(e) => e.stopPropagation()}>
-            <h2>Reject proof</h2>
+            <ModalHeader title="Reject proof" onClose={() => setRejecting(null)} />
             <p className="proof-reject-copy">
               Tell <strong>{rejecting.barangay}</strong> why this submission for
               {' '}<strong>{rejecting.eventName || rejecting.distributionCode}</strong> was rejected so they can resubmit.

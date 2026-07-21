@@ -6,6 +6,8 @@
   "scripts": {
     "dev": "vite",
     "api": "powershell -ExecutionPolicy Bypass -File scripts/start-api.ps1",
+    "mail": "powershell -ExecutionPolicy Bypass -File scripts/start-mail.ps1",
+    "mail:install": "npm --prefix mail-service install",
     "build": "vite build",
     "lint": "eslint .",
     "preview": "vite preview"

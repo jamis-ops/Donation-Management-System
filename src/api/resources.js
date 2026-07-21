@@ -58,11 +58,27 @@ export function getStaff() {
   return apiFetch('/api/staff.php')
 }
 
-export function submitPublicDonation(body) {
+export function submitPublicDonation(bodyOrFormData) {
+  if (bodyOrFormData instanceof FormData) {
+    if (!bodyOrFormData.has('public')) bodyOrFormData.append('public', '1')
+    return fetch('/api/donations.php', {
+      method: 'POST',
+      credentials: 'include',
+      body: bodyOrFormData,
+    }).then(async (res) => {
+      const data = await res.json().catch(() => null)
+      if (!res.ok) throw new Error(data?.error || `Request failed (${res.status})`)
+      return data
+    })
+  }
   return apiFetch('/api/donations.php', {
     method: 'POST',
-    body: JSON.stringify({ ...body, public: true }),
+    body: JSON.stringify({ ...bodyOrFormData, public: true }),
   })
+}
+
+export function createStaffAccount(body) {
+  return apiFetch('/api/staff.php', { method: 'POST', body: JSON.stringify(body) })
 }
 
 export function submitPublicAssistance(body) {

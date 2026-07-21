@@ -8,6 +8,7 @@ import StatusBadge from '../../components/admin/shared/StatusBadge'
 import ApiState from '../../components/admin/shared/ApiState'
 import FilterBar from '../../components/admin/shared/FilterBar'
 import { User, Calendar, Clock, Pencil } from 'lucide-react'
+import ModalHeader from '../../components/admin/shared/ModalHeader'
 
 const filterConfig = {
   searchKeys: ['id', 'title', 'assignee'],
@@ -230,7 +231,10 @@ export default function TasksPage() {
       {showForm && (
         <div className="admin-modal-overlay" onClick={() => setShowForm(false)}>
           <div className="admin-modal admin-modal--wide" onClick={(e) => e.stopPropagation()}>
-            <h2>{editRow ? `Edit Task ${editRow.id}` : 'Create Task for Volunteer'}</h2>
+            <ModalHeader
+              title={editRow ? `Edit Task ${editRow.id}` : 'Create Task for Volunteer'}
+              onClose={() => setShowForm(false)}
+            />
             <form onSubmit={handleSave}>
               <label>
                 Task Title

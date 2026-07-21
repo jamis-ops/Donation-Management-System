@@ -1,4 +1,5 @@
-import { createBrowserRouter, RouterProvider, Navigate } from 'react-router-dom'
+import { createBrowserRouter, RouterProvider, Navigate, useSearchParams } from 'react-router-dom'
+import { useEffect } from 'react'
 import { AuthProvider } from './context/AuthContext'
 import PublicLayout from './components/layout/PublicLayout'
 import AdminLayout from './components/admin/layout/AdminLayout'
@@ -8,15 +9,19 @@ import PortalLayout from './portals/shared/PortalLayout'
 
 // Public pages
 import HomePage from './pages/HomePage'
+import AboutPage from './pages/AboutPage'
+import ProjectDetailPage from './pages/ProjectDetailPage'
 import SuccessStoriesPage from './pages/SuccessStoriesPage'
 import VolunteerPage from './pages/VolunteerPage'
 import DonatePage from './pages/DonatePage'
 import AssistancePage from './pages/AssistancePage'
 import ContactPage from './pages/ContactPage'
 import FAQPage from './pages/FAQPage'
+import PrivacyPolicyPage from './pages/PrivacyPolicyPage'
+import TermsPage from './pages/TermsPage'
 import UserLoginPage from './pages/LoginPage'
 import RegisterPage from './pages/RegisterPage'
-import VerifyPage from './pages/VerifyPage'
+import VerifiedPage from './pages/VerifiedPage'
 
 // Admin pages
 import AdminLoginPage from './pages/admin/LoginPage'
@@ -54,20 +59,43 @@ import StaffInventoryPage from './portals/staff/StaffInventoryPage'
 import StaffDistributionsPage from './portals/staff/StaffDistributionsPage'
 import StaffTasksPage from './portals/staff/StaffTasksPage'
 
+/** Old email links used /verify?token=… — silently hand off to the API (no UI). */
+function LegacyVerifyRedirect() {
+  const [params] = useSearchParams()
+  const token = params.get('token') || ''
+  useEffect(() => {
+    if (!token) {
+      window.location.replace('/login')
+      return
+    }
+    window.location.replace(`/api/verify.php?token=${encodeURIComponent(token)}`)
+  }, [token])
+  return null
+}
+
 const router = createBrowserRouter([
   { path: 'login', element: <UserLoginPage /> },
   { path: 'register', element: <RegisterPage /> },
-  { path: 'verify', element: <VerifyPage /> },
+  { path: 'verified', element: <VerifiedPage /> },
+  {
+    // Legacy email links that pointed at /verify?token=… — forward to the API verifier.
+    path: 'verify',
+    element: <LegacyVerifyRedirect />,
+  },
   {
     element: <PublicLayout />,
     children: [
       { index: true, element: <HomePage /> },
+      { path: 'about', element: <AboutPage /> },
+      { path: 'projects/:projectId', element: <ProjectDetailPage /> },
       { path: 'stories', element: <SuccessStoriesPage /> },
       { path: 'volunteer', element: <VolunteerPage /> },
       { path: 'donate', element: <DonatePage /> },
       { path: 'assistance', element: <AssistancePage /> },
       { path: 'contact', element: <ContactPage /> },
       { path: 'faq', element: <FAQPage /> },
+      { path: 'privacy', element: <PrivacyPolicyPage /> },
+      { path: 'terms', element: <TermsPage /> },
     ],
   },
   { path: 'admin/login', element: <AdminLoginPage /> },

@@ -228,6 +228,34 @@ try {
     echo "Created uploads/proofs directory\n";
   }
 
+  // v12: Donor profile enrichment + privacy/terms + donation proof
+  addColumn($pdo, 'donors', 'organization', 'VARCHAR(160) NULL AFTER full_name');
+  addColumn($pdo, 'donors', 'contact_person', 'VARCHAR(120) NULL AFTER organization');
+  addColumn($pdo, 'donors', 'country', 'VARCHAR(80) NULL AFTER phone');
+  addColumn($pdo, 'donors', 'address', 'VARCHAR(255) NULL AFTER country');
+  addColumn($pdo, 'donors', 'notes', 'TEXT NULL AFTER address');
+
+  addColumn($pdo, 'users', 'terms_accepted_at', 'TIMESTAMP NULL AFTER verification_sent_at');
+  addColumn($pdo, 'users', 'privacy_accepted_at', 'TIMESTAMP NULL AFTER terms_accepted_at');
+
+  addColumn($pdo, 'donations', 'payment_method', 'VARCHAR(40) NULL AFTER notes');
+  addColumn($pdo, 'donations', 'proof_path', 'VARCHAR(255) NULL AFTER payment_method');
+  addColumn($pdo, 'donations', 'proof_file_name', 'VARCHAR(255) NULL AFTER proof_path');
+  addColumn($pdo, 'donations', 'proof_file_type', 'VARCHAR(80) NULL AFTER proof_file_name');
+
+  $donationProofDir = __DIR__ . '/uploads/donation_proofs';
+  if (!is_dir($donationProofDir)) {
+    mkdir($donationProofDir, 0755, true);
+    echo "Created uploads/donation_proofs directory\n";
+  }
+
+  // v13: Optional recovery phone for account recovery (shown as "None yet" until set)
+  addColumn($pdo, 'users', 'recovery_phone', 'VARCHAR(40) NULL AFTER privacy_accepted_at');
+
+  // v14: Donor type + beneficiary representative position
+  addColumn($pdo, 'donors', 'donor_type', "VARCHAR(40) NOT NULL DEFAULT 'Individual' AFTER full_name");
+  addColumn($pdo, 'beneficiaries', 'representative_position', 'VARCHAR(80) NULL AFTER representative_name');
+
   echo "\nMigration complete!\n";
 } catch (Throwable $e) {
   http_response_code(500);

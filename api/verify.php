@@ -7,8 +7,11 @@ $token = trim((string) ($_GET['token'] ?? ''));
 $wantJson = (isset($_GET['format']) && $_GET['format'] === 'json')
   || (str_contains($_SERVER['HTTP_ACCEPT'] ?? '', 'application/json'));
 
+/** Verification links expire after 24 hours. */
+const VERIFY_TOKEN_TTL_SECONDS = 86400;
+
 /**
- * JSON response helper for the React Verify page.
+ * JSON response helper (legacy clients).
  */
 function verify_json(bool $ok, string $title, string $message, int $status = 200): void
 {
@@ -16,16 +19,16 @@ function verify_json(bool $ok, string $title, string $message, int $status = 200
     'ok' => $ok,
     'title' => $title,
     'message' => $message,
-    'loginUrl' => frontend_url('/login?verified=1'),
+    'loginUrl' => frontend_url('/verified'),
   ], $status);
 }
 
 /**
- * HTML result page (used when the user opens the API link directly).
+ * HTML result page when redirect is not appropriate (errors).
  */
 function verify_page(string $title, string $message, bool $ok): void
 {
-  $loginUrl = htmlspecialchars(frontend_url('/login?verified=1'), ENT_QUOTES, 'UTF-8');
+  $loginUrl = htmlspecialchars(frontend_url($ok ? '/verified' : '/login'), ENT_QUOTES, 'UTF-8');
   $color = $ok ? '#16a34a' : '#dc2626';
   http_response_code($ok ? 200 : 400);
   header('Content-Type: text/html; charset=utf-8');
@@ -37,7 +40,8 @@ function verify_page(string $title, string $message, bool $ok): void
     . ($ok ? '&#10003;' : '&#33;') . '</div>'
     . '<h1 style="font-size:1.25rem;margin:0 0 10px;color:#0f172a">' . htmlspecialchars($title) . '</h1>'
     . '<p style="color:#475569;line-height:1.5;margin:0 0 22px">' . htmlspecialchars($message) . '</p>'
-    . '<a href="' . $loginUrl . '" style="display:inline-block;background:#AF101A;color:#fff;padding:11px 22px;border-radius:8px;text-decoration:none;font-weight:600">Go to Sign In</a>'
+    . '<a href="' . $loginUrl . '" style="display:inline-block;background:#AF101A;color:#fff;padding:11px 22px;border-radius:8px;text-decoration:none;font-weight:600">'
+    . ($ok ? 'Continue' : 'Go to Sign In') . '</a>'
     . '</div></body></html>';
   exit;
 }
@@ -47,9 +51,8 @@ function respond(string $title, string $message, bool $ok, bool $wantJson): void
   if ($wantJson) {
     verify_json($ok, $title, $message, $ok ? 200 : 400);
   }
-  // Prefer sending the user back into the app after a successful verify.
   if ($ok) {
-    header('Location: ' . frontend_url('/login?verified=1'));
+    header('Location: ' . frontend_url('/verified'));
     exit;
   }
   verify_page($title, $message, false);
@@ -59,12 +62,11 @@ if ($token === '') {
   respond('Invalid link', 'This verification link is missing its token. Please use the link from your email.', false, $wantJson);
 }
 
-$stmt = $pdo->prepare('SELECT id, full_name, status, email_verified_at FROM users WHERE verification_token = ? LIMIT 1');
+$stmt = $pdo->prepare('SELECT id, full_name, status, email_verified_at, verification_sent_at FROM users WHERE verification_token = ? LIMIT 1');
 $stmt->execute([$token]);
 $user = $stmt->fetch();
 
 if (!$user) {
-  // Token already used / cleared — if they somehow have an ACTIVE verified account, treat as success.
   respond(
     'Link not found',
     'This verification link is invalid or has already been used. Try signing in — your account may already be verified.',
@@ -74,12 +76,24 @@ if (!$user) {
 }
 
 if (!empty($user['email_verified_at']) || $user['status'] === 'ACTIVE') {
-  // Clear any leftover token and send them to login.
   $pdo->prepare('UPDATE users SET verification_token = NULL, status = \'ACTIVE\' WHERE id = ?')->execute([$user['id']]);
-  respond('Already verified', 'Your email has already been verified. You can sign in now.', true, $wantJson);
+  respond('Already verified', 'Your account has already been verified. Sign in with the password you created during registration.', true, $wantJson);
+}
+
+$sentAt = $user['verification_sent_at'] ?? null;
+if ($sentAt) {
+  $sentTs = strtotime((string) $sentAt);
+  if ($sentTs !== false && (time() - $sentTs) > VERIFY_TOKEN_TTL_SECONDS) {
+    respond(
+      'Link expired',
+      'This verification link has expired (valid for 24 hours). Please register again or contact support.',
+      false,
+      $wantJson
+    );
+  }
 }
 
 $pdo->prepare("UPDATE users SET status = 'ACTIVE', email_verified_at = NOW(), verification_token = NULL WHERE id = ?")
   ->execute([$user['id']]);
 
-respond('Email verified', 'Your account is now active. You can sign in with your email and password.', true, $wantJson);
+respond('Email verified', 'Your account has been successfully verified. Sign in with the password you created during registration.', true, $wantJson);

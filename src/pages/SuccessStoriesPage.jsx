@@ -29,6 +29,11 @@ export default function SuccessStoriesPage() {
           <div className="stories-list">
             {successStories.map((story) => (
               <article key={story.id} className="story-card">
+                {story.image && (
+                  <div className="story-card__media">
+                    <img src={story.image} alt="" loading="lazy" />
+                  </div>
+                )}
                 <div className="story-card__meta">
                   <span className="story-card__category">{story.category}</span>
                   <time dateTime={story.date}>{formatDate(story.date)}</time>

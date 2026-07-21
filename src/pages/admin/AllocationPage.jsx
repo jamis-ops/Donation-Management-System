@@ -7,6 +7,7 @@ import DataTable from '../../components/admin/shared/DataTable'
 import StatusBadge from '../../components/admin/shared/StatusBadge'
 import ApiState from '../../components/admin/shared/ApiState'
 import FilterBar from '../../components/admin/shared/FilterBar'
+import ModalHeader from '../../components/admin/shared/ModalHeader'
 
 const STATUS_OPTIONS = ['Pending', 'Reserved', 'Allocated', 'Delivered', 'Cancelled']
 const PRIORITY_OPTIONS = ['Low', 'Medium', 'High', 'Critical']
@@ -142,7 +143,10 @@ export default function AllocationPage() {
       {(editRow || showCreate) && (
         <div className="admin-modal-overlay" onClick={() => { setEditRow(null); setShowCreate(false) }}>
           <div className="admin-modal admin-modal--wide" onClick={(e) => e.stopPropagation()}>
-            <h2>{editRow ? `Edit Allocation ${editRow.id}` : 'New Allocation'}</h2>
+            <ModalHeader
+              title={editRow ? `Edit Allocation ${editRow.id}` : 'New Allocation'}
+              onClose={() => { setEditRow(null); setShowCreate(false) }}
+            />
             <form onSubmit={handleSave}>
               {FormFields}
               <div className="admin-modal__actions">

@@ -36,6 +36,7 @@ function map_beneficiary(PDO $pdo, array $row): array
     'address' => $row['address'] ?? '',
     'affectedFamilies' => (int) ($row['affected_families'] ?? 0),
     'representativeName' => $row['representative_name'] ?? '',
+    'representativePosition' => $row['representative_position'] ?? '',
     'representativePhone' => $row['representative_phone'] ?? '',
     'representativeEmail' => $row['representative_email'] ?? '',
     'category' => $row['category'],
@@ -96,8 +97,8 @@ if ($method === 'POST') {
   // The "Category" now represents the beneficiary's needs.
   $category = count($needsArr) > 0 ? implode(', ', $needsArr) : ($body['category'] ?? null);
   $stmt = $pdo->prepare('
-    INSERT INTO beneficiaries (code, full_name, category, barangay_type, barangay, municipality, address, affected_families, representative_name, representative_phone, representative_email, needs, notes, status)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    INSERT INTO beneficiaries (code, full_name, category, barangay_type, barangay, municipality, address, affected_families, representative_name, representative_position, representative_phone, representative_email, needs, notes, status)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   ');
   $stmt->execute([
     $code,
@@ -109,6 +110,7 @@ if ($method === 'POST') {
     $body['address'] ?? null,
     (int) ($body['affectedFamilies'] ?? 0),
     $body['representativeName'] ?? null,
+    $body['representativePosition'] ?? null,
     $body['representativePhone'] ?? null,
     $body['representativeEmail'] ?? null,
     encode_needs($body['needs'] ?? null),
@@ -149,7 +151,7 @@ if ($method === 'PUT') {
 
   $update = $pdo->prepare('
     UPDATE beneficiaries SET full_name = ?, category = ?, barangay_type = ?, barangay = ?, municipality = ?, address = ?, affected_families = ?,
-    representative_name = ?, representative_phone = ?, representative_email = ?, needs = ?, notes = ?, status = ?
+    representative_name = ?, representative_position = ?, representative_phone = ?, representative_email = ?, needs = ?, notes = ?, status = ?
     WHERE id = ?
   ');
   $update->execute([
@@ -161,6 +163,7 @@ if ($method === 'PUT') {
     $body['address'] ?? $existing['address'],
     (int) ($body['affectedFamilies'] ?? $existing['affected_families']),
     $body['representativeName'] ?? $existing['representative_name'],
+    $body['representativePosition'] ?? ($existing['representative_position'] ?? null),
     $body['representativePhone'] ?? $existing['representative_phone'],
     $body['representativeEmail'] ?? $existing['representative_email'],
     $needsValue,
