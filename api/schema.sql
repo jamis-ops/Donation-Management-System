@@ -78,6 +78,20 @@ CREATE TABLE IF NOT EXISTS donations (
   CONSTRAINT fk_donations_donor_id FOREIGN KEY (donor_id) REFERENCES donors(id) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
+-- ---------- DONATION UPDATES (progress timeline) ----------
+CREATE TABLE IF NOT EXISTS donation_updates (
+  id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  donation_id BIGINT UNSIGNED NOT NULL,
+  stage VARCHAR(80) NOT NULL,
+  note TEXT NULL,
+  created_by_user_id BIGINT UNSIGNED NULL,
+  created_by_name VARCHAR(120) NULL,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT fk_donation_updates_donation FOREIGN KEY (donation_id) REFERENCES donations(id) ON DELETE CASCADE,
+  CONSTRAINT fk_donation_updates_user FOREIGN KEY (created_by_user_id) REFERENCES users(id) ON DELETE SET NULL,
+  INDEX idx_donation_updates_donation (donation_id, created_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
 -- ---------- BENEFICIARIES ----------
 CREATE TABLE IF NOT EXISTS beneficiaries (
   id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
@@ -204,6 +218,7 @@ CREATE TABLE IF NOT EXISTS volunteers (
   programs_json TEXT NULL,
   status VARCHAR(50) NOT NULL DEFAULT 'Pending Review',
   hours INT UNSIGNED NOT NULL DEFAULT 0,
+  required_hours INT UNSIGNED NOT NULL DEFAULT 0,
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   CONSTRAINT fk_volunteers_user_id FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL
@@ -234,6 +249,7 @@ CREATE TABLE IF NOT EXISTS tasks (
   duty_hours DECIMAL(5,2) NULL,
   module VARCHAR(50) NULL,
   board_column ENUM('todo','inProgress','review','done') NOT NULL DEFAULT 'todo',
+  completed_at TIMESTAMP NULL,
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   CONSTRAINT fk_tasks_assignee_user_id FOREIGN KEY (assignee_user_id) REFERENCES users(id) ON DELETE SET NULL

@@ -55,11 +55,21 @@ function map_task(array $row): array
   $dutyStart = $row['duty_start'] ?? null;
   $dutyEnd = $row['duty_end'] ?? null;
   $dutyHours = isset($row['duty_hours']) && $row['duty_hours'] !== null ? (float) $row['duty_hours'] : null;
+  $completedAt = $row['completed_at'] ?? null;
+  $completedTs = $completedAt ? strtotime((string) $completedAt) : false;
+  $column = $row['board_column'] ?? 'todo';
+  $statusLabels = [
+    'todo' => 'To Do',
+    'inProgress' => 'In Progress',
+    'review' => 'In Review',
+    'done' => 'Done',
+  ];
   return [
     'id' => $row['code'],
     'dbId' => (int) $row['id'],
     'title' => $row['title'],
     'assignee' => $row['assignee'],
+    'assigneeUserId' => !empty($row['assignee_user_id']) ? (int) $row['assignee_user_id'] : null,
     'priority' => $row['priority'],
     'due' => format_date($row['due_date']),
     'dueDate' => $row['due_date'],
@@ -68,7 +78,11 @@ function map_task(array $row): array
     'dutyHours' => $dutyHours,
     'dutyLabel' => duty_label($dutyStart, $dutyEnd, $dutyHours),
     'module' => $row['module'],
-    'boardColumn' => $row['board_column'],
+    'boardColumn' => $column,
+    'status' => $statusLabels[$column] ?? $column,
+    'completedAt' => $completedAt,
+    'completedAtLabel' => $completedTs ? date('M j, Y · g:i A', $completedTs) : '',
+    'isDone' => $column === 'done',
   ];
 }
 
@@ -102,6 +116,14 @@ if ($method === 'GET') {
     json_response(['ok' => true, 'data' => array_map('map_task', $rows), 'list' => array_map('map_task', $rows)]);
   }
 
+  // Staff: default to "my tasks" unless mine=0 (admin-style full list not needed in portal).
+  if ($user['role'] === 'Staff' && (!isset($_GET['mine']) || $_GET['mine'] !== '0')) {
+    $stmt = $pdo->prepare('SELECT * FROM tasks WHERE assignee_user_id = ? OR assignee = ? ORDER BY due_date ASC');
+    $stmt->execute([(int) $user['id'], (string) $user['name']]);
+    $rows = $stmt->fetchAll();
+    json_response(['ok' => true, 'data' => array_map('map_task', $rows), 'list' => array_map('map_task', $rows)]);
+  }
+
   if ($id) {
     $stmt = $pdo->prepare('SELECT * FROM tasks WHERE id = ? LIMIT 1');
     $stmt->execute([$id]);
@@ -110,6 +132,28 @@ if ($method === 'GET') {
       json_response(['ok' => false, 'error' => 'Task not found'], 404);
     }
     json_response(['ok' => true, 'data' => map_task($row)]);
+  }
+
+  // Optional filter by volunteer for Volunteers page.
+  if (!empty($_GET['volunteerId'])) {
+    $vol = $pdo->prepare('SELECT full_name, user_id FROM volunteers WHERE id = ? LIMIT 1');
+    $vol->execute([(int) $_GET['volunteerId']]);
+    $volRow = $vol->fetch();
+    if ($volRow) {
+      $stmt = $pdo->prepare('SELECT * FROM tasks WHERE assignee = ? OR assignee_user_id = ? ORDER BY due_date ASC');
+      $stmt->execute([$volRow['full_name'], $volRow['user_id'] ?: 0]);
+      $rows = $stmt->fetchAll();
+      json_response(['ok' => true, 'data' => array_map('map_task', $rows), 'list' => array_map('map_task', $rows)]);
+    }
+  }
+
+  // Optional filter by staff/user assignee for Staff Management page.
+  if (!empty($_GET['assigneeUserId'])) {
+    $uid = (int) $_GET['assigneeUserId'];
+    $stmt = $pdo->prepare('SELECT * FROM tasks WHERE assignee_user_id = ? ORDER BY due_date ASC');
+    $stmt->execute([$uid]);
+    $rows = $stmt->fetchAll();
+    json_response(['ok' => true, 'data' => array_map('map_task', $rows), 'list' => array_map('map_task', $rows)]);
   }
 
   $rows = $pdo->query('SELECT * FROM tasks ORDER BY due_date ASC')->fetchAll();
@@ -149,6 +193,10 @@ if ($method === 'POST') {
     $volName = $vol->fetchColumn();
     if ($volName) {
       $assignee = $volName;
+    } elseif ($assignee === '') {
+      $uName = $pdo->prepare('SELECT full_name FROM users WHERE id = ? LIMIT 1');
+      $uName->execute([$assigneeUserId]);
+      $assignee = (string) ($uName->fetchColumn() ?: '');
     }
   } elseif (!empty($body['volunteerId'])) {
     $vol = $pdo->prepare('SELECT full_name, user_id FROM volunteers WHERE id = ? LIMIT 1');
@@ -163,8 +211,10 @@ if ($method === 'POST') {
   }
 
   [$dutyStart, $dutyEnd, $dutyHours] = read_duty_fields($body);
-  // Duty hours are required when the task is assigned to someone.
-  if (($assignee || $assigneeUserId) && !$dutyStart && ($dutyHours === null || $dutyHours <= 0)) {
+  $module = trim((string) ($body['module'] ?? '')) ?: null;
+  $isVolunteerTask = !empty($body['volunteerId']) || strcasecmp((string) $module, 'Volunteer') === 0;
+  // Duty hours are required for volunteer assignments (hours tracking).
+  if ($isVolunteerTask && ($assignee || $assigneeUserId) && !$dutyStart && ($dutyHours === null || $dutyHours <= 0)) {
     json_response(['ok' => false, 'error' => 'Duty hours are required: set a start/end time or total hours.'], 400);
   }
 
@@ -179,7 +229,7 @@ if ($method === 'POST') {
     $dutyStart,
     $dutyEnd,
     $dutyHours,
-    $body['module'] ?? null,
+    $module,
     $column,
   ]);
   $newId = (int) $pdo->lastInsertId();
@@ -189,12 +239,16 @@ if ($method === 'POST') {
 
   if ($assigneeUserId) {
     $duty = duty_label($dutyStart, $dutyEnd, $dutyHours);
+    $roleStmt = $pdo->prepare('SELECT r.name FROM users u JOIN roles r ON r.id = u.role_id WHERE u.id = ?');
+    $roleStmt->execute([$assigneeUserId]);
+    $assigneeRole = (string) ($roleStmt->fetchColumn() ?: '');
+    $link = $assigneeRole === 'Staff' || $assigneeRole === 'Admin' ? '/staff/tasks' : '/volunteer-portal/tasks';
     create_notification(
       $pdo,
       'task_assigned',
       'New task assigned',
       "You have been assigned: {$title}" . ($duty ? " (Duty: {$duty})" : ''),
-      '/volunteer-portal/tasks',
+      $link,
       $assigneeUserId
     );
   }
@@ -215,7 +269,38 @@ if ($method === 'PUT') {
   if (!$existing) {
     json_response(['ok' => false, 'error' => 'Task not found'], 404);
   }
+
+  $isAssignee = ((int) ($existing['assignee_user_id'] ?? 0) === (int) $user['id'])
+    || (strcasecmp((string) ($existing['assignee'] ?? ''), (string) $user['name']) === 0);
+
+  // Staff may only update tasks assigned to them (e.g. mark Done).
+  if ($user['role'] === 'Staff' && !$isAssignee) {
+    json_response(['ok' => false, 'error' => 'You can only update tasks assigned to you'], 403);
+  }
+
   $column = $body['boardColumn'] ?? $existing['board_column'];
+  if (!in_array($column, ['todo', 'inProgress', 'review', 'done'], true)) {
+    $column = $existing['board_column'];
+  }
+
+  // Staff limited to status changes on their own tasks.
+  if ($user['role'] === 'Staff') {
+    $update = $pdo->prepare('UPDATE tasks SET board_column = ?, completed_at = CASE WHEN ? = \'done\' THEN COALESCE(completed_at, NOW()) ELSE NULL END WHERE id = ?');
+    $update->execute([$column, $column, $id]);
+
+    // When completing, credit duty hours to volunteer record if assignee is a volunteer.
+    if ($column === 'done' && ($existing['board_column'] ?? '') !== 'done') {
+      $hours = isset($existing['duty_hours']) ? (float) $existing['duty_hours'] : 0;
+      if ($hours > 0 && !empty($existing['assignee_user_id'])) {
+        $pdo->prepare('UPDATE volunteers SET hours = hours + ? WHERE user_id = ?')
+          ->execute([$hours, (int) $existing['assignee_user_id']]);
+      }
+    }
+
+    $stmt = $pdo->prepare('SELECT * FROM tasks WHERE id = ?');
+    $stmt->execute([$id]);
+    json_response(['ok' => true, 'data' => map_task($stmt->fetch())]);
+  }
 
   $assigneeUserId = array_key_exists('assigneeUserId', $body)
     ? ($body['assigneeUserId'] ? (int) $body['assigneeUserId'] : null)
@@ -252,7 +337,11 @@ if ($method === 'PUT') {
     $dutyHours = isset($existing['duty_hours']) && $existing['duty_hours'] !== null ? (float) $existing['duty_hours'] : null;
   }
 
-  $update = $pdo->prepare('UPDATE tasks SET title = ?, assignee = ?, assignee_user_id = ?, priority = ?, due_date = ?, duty_start = ?, duty_end = ?, duty_hours = ?, module = ?, board_column = ? WHERE id = ?');
+  $completedAtSql = $column === 'done'
+    ? 'COALESCE(completed_at, NOW())'
+    : 'NULL';
+
+  $update = $pdo->prepare("UPDATE tasks SET title = ?, assignee = ?, assignee_user_id = ?, priority = ?, due_date = ?, duty_start = ?, duty_end = ?, duty_hours = ?, module = ?, board_column = ?, completed_at = {$completedAtSql} WHERE id = ?");
   $update->execute([
     $body['title'] ?? $existing['title'],
     $assignee ?: null,
@@ -267,14 +356,24 @@ if ($method === 'PUT') {
     $id,
   ]);
 
+  if ($column === 'done' && ($existing['board_column'] ?? '') !== 'done' && $dutyHours && $assigneeUserId) {
+    $pdo->prepare('UPDATE volunteers SET hours = hours + ? WHERE user_id = ?')
+      ->execute([(float) $dutyHours, (int) $assigneeUserId]);
+  }
+
   if ($assigneeUserId && (int) $assigneeUserId !== (int) ($existing['assignee_user_id'] ?? 0)) {
     $duty = duty_label($dutyStart, $dutyEnd, $dutyHours);
+    // Route notification based on whether assignee is Staff or Volunteer.
+    $roleStmt = $pdo->prepare('SELECT r.name FROM users u JOIN roles r ON r.id = u.role_id WHERE u.id = ?');
+    $roleStmt->execute([$assigneeUserId]);
+    $assigneeRole = $roleStmt->fetchColumn() ?: 'Volunteer';
+    $link = $assigneeRole === 'Staff' ? '/staff/tasks' : '/volunteer-portal/tasks';
     create_notification(
       $pdo,
       'task_assigned',
       'New task assigned',
       'You have been assigned: ' . ($body['title'] ?? $existing['title']) . ($duty ? " (Duty: {$duty})" : ''),
-      '/volunteer-portal/tasks',
+      $link,
       $assigneeUserId
     );
   }

@@ -256,6 +256,26 @@ try {
   addColumn($pdo, 'donors', 'donor_type', "VARCHAR(40) NOT NULL DEFAULT 'Individual' AFTER full_name");
   addColumn($pdo, 'beneficiaries', 'representative_position', 'VARCHAR(80) NULL AFTER representative_name');
 
+  // v15: Donation progress updates + volunteer required hours + task completion time
+  addColumn($pdo, 'volunteers', 'required_hours', 'INT NOT NULL DEFAULT 0 AFTER hours');
+  addColumn($pdo, 'tasks', 'completed_at', 'TIMESTAMP NULL AFTER board_column');
+
+  $pdo->exec("
+    CREATE TABLE IF NOT EXISTS donation_updates (
+      id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+      donation_id BIGINT UNSIGNED NOT NULL,
+      stage VARCHAR(80) NOT NULL,
+      note TEXT NULL,
+      created_by_user_id BIGINT UNSIGNED NULL,
+      created_by_name VARCHAR(120) NULL,
+      created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      CONSTRAINT fk_donation_updates_donation FOREIGN KEY (donation_id) REFERENCES donations(id) ON DELETE CASCADE,
+      CONSTRAINT fk_donation_updates_user FOREIGN KEY (created_by_user_id) REFERENCES users(id) ON DELETE SET NULL,
+      INDEX idx_donation_updates_donation (donation_id, created_at)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+  ");
+  echo "Ensured donation_updates table\n";
+
   echo "\nMigration complete!\n";
 } catch (Throwable $e) {
   http_response_code(500);

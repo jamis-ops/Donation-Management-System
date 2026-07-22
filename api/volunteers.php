@@ -19,6 +19,8 @@ function map_volunteer(PDO $pdo, array $row): array
     'programs' => decode_programs($row['programs_json']),
     'status' => $row['status'],
     'hours' => (int) $row['hours'],
+    'requiredHours' => (int) ($row['required_hours'] ?? 0),
+    'remainingHours' => max(0, (int) ($row['required_hours'] ?? 0) - (int) $row['hours']),
     'assignedTasks' => (int) $taskCount->fetchColumn(),
   ];
 }
@@ -60,7 +62,7 @@ if ($method === 'POST') {
   }
   $programs = $body['programs'] ?? [];
   $code = generate_code('VOL');
-  $stmt = $pdo->prepare('INSERT INTO volunteers (code, full_name, email, programs_json, status, hours) VALUES (?, ?, ?, ?, ?, ?)');
+  $stmt = $pdo->prepare('INSERT INTO volunteers (code, full_name, email, programs_json, status, hours, required_hours) VALUES (?, ?, ?, ?, ?, ?, ?)');
   $stmt->execute([
     $code,
     $name,
@@ -68,6 +70,7 @@ if ($method === 'POST') {
     json_encode($programs),
     $body['status'] ?? 'Pending Review',
     (int) ($body['hours'] ?? 0),
+    (int) ($body['requiredHours'] ?? $body['required_hours'] ?? 0),
   ]);
   $newId = (int) $pdo->lastInsertId();
   $stmt = $pdo->prepare('SELECT * FROM volunteers WHERE id = ?');
@@ -86,13 +89,14 @@ if ($method === 'PUT') {
     json_response(['ok' => false, 'error' => 'Volunteer not found'], 404);
   }
   $programs = isset($body['programs']) ? json_encode($body['programs']) : $existing['programs_json'];
-  $update = $pdo->prepare('UPDATE volunteers SET full_name = ?, email = ?, programs_json = ?, status = ?, hours = ? WHERE id = ?');
+  $update = $pdo->prepare('UPDATE volunteers SET full_name = ?, email = ?, programs_json = ?, status = ?, hours = ?, required_hours = ? WHERE id = ?');
   $update->execute([
     $body['name'] ?? $existing['full_name'],
     $body['email'] ?? $existing['email'],
     $programs,
     $body['status'] ?? $existing['status'],
     (int) ($body['hours'] ?? $existing['hours']),
+    (int) ($body['requiredHours'] ?? $body['required_hours'] ?? ($existing['required_hours'] ?? 0)),
     $id,
   ]);
   $stmt = $pdo->prepare('SELECT * FROM volunteers WHERE id = ?');

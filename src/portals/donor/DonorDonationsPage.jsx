@@ -1,52 +1,12 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
-import { Check, Clock, Search, X } from 'lucide-react'
+import { Search, X } from 'lucide-react'
 import StatusBadge from '../../components/admin/shared/StatusBadge'
 import ApiState from '../../components/admin/shared/ApiState'
 import { donationsApi, certificatesApi } from '../../api/resources'
 import { useApiList } from '../../hooks/useApiList'
 import ModalHeader from '../../components/admin/shared/ModalHeader'
-
-const TRACKING_STEPS = [
-  { key: 'submitted', label: 'Submitted', description: 'Donation received and tracking code issued' },
-  { key: 'verification', label: 'Verification', description: 'Our team confirms your donation' },
-  { key: 'allocation', label: 'Allocation', description: 'Resources assigned to a relief program' },
-  { key: 'distribution', label: 'Distribution', description: 'Delivered to beneficiary communities' },
-]
-
-function stageIndex(status) {
-  switch (status) {
-    case 'Pending Verification': return 1
-    case 'Verified': return 2
-    case 'Allocated': return 3
-    case 'Distributed':
-    case 'Completed': return 4
-    default: return 1
-  }
-}
-
-function TrackingTimeline({ status }) {
-  const reached = stageIndex(status)
-  return (
-    <ol className="track-timeline">
-      {TRACKING_STEPS.map((step, i) => {
-        const done = i < reached
-        const active = i === reached
-        return (
-          <li key={step.key} className={`track-step${done ? ' track-step--done' : ''}${active ? ' track-step--active' : ''}`}>
-            <span className="track-step__dot">
-              {done ? <Check size={13} /> : active ? <Clock size={13} /> : i + 1}
-            </span>
-            <div className="track-step__body">
-              <strong>{step.label}</strong>
-              <span>{step.description}</span>
-            </div>
-          </li>
-        )
-      })}
-    </ol>
-  )
-}
+import DonationUpdatesTimeline from '../../components/shared/DonationUpdatesTimeline'
 
 export default function DonorDonationsPage() {
   const { data, loading, error, reload } = useApiList(() => donationsApi.list())
@@ -88,6 +48,8 @@ export default function DonorDonationsPage() {
       setBusy(false)
     }
   }
+
+  const canRequestCert = selected && !['Pending Verification'].includes(selected.status)
 
   return (
     <ApiState loading={loading} error={error} onRetry={reload}>
@@ -142,7 +104,7 @@ export default function DonorDonationsPage() {
 
       {selected && (
         <div className="admin-modal-overlay" onClick={() => setSelected(null)}>
-          <div className="admin-modal" onClick={(e) => e.stopPropagation()}>
+          <div className="admin-modal admin-modal--wide" onClick={(e) => e.stopPropagation()}>
             <ModalHeader title={`Donation ${selected.trackingCode}`} onClose={() => setSelected(null)} />
 
             <dl className="detail-list" style={{ marginBottom: '1.25rem' }}>
@@ -152,11 +114,10 @@ export default function DonorDonationsPage() {
               <dt>Status</dt><dd><StatusBadge status={selected.status} /></dd>
             </dl>
 
-            <h3 className="track-timeline__title">Donation Journey</h3>
-            <TrackingTimeline status={selected.status} />
+            <DonationUpdatesTimeline donationId={selected.dbId} />
 
             <div className="admin-modal__actions">
-              {stageIndex(selected.status) >= 2 && (
+              {canRequestCert && (
                 <button type="button" className="btn btn--primary" disabled={busy} onClick={() => handleRequestCert(selected)}>
                   Request Certificate
                 </button>

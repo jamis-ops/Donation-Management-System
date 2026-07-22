@@ -109,6 +109,36 @@ function notify_admins(PDO $pdo, string $type, string $title, string $message, ?
 }
 
 /**
+ * Append a chronological donation progress update.
+ */
+function record_donation_update(
+  PDO $pdo,
+  int $donationId,
+  string $stage,
+  ?string $note = null,
+  ?array $actor = null
+): void {
+  try {
+    $userId = $actor['id'] ?? null;
+    $name = $actor['name'] ?? 'System';
+    $stmt = $pdo->prepare('
+      INSERT INTO donation_updates (donation_id, stage, note, created_by_user_id, created_by_name)
+      VALUES (?, ?, ?, ?, ?)
+    ');
+    $stmt->execute([
+      $donationId,
+      $stage,
+      $note,
+      $userId ? (int) $userId : null,
+      (string) $name,
+    ]);
+  } catch (Throwable $e) {
+    // Table may not exist yet before migrate — never break donation flow.
+    error_log('[donation_updates] ' . $e->getMessage());
+  }
+}
+
+/**
  * The Audit Logs feature was removed. This no-op is kept so existing call sites
  * continue to work without change. It intentionally does nothing.
  */

@@ -10,6 +10,8 @@ import StatusBadge from '../../components/admin/shared/StatusBadge'
 import ApiState from '../../components/admin/shared/ApiState'
 import FilterBar from '../../components/admin/shared/FilterBar'
 import ModalHeader from '../../components/admin/shared/ModalHeader'
+import DonationUpdatesTimeline from '../../components/shared/DonationUpdatesTimeline'
+import Req from '../../components/shared/Req'
 
 const lifecycle = [
   'Submission', 'Tracking Code', 'Verification', 'Inventory', 'Repacking',
@@ -218,6 +220,12 @@ export default function DonationsPage() {
                 </a>
               </div>
             )}
+
+            <DonationUpdatesTimeline
+              donationId={selected.dbId}
+              canPost
+              onPosted={reload}
+            />
 
             <div className="admin-modal__actions">
               {selected.status === 'Pending Verification' && (

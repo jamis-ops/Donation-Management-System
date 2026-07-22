@@ -238,6 +238,8 @@ if ($method === 'POST') {
   $stmt = $pdo->prepare('SELECT * FROM donations WHERE id = ?');
   $stmt->execute([$newId]);
   $donation = map_donation($stmt->fetch());
+  $actor = $public ? ['name' => 'Public Donor'] : ($user ?? current_user());
+  record_donation_update($pdo, $newId, 'Donation Received', 'Donation submitted and tracking code issued.', is_array($actor) ? $actor : null);
   notify_admins($pdo, 'donation', 'New donation received', "{$donation['donor']} submitted {$donation['amount']} ({$donation['trackingCode']})", '/admin/donations');
   audit_log($pdo, 'create', 'donation', $tracking, "{$donorName} donated {$donation['amount']}", $public ? ['name' => $donorName, 'role' => 'Public'] : null);
   json_response(['ok' => true, 'data' => $donation], 201);
@@ -305,6 +307,21 @@ if ($method === 'PUT') {
   $stmt->execute([$id]);
   $donation = map_donation($stmt->fetch());
   if ($status !== $existing['status']) {
+    $stageFromStatus = match ($status) {
+      'Pending Verification' => 'Donation Received',
+      'Verified' => 'Sorted',
+      'Allocated' => 'Scheduled for Distribution',
+      'Distributed' => 'In Transit',
+      'Completed' => 'Delivered',
+      default => $status,
+    };
+    record_donation_update(
+      $pdo,
+      (int) $id,
+      $stageFromStatus,
+      "Status changed to {$status}.",
+      $user ?? current_user()
+    );
     notify_admins($pdo, 'status_update', 'Donation status updated', "{$donation['trackingCode']} is now {$status}", '/admin/donations');
     if (!empty($existing['donor_email'])) {
       send_mail(

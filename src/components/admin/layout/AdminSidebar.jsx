@@ -8,7 +8,6 @@ import {
   Users,
   UserCheck,
   UserCog,
-  ListTodo,
   BarChart3,
   FileBadge,
   Globe,
@@ -46,7 +45,6 @@ const navGroups = [
   {
     label: 'Management',
     items: [
-      { to: '/admin/tasks', label: 'Task Board', icon: ListTodo },
       { to: '/admin/reports', label: 'Reports', icon: BarChart3 },
       { to: '/admin/certificates', label: 'Certificates & OR', icon: FileBadge },
       { to: '/admin/content', label: 'Content Management', icon: Globe },

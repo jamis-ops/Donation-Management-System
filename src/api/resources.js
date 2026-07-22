@@ -29,6 +29,10 @@ export function resourceApi(basePath) {
 }
 
 export const donationsApi = resourceApi('/api/donations.php')
+export const donationUpdatesApi = {
+  list: (donationId) => apiFetch(`/api/donation_updates.php?donationId=${donationId}`),
+  create: (body) => apiFetch('/api/donation_updates.php', { method: 'POST', body: JSON.stringify(body) }),
+}
 export const donorsApi = resourceApi('/api/donors.php')
 export const beneficiariesApi = resourceApi('/api/beneficiaries.php')
 export const assistanceRequestsApi = resourceApi('/api/assistance_requests.php')
