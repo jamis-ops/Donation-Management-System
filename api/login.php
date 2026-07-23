@@ -19,7 +19,7 @@ if ($email === '' || $password === '') {
 
 $pdo = db();
 $stmt = $pdo->prepare("
-  SELECT u.id, u.full_name, u.email, u.password_hash, u.status, r.name AS role
+  SELECT u.id, u.full_name, u.email, u.password_hash, u.status, u.must_change_password, u.profile_photo, r.name AS role
   FROM users u
   JOIN roles r ON r.id = u.role_id
   WHERE u.email = ?
@@ -44,11 +44,14 @@ if (!password_verify($password, $user['password_hash'])) {
 }
 
 $_SESSION['user'] = [
-  'id' => $user['id'],
+  'id' => (int) $user['id'],
   'name' => $user['full_name'],
   'email' => $user['email'],
   'role' => $user['role'],
+  'mustChangePassword' => (bool) ($user['must_change_password'] ?? false),
+  'profilePhoto' => !empty($user['profile_photo'])
+    ? ('/api/uploads/profiles/' . basename((string) $user['profile_photo']))
+    : null,
 ];
 
 json_response(['ok' => true, 'user' => $_SESSION['user']]);
-

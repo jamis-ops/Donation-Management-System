@@ -51,7 +51,7 @@ export default function DonorDashboard() {
             </Link>
             <Link to="/donor/donations" className="btn btn--outline">Track My Donations</Link>
             <Link to="/donor/certificates" className="btn btn--outline">
-              <FileBadge size={16} /> Certificates &amp; Receipts
+              <FileBadge size={16} /> Certificates
             </Link>
           </div>
         </>

@@ -7,22 +7,26 @@ import NotificationBell from '../../components/admin/shared/NotificationBell'
 const titles = {
   '/donor': { title: 'Donor Dashboard', sub: 'Track your donations and certificates.' },
   '/donor/donations': { title: 'My Donations', sub: 'Full history of your contributions.' },
-  '/donor/certificates': { title: 'Certificates & Official Receipts', sub: 'Download and manage your documents.' },
+  '/donor/certificates': { title: 'Certificates', sub: 'Download and manage your certificates.' },
+  '/donor/settings': { title: 'Account Settings', sub: 'Update your profile and password.' },
   '/volunteer-portal': { title: 'Volunteer Dashboard', sub: 'Your tasks, schedule, and hours.' },
   '/volunteer-portal/tasks': { title: 'My Tasks', sub: 'Tasks assigned to you.' },
   '/volunteer-portal/schedule': { title: 'Volunteer Schedule', sub: 'Upcoming events and shifts.' },
   '/volunteer-portal/hours': { title: 'Volunteer Hours', sub: 'Logged hours and activity record.' },
   '/volunteer-portal/certificates': { title: 'Certificates', sub: 'Service and participation certificates.' },
+  '/volunteer-portal/settings': { title: 'Account Settings', sub: 'Update your profile and password.' },
   '/beneficiary': { title: 'Beneficiary Dashboard', sub: 'Your requests and assistance status.' },
   '/beneficiary/requests': { title: 'My Assistance Requests', sub: 'Submit and track requests.' },
   '/beneficiary/distributions': { title: 'Scheduled Distributions', sub: 'Upcoming pickups and deliveries.' },
   '/beneficiary/proofs': { title: 'Submit Distribution Proof', sub: 'Upload photos or documents after receiving relief goods.' },
   '/beneficiary/history': { title: 'Assistance History', sub: 'Past assistance received.' },
+  '/beneficiary/settings': { title: 'Account Settings', sub: 'Update your profile and password.' },
   '/staff': { title: 'Staff Dashboard', sub: 'Operations, tasks, and inventory.' },
   '/staff/donations': { title: 'Donation Processing', sub: 'Donations pending your action.' },
   '/staff/inventory': { title: 'Inventory', sub: 'Current stock levels.' },
   '/staff/distributions': { title: 'Distributions', sub: 'Scheduled distribution events.' },
   '/staff/tasks': { title: 'My Tasks', sub: 'Tasks assigned to you.' },
+  '/staff/settings': { title: 'Account Settings', sub: 'Update your profile and password.' },
 }
 
 const roleBadgeColor = {
@@ -59,8 +63,18 @@ export default function PortalLayout({ role }) {
           </div>
 
           <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-            {(role === 'Staff' || role === 'Beneficiary' || role === 'Volunteer') && (
-              <NotificationBell linkPrefix={role === 'Staff' ? '/staff' : role === 'Volunteer' ? '/volunteer-portal' : '/beneficiary'} />
+            {(role === 'Staff' || role === 'Beneficiary' || role === 'Volunteer' || role === 'Donor') && (
+              <NotificationBell
+                linkPrefix={
+                  role === 'Staff'
+                    ? '/staff'
+                    : role === 'Volunteer'
+                      ? '/volunteer-portal'
+                      : role === 'Donor'
+                        ? '/donor'
+                        : '/beneficiary'
+                }
+              />
             )}
             <span
               className="portal-topbar__badge"

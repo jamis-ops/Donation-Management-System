@@ -50,6 +50,34 @@ function hours_between(?string $start, ?string $end): ?float
   return round($diff, 2);
 }
 
+function encode_required_skills($skills): ?string
+{
+  if ($skills === null || $skills === '') {
+    return null;
+  }
+  if (is_string($skills)) {
+    $parts = array_values(array_filter(array_map('trim', explode(',', $skills))));
+    return $parts ? json_encode($parts) : null;
+  }
+  if (is_array($skills)) {
+    $parts = array_values(array_filter(array_map(static fn($s) => trim((string) $s), $skills)));
+    return $parts ? json_encode($parts) : null;
+  }
+  return null;
+}
+
+function decode_required_skills(?string $json): array
+{
+  if (!$json) {
+    return [];
+  }
+  $decoded = json_decode($json, true);
+  if (!is_array($decoded)) {
+    return [];
+  }
+  return array_values(array_filter(array_map(static fn($s) => trim((string) $s), $decoded)));
+}
+
 function map_task(array $row): array
 {
   $dutyStart = $row['duty_start'] ?? null;
@@ -78,6 +106,7 @@ function map_task(array $row): array
     'dutyHours' => $dutyHours,
     'dutyLabel' => duty_label($dutyStart, $dutyEnd, $dutyHours),
     'module' => $row['module'],
+    'requiredSkills' => decode_required_skills($row['required_skills_json'] ?? null),
     'boardColumn' => $column,
     'status' => $statusLabels[$column] ?? $column,
     'completedAt' => $completedAt,
@@ -218,7 +247,7 @@ if ($method === 'POST') {
     json_response(['ok' => false, 'error' => 'Duty hours are required: set a start/end time or total hours.'], 400);
   }
 
-  $stmt = $pdo->prepare('INSERT INTO tasks (code, title, assignee, assignee_user_id, priority, due_date, duty_start, duty_end, duty_hours, module, board_column) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)');
+  $stmt = $pdo->prepare('INSERT INTO tasks (code, title, assignee, assignee_user_id, priority, due_date, duty_start, duty_end, duty_hours, module, required_skills_json, board_column) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)');
   $stmt->execute([
     $code,
     $title,
@@ -230,6 +259,7 @@ if ($method === 'POST') {
     $dutyEnd,
     $dutyHours,
     $module,
+    encode_required_skills($body['requiredSkills'] ?? $body['skills'] ?? null),
     $column,
   ]);
   $newId = (int) $pdo->lastInsertId();
@@ -341,7 +371,7 @@ if ($method === 'PUT') {
     ? 'COALESCE(completed_at, NOW())'
     : 'NULL';
 
-  $update = $pdo->prepare("UPDATE tasks SET title = ?, assignee = ?, assignee_user_id = ?, priority = ?, due_date = ?, duty_start = ?, duty_end = ?, duty_hours = ?, module = ?, board_column = ?, completed_at = {$completedAtSql} WHERE id = ?");
+  $update = $pdo->prepare("UPDATE tasks SET title = ?, assignee = ?, assignee_user_id = ?, priority = ?, due_date = ?, duty_start = ?, duty_end = ?, duty_hours = ?, module = ?, required_skills_json = ?, board_column = ?, completed_at = {$completedAtSql} WHERE id = ?");
   $update->execute([
     $body['title'] ?? $existing['title'],
     $assignee ?: null,
@@ -352,6 +382,9 @@ if ($method === 'PUT') {
     $dutyEnd,
     $dutyHours,
     $body['module'] ?? $existing['module'],
+    array_key_exists('requiredSkills', $body) || array_key_exists('skills', $body)
+      ? encode_required_skills($body['requiredSkills'] ?? $body['skills'] ?? null)
+      : ($existing['required_skills_json'] ?? null),
     $column,
     $id,
   ]);

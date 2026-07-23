@@ -1,5 +1,5 @@
-import { useState } from 'react'
-import { distributionsApi, beneficiariesApi } from '../../api/resources'
+import { useEffect, useState } from 'react'
+import { distributionsApi, beneficiariesApi, volunteerMatchApi } from '../../api/resources'
 import { useApiList } from '../../hooks/useApiList'
 import { useFilters } from '../../hooks/useFilters'
 import PageHeader from '../../components/admin/shared/PageHeader'
@@ -9,6 +9,7 @@ import WorkflowStepper from '../../components/admin/shared/WorkflowStepper'
 import ApiState from '../../components/admin/shared/ApiState'
 import FilterBar from '../../components/admin/shared/FilterBar'
 import ModalHeader from '../../components/admin/shared/ModalHeader'
+import SkillTagPicker from '../../components/shared/SkillTagPicker'
 
 const WORKFLOW = ['Planning', 'Preparing', 'In Transit', 'Delivered', 'Awaiting Proof', 'Completed']
 const PROOF_STATUS = ['Not Required', 'Awaiting Proof', 'Proof Submitted', 'Proof Verified', 'Proof Rejected']
@@ -55,6 +56,19 @@ export default function DistributionsPage() {
   const [showCreate, setShowCreate] = useState(false)
   const [form, setForm] = useState(emptyForm)
   const [saving, setSaving] = useState(false)
+  const [manpowerSkills, setManpowerSkills] = useState(['Logistics / Driving', 'Packing / Repacking'])
+  const [manpowerSuggestions, setManpowerSuggestions] = useState([])
+
+  useEffect(() => {
+    if (!(showCreate || editRow)) return
+    if (!manpowerSkills.length) {
+      setManpowerSuggestions([])
+      return
+    }
+    volunteerMatchApi.suggest({ skills: manpowerSkills, programs: form.program ? [form.program] : [], limit: 5 })
+      .then((res) => setManpowerSuggestions(Array.isArray(res.data) ? res.data : []))
+      .catch(() => setManpowerSuggestions([]))
+  }, [showCreate, editRow, manpowerSkills, form.program])
 
   const openEdit = (row) => {
     setEditRow(row)
@@ -239,6 +253,33 @@ export default function DistributionsPage() {
           <label>Vehicles<input type="number" min="0" value={form.vehicles} onChange={(e) => setForm({ ...form, vehicles: e.target.value })} /></label>
         </div>
       )}
+
+      <section className="suggested-volunteers">
+        <div className="suggested-volunteers__head">
+          <h4>Suggested volunteers (manpower)</h4>
+          <span>For planning — assign tasks from Volunteers after confirming</span>
+        </div>
+        <SkillTagPicker
+          label="Skills needed for this distribution"
+          value={manpowerSkills}
+          showOther={false}
+          onChange={setManpowerSkills}
+        />
+        {manpowerSuggestions.length === 0 ? (
+          <p className="beneficiary-view-empty">No matches yet — adjust skills above.</p>
+        ) : (
+          <ul className="suggested-volunteers__list">
+            {manpowerSuggestions.map((s) => (
+              <li key={s.dbId} className="suggested-volunteers__item">
+                <div>
+                  <strong>{s.name}</strong>
+                  <p>{s.whyMatched}</p>
+                </div>
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
 
       <div className="form-row">
         <label>Status

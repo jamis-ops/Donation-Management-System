@@ -1,14 +1,35 @@
 import { useState } from 'react'
 import { foundation } from '../data/mockData'
 import { MapPin, Phone, Mail, Clock, Share2 } from 'lucide-react'
+import { submitContactMessage } from '../api/resources'
+
+const emptyForm = { name: '', email: '', subject: '', message: '' }
 
 export default function ContactPage() {
   const [submitted, setSubmitted] = useState(false)
-  const [form, setForm] = useState({ name: '', email: '', subject: '', message: '' })
+  const [trackingCode, setTrackingCode] = useState('')
+  const [submitError, setSubmitError] = useState('')
+  const [submitting, setSubmitting] = useState(false)
+  const [form, setForm] = useState(emptyForm)
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault()
-    setSubmitted(true)
+    setSubmitError('')
+    setSubmitting(true)
+    try {
+      const res = await submitContactMessage(form)
+      const code = res.trackingCode || res.data?.code
+      if (!code) {
+        throw new Error('Message saved but no reference code was returned')
+      }
+      setTrackingCode(code)
+      setSubmitted(true)
+      setForm(emptyForm)
+    } catch (err) {
+      setSubmitError(err.message || 'Failed to send message')
+    } finally {
+      setSubmitting(false)
+    }
   }
 
   return (
@@ -77,11 +98,14 @@ export default function ContactPage() {
                 <p style={{ color: 'var(--color-text-muted)' }}>
                   Thank you for reaching out. We&apos;ll respond within 2–3 business days.
                 </p>
+                <p className="tracking-code" style={{ marginTop: '1rem' }}>
+                  Reference: <code>{trackingCode}</code>
+                </p>
                 <button
                   type="button"
                   className="btn btn--outline"
                   style={{ marginTop: '1.5rem' }}
-                  onClick={() => { setSubmitted(false); setForm({ name: '', email: '', subject: '', message: '' }) }}
+                  onClick={() => { setSubmitted(false); setTrackingCode(''); setForm(emptyForm) }}
                 >
                   Send Another Message
                 </button>
@@ -89,6 +113,9 @@ export default function ContactPage() {
             ) : (
               <form className="form-card" onSubmit={handleSubmit}>
                 <h2>Send a Message</h2>
+                {submitError ? (
+                  <p role="alert" style={{ color: '#c0392b', marginBottom: '1rem' }}>{submitError}</p>
+                ) : null}
 
                 <div className="form-row">
                   <label>
@@ -135,8 +162,13 @@ export default function ContactPage() {
                   />
                 </label>
 
-                <button type="submit" className="btn btn--primary btn--lg" style={{ width: '100%' }}>
-                  Send Message
+                <button
+                  type="submit"
+                  className="btn btn--primary btn--lg"
+                  style={{ width: '100%' }}
+                  disabled={submitting}
+                >
+                  {submitting ? 'Sending…' : 'Send Message'}
                 </button>
               </form>
             )}

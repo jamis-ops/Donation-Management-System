@@ -1,5 +1,11 @@
 import { useState } from 'react'
+import { Link } from 'react-router-dom'
 import { volunteerPrograms } from '../data/mockData'
+import { submitPublicVolunteer } from '../api/resources'
+import Req from '../components/shared/Req'
+import NameFields from '../components/shared/NameFields'
+import SkillTagPicker from '../components/shared/SkillTagPicker'
+import { emptyNameParts, formatFullName } from '../utils/personName'
 
 const statusExamples = [
   'Pending Review',
@@ -9,18 +15,24 @@ const statusExamples = [
   'Completed',
 ]
 
+const emptyForm = {
+  nameParts: emptyNameParts(),
+  email: '',
+  phone: '',
+  programs: [],
+  skills: [],
+  skillsOther: '',
+  availability: '',
+  experience: '',
+  acceptedPolicies: false,
+}
+
 export default function VolunteerPage() {
   const [submitted, setSubmitted] = useState(false)
   const [trackingRef, setTrackingRef] = useState('')
-  const [form, setForm] = useState({
-    fullName: '',
-    email: '',
-    phone: '',
-    programs: [],
-    skills: '',
-    experience: '',
-    cv: null,
-  })
+  const [submitError, setSubmitError] = useState('')
+  const [submitting, setSubmitting] = useState(false)
+  const [form, setForm] = useState(emptyForm)
 
   const toggleProgram = (id) => {
     setForm((prev) => ({
@@ -31,10 +43,49 @@ export default function VolunteerPage() {
     }))
   }
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault()
-    setTrackingRef(`VOL-${Date.now().toString(36).toUpperCase()}`)
-    setSubmitted(true)
+    setSubmitError('')
+
+    if (!form.acceptedPolicies) {
+      setSubmitError('Please accept the Data Privacy Policy and Terms & Conditions.')
+      return
+    }
+    if (!form.skills.length && !form.skillsOther.trim()) {
+      setSubmitError('Please select at least one skill tag (or describe Other skills).')
+      return
+    }
+
+    setSubmitting(true)
+    try {
+      const programNames = form.programs.map(
+        (id) => volunteerPrograms.find((p) => p.id === id)?.name || id,
+      )
+      const res = await submitPublicVolunteer({
+        lastName: form.nameParts.lastName,
+        firstName: form.nameParts.firstName,
+        middleInitial: form.nameParts.middleInitial,
+        name: formatFullName(form.nameParts),
+        email: form.email,
+        phone: form.phone,
+        programs: programNames,
+        skills: form.skills,
+        skillsOther: [form.skillsOther, form.experience].filter(Boolean).join(' · ').trim() || undefined,
+        availability: form.availability,
+        acceptedPolicies: true,
+      })
+      const code = res.trackingCode || res.data?.id
+      if (!code) {
+        throw new Error('Application saved but no tracking code was returned')
+      }
+      setTrackingRef(code)
+      setSubmitted(true)
+      setForm(emptyForm)
+    } catch (err) {
+      setSubmitError(err.message || 'Failed to submit application')
+    } finally {
+      setSubmitting(false)
+    }
   }
 
   return (
@@ -77,38 +128,33 @@ export default function VolunteerPage() {
           ) : (
             <form className="form-card" onSubmit={handleSubmit}>
               <h2>Volunteer Registration</h2>
-              <div className="form-row">
-                <label>
-                  Full Name *
-                  <input
-                    type="text"
-                    required
-                    value={form.fullName}
-                    onChange={(e) => setForm({ ...form, fullName: e.target.value })}
-                  />
-                </label>
-                <label>
-                  Email *
-                  <input
-                    type="email"
-                    required
-                    value={form.email}
-                    onChange={(e) => setForm({ ...form, email: e.target.value })}
-                  />
-                </label>
-              </div>
+              {submitError ? (
+                <p role="alert" style={{ color: '#c0392b', marginBottom: '1rem' }}>{submitError}</p>
+              ) : null}
+              <NameFields
+                value={form.nameParts}
+                onChange={(nameParts) => setForm({ ...form, nameParts })}
+              />
               <label>
-                Phone Number *
+                <Req required>Email</Req>
+                <input
+                  type="email"
+                  required
+                  value={form.email}
+                  onChange={(e) => setForm({ ...form, email: e.target.value })}
+                />
+              </label>
+              <label>
+                Phone Number
                 <input
                   type="tel"
-                  required
                   value={form.phone}
                   onChange={(e) => setForm({ ...form, phone: e.target.value })}
                 />
               </label>
 
               <fieldset>
-                <legend>Preferred Programs *</legend>
+                <legend>Preferred Programs</legend>
                 <div className="checkbox-grid">
                   {volunteerPrograms.map((prog) => (
                     <label key={prog.id} className="checkbox-label">
@@ -123,13 +169,22 @@ export default function VolunteerPage() {
                 </div>
               </fieldset>
 
+              <SkillTagPicker
+                required
+                label="Skills"
+                value={form.skills}
+                other={form.skillsOther}
+                onChange={(skills) => setForm({ ...form, skills })}
+                onOtherChange={(skillsOther) => setForm({ ...form, skillsOther })}
+              />
+
               <label>
-                Skills
-                <textarea
-                  rows={3}
-                  placeholder="e.g. First aid, logistics, teaching, cooking..."
-                  value={form.skills}
-                  onChange={(e) => setForm({ ...form, skills: e.target.value })}
+                Availability
+                <input
+                  type="text"
+                  placeholder="e.g. Weekends, weekday evenings, Sat–Sun…"
+                  value={form.availability}
+                  onChange={(e) => setForm({ ...form, availability: e.target.value })}
                 />
               </label>
 
@@ -143,17 +198,24 @@ export default function VolunteerPage() {
                 />
               </label>
 
-              <label>
-                Upload CV (optional)
+              <label className="checkbox-label" style={{ display: 'flex', gap: '0.5rem', alignItems: 'flex-start' }}>
                 <input
-                  type="file"
-                  accept=".pdf,.doc,.docx"
-                  onChange={(e) => setForm({ ...form, cv: e.target.files?.[0] ?? null })}
+                  type="checkbox"
+                  required
+                  checked={form.acceptedPolicies}
+                  onChange={(e) => setForm({ ...form, acceptedPolicies: e.target.checked })}
                 />
+                <span>
+                  I accept the{' '}
+                  <Link to="/privacy" target="_blank" rel="noreferrer">Data Privacy Policy</Link>
+                  {' '}and{' '}
+                  <Link to="/terms" target="_blank" rel="noreferrer">Terms &amp; Conditions</Link>
+                  <Req required />
+                </span>
               </label>
 
-              <button type="submit" className="btn btn--primary btn--lg">
-                Submit Application
+              <button type="submit" className="btn btn--primary btn--lg" disabled={submitting}>
+                {submitting ? 'Submitting…' : 'Submit Application'}
               </button>
             </form>
           )}

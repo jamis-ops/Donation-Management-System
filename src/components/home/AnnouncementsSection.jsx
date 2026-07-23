@@ -1,17 +1,49 @@
+import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { announcements } from '../../data/mockData'
+import { announcements as mockAnnouncements } from '../../data/mockData'
+import { fetchPublishedContent } from '../../api/resources'
+import { findMockMatch, resolveCmsImage } from '../../utils/cmsMedia'
 import SectionHeading from '../shared/SectionHeading'
 import Reveal from '../shared/Reveal'
 
 function formatDate(dateStr) {
-  return new Date(dateStr).toLocaleDateString('en-PH', {
+  if (!dateStr) return ''
+  const d = new Date(dateStr)
+  if (Number.isNaN(d.getTime())) return dateStr
+  return d.toLocaleDateString('en-PH', {
     year: 'numeric',
     month: 'long',
     day: 'numeric',
   })
 }
 
+function mapCmsAnnouncement(item, index) {
+  const meta = item.meta || {}
+  const mock = findMockMatch(item, mockAnnouncements, { slugKey: 'id', nameKey: 'title' }) || mockAnnouncements[index] || null
+  return {
+    id: item.id,
+    title: item.title || mock?.title || 'News',
+    date: meta.date || (item.publishedAt ? String(item.publishedAt).slice(0, 10) : '') || mock?.date || '',
+    category: meta.category || mock?.category || 'News',
+    excerpt: item.summary || mock?.excerpt || '',
+    image: resolveCmsImage(item, mock, ['image', 'logo']),
+  }
+}
+
 export default function AnnouncementsSection() {
+  const [list, setList] = useState(mockAnnouncements)
+
+  useEffect(() => {
+    let cancelled = false
+    fetchPublishedContent('announcements', []).then((items) => {
+      if (cancelled) return
+      if (items.length > 0 && items[0]?.title) {
+        setList(items.map(mapCmsAnnouncement))
+      }
+    })
+    return () => { cancelled = true }
+  }, [])
+
   return (
     <section id="news" className="section announcements-section">
       <div className="container">
@@ -23,7 +55,7 @@ export default function AnnouncementsSection() {
           />
         </Reveal>
         <div className="announcements-grid announcements-grid--media">
-          {announcements.map((item, i) => (
+          {list.map((item, i) => (
             <Reveal key={item.id} as="article" className="announcement-card announcement-card--media" delay={i * 60}>
               {item.image && (
                 <div className="announcement-card__media">
@@ -32,7 +64,7 @@ export default function AnnouncementsSection() {
               )}
               <div className="announcement-card__content">
                 <span className="announcement-card__category">{item.category}</span>
-                <time dateTime={item.date}>{formatDate(item.date)}</time>
+                {item.date && <time dateTime={item.date}>{formatDate(item.date)}</time>}
                 <h3>{item.title}</h3>
                 <p>{item.excerpt}</p>
               </div>

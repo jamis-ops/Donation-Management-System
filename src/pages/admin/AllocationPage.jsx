@@ -1,5 +1,5 @@
-import { useState } from 'react'
-import { allocationsApi, beneficiariesApi } from '../../api/resources'
+import { useEffect, useState } from 'react'
+import { allocationsApi, beneficiariesApi, needsStockApi, assistanceRequestsApi } from '../../api/resources'
 import { useApiList } from '../../hooks/useApiList'
 import { useFilters } from '../../hooks/useFilters'
 import PageHeader from '../../components/admin/shared/PageHeader'
@@ -22,14 +22,34 @@ const filterConfig = {
   dateKey: 'date',
 }
 
+const emptyForm = {
+  resource: '', quantity: '', program: '', beneficiaryId: '', assistanceRequestId: '',
+  status: 'Pending', priority: 'Medium', notes: '',
+}
+
 export default function AllocationPage() {
   const { data, loading, error, reload } = useApiList(() => allocationsApi.list())
   const { data: barangays } = useApiList(() => beneficiariesApi.list())
+  const { data: requests } = useApiList(() => assistanceRequestsApi.list())
   const filters = useFilters(data, filterConfig)
   const [editRow, setEditRow] = useState(null)
   const [showCreate, setShowCreate] = useState(false)
-  const [form, setForm] = useState({ resource: '', quantity: '', program: '', beneficiaryId: '', status: 'Pending', priority: 'Medium', notes: '' })
+  const [form, setForm] = useState(emptyForm)
   const [saving, setSaving] = useState(false)
+  const [recs, setRecs] = useState([])
+  const [needsSummary, setNeedsSummary] = useState(null)
+
+  useEffect(() => {
+    needsStockApi.get()
+      .then((res) => {
+        setRecs(res.data?.recommendations || [])
+        setNeedsSummary(res.data?.summary || null)
+      })
+      .catch(() => {
+        setRecs([])
+        setNeedsSummary(null)
+      })
+  }, [data])
 
   const openEdit = (row) => {
     setEditRow(row)
@@ -38,9 +58,25 @@ export default function AllocationPage() {
       quantity: row.quantity,
       program: row.program || '',
       beneficiaryId: row.beneficiaryId || '',
+      assistanceRequestId: row.assistanceRequestId || '',
       status: row.status,
       priority: row.priority || 'Medium',
       notes: row.notes || '',
+    })
+  }
+
+  const applyRecommendation = (rec) => {
+    setShowCreate(true)
+    setEditRow(null)
+    setForm({
+      resource: rec.resource,
+      quantity: String(rec.quantity),
+      program: rec.requestType || '',
+      beneficiaryId: rec.beneficiaryId || '',
+      assistanceRequestId: rec.assistanceRequestId || '',
+      status: 'Reserved',
+      priority: rec.priority || 'Medium',
+      notes: rec.reason || '',
     })
   }
 
@@ -55,6 +91,7 @@ export default function AllocationPage() {
         program: form.program,
         beneficiaryId: form.beneficiaryId ? Number(form.beneficiaryId) : null,
         beneficiary: ben?.barangay || ben?.name,
+        assistanceRequestId: form.assistanceRequestId ? Number(form.assistanceRequestId) : null,
         status: form.status,
         priority: form.priority,
         notes: form.notes,
@@ -77,37 +114,33 @@ export default function AllocationPage() {
   const columns = [
     { key: 'id', label: 'ID' },
     { key: 'resource', label: 'Resource' },
-    { key: 'quantity', label: 'Qty' },
-    { key: 'program', label: 'Program' },
-    { key: 'beneficiary', label: 'Barangay Target' },
-    {
-      key: 'priority',
-      label: 'Priority',
-      render: (row) => <StatusBadge status={row.priority} />,
-    },
+    { key: 'quantity', label: 'Qty (packs)' },
+    { key: 'beneficiary', label: 'Barangay' },
+    { key: 'priority', label: 'Priority', render: (row) => <StatusBadge status={row.priority} /> },
     { key: 'status', label: 'Status', render: (row) => <StatusBadge status={row.status} /> },
     { key: 'date', label: 'Date' },
-    {
-      key: 'actions',
-      label: 'Actions',
-      render: (row) => (
-        <button type="button" className="btn btn--sm btn--outline" onClick={() => openEdit(row)}>Edit</button>
-      ),
-    },
   ]
 
   const FormFields = (
     <>
-      <label>Resource<input required value={form.resource} onChange={(e) => setForm({ ...form, resource: e.target.value })} /></label>
+      <label>Resource (packs)<input required value={form.resource} onChange={(e) => setForm({ ...form, resource: e.target.value })} /></label>
       <div className="form-row">
         <label>Quantity<input type="number" min="1" required value={form.quantity} onChange={(e) => setForm({ ...form, quantity: e.target.value })} /></label>
         <label>Program<input value={form.program} onChange={(e) => setForm({ ...form, program: e.target.value })} /></label>
       </div>
+      <label>Linked Assistance Request
+        <select value={form.assistanceRequestId} onChange={(e) => setForm({ ...form, assistanceRequestId: e.target.value })}>
+          <option value="">None</option>
+          {(requests || []).map((r) => (
+            <option key={r.dbId} value={r.dbId}>{r.id || r.code} — {r.type} ({r.status})</option>
+          ))}
+        </select>
+      </label>
       <label>Target Barangay
         <select value={form.beneficiaryId} onChange={(e) => setForm({ ...form, beneficiaryId: e.target.value })}>
           <option value="">Select barangay</option>
           {barangays.map((b) => (
-            <option key={b.dbId} value={b.dbId}>{b.barangay} ({b.affectedFamilies} families)</option>
+            <option key={b.dbId} value={b.dbId}>{b.barangay || b.name} ({b.affectedFamilies} families)</option>
           ))}
         </select>
       </label>
@@ -131,9 +164,44 @@ export default function AllocationPage() {
     <>
       <PageHeader
         title="Resource Allocation"
-        description="Allocate inventory to barangays. Update priority and status as resources are reserved and delivered."
-        actions={<button type="button" className="btn btn--primary" onClick={() => { setShowCreate(true); setForm({ resource: '', quantity: '', program: '', beneficiaryId: '', status: 'Pending', priority: 'Medium', notes: '' }) }}>+ New Allocation</button>}
+        description="Allocate pack inventory to barangays from approved assistance requests. Recommendations use needs vs available stock."
+        actions={<button type="button" className="btn btn--primary" onClick={() => { setShowCreate(true); setForm(emptyForm) }}>+ New Allocation</button>}
       />
+
+      {needsSummary && (
+        <div className="needs-summary-strip">
+          <span className="needs-chip needs-chip--shortage">{needsSummary.shortage} shortages</span>
+          <span className="needs-chip needs-chip--ok">{needsSummary.sufficient} sufficient</span>
+          <span className="needs-chip needs-chip--excess">{needsSummary.excess} excess</span>
+          <span className="needs-chip">{needsSummary.totalAvailablePacks} packs available</span>
+        </div>
+      )}
+
+      {recs.length > 0 && (
+        <section className="admin-panel" style={{ marginBottom: '1rem' }}>
+          <h2 style={{ marginTop: 0, fontSize: '1rem' }}>Recommended Allocations</h2>
+          <div className="volunteer-task-list">
+            {recs.slice(0, 6).map((rec) => (
+              <article key={`${rec.assistanceRequestId}-${rec.inventoryId}`} className="volunteer-task-card">
+                <div className="volunteer-task-card__top">
+                  <strong>{rec.resource} × {rec.quantity} {rec.unit}</strong>
+                  <StatusBadge status={rec.priority} />
+                </div>
+                <div className="volunteer-task-card__meta">
+                  <span>{rec.requestCode} · {rec.requestType}</span>
+                  <span>{rec.beneficiary || '—'}</span>
+                  <span>Stock: {rec.available}</span>
+                </div>
+                <p style={{ margin: '0.4rem 0 0.6rem', fontSize: '0.82rem', color: '#64748b' }}>{rec.reason}</p>
+                <button type="button" className="btn btn--sm btn--primary" onClick={() => applyRecommendation(rec)}>
+                  Use Recommendation
+                </button>
+              </article>
+            ))}
+          </div>
+        </section>
+      )}
+
       <FilterBar controller={filters} searchPlaceholder="Search by ID, resource, program, or barangay..." />
 
       <ApiState loading={loading} error={error} onRetry={reload}>

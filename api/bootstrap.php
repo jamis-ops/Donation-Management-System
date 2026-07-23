@@ -200,13 +200,197 @@ function donor_name_taken(PDO $pdo, string $name, string $organization = '', ?in
   return (bool) $stmt->fetchColumn();
 }
 
-function create_user_account(PDO $pdo, string $role, string $name, string $email, string $password, string $status = 'ACTIVE'): int
+function create_user_account(PDO $pdo, string $role, string $name, string $email, string $password, string $status = 'ACTIVE', bool $mustChangePassword = false, ?array $nameParts = null): int
 {
   $rid = role_id($pdo, $role);
   $hash = password_hash($password, PASSWORD_DEFAULT);
-  $stmt = $pdo->prepare('INSERT INTO users (role_id, full_name, email, password_hash, status) VALUES (?, ?, ?, ?, ?)');
-  $stmt->execute([$rid, $name, strtolower(trim($email)), $hash, $status]);
+  $last = $nameParts['lastName'] ?? $nameParts['last_name'] ?? null;
+  $first = $nameParts['firstName'] ?? $nameParts['first_name'] ?? null;
+  $mi = $nameParts['middleInitial'] ?? $nameParts['middle_initial'] ?? null;
+  if (($last || $first) && function_exists('format_full_name')) {
+    $composed = format_full_name($last, $first, $mi);
+    if ($composed !== '') {
+      $name = $composed;
+    }
+  }
+  $stmt = $pdo->prepare('INSERT INTO users (role_id, full_name, first_name, last_name, middle_initial, email, password_hash, status, must_change_password, email_verified_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)');
+  $stmt->execute([
+    $rid,
+    $name,
+    $first !== null && $first !== '' ? trim((string) $first) : null,
+    $last !== null && $last !== '' ? trim((string) $last) : null,
+    $mi !== null && $mi !== '' ? strtoupper(substr(preg_replace('/[^a-zA-Z]/', '', (string) $mi) ?: '', 0, 1)) : null,
+    strtolower(trim($email)),
+    $hash,
+    $status,
+    $mustChangePassword ? 1 : 0,
+    $status === 'ACTIVE' ? date('Y-m-d H:i:s') : null,
+  ]);
   return (int) $pdo->lastInsertId();
+}
+
+/** Compose "First M. Last" from LN/FN/MI parts. */
+function format_full_name(?string $lastName, ?string $firstName, ?string $middleInitial = null): string
+{
+  $ln = trim((string) $lastName);
+  $fn = trim((string) $firstName);
+  $mi = strtoupper(substr(preg_replace('/[^a-zA-Z]/', '', (string) $middleInitial) ?: '', 0, 1));
+  $parts = [];
+  if ($fn !== '') {
+    $parts[] = $fn;
+  }
+  if ($mi !== '') {
+    $parts[] = $mi . '.';
+  }
+  if ($ln !== '') {
+    $parts[] = $ln;
+  }
+  return trim(implode(' ', $parts));
+}
+
+/**
+ * Read LN/FN/MI from a request body (supports camelCase and snake_case).
+ * Returns [lastName, firstName, middleInitial, fullName]
+ */
+function read_name_parts(array $body, string $prefix = ''): array
+{
+  $p = $prefix;
+  $last = trim((string) ($body[$p . 'lastName'] ?? $body[$p . 'last_name'] ?? $body['lastName'] ?? $body['last_name'] ?? ''));
+  $first = trim((string) ($body[$p . 'firstName'] ?? $body[$p . 'first_name'] ?? $body['firstName'] ?? $body['first_name'] ?? ''));
+  $mi = trim((string) ($body[$p . 'middleInitial'] ?? $body[$p . 'middle_initial'] ?? $body['middleInitial'] ?? $body['middle_initial'] ?? ''));
+  $full = format_full_name($last, $first, $mi);
+  if ($full === '') {
+    $full = trim((string) ($body[$p . 'name'] ?? $body[$p . 'fullName'] ?? $body[$p . 'full_name'] ?? $body['name'] ?? $body['fullName'] ?? $body['full_name'] ?? $body['donorName'] ?? $body['contactPerson'] ?? ''));
+  }
+  return [$last, $first, $mi, $full];
+}
+
+/**
+ * After Admin verifies a donation: create Donor login (if needed) and email temp credentials.
+ * Returns ['created' => bool, 'userId' => ?int, 'mail' => ?array, 'error' => ?string]
+ */
+function provision_donor_from_donation(PDO $pdo, array $donationRow): array
+{
+  $email = strtolower(trim((string) ($donationRow['donor_email'] ?? '')));
+  $name = trim((string) ($donationRow['donor_name'] ?? 'Donor'));
+  if ($email === '' || !filter_var($email, FILTER_VALIDATE_EMAIL)) {
+    return ['created' => false, 'userId' => null, 'mail' => null, 'error' => 'Donor email missing'];
+  }
+
+  $existing = $pdo->prepare('SELECT id FROM users WHERE email = ? LIMIT 1');
+  $existing->execute([$email]);
+  $userId = $existing->fetchColumn();
+  if ($userId) {
+    $userId = (int) $userId;
+    if (!empty($donationRow['donor_id'])) {
+      $pdo->prepare('UPDATE donors SET user_id = COALESCE(user_id, ?) WHERE id = ?')
+        ->execute([$userId, (int) $donationRow['donor_id']]);
+    }
+    return ['created' => false, 'userId' => $userId, 'mail' => null, 'error' => null];
+  }
+
+  $tempPassword = generate_temp_password();
+  $userId = create_user_account($pdo, 'Donor', $name, $email, $tempPassword, 'ACTIVE', true);
+  accept_privacy_terms($pdo, $userId);
+
+  if (!empty($donationRow['donor_id'])) {
+    $pdo->prepare('UPDATE donors SET user_id = ? WHERE id = ?')
+      ->execute([$userId, (int) $donationRow['donor_id']]);
+  } else {
+    $find = $pdo->prepare('SELECT id FROM donors WHERE email = ? LIMIT 1');
+    $find->execute([$email]);
+    $donorId = $find->fetchColumn();
+    if ($donorId) {
+      $pdo->prepare('UPDATE donors SET user_id = ? WHERE id = ?')->execute([$userId, (int) $donorId]);
+    }
+  }
+
+  $mail = send_account_credentials($email, $name, $email, $tempPassword, 'Donor');
+  create_notification(
+    $pdo,
+    'account',
+    'Donor account ready',
+    'Your donor portal login credentials were emailed. Please sign in and change your temporary password.',
+    '/donor',
+    $userId
+  );
+
+  return ['created' => true, 'userId' => $userId, 'mail' => $mail, 'error' => null];
+}
+
+/**
+ * Post verified in-kind donations into inventory as pack units.
+ */
+function post_donation_to_inventory_packs(PDO $pdo, array $donationRow): void
+{
+  if (($donationRow['type'] ?? '') !== 'In-Kind') {
+    return;
+  }
+  $label = trim((string) ($donationRow['items_description'] ?? ''));
+  if ($label === '') {
+    $label = trim((string) ($donationRow['category'] ?? 'In-Kind Donation')) ?: 'In-Kind Donation';
+  }
+  // Prefer a short inventory item name (category) with packs unit.
+  $itemName = trim((string) ($donationRow['category'] ?? '')) ?: (strlen($label) > 80 ? substr($label, 0, 77) . '…' : $label);
+  $qty = 1;
+  if (preg_match('/\b(\d+)\b/', $label, $m)) {
+    $qty = max(1, (int) $m[1]);
+  }
+
+  $find = $pdo->prepare('SELECT id, quantity FROM inventory_items WHERE LOWER(item_name) = LOWER(?) LIMIT 1');
+  $find->execute([$itemName]);
+  $row = $find->fetch();
+  if ($row) {
+    $pdo->prepare("UPDATE inventory_items SET quantity = quantity + ?, unit = 'packs', stock_state = 'Available' WHERE id = ?")
+      ->execute([$qty, (int) $row['id']]);
+  } else {
+    $pdo->prepare("INSERT INTO inventory_items (code, item_name, category, quantity, unit, stock_state, low_stock_threshold) VALUES (?, ?, ?, ?, 'packs', 'Available', 10)")
+      ->execute([
+        generate_code('INV'),
+        $itemName,
+        trim((string) ($donationRow['category'] ?? 'Donated Goods')) ?: 'Donated Goods',
+        $qty,
+      ]);
+  }
+}
+
+/**
+ * After Admin approves a volunteer application: create login + email credentials.
+ */
+function provision_volunteer_account(PDO $pdo, array $volunteerRow): array
+{
+  $email = strtolower(trim((string) ($volunteerRow['email'] ?? '')));
+  $name = trim((string) ($volunteerRow['full_name'] ?? 'Volunteer'));
+  if ($email === '' || !filter_var($email, FILTER_VALIDATE_EMAIL)) {
+    return ['created' => false, 'userId' => null, 'mail' => null, 'error' => 'Volunteer email missing'];
+  }
+  if (!empty($volunteerRow['user_id'])) {
+    return ['created' => false, 'userId' => (int) $volunteerRow['user_id'], 'mail' => null, 'error' => null];
+  }
+  if (email_taken($pdo, $email)) {
+    $stmt = $pdo->prepare('SELECT id FROM users WHERE email = ? LIMIT 1');
+    $stmt->execute([$email]);
+    $uid = (int) $stmt->fetchColumn();
+    $pdo->prepare('UPDATE volunteers SET user_id = ? WHERE id = ?')->execute([$uid, (int) $volunteerRow['id']]);
+    return ['created' => false, 'userId' => $uid, 'mail' => null, 'error' => null];
+  }
+
+  $tempPassword = generate_temp_password();
+  $userId = create_user_account($pdo, 'Volunteer', $name, $email, $tempPassword, 'ACTIVE', true);
+  accept_privacy_terms($pdo, $userId);
+  $pdo->prepare('UPDATE volunteers SET user_id = ?, status = ? WHERE id = ?')
+    ->execute([$userId, 'Approved', (int) $volunteerRow['id']]);
+  $mail = send_account_credentials($email, $name, $email, $tempPassword, 'Volunteer');
+  $sent = !empty($mail['sent']);
+  $transport = (string) ($mail['transport'] ?? '');
+  $includeTemp = !$sent || $transport === 'outbox' || !in_array($transport, ['nodemailer', 'smtp'], true);
+  return [
+    'created' => true,
+    'userId' => $userId,
+    'mail' => $mail,
+    'temporaryPassword' => $includeTemp ? $tempPassword : null,
+    'error' => null,
+  ];
 }
 
 /* ---------------- Email verification ---------------- */

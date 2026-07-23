@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { Link } from 'react-router-dom'
 import { Eye, CheckCircle2, Download, FileText } from 'lucide-react'
 import { donationsApi } from '../../api/resources'
 import { useApiList } from '../../hooks/useApiList'
@@ -11,7 +12,6 @@ import ApiState from '../../components/admin/shared/ApiState'
 import FilterBar from '../../components/admin/shared/FilterBar'
 import ModalHeader from '../../components/admin/shared/ModalHeader'
 import DonationUpdatesTimeline from '../../components/shared/DonationUpdatesTimeline'
-import Req from '../../components/shared/Req'
 
 const lifecycle = [
   'Submission', 'Tracking Code', 'Verification', 'Inventory', 'Repacking',
@@ -32,6 +32,16 @@ const filterConfig = {
   dateKey: 'date',
 }
 
+function verifyResultMessage(res) {
+  if (!res?.accountCreated) {
+    return res?.message || 'Donation verified.'
+  }
+  if (res.credentialsSent) {
+    return 'Donation verified. Donor portal account created and login credentials were emailed.'
+  }
+  return 'Donation verified. Donor portal account was created, but the credential email was NOT delivered.'
+}
+
 export default function DonationsPage() {
   const { data: donations, loading, error, reload } = useApiList(() => donationsApi.list())
   const categoryOptions = DONATION_CATEGORIES
@@ -43,9 +53,22 @@ export default function DonationsPage() {
   const filters = useFilters(donations, filterConfig)
 
   const handleVerify = async (row) => {
-    await donationsApi.update(row.dbId, { status: 'Verified' })
-    reload()
-    setSelected(null)
+    if (!row.hasProof) {
+      alert('Cannot approve: proof of donation is required.')
+      return
+    }
+    try {
+      const res = await donationsApi.update(row.dbId, { status: 'Verified' })
+      if (res?.accountCreated || res?.credentialsSent) {
+        alert(verifyResultMessage(res))
+      } else if (res?.message) {
+        alert(res.message)
+      }
+      reload()
+      setSelected(null)
+    } catch (err) {
+      alert(err.message || 'Failed to verify donation')
+    }
   }
 
   const handleSave = async (e) => {
@@ -119,12 +142,17 @@ export default function DonationsPage() {
   return (
     <>
       <PageHeader
-        title="Donation Processing"
-        description="Verify donations, review uploaded proof, and manage the donation lifecycle."
+        title="Inbound Donations (Received)"
+        description="Verify inbound donations, review uploaded proof, and manage the donation lifecycle."
         actions={
-          <button type="button" className="btn btn--primary" onClick={() => setShowForm(true)}>
-            + Record Donation
-          </button>
+          <>
+            <Link to="/admin/distributions" className="btn btn--outline">
+              Outbound Distributions
+            </Link>
+            <button type="button" className="btn btn--primary" onClick={() => setShowForm(true)}>
+              + Record Donation
+            </button>
+          </>
         }
       />
 
@@ -229,7 +257,15 @@ export default function DonationsPage() {
 
             <div className="admin-modal__actions">
               {selected.status === 'Pending Verification' && (
-                <button type="button" className="btn btn--primary" onClick={() => handleVerify(selected)}>Verify &amp; Approve</button>
+                <button
+                  type="button"
+                  className="btn btn--primary"
+                  onClick={() => handleVerify(selected)}
+                  disabled={!selected.hasProof}
+                  title={!selected.hasProof ? 'Proof of donation is required' : undefined}
+                >
+                  Verify &amp; Approve
+                </button>
               )}
               <button type="button" className="btn btn--outline" onClick={() => handleDelete(selected)}>Delete</button>
               <button type="button" className="btn btn--ghost" onClick={() => setSelected(null)}>Close</button>

@@ -26,6 +26,7 @@ function map_inventory(array $row): array
     'allocated' => (int) $row['allocated'],
     'distributed' => (int) $row['distributed'],
     'available' => max(0, $qty - (int) $row['allocated']),
+    'stockState' => $row['stock_state'] ?? 'Available',
     'lowStockThreshold' => $low,
     'moderateStockThreshold' => $moderate,
   ];

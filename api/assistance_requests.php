@@ -65,15 +65,73 @@ if ($method === 'POST') {
     $beneficiaryId = (int) $ben->fetchColumn();
   }
 
+  // Public form: find or create a beneficiary from email + barangay/address
+  if ($beneficiaryId <= 0 && $public) {
+    $fullName = trim((string) ($body['fullName'] ?? $body['name'] ?? ''));
+    $email = strtolower(trim((string) ($body['email'] ?? '')));
+    $phone = trim((string) ($body['phone'] ?? ''));
+    $barangay = trim((string) ($body['barangay'] ?? $body['address'] ?? ''));
+    if ($fullName === '') {
+      json_response(['ok' => false, 'error' => 'Full name is required'], 400);
+    }
+    if ($email === '' || !filter_var($email, FILTER_VALIDATE_EMAIL)) {
+      json_response(['ok' => false, 'error' => 'A valid email is required'], 400);
+    }
+    if ($barangay === '') {
+      json_response(['ok' => false, 'error' => 'Address / barangay is required'], 400);
+    }
+
+    $find = $pdo->prepare('
+      SELECT id FROM beneficiaries
+      WHERE LOWER(representative_email) = ?
+        AND (
+          LOWER(barangay) = LOWER(?)
+          OR LOWER(full_name) = LOWER(?)
+          OR LOWER(address) = LOWER(?)
+        )
+      ORDER BY id ASC
+      LIMIT 1
+    ');
+    $find->execute([$email, $barangay, $barangay, $barangay]);
+    $foundId = (int) $find->fetchColumn();
+
+    if ($foundId > 0) {
+      $beneficiaryId = $foundId;
+    } else {
+      $benCode = generate_code('BEN');
+      $insertBen = $pdo->prepare('
+        INSERT INTO beneficiaries (
+          code, full_name, category, barangay, address,
+          representative_name, representative_phone, representative_email,
+          needs, status
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      ');
+      $insertBen->execute([
+        $benCode,
+        $fullName,
+        'Individual',
+        $barangay,
+        $barangay,
+        $fullName,
+        $phone !== '' ? $phone : null,
+        $email,
+        trim((string) ($body['notes'] ?? $body['description'] ?? '')) ?: null,
+        'Pending Approval',
+      ]);
+      $beneficiaryId = (int) $pdo->lastInsertId();
+    }
+  }
+
   if ($beneficiaryId <= 0) {
     json_response(['ok' => false, 'error' => 'Beneficiary is required'], 400);
   }
 
-  $type = trim((string) ($body['type'] ?? $body['assistance_type'] ?? ''));
+  $type = trim((string) ($body['type'] ?? $body['assistanceType'] ?? $body['assistance_type'] ?? ''));
   if ($type === '') {
     json_response(['ok' => false, 'error' => 'Assistance type is required'], 400);
   }
 
+  $notes = $body['notes'] ?? $body['description'] ?? null;
   $ref = generate_code('AST');
   $priority = in_array($body['priority'] ?? 'Medium', ['Low', 'Medium', 'High'], true) ? $body['priority'] : 'Medium';
   $stmt = $pdo->prepare('INSERT INTO assistance_requests (reference_code, beneficiary_id, assistance_type, status, priority, request_date, notes) VALUES (?, ?, ?, ?, ?, ?, ?)');
@@ -81,13 +139,24 @@ if ($method === 'POST') {
     $ref,
     $beneficiaryId,
     $type,
-    $body['status'] ?? 'Pending Review',
+    $public ? 'Pending Review' : ($body['status'] ?? 'Pending Review'),
     $priority,
     $body['requestDate'] ?? date('Y-m-d'),
-    $body['notes'] ?? null,
+    $notes,
   ]);
 
   $newId = (int) $pdo->lastInsertId();
+
+  if ($public) {
+    notify_admins(
+      $pdo,
+      'assistance',
+      'New assistance request',
+      "Assistance request {$ref} submitted",
+      '/admin/beneficiaries'
+    );
+  }
+
   $stmt = $pdo->prepare('
     SELECT ar.*, b.full_name AS beneficiary_name
     FROM assistance_requests ar
@@ -96,7 +165,11 @@ if ($method === 'POST') {
   ');
   $stmt->execute([$newId]);
   $row = $stmt->fetch();
-  json_response(['ok' => true, 'data' => map_request($row, $row['beneficiary_name'])], 201);
+  json_response([
+    'ok' => true,
+    'data' => map_request($row, $row['beneficiary_name']),
+    'trackingCode' => $ref,
+  ], 201);
 }
 
 require_auth(['Admin', 'Staff']);

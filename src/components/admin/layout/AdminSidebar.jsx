@@ -11,6 +11,7 @@ import {
   BarChart3,
   FileBadge,
   Globe,
+  Settings,
   LogOut,
   ExternalLink,
 } from 'lucide-react'
@@ -46,8 +47,9 @@ const navGroups = [
     label: 'Management',
     items: [
       { to: '/admin/reports', label: 'Reports', icon: BarChart3 },
-      { to: '/admin/certificates', label: 'Certificates & OR', icon: FileBadge },
+      { to: '/admin/certificates', label: 'Certificates', icon: FileBadge },
       { to: '/admin/content', label: 'Content Management', icon: Globe },
+      { to: '/admin/settings', label: 'Settings', icon: Settings },
     ],
   },
 ]

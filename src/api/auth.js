@@ -43,3 +43,14 @@ export async function me() {
   return apiFetch('/api/me.php', { method: 'GET' })
 }
 
+export async function updateAccount(payload) {
+  return apiFetch('/api/account.php', {
+    method: 'PUT',
+    body: JSON.stringify(payload),
+  })
+}
+
+export async function changePassword({ currentPassword, newPassword }) {
+  return updateAccount({ currentPassword, newPassword })
+}
+

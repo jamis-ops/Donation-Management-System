@@ -47,7 +47,7 @@ export default function DonorCertificatesPage() {
 
       <section className="portal-panel">
         <div className="portal-panel__header">
-          <h2>Certificates &amp; Official Receipts</h2>
+          <h2>Certificates</h2>
           <button type="button" className="btn btn--sm btn--primary" onClick={() => setShowRequest(true)}>
             + Request Certificate
           </button>
@@ -97,7 +97,7 @@ export default function DonorCertificatesPage() {
               <label>Document Type
                 <select value={form.type} onChange={(e) => setForm({ ...form, type: e.target.value })}>
                   <option>Certificate of Donation</option>
-                  <option>Official Receipt</option>
+                  <option>Certificate of Appreciation</option>
                 </select>
               </label>
               <label>For Donation

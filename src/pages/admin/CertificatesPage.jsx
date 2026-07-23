@@ -14,7 +14,6 @@ import ModalHeader from '../../components/admin/shared/ModalHeader'
 
 const CERT_TYPES = [
   'Certificate of Donation',
-  'Official Receipt',
   'Certificate of Volunteer Service',
   'Certificate of Participation',
   'Certificate of Appreciation',
@@ -196,7 +195,7 @@ export default function CertificatesPage() {
     <>
       <PageHeader
         title="Certificate Management"
-        description="Create, edit, preview, and release certificates and official receipts. Select a recipient and the details fill in automatically."
+        description="Create, edit, preview, and release certificates. Select a recipient and the details fill in automatically."
         actions={<button type="button" className="btn btn--primary" onClick={openCreate}><Award size={15} /> New Certificate</button>}
       />
 

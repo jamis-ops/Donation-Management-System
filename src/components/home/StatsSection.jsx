@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react'
 import {
   Coins,
   Users,
@@ -7,7 +8,8 @@ import {
   Building2,
   MapPinned,
 } from 'lucide-react'
-import { impactStats } from '../../data/mockData'
+import { impactStats as mockStats } from '../../data/mockData'
+import { fetchPublishedContent } from '../../api/resources'
 import SectionHeading from '../shared/SectionHeading'
 
 const statIcons = [
@@ -20,7 +22,28 @@ const statIcons = [
   MapPinned,
 ]
 
+function mapCmsStat(item) {
+  const meta = item.meta || {}
+  return {
+    label: item.title,
+    value: meta.value || item.summary || '',
+  }
+}
+
 export default function StatsSection() {
+  const [stats, setStats] = useState(mockStats)
+
+  useEffect(() => {
+    let cancelled = false
+    fetchPublishedContent('impact', []).then((items) => {
+      if (cancelled) return
+      if (items.length > 0 && items[0]?.title) {
+        setStats(items.map(mapCmsStat))
+      }
+    })
+    return () => { cancelled = true }
+  }, [])
+
   return (
     <section id="impact" className="section stats-section">
       <div className="container">
@@ -30,8 +53,8 @@ export default function StatsSection() {
           description="Transparent metrics reflecting the collective impact of donors, volunteers, and partners."
         />
         <div className="stats-grid">
-          {impactStats.map((stat, index) => {
-            const Icon = statIcons[index]
+          {stats.map((stat, index) => {
+            const Icon = statIcons[index % statIcons.length]
             return (
               <div key={stat.label} className="stat-card">
                 <span className="stat-card__icon" aria-hidden="true">

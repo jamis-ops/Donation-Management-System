@@ -7,6 +7,12 @@ export function AuthProvider({ children }) {
   const [user, setUser] = useState(null)
   const [loading, setLoading] = useState(true)
 
+  const refreshUser = async () => {
+    const res = await authApi.me()
+    setUser(res.user)
+    return res.user
+  }
+
   useEffect(() => {
     authApi
       .me()
@@ -35,8 +41,38 @@ export function AuthProvider({ children }) {
     }
   }
 
+  const changePassword = async ({ currentPassword, newPassword }) => {
+    const res = await authApi.changePassword({ currentPassword, newPassword })
+    if (res?.data) {
+      setUser((prev) => (prev ? { ...prev, ...res.data, mustChangePassword: false } : res.data))
+    } else {
+      setUser((prev) => (prev ? { ...prev, mustChangePassword: false } : prev))
+    }
+    return res
+  }
+
+  const updateAccount = async (payload) => {
+    const res = await authApi.updateAccount(payload)
+    if (res?.data) {
+      setUser((prev) => (prev ? { ...prev, ...res.data } : res.data))
+    }
+    return res
+  }
+
   return (
-    <AuthContext.Provider value={{ user, loading, login, register, logout, isAuthenticated: !!user }}>
+    <AuthContext.Provider
+      value={{
+        user,
+        loading,
+        login,
+        register,
+        logout,
+        changePassword,
+        updateAccount,
+        refreshUser,
+        isAuthenticated: !!user,
+      }}
+    >
       {children}
     </AuthContext.Provider>
   )

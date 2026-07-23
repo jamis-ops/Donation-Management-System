@@ -276,6 +276,90 @@ try {
   ");
   echo "Ensured donation_updates table\n";
 
+  // v16: First-login password change + profile photo + inventory lifecycle + CMS + contact
+  addColumn($pdo, 'users', 'must_change_password', 'TINYINT(1) NOT NULL DEFAULT 0 AFTER recovery_phone');
+  addColumn($pdo, 'users', 'profile_photo', 'VARCHAR(255) NULL AFTER must_change_password');
+  addColumn($pdo, 'users', 'phone', 'VARCHAR(40) NULL AFTER email');
+  addColumn($pdo, 'inventory_items', 'stock_state', "VARCHAR(40) NOT NULL DEFAULT 'Available' AFTER unit");
+  addColumn($pdo, 'allocations', 'assistance_request_id', 'BIGINT UNSIGNED NULL AFTER beneficiary_id');
+  addColumn($pdo, 'volunteers', 'skills_json', 'JSON NULL AFTER programs_json');
+  addColumn($pdo, 'volunteers', 'availability', 'VARCHAR(255) NULL AFTER skills_json');
+
+  $pdo->exec("
+    CREATE TABLE IF NOT EXISTS contact_messages (
+      id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+      code VARCHAR(20) NOT NULL UNIQUE,
+      full_name VARCHAR(120) NOT NULL,
+      email VARCHAR(190) NOT NULL,
+      subject VARCHAR(200) NULL,
+      message TEXT NOT NULL,
+      status VARCHAR(40) NOT NULL DEFAULT 'New',
+      created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+  ");
+  echo "Ensured contact_messages table\n";
+
+  $pdo->exec("
+    CREATE TABLE IF NOT EXISTS cms_pages (
+      id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+      slug VARCHAR(80) NOT NULL UNIQUE,
+      title VARCHAR(160) NOT NULL,
+      body LONGTEXT NULL,
+      meta_json JSON NULL,
+      status ENUM('draft','published','archived') NOT NULL DEFAULT 'draft',
+      sort_order INT NOT NULL DEFAULT 0,
+      updated_by VARCHAR(120) NULL,
+      created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+  ");
+  echo "Ensured cms_pages table\n";
+
+  $pdo->exec("
+    CREATE TABLE IF NOT EXISTS cms_items (
+      id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+      type VARCHAR(40) NOT NULL,
+      title VARCHAR(200) NOT NULL,
+      summary TEXT NULL,
+      body LONGTEXT NULL,
+      image_url VARCHAR(500) NULL,
+      link_url VARCHAR(500) NULL,
+      meta_json JSON NULL,
+      status ENUM('draft','published','archived') NOT NULL DEFAULT 'draft',
+      sort_order INT NOT NULL DEFAULT 0,
+      published_at TIMESTAMP NULL,
+      created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+      INDEX idx_cms_items_type_status (type, status, sort_order)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+  ");
+  echo "Ensured cms_items table\n";
+
+  // Sync full programs/partners catalog + image URLs into cms_items
+  require_once __DIR__ . '/content_catalog.php';
+  if (function_exists('sync_cms_catalog')) {
+    sync_cms_catalog($pdo);
+    echo "Synced CMS programs & partners catalog\n";
+  }
+
+  // v17: Task required skills for volunteer matching
+  addColumn($pdo, 'tasks', 'required_skills_json', 'JSON NULL AFTER module');
+  addColumn($pdo, 'volunteers', 'skills_other', 'VARCHAR(255) NULL AFTER skills_json');
+
+  // v18: LN / FN / MI name parts across person tables
+  addColumn($pdo, 'users', 'first_name', 'VARCHAR(80) NULL AFTER full_name');
+  addColumn($pdo, 'users', 'last_name', 'VARCHAR(80) NULL AFTER first_name');
+  addColumn($pdo, 'users', 'middle_initial', 'VARCHAR(5) NULL AFTER last_name');
+  addColumn($pdo, 'donors', 'first_name', 'VARCHAR(80) NULL AFTER full_name');
+  addColumn($pdo, 'donors', 'last_name', 'VARCHAR(80) NULL AFTER first_name');
+  addColumn($pdo, 'donors', 'middle_initial', 'VARCHAR(5) NULL AFTER last_name');
+  addColumn($pdo, 'volunteers', 'first_name', 'VARCHAR(80) NULL AFTER full_name');
+  addColumn($pdo, 'volunteers', 'last_name', 'VARCHAR(80) NULL AFTER first_name');
+  addColumn($pdo, 'volunteers', 'middle_initial', 'VARCHAR(5) NULL AFTER last_name');
+  addColumn($pdo, 'beneficiaries', 'representative_first_name', 'VARCHAR(80) NULL AFTER representative_name');
+  addColumn($pdo, 'beneficiaries', 'representative_last_name', 'VARCHAR(80) NULL AFTER representative_first_name');
+  addColumn($pdo, 'beneficiaries', 'representative_middle_initial', 'VARCHAR(5) NULL AFTER representative_last_name');
+
   echo "\nMigration complete!\n";
 } catch (Throwable $e) {
   http_response_code(500);

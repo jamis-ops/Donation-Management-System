@@ -31,6 +31,10 @@ export default function LoginPage() {
     setLoading(true)
     try {
       const result = await login(email, password)
+      if (result.user?.mustChangePassword) {
+        navigate('/change-password', { replace: true })
+        return
+      }
       navigate(getHomeForRole(result.user?.role), { replace: true })
     } catch (err) {
       setError(err.message || 'Login failed')
@@ -109,7 +113,11 @@ export default function LoginPage() {
           </form>
 
           <p className="auth-alt">
-            New here? <Link to="/register">Create an account</Link>
+            Barangay registration? <Link to="/register">Create an account</Link>
+            <br />
+            <span style={{ fontSize: '0.85rem', color: '#64748b' }}>
+              Donors: <Link to="/donate">Donate</Link> · Volunteers: <Link to="/volunteer">Apply</Link>
+            </span>
           </p>
 
           <div className="auth-demo">

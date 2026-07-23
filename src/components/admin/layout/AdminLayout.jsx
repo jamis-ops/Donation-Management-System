@@ -14,10 +14,10 @@ const pageTitles = {
   '/admin/distributions': 'Distribution Logistics',
   '/admin/volunteers': 'Volunteer Management',
   '/admin/staff': 'Staff Management',
-  '/admin/tasks': 'Task Management',
   '/admin/reports': 'Reports & Analytics',
-  '/admin/certificates': 'Certificates & Official Receipts',
+  '/admin/certificates': 'Certificates',
   '/admin/content': 'Content Management',
+  '/admin/settings': 'Account Settings',
 }
 
 export default function AdminLayout() {

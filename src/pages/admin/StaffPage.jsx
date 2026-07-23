@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { ListTodo, Mail, UserCog } from 'lucide-react'
-import { createStaffAccount, getStaff, tasksApi } from '../../api/resources'
+import { createStaffAccount, getStaff, updateStaff, tasksApi } from '../../api/resources'
 import { useApiList } from '../../hooks/useApiList'
 import { useFilters } from '../../hooks/useFilters'
 import PageHeader from '../../components/admin/shared/PageHeader'
@@ -11,9 +11,11 @@ import ApiState from '../../components/admin/shared/ApiState'
 import FilterBar from '../../components/admin/shared/FilterBar'
 import ModalHeader from '../../components/admin/shared/ModalHeader'
 import Req from '../../components/shared/Req'
+import NameFields from '../../components/shared/NameFields'
+import { emptyNameParts, formatFullName } from '../../utils/personName'
 
 const filterConfig = {
-  searchKeys: ['id', 'name', 'email'],
+  searchKeys: ['id', 'name', 'email', 'firstName', 'lastName'],
   filters: [
     { key: 'role', label: 'Role' },
     { key: 'department', label: 'Department' },
@@ -21,7 +23,14 @@ const filterConfig = {
   ],
 }
 
-const emptyForm = { name: '', email: '', role: 'Staff', acceptedPolicies: false }
+const emptyForm = {
+  ...emptyNameParts(),
+  email: '',
+  phone: '',
+  role: 'Staff',
+  acceptedPolicies: false,
+}
+
 const emptyTaskForm = {
   title: '',
   priority: 'Medium',
@@ -36,10 +45,12 @@ export default function StaffPage() {
   const [form, setForm] = useState(emptyForm)
   const [saving, setSaving] = useState(false)
   const [selected, setSelected] = useState(null)
+  const [editForm, setEditForm] = useState(null)
   const [tasks, setTasks] = useState([])
   const [tasksLoading, setTasksLoading] = useState(false)
   const [showTaskForm, setShowTaskForm] = useState(false)
   const [taskForm, setTaskForm] = useState(emptyTaskForm)
+  const [successMsg, setSuccessMsg] = useState('')
 
   const loadTasks = async (staff) => {
     if (!staff) {
@@ -59,24 +70,47 @@ export default function StaffPage() {
 
   const openStaff = (row) => {
     setSelected(row)
+    setEditForm({
+      lastName: row.lastName || '',
+      firstName: row.firstName || '',
+      middleInitial: row.middleInitial || '',
+      email: row.email || '',
+      phone: row.phone || '',
+      status: row.status === 'Inactive' ? 'Inactive' : 'Active',
+    })
     loadTasks(row)
   }
 
   const handleSave = async (e) => {
     e.preventDefault()
+    setSuccessMsg('')
+    if (!form.lastName.trim() || !form.firstName.trim()) {
+      alert('Last Name and First Name are required.')
+      return
+    }
     setSaving(true)
     try {
-      const res = await createStaffAccount(form)
-      if (res?.credentialsSent) {
-        alert('Staff account created. Login credentials were emailed via NodeMailer.')
-      } else {
-        alert([
-          'Staff account was created, but the credential email was NOT delivered.',
-          res?.mailError ? `Reason: ${res.mailError}` : '',
-          res?.temporaryPassword ? `Temporary password (share securely): ${res.temporaryPassword}` : '',
-          'Ensure `npm run mail` is running and mail-service/.env has a valid Gmail App Password.',
-        ].filter(Boolean).join('\n\n'))
+      const res = await createStaffAccount({
+        lastName: form.lastName,
+        firstName: form.firstName,
+        middleInitial: form.middleInitial,
+        name: formatFullName(form),
+        email: form.email,
+        phone: form.phone,
+        role: form.role,
+        acceptedPolicies: form.acceptedPolicies,
+      })
+      if (!res?.credentialsSent) {
+        throw new Error(
+          [
+            res?.error || 'Credential email was not sent.',
+            res?.mailError ? `Mail: ${res.mailError}` : '',
+            res?.temporaryPassword ? `Temporary password (share securely): ${res.temporaryPassword}` : '',
+            'Ensure npm run mail is running with a valid Gmail App Password.',
+          ].filter(Boolean).join('\n\n'),
+        )
       }
+      setSuccessMsg(res.message || 'Staff account created and credentials emailed successfully.')
       setShowForm(false)
       setForm(emptyForm)
       reload()
@@ -84,6 +118,44 @@ export default function StaffPage() {
       alert(err.message)
     } finally {
       setSaving(false)
+    }
+  }
+
+  const handleUpdateProfile = async (e) => {
+    e.preventDefault()
+    if (!selected || !editForm) return
+    setSaving(true)
+    try {
+      await updateStaff(selected.dbId, {
+        lastName: editForm.lastName,
+        firstName: editForm.firstName,
+        middleInitial: editForm.middleInitial,
+        email: editForm.email,
+        phone: editForm.phone,
+        status: editForm.status,
+      })
+      setSuccessMsg('Staff profile updated.')
+      reload()
+      setSelected(null)
+    } catch (err) {
+      alert(err.message)
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const toggleStatus = async (row) => {
+    const next = row.status === 'Active' ? 'Inactive' : 'Active'
+    if (!window.confirm(`Set ${row.name} to ${next}?`)) return
+    try {
+      await updateStaff(row.dbId, { status: next })
+      reload()
+      if (selected?.dbId === row.dbId) {
+        setSelected({ ...row, status: next })
+        setEditForm((f) => (f ? { ...f, status: next } : f))
+      }
+    } catch (err) {
+      alert(err.message)
     }
   }
 
@@ -122,9 +194,12 @@ export default function StaffPage() {
       key: 'actions',
       label: 'Actions',
       render: (row) => (
-        <button type="button" className="btn btn--sm btn--outline" onClick={(e) => { e.stopPropagation(); openStaff(row) }}>
-          Manage
-        </button>
+        <div className="table-actions" onClick={(e) => e.stopPropagation()}>
+          <button type="button" className="btn btn--sm btn--outline" onClick={() => openStaff(row)}>Manage</button>
+          <button type="button" className="btn btn--sm btn--ghost" onClick={() => toggleStatus(row)}>
+            {row.status === 'Active' ? 'Deactivate' : 'Activate'}
+          </button>
+        </div>
       ),
     },
   ]
@@ -133,15 +208,20 @@ export default function StaffPage() {
     <>
       <PageHeader
         title="Staff Management"
-        description="Manage Admin and Staff accounts, and assign operational tasks."
-        actions={<button type="button" className="btn btn--primary" onClick={() => setShowForm(true)}>+ Add Staff</button>}
+        description="Create Staff/Admin accounts, email temporary credentials, and manage Active/Inactive status."
+        actions={<button type="button" className="btn btn--primary" onClick={() => { setShowForm(true); setSuccessMsg('') }}>+ Add Staff</button>}
       />
+
+      {successMsg ? (
+        <div className="admin-banner admin-banner--success" role="status">{successMsg}</div>
+      ) : null}
+
       <FilterBar controller={filters} searchPlaceholder="Search by ID, name, or email..." />
       <ApiState loading={loading} error={error} onRetry={reload}>
         <DataTable columns={columns} data={filters.filtered} onRowClick={openStaff} />
       </ApiState>
 
-      {selected && (
+      {selected && editForm && (
         <div className="admin-modal-overlay" onClick={() => setSelected(null)}>
           <div className="admin-modal admin-modal--wide volunteer-manage-modal" onClick={(e) => e.stopPropagation()}>
             <ModalHeader
@@ -151,20 +231,41 @@ export default function StaffPage() {
             />
 
             <section className="volunteer-panel-section">
-              <h3>Staff Information</h3>
-              <dl className="detail-list">
-                <dt>Status</dt><dd><StatusBadge status={selected.status} /></dd>
-                <dt>Role</dt><dd>{selected.role}</dd>
-                <dt>Department</dt><dd>{selected.department}</dd>
-                <dt>Email</dt>
-                <dd>
-                  <span className="volunteer-inline-meta"><Mail size={13} /> {selected.email || '—'}</span>
-                </dd>
-                <dt>Assigned Tasks</dt>
-                <dd>
-                  <span className="volunteer-inline-meta"><ListTodo size={13} /> {tasks.length}</span>
-                </dd>
-              </dl>
+              <h3>Staff Profile</h3>
+              <form onSubmit={handleUpdateProfile}>
+                <NameFields
+                  value={editForm}
+                  onChange={(parts) => setEditForm({ ...editForm, ...parts })}
+                />
+                <div className="form-row">
+                  <label>
+                    <Req required>Email</Req>
+                    <input type="email" required value={editForm.email} onChange={(e) => setEditForm({ ...editForm, email: e.target.value })} />
+                  </label>
+                  <label>
+                    Phone
+                    <input value={editForm.phone} onChange={(e) => setEditForm({ ...editForm, phone: e.target.value })} />
+                  </label>
+                </div>
+                <label>
+                  Account Status
+                  <select value={editForm.status} onChange={(e) => setEditForm({ ...editForm, status: e.target.value })}>
+                    <option value="Active">Active</option>
+                    <option value="Inactive">Inactive</option>
+                  </select>
+                </label>
+                <dl className="detail-list" style={{ marginTop: '0.75rem' }}>
+                  <dt>Role</dt><dd>{selected.role}</dd>
+                  <dt>Department</dt><dd>{selected.department}</dd>
+                  <dt>Email</dt>
+                  <dd><span className="volunteer-inline-meta"><Mail size={13} /> {selected.email || '—'}</span></dd>
+                  <dt>Assigned Tasks</dt>
+                  <dd><span className="volunteer-inline-meta"><ListTodo size={13} /> {tasks.length}</span></dd>
+                </dl>
+                <div className="admin-modal__actions">
+                  <button type="submit" className="btn btn--primary" disabled={saving}>{saving ? 'Saving…' : 'Save Profile'}</button>
+                </div>
+              </form>
             </section>
 
             <section className="volunteer-panel-section">
@@ -177,11 +278,11 @@ export default function StaffPage() {
                 )}
               </div>
               {selected.role !== 'Staff' ? (
-                <p className="beneficiary-view-empty">Task assignment is available for Staff accounts. Admins manage the system.</p>
+                <p className="beneficiary-view-empty">Task assignment is available for Staff accounts.</p>
               ) : tasksLoading ? (
                 <p className="beneficiary-view-empty">Loading tasks…</p>
               ) : tasks.length === 0 ? (
-                <p className="beneficiary-view-empty">No tasks assigned to this staff member yet.</p>
+                <p className="beneficiary-view-empty">No tasks assigned yet.</p>
               ) : (
                 <div className="volunteer-task-list">
                   {tasks.map((t) => (
@@ -193,7 +294,6 @@ export default function StaffPage() {
                       <div className="volunteer-task-card__meta">
                         <span>Priority: {t.priority}</span>
                         <span>Due: {t.due || '—'}</span>
-                        <span>{t.module || 'Operations'}</span>
                         {t.completedAtLabel ? <span>Completed: {t.completedAtLabel}</span> : null}
                       </div>
                     </article>
@@ -201,7 +301,7 @@ export default function StaffPage() {
                 </div>
               )}
               <p className="volunteer-panel-hint">
-                <UserCog size={14} /> Staff mark tasks Done from their Staff Portal → My Tasks.
+                <UserCog size={14} /> Staff mark tasks Done from Staff Portal → My Tasks. First login requires a password change.
               </p>
             </section>
 
@@ -255,12 +355,25 @@ export default function StaffPage() {
 
       {showForm && (
         <div className="admin-modal-overlay" onClick={() => setShowForm(false)}>
-          <div className="admin-modal" onClick={(e) => e.stopPropagation()}>
+          <div className="admin-modal admin-modal--wide" onClick={(e) => e.stopPropagation()}>
             <ModalHeader title="Create Staff Account" onClose={() => setShowForm(false)} />
             <form onSubmit={handleSave}>
-              <label><Req required>Full Name</Req><input required value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} /></label>
-              <label><Req required>Email</Req><input type="email" required value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} /></label>
-              <label><Req required>Role</Req>
+              <NameFields
+                value={form}
+                onChange={(parts) => setForm({ ...form, ...parts })}
+              />
+              <div className="form-row">
+                <label>
+                  <Req required>Email</Req>
+                  <input type="email" required value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} placeholder="staff@email.com" />
+                </label>
+                <label>
+                  Phone
+                  <input value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} placeholder="+63 9xx xxx xxxx" />
+                </label>
+              </div>
+              <label>
+                <Req required>Role</Req>
                 <select required value={form.role} onChange={(e) => setForm({ ...form, role: e.target.value })}>
                   <option value="Staff">Staff</option>
                   <option value="Admin">Admin</option>
@@ -278,10 +391,16 @@ export default function StaffPage() {
                   <Link to="/privacy" target="_blank" rel="noreferrer">Data Privacy Policy</Link>
                   {' '}and{' '}
                   <Link to="/terms" target="_blank" rel="noreferrer">Terms &amp; Conditions</Link>
+                  <Req required />
                 </span>
               </label>
+              <p className="field-hint">
+                Temporary login credentials are emailed via NodeMailer. The staff member must change the password on first login. Success is confirmed only after the email is delivered.
+              </p>
               <div className="admin-modal__actions">
-                <button type="submit" className="btn btn--primary" disabled={saving}>{saving ? 'Creating…' : 'Create Account'}</button>
+                <button type="submit" className="btn btn--primary" disabled={saving}>
+                  {saving ? 'Creating & emailing…' : 'Create & Email Credentials'}
+                </button>
                 <button type="button" className="btn btn--ghost" onClick={() => setShowForm(false)}>Cancel</button>
               </div>
             </form>

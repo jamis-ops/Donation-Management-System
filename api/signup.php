@@ -11,12 +11,21 @@ if (request_method() !== 'POST') {
 $body = read_json_body();
 
 $role = ucfirst(strtolower(trim((string) ($body['role'] ?? ''))));
-$allowedRoles = ['Donor', 'Volunteer', 'Beneficiary'];
+// Donors: created after donation verification. Volunteers: public Volunteer application → Admin approve.
+$allowedRoles = ['Beneficiary'];
 if (!in_array($role, $allowedRoles, true)) {
-  json_response(['ok' => false, 'error' => 'Please choose a valid account type.'], 400);
+  json_response([
+    'ok' => false,
+    'error' => 'Self-registration is only available for Barangay / Beneficiary accounts. Donors submit a donation at /donate; volunteers apply at /volunteer.',
+  ], 400);
 }
 
-$name = trim((string) ($body['name'] ?? ''));
+[$lastName, $firstName, $middleInitial, $name] = read_name_parts([
+  'lastName' => $body['representativeLastName'] ?? $body['representative_last_name'] ?? $body['lastName'] ?? $body['last_name'] ?? '',
+  'firstName' => $body['representativeFirstName'] ?? $body['representative_first_name'] ?? $body['firstName'] ?? $body['first_name'] ?? '',
+  'middleInitial' => $body['representativeMiddleInitial'] ?? $body['representative_middle_initial'] ?? $body['middleInitial'] ?? $body['middle_initial'] ?? '',
+  'name' => $body['name'] ?? $body['representativeName'] ?? '',
+]);
 $email = strtolower(trim((string) ($body['email'] ?? '')));
 $password = (string) ($body['password'] ?? '');
 
@@ -37,12 +46,19 @@ if (email_taken($pdo, $email)) {
 }
 
 $token = generate_verification_token();
+$miDb = $middleInitial !== ''
+  ? strtoupper(substr(preg_replace('/[^a-zA-Z]/', '', $middleInitial) ?: '', 0, 1))
+  : null;
 
 try {
   $pdo->beginTransaction();
 
   // Account starts PENDING and cannot log in until the email is verified.
-  $userId = create_user_account($pdo, $role, $name, $email, $password, 'PENDING');
+  $userId = create_user_account($pdo, $role, $name, $email, $password, 'PENDING', false, [
+    'lastName' => $lastName,
+    'firstName' => $firstName,
+    'middleInitial' => $middleInitial,
+  ]);
   $pdo->prepare('UPDATE users SET verification_token = ?, verification_sent_at = NOW() WHERE id = ?')
     ->execute([$token, $userId]);
   accept_privacy_terms($pdo, $userId);
@@ -63,10 +79,13 @@ try {
     if ($organization !== '' && donor_name_taken($pdo, $name, $organization)) {
       throw new RuntimeException('A donor with the same name or company already exists.');
     }
-    $stmt = $pdo->prepare('INSERT INTO donors (code, full_name, donor_type, organization, contact_person, email, phone, country, address, user_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)');
+    $stmt = $pdo->prepare('INSERT INTO donors (code, full_name, first_name, last_name, middle_initial, donor_type, organization, contact_person, email, phone, country, address, user_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)');
     $stmt->execute([
       generate_code('DNR'),
       $organization !== '' ? $organization : $name,
+      $firstName !== '' ? $firstName : null,
+      $lastName !== '' ? $lastName : null,
+      $miDb,
       $donorType,
       $organization !== '' ? $organization : null,
       $name,
@@ -81,15 +100,26 @@ try {
     if (!is_array($programs)) {
       $programs = [];
     }
-    $stmt = $pdo->prepare('INSERT INTO volunteers (code, full_name, email, programs_json, status, hours, user_id) VALUES (?, ?, ?, ?, ?, ?, ?)');
-    $stmt->execute([generate_code('VOL'), $name, $email, json_encode(array_values($programs)), 'Pending Review', 0, $userId]);
+    $stmt = $pdo->prepare('INSERT INTO volunteers (code, full_name, first_name, last_name, middle_initial, email, programs_json, status, hours, user_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)');
+    $stmt->execute([
+      generate_code('VOL'),
+      $name,
+      $firstName !== '' ? $firstName : null,
+      $lastName !== '' ? $lastName : null,
+      $miDb,
+      $email,
+      json_encode(array_values($programs)),
+      'Pending Review',
+      0,
+      $userId,
+    ]);
   } else { // Beneficiary (Barangay)
     $barangay = trim((string) ($body['barangay'] ?? $name));
     $needs = $body['needs'] ?? [];
     $needsJson = (is_array($needs) && count($needs) > 0)
       ? json_encode(array_values(array_map('strval', $needs)))
       : null;
-    $stmt = $pdo->prepare('INSERT INTO beneficiaries (code, full_name, category, barangay_type, barangay, municipality, address, affected_families, representative_name, representative_position, representative_phone, representative_email, needs, status, user_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)');
+    $stmt = $pdo->prepare('INSERT INTO beneficiaries (code, full_name, category, barangay_type, barangay, municipality, address, affected_families, representative_name, representative_first_name, representative_last_name, representative_middle_initial, representative_position, representative_phone, representative_email, needs, status, user_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)');
     $stmt->execute([
       generate_code('BEN'),
       $barangay,
@@ -100,6 +130,9 @@ try {
       $body['address'] ?? null,
       (int) ($body['affectedFamilies'] ?? 0),
       $name,
+      $firstName !== '' ? $firstName : null,
+      $lastName !== '' ? $lastName : null,
+      $miDb,
       $body['representativePosition'] ?? $body['position'] ?? null,
       $body['phone'] ?? null,
       $email,

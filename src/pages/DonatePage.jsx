@@ -3,6 +3,8 @@ import { Link } from 'react-router-dom'
 import { submitPublicDonation } from '../api/resources'
 import { DONOR_TYPES } from '../constants/options'
 import Req from '../components/shared/Req'
+import NameFields from '../components/shared/NameFields'
+import { emptyNameParts, formatFullName } from '../utils/personName'
 
 const donationTypes = [
   { id: 'monetary', label: 'Monetary Donation' },
@@ -25,7 +27,7 @@ const emptyForm = {
   type: 'monetary',
   donorType: 'Individual',
   organization: '',
-  donorName: '',
+  nameParts: emptyNameParts(),
   email: '',
   phone: '',
   country: '',
@@ -55,6 +57,10 @@ export default function DonatePage() {
       setSubmitError('Company / Organization Name is required.')
       return
     }
+    if (!form.proof) {
+      setSubmitError('Proof of donation is required.')
+      return
+    }
     if (!form.acceptedPolicies) {
       setSubmitError('Please accept the Data Privacy Policy and Terms & Conditions.')
       return
@@ -62,12 +68,16 @@ export default function DonatePage() {
 
     setSubmitting(true)
     try {
+      const fullName = formatFullName(form.nameParts)
       const fd = new FormData()
       fd.append('public', '1')
       fd.append('donorType', form.donorType)
       if (isCompany) fd.append('organization', form.organization)
-      fd.append('donorName', form.donorName)
-      fd.append('contactPerson', form.donorName)
+      fd.append('lastName', form.nameParts.lastName || '')
+      fd.append('firstName', form.nameParts.firstName || '')
+      fd.append('middleInitial', form.nameParts.middleInitial || '')
+      fd.append('donorName', fullName)
+      fd.append('contactPerson', fullName)
       fd.append('email', form.email)
       if (form.phone) fd.append('phone', form.phone)
       if (form.country) fd.append('country', form.country)
@@ -188,28 +198,22 @@ export default function DonatePage() {
                 </label>
               )}
 
-              <div className="form-row">
-                <label>
-                  <Req required>{isCompany ? 'Contact Person' : 'Full Name'}</Req>
-                  <input
-                    type="text"
-                    required
-                    placeholder="Juan dela Cruz"
-                    value={form.donorName}
-                    onChange={(e) => setForm({ ...form, donorName: e.target.value })}
-                  />
-                </label>
-                <label>
-                  <Req required>Email</Req>
-                  <input
-                    type="email"
-                    required
-                    placeholder="you@email.com"
-                    value={form.email}
-                    onChange={(e) => setForm({ ...form, email: e.target.value })}
-                  />
-                </label>
-              </div>
+              <p className="form-section-title">{isCompany ? 'Contact Person' : 'Donor Name'}</p>
+              <NameFields
+                value={form.nameParts}
+                onChange={(nameParts) => setForm({ ...form, nameParts })}
+              />
+
+              <label>
+                <Req required>Email</Req>
+                <input
+                  type="email"
+                  required
+                  placeholder="you@email.com"
+                  value={form.email}
+                  onChange={(e) => setForm({ ...form, email: e.target.value })}
+                />
+              </label>
 
               <div className="form-row">
                 <label>
@@ -282,9 +286,10 @@ export default function DonatePage() {
               )}
 
               <label>
-                Upload Proof of Donation
+                <Req required>Upload Proof of Donation</Req>
                 <input
                   type="file"
+                  required
                   accept="image/*,.pdf"
                   onChange={(e) => setForm({ ...form, proof: e.target.files?.[0] ?? null })}
                 />

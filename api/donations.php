@@ -122,7 +122,10 @@ if ($method === 'POST') {
   $user = $public ? null : require_auth(['Admin', 'Staff']);
 
   $type = (($body['type'] ?? 'Monetary') === 'In-Kind') ? 'In-Kind' : 'Monetary';
-  $contactPerson = trim((string) ($body['contactPerson'] ?? $body['contact_person'] ?? $body['donorName'] ?? $body['donor_name'] ?? ''));
+  [$lastName, $firstName, $middleInitial, $composedName] = read_name_parts($body);
+  $contactPerson = $composedName !== ''
+    ? $composedName
+    : trim((string) ($body['contactPerson'] ?? $body['contact_person'] ?? $body['donorName'] ?? $body['donor_name'] ?? ''));
   $donorEmail = strtolower(trim((string) ($body['email'] ?? $body['donor_email'] ?? '')));
   $donationDate = (string) ($body['donationDate'] ?? $body['donation_date'] ?? date('Y-m-d'));
 
@@ -143,6 +146,9 @@ if ($method === 'POST') {
     : $contactPerson;
   // donations.donor_name prefers contact person; fall back to organization.
   $donorName = $contactPerson !== '' ? $contactPerson : $fullName;
+  $miDb = $middleInitial !== ''
+    ? strtoupper(substr(preg_replace('/[^a-zA-Z]/', '', $middleInitial) ?: '', 0, 1))
+    : null;
 
   if ($donorName === '') {
     json_response(['ok' => false, 'error' => 'Donor name is required'], 400);
@@ -161,6 +167,19 @@ if ($method === 'POST') {
 
   $proof = $isMultipart ? save_donation_proof_upload() : null;
 
+  if ($public) {
+    if (empty($body['acceptedPolicies']) && empty($body['termsAccepted'])) {
+      json_response(['ok' => false, 'error' => 'You must accept the Data Privacy Policy and Terms & Conditions'], 400);
+    }
+    if ($donorEmail === '' || !filter_var($donorEmail, FILTER_VALIDATE_EMAIL)) {
+      json_response(['ok' => false, 'error' => 'A valid email is required'], 400);
+    }
+    if (!$proof) {
+      json_response(['ok' => false, 'error' => 'Proof of donation is required (receipt, bank slip, GCash screenshot, or OR)'], 400);
+    }
+    $status = 'Pending Verification';
+  }
+
   $donorId = null;
   if ($donorEmail !== '') {
     $find = $pdo->prepare('SELECT id FROM donors WHERE email = ? LIMIT 1');
@@ -173,7 +192,8 @@ if ($method === 'POST') {
       if ($public) {
         $upd = $pdo->prepare('
           UPDATE donors
-          SET full_name = ?, donor_type = ?, organization = ?, contact_person = ?,
+          SET full_name = ?, first_name = ?, last_name = ?, middle_initial = ?,
+              donor_type = ?, organization = ?, contact_person = ?,
               phone = COALESCE(NULLIF(?, ""), phone),
               country = COALESCE(NULLIF(?, ""), country),
               address = COALESCE(NULLIF(?, ""), address)
@@ -181,6 +201,9 @@ if ($method === 'POST') {
         ');
         $upd->execute([
           $fullName,
+          $firstName !== '' ? $firstName : null,
+          $lastName !== '' ? $lastName : null,
+          $miDb,
           $donorType,
           $organization !== '' ? $organization : null,
           $contactPerson !== '' ? $contactPerson : null,
@@ -193,12 +216,15 @@ if ($method === 'POST') {
     } elseif ($public) {
       // Create a donor row for public donations so they appear in Admin → Donors.
       $ins = $pdo->prepare('
-        INSERT INTO donors (code, full_name, donor_type, organization, contact_person, email, phone, country, address)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO donors (code, full_name, first_name, last_name, middle_initial, donor_type, organization, contact_person, email, phone, country, address)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       ');
       $ins->execute([
         generate_code('DNR'),
         $fullName,
+        $firstName !== '' ? $firstName : null,
+        $lastName !== '' ? $lastName : null,
+        $miDb,
         $donorType,
         $organization !== '' ? $organization : null,
         $contactPerson !== '' ? $contactPerson : null,
@@ -299,9 +325,30 @@ if ($method === 'PUT') {
   $items = $type === 'In-Kind' ? trim((string) ($body['itemsDescription'] ?? $existing['items_description'])) : null;
   $donationDate = (string) ($body['donationDate'] ?? $existing['donation_date']);
 
+  $becomingVerified = $status === 'Verified' && ($existing['status'] ?? '') !== 'Verified';
+  if ($becomingVerified && empty($existing['proof_path'])) {
+    json_response(['ok' => false, 'error' => 'Cannot approve: proof of donation is required. Ask the donor to resubmit with proof.'], 400);
+  }
+
   $category = array_key_exists('category', $body) ? (trim((string) $body['category']) ?: null) : ($existing['category'] ?? null);
   $update = $pdo->prepare('UPDATE donations SET donor_name = ?, type = ?, category = ?, amount = ?, items_description = ?, status = ?, donation_date = ? WHERE id = ?');
   $update->execute([$donorName, $type, $category, $amount, $items, $status, $donationDate, $id]);
+
+  $accountProvision = null;
+  $inventoryPosted = false;
+  if ($becomingVerified) {
+    $accountProvision = provision_donor_from_donation($pdo, $existing);
+    try {
+      post_donation_to_inventory_packs($pdo, array_merge($existing, [
+        'type' => $type,
+        'category' => $category,
+        'items_description' => $items,
+      ]));
+      $inventoryPosted = ($type === 'In-Kind');
+    } catch (Throwable $e) {
+      error_log('[inventory post] ' . $e->getMessage());
+    }
+  }
 
   $stmt = $pdo->prepare('SELECT * FROM donations WHERE id = ?');
   $stmt->execute([$id]);
@@ -315,11 +362,20 @@ if ($method === 'PUT') {
       'Completed' => 'Delivered',
       default => $status,
     };
+    $note = "Status changed to {$status}.";
+    if ($becomingVerified && !empty($accountProvision['created'])) {
+      $note .= ' Donor portal account created and credentials emailed.';
+    } elseif ($becomingVerified && empty($accountProvision['created']) && empty($accountProvision['error'])) {
+      $note .= ' Existing donor account linked.';
+    }
+    if ($inventoryPosted) {
+      $note .= ' In-kind items posted to inventory as packs.';
+    }
     record_donation_update(
       $pdo,
       (int) $id,
       $stageFromStatus,
-      "Status changed to {$status}.",
+      $note,
       $user ?? current_user()
     );
     notify_admins($pdo, 'status_update', 'Donation status updated', "{$donation['trackingCode']} is now {$status}", '/admin/donations');
@@ -331,12 +387,19 @@ if ($method === 'PUT') {
         "<p>Hello {$existing['donor_name']},</p>"
           . "<p>Your donation <strong>{$existing['tracking_code']}</strong> has been updated to "
           . "<strong>{$status}</strong>.</p>"
-          . "<p>You can track its full progress anytime from your donor portal.</p>"
+          . ($becomingVerified && !empty($accountProvision['created'])
+            ? '<p>A donor portal account was created. Check your email for temporary login credentials, then change your password on first sign-in.</p>'
+            : '<p>You can track its full progress anytime from your donor portal.</p>')
       );
     }
   }
   audit_log($pdo, 'update', 'donation', $existing['tracking_code'], "Updated donation" . ($status !== $existing['status'] ? " (status: {$status})" : ''));
-  json_response(['ok' => true, 'data' => $donation]);
+  json_response([
+    'ok' => true,
+    'data' => $donation,
+    'accountCreated' => !empty($accountProvision['created']),
+    'credentialsSent' => !empty($accountProvision['mail']['sent']),
+  ]);
 }
 
 json_response(['ok' => false, 'error' => 'Method not allowed'], 405);

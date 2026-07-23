@@ -6,16 +6,18 @@ import { useApiList } from '../../hooks/useApiList'
 import { useFilters } from '../../hooks/useFilters'
 import { DONOR_TYPES } from '../../constants/options'
 import Req from '../../components/shared/Req'
+import NameFields from '../../components/shared/NameFields'
 import PageHeader from '../../components/admin/shared/PageHeader'
 import DataTable from '../../components/admin/shared/DataTable'
 import ApiState from '../../components/admin/shared/ApiState'
 import FilterBar from '../../components/admin/shared/FilterBar'
 import ModalHeader from '../../components/admin/shared/ModalHeader'
+import { emptyNameParts, formatFullName, parseFullName } from '../../utils/personName'
 
 const emptyForm = {
   donorType: 'Individual',
   organization: '',
-  contactPerson: '',
+  nameParts: emptyNameParts(),
   email: '',
   phone: '',
   country: '',
@@ -67,10 +69,18 @@ export default function DonorsPage() {
 
   const openEdit = (row) => {
     setActive(row)
+    const hasParts = Boolean(row.lastName || row.firstName)
+    const nameParts = hasParts
+      ? {
+          lastName: row.lastName || '',
+          firstName: row.firstName || '',
+          middleInitial: row.middleInitial || '',
+        }
+      : parseFullName(row.contactPerson || row.fullName || '')
     setForm({
       donorType: row.donorType === 'Company' ? 'Company' : 'Individual',
       organization: row.organization || '',
-      contactPerson: row.contactPerson || row.fullName || '',
+      nameParts,
       email: row.email || '',
       phone: row.phone || '',
       country: row.country || '',
@@ -90,11 +100,15 @@ export default function DonorsPage() {
     }
     setSaving(true)
     try {
+      const contactPerson = formatFullName(form.nameParts)
       const payload = {
         donorType: form.donorType,
         organization: isCompany ? form.organization : '',
-        contactPerson: form.contactPerson,
-        fullName: isCompany ? (form.organization || form.contactPerson) : form.contactPerson,
+        lastName: form.nameParts.lastName,
+        firstName: form.nameParts.firstName,
+        middleInitial: form.nameParts.middleInitial,
+        contactPerson,
+        fullName: isCompany ? (form.organization || contactPerson) : contactPerson,
         email: form.email,
         phone: form.phone,
         country: form.country,
@@ -261,27 +275,21 @@ export default function DonorsPage() {
                 </label>
               )}
 
-              <div className="form-row">
-                <label>
-                  <Req required>{isCompany ? 'Contact Person' : 'Full Name'}</Req>
-                  <input
-                    required
-                    value={form.contactPerson}
-                    onChange={(e) => setForm({ ...form, contactPerson: e.target.value })}
-                    placeholder="Juan dela Cruz"
-                  />
-                </label>
-                <label>
-                  <Req required>Email</Req>
-                  <input
-                    type="email"
-                    required
-                    value={form.email}
-                    onChange={(e) => setForm({ ...form, email: e.target.value })}
-                    placeholder="donor@email.com"
-                  />
-                </label>
-              </div>
+              <p className="form-section-title">{isCompany ? 'Contact Person' : 'Donor Name'}</p>
+              <NameFields
+                value={form.nameParts}
+                onChange={(nameParts) => setForm({ ...form, nameParts })}
+              />
+              <label>
+                <Req required>Email</Req>
+                <input
+                  type="email"
+                  required
+                  value={form.email}
+                  onChange={(e) => setForm({ ...form, email: e.target.value })}
+                  placeholder="donor@email.com"
+                />
+              </label>
               <div className="form-row">
                 <label>
                   Contact Number

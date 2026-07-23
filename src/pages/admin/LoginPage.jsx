@@ -31,6 +31,10 @@ export default function LoginPage() {
         setError('This login is for Admin accounts only. Use the main login for other roles.')
         return
       }
+      if (result.user?.mustChangePassword) {
+        navigate('/change-password', { replace: true })
+        return
+      }
       navigate(from, { replace: true })
     } catch (err) {
       setError(err.message || 'Login failed')

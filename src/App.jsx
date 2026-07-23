@@ -21,6 +21,7 @@ import PrivacyPolicyPage from './pages/PrivacyPolicyPage'
 import TermsPage from './pages/TermsPage'
 import UserLoginPage from './pages/LoginPage'
 import RegisterPage from './pages/RegisterPage'
+import ChangePasswordPage from './pages/ChangePasswordPage'
 import VerifiedPage from './pages/VerifiedPage'
 
 // Admin pages
@@ -37,6 +38,7 @@ import StaffPage from './pages/admin/StaffPage'
 import ReportsPage from './pages/admin/ReportsPage'
 import CertificatesPage from './pages/admin/CertificatesPage'
 import ContentPage from './pages/admin/ContentPage'
+import AccountSettingsPage from './pages/AccountSettingsPage'
 
 // Role portals
 import DonorDashboard from './portals/donor/DonorDashboard'
@@ -75,6 +77,7 @@ function LegacyVerifyRedirect() {
 const router = createBrowserRouter([
   { path: 'login', element: <UserLoginPage /> },
   { path: 'register', element: <RegisterPage /> },
+  { path: 'change-password', element: <ChangePasswordPage /> },
   { path: 'verified', element: <VerifiedPage /> },
   {
     // Legacy email links that pointed at /verify?token=… — forward to the API verifier.
@@ -119,6 +122,7 @@ const router = createBrowserRouter([
       { path: 'reports', element: <ReportsPage /> },
       { path: 'certificates', element: <CertificatesPage /> },
       { path: 'content', element: <ContentPage /> },
+      { path: 'settings', element: <AccountSettingsPage /> },
     ],
   },
   {
@@ -132,6 +136,7 @@ const router = createBrowserRouter([
       { index: true, element: <DonorDashboard /> },
       { path: 'donations', element: <DonorDonationsPage /> },
       { path: 'certificates', element: <DonorCertificatesPage /> },
+      { path: 'settings', element: <AccountSettingsPage /> },
     ],
   },
   {
@@ -147,6 +152,7 @@ const router = createBrowserRouter([
       { path: 'schedule', element: <VolunteerSchedulePage /> },
       { path: 'hours', element: <VolunteerHoursPage /> },
       { path: 'certificates', element: <VolunteerCertificatesPage /> },
+      { path: 'settings', element: <AccountSettingsPage /> },
     ],
   },
   {
@@ -162,6 +168,7 @@ const router = createBrowserRouter([
       { path: 'distributions', element: <BeneficiaryDistributionsPage /> },
       { path: 'proofs', element: <BeneficiaryProofsPage /> },
       { path: 'history', element: <BeneficiaryHistoryPage /> },
+      { path: 'settings', element: <AccountSettingsPage /> },
     ],
   },
   {
@@ -177,6 +184,7 @@ const router = createBrowserRouter([
       { path: 'inventory', element: <StaffInventoryPage /> },
       { path: 'distributions', element: <StaffDistributionsPage /> },
       { path: 'tasks', element: <StaffTasksPage /> },
+      { path: 'settings', element: <AccountSettingsPage /> },
     ],
   },
   { path: '*', element: <Navigate to="/" replace /> },

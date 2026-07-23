@@ -1,7 +1,7 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
-import { HeartHandshake, UserCheck, Users, Package, Truck, ListTodo } from 'lucide-react'
-import { getDashboard } from '../../api/resources'
+import { HeartHandshake, UserCheck, Users, Package, Truck, UserCog } from 'lucide-react'
+import { getDashboard, needsStockApi } from '../../api/resources'
 import { useApiObject } from '../../hooks/useApiList'
 import PageHeader from '../../components/admin/shared/PageHeader'
 import ApiState from '../../components/admin/shared/ApiState'
@@ -22,7 +22,7 @@ const quickActions = [
   { to: '/admin/beneficiaries', icon: Users, title: 'Approve Beneficiaries' },
   { to: '/admin/inventory', icon: Package, title: 'Check Inventory' },
   { to: '/admin/distributions', icon: Truck, title: 'Plan Distribution' },
-  { to: '/admin/tasks', icon: ListTodo, title: 'View Tasks' },
+  { to: '/admin/staff', icon: UserCog, title: 'Manage Staff' },
 ]
 
 function ChartEmpty({ message }) {
@@ -32,6 +32,11 @@ function ChartEmpty({ message }) {
 export default function DashboardPage() {
   const { data, loading, error, reload } = useApiObject(() => getDashboard())
   const [gran, setGran] = useState('month')
+  const [needs, setNeeds] = useState(null)
+
+  useEffect(() => {
+    needsStockApi.get().then((res) => setNeeds(res.data)).catch(() => setNeeds(null))
+  }, [data])
 
   const charts = data?.charts || {}
   const trend = charts.trend?.[gran] || charts.monthlyTrend || []
@@ -164,13 +169,35 @@ export default function DashboardPage() {
 
               <section className="admin-panel admin-panel--chart">
                 {flowComparison.length > 0 ? (
-                  <BarChart title="Donations vs. Distribution vs. Need" data={flowComparison} />
+                  <BarChart title="Available vs Allocated vs Distributed (packs)" data={flowComparison} />
                 ) : (
                   <>
-                    <h3 className="admin-chart__title">Donations vs. Distribution vs. Need</h3>
+                    <h3 className="admin-chart__title">Available vs Allocated vs Distributed</h3>
                     <ChartEmpty message="No inventory movement recorded yet." />
                   </>
                 )}
+              </section>
+
+              <section className="admin-panel admin-panel--chart">
+                <h3 className="admin-chart__title">Needs vs Available Stock</h3>
+                {needs?.comparison?.length ? (
+                  <ul className="needs-vs-stock-list">
+                    {needs.comparison.slice(0, 8).map((row) => (
+                      <li key={row.key} className={`needs-vs-stock-list__item needs-vs-stock-list__item--${row.indicator}`}>
+                        <div className="needs-vs-stock-list__head">
+                          <strong>{row.label}</strong>
+                          <span>{row.indicator}</span>
+                        </div>
+                        <span>Need {row.requested} · Stock {row.available} {row.unit} · Gap {row.gap}</span>
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <ChartEmpty message="No needs or inventory to compare yet." />
+                )}
+                <Link to="/admin/allocation" className="btn btn--sm btn--outline" style={{ marginTop: '0.75rem' }}>
+                  Open Allocation
+                </Link>
               </section>
 
               <section className="admin-panel admin-panel--chart">

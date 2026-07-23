@@ -5,6 +5,7 @@ import { useApiList } from '../../hooks/useApiList'
 import { NEEDS, BARANGAY_TYPES, REPRESENTATIVE_POSITIONS } from '../../constants/options'
 import { MUNICIPALITIES, barangaysForMunicipality } from '../../constants/locations'
 import Req from '../../components/shared/Req'
+import NameFields from '../../components/shared/NameFields'
 import { useFilters } from '../../hooks/useFilters'
 import PageHeader from '../../components/admin/shared/PageHeader'
 import DataTable from '../../components/admin/shared/DataTable'
@@ -13,6 +14,7 @@ import ApiState from '../../components/admin/shared/ApiState'
 import FilterBar from '../../components/admin/shared/FilterBar'
 import AdminProofReview from '../../components/admin/shared/AdminProofReview'
 import ModalHeader from '../../components/admin/shared/ModalHeader'
+import { emptyNameParts, formatFullName, parseFullName } from '../../utils/personName'
 
 const STATUS_OPTIONS = ['Pending Approval', 'Approved', 'Active', 'Suspended']
 const PRIORITY_OPTIONS = ['Low', 'Medium', 'High']
@@ -46,7 +48,7 @@ const emptyForm = {
   address: '',
   affectedFamilies: '',
   needs: [],
-  representativeName: '',
+  nameParts: emptyNameParts(),
   representativePosition: '',
   representativePhone: '',
   representativeEmail: '',
@@ -55,6 +57,14 @@ const emptyForm = {
 }
 
 function formFromRow(row) {
+  const hasParts = Boolean(row.representativeLastName || row.representativeFirstName)
+  const nameParts = hasParts
+    ? {
+        lastName: row.representativeLastName || '',
+        firstName: row.representativeFirstName || '',
+        middleInitial: row.representativeMiddleInitial || '',
+      }
+    : parseFullName(row.representativeName || '')
   return {
     barangay: row.barangay || row.name || '',
     barangayType: row.barangayType || '',
@@ -62,7 +72,7 @@ function formFromRow(row) {
     address: row.address || '',
     affectedFamilies: row.affectedFamilies ?? '',
     needs: Array.isArray(row.needs) ? row.needs : [],
-    representativeName: row.representativeName || '',
+    nameParts,
     representativePosition: row.representativePosition || '',
     representativePhone: row.representativePhone || '',
     representativeEmail: row.representativeEmail || '',
@@ -136,6 +146,7 @@ export default function BeneficiariesPage() {
     e.preventDefault()
     setSaving(true)
     try {
+      const representativeName = formatFullName(form.nameParts)
       const payload = {
         barangay: form.barangay,
         barangayType: form.barangayType,
@@ -143,7 +154,10 @@ export default function BeneficiariesPage() {
         address: form.address,
         affectedFamilies: Number(form.affectedFamilies) || 0,
         needs: form.needs,
-        representativeName: form.representativeName,
+        representativeLastName: form.nameParts.lastName,
+        representativeFirstName: form.nameParts.firstName,
+        representativeMiddleInitial: form.nameParts.middleInitial,
+        representativeName,
         representativePosition: form.representativePosition,
         representativePhone: form.representativePhone,
         representativeEmail: form.representativeEmail,
@@ -514,22 +528,20 @@ export default function BeneficiariesPage() {
                 </div>
               </fieldset>
               <p className="form-section-title">Representative Information</p>
-              <div className="form-row">
-                <label>
-                  <Req required>Representative Full Name</Req>
-                  <input required value={form.representativeName} onChange={(e) => setForm({ ...form, representativeName: e.target.value })} placeholder="Representative full name" />
-                </label>
-                <label>
-                  <Req required>Position / Role</Req>
-                  <select required value={form.representativePosition} onChange={(e) => setForm({ ...form, representativePosition: e.target.value })}>
-                    <option value="">Select position…</option>
-                    {REPRESENTATIVE_POSITIONS.map((p) => <option key={p} value={p}>{p}</option>)}
-                    {form.representativePosition && !REPRESENTATIVE_POSITIONS.includes(form.representativePosition) && (
-                      <option value={form.representativePosition}>{form.representativePosition}</option>
-                    )}
-                  </select>
-                </label>
-              </div>
+              <NameFields
+                value={form.nameParts}
+                onChange={(nameParts) => setForm({ ...form, nameParts })}
+              />
+              <label>
+                <Req required>Position / Role</Req>
+                <select required value={form.representativePosition} onChange={(e) => setForm({ ...form, representativePosition: e.target.value })}>
+                  <option value="">Select position…</option>
+                  {REPRESENTATIVE_POSITIONS.map((p) => <option key={p} value={p}>{p}</option>)}
+                  {form.representativePosition && !REPRESENTATIVE_POSITIONS.includes(form.representativePosition) && (
+                    <option value={form.representativePosition}>{form.representativePosition}</option>
+                  )}
+                </select>
+              </label>
               <div className="form-row">
                 <label>
                   <Req required>Contact Number</Req>

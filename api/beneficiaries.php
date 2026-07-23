@@ -36,6 +36,9 @@ function map_beneficiary(PDO $pdo, array $row): array
     'address' => $row['address'] ?? '',
     'affectedFamilies' => (int) ($row['affected_families'] ?? 0),
     'representativeName' => $row['representative_name'] ?? '',
+    'representativeFirstName' => $row['representative_first_name'] ?? '',
+    'representativeLastName' => $row['representative_last_name'] ?? '',
+    'representativeMiddleInitial' => $row['representative_middle_initial'] ?? '',
     'representativePosition' => $row['representative_position'] ?? '',
     'representativePhone' => $row['representative_phone'] ?? '',
     'representativeEmail' => $row['representative_email'] ?? '',
@@ -96,9 +99,18 @@ if ($method === 'POST') {
   $needsArr = is_array($body['needs'] ?? null) ? array_values(array_map('strval', $body['needs'])) : [];
   // The "Category" now represents the beneficiary's needs.
   $category = count($needsArr) > 0 ? implode(', ', $needsArr) : ($body['category'] ?? null);
+  [$repLast, $repFirst, $repMi, $repName] = read_name_parts([
+    'lastName' => $body['representativeLastName'] ?? $body['representative_last_name'] ?? $body['lastName'] ?? '',
+    'firstName' => $body['representativeFirstName'] ?? $body['representative_first_name'] ?? $body['firstName'] ?? '',
+    'middleInitial' => $body['representativeMiddleInitial'] ?? $body['representative_middle_initial'] ?? $body['middleInitial'] ?? '',
+    'name' => $body['representativeName'] ?? $body['representative_name'] ?? '',
+  ]);
+  $repMiDb = $repMi !== ''
+    ? strtoupper(substr(preg_replace('/[^a-zA-Z]/', '', $repMi) ?: '', 0, 1))
+    : null;
   $stmt = $pdo->prepare('
-    INSERT INTO beneficiaries (code, full_name, category, barangay_type, barangay, municipality, address, affected_families, representative_name, representative_position, representative_phone, representative_email, needs, notes, status)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    INSERT INTO beneficiaries (code, full_name, category, barangay_type, barangay, municipality, address, affected_families, representative_name, representative_first_name, representative_last_name, representative_middle_initial, representative_position, representative_phone, representative_email, needs, notes, status)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   ');
   $stmt->execute([
     $code,
@@ -109,7 +121,10 @@ if ($method === 'POST') {
     $body['municipality'] ?? null,
     $body['address'] ?? null,
     (int) ($body['affectedFamilies'] ?? 0),
-    $body['representativeName'] ?? null,
+    $repName !== '' ? $repName : null,
+    $repFirst !== '' ? $repFirst : null,
+    $repLast !== '' ? $repLast : null,
+    $repMiDb,
     $body['representativePosition'] ?? null,
     $body['representativePhone'] ?? null,
     $body['representativeEmail'] ?? null,
@@ -149,9 +164,30 @@ if ($method === 'PUT') {
     $category = $body['category'] ?? $existing['category'];
   }
 
+  $hasRepParts = array_key_exists('representativeLastName', $body) || array_key_exists('representativeFirstName', $body)
+    || array_key_exists('representative_last_name', $body) || array_key_exists('lastName', $body)
+    || array_key_exists('firstName', $body);
+  if ($hasRepParts) {
+    [$repLast, $repFirst, $repMi, $repName] = read_name_parts([
+      'lastName' => $body['representativeLastName'] ?? $body['representative_last_name'] ?? $body['lastName'] ?? '',
+      'firstName' => $body['representativeFirstName'] ?? $body['representative_first_name'] ?? $body['firstName'] ?? '',
+      'middleInitial' => $body['representativeMiddleInitial'] ?? $body['representative_middle_initial'] ?? $body['middleInitial'] ?? '',
+      'name' => $body['representativeName'] ?? $body['representative_name'] ?? '',
+    ]);
+  } else {
+    $repLast = trim((string) ($existing['representative_last_name'] ?? ''));
+    $repFirst = trim((string) ($existing['representative_first_name'] ?? ''));
+    $repMi = trim((string) ($existing['representative_middle_initial'] ?? ''));
+    $repName = trim((string) ($body['representativeName'] ?? $existing['representative_name'] ?? ''));
+  }
+  $repMiDb = $repMi !== ''
+    ? strtoupper(substr(preg_replace('/[^a-zA-Z]/', '', $repMi) ?: '', 0, 1))
+    : null;
+
   $update = $pdo->prepare('
     UPDATE beneficiaries SET full_name = ?, category = ?, barangay_type = ?, barangay = ?, municipality = ?, address = ?, affected_families = ?,
-    representative_name = ?, representative_position = ?, representative_phone = ?, representative_email = ?, needs = ?, notes = ?, status = ?
+    representative_name = ?, representative_first_name = ?, representative_last_name = ?, representative_middle_initial = ?,
+    representative_position = ?, representative_phone = ?, representative_email = ?, needs = ?, notes = ?, status = ?
     WHERE id = ?
   ');
   $update->execute([
@@ -162,7 +198,10 @@ if ($method === 'PUT') {
     $body['municipality'] ?? $existing['municipality'],
     $body['address'] ?? $existing['address'],
     (int) ($body['affectedFamilies'] ?? $existing['affected_families']),
-    $body['representativeName'] ?? $existing['representative_name'],
+    $repName !== '' ? $repName : ($existing['representative_name'] ?? null),
+    $repFirst !== '' ? $repFirst : null,
+    $repLast !== '' ? $repLast : null,
+    $repMiDb,
     $body['representativePosition'] ?? ($existing['representative_position'] ?? null),
     $body['representativePhone'] ?? $existing['representative_phone'],
     $body['representativeEmail'] ?? $existing['representative_email'],

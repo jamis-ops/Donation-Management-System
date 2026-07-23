@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Clock3, ListTodo, Mail, UserCheck } from 'lucide-react'
-import { volunteersApi, tasksApi } from '../../api/resources'
+import { volunteersApi, tasksApi, volunteerMatchApi } from '../../api/resources'
 import { useApiList } from '../../hooks/useApiList'
 import { useFilters } from '../../hooks/useFilters'
 import PageHeader from '../../components/admin/shared/PageHeader'
@@ -10,6 +10,7 @@ import ApiState from '../../components/admin/shared/ApiState'
 import FilterBar from '../../components/admin/shared/FilterBar'
 import ModalHeader from '../../components/admin/shared/ModalHeader'
 import Req from '../../components/shared/Req'
+import SkillTagPicker from '../../components/shared/SkillTagPicker'
 
 const filterConfig = {
   searchKeys: ['id', 'name', 'email'],
@@ -33,6 +34,7 @@ const emptyTaskForm = {
   dutyEnd: '',
   dutyHours: '',
   module: 'Volunteer',
+  requiredSkills: [],
 }
 
 export default function VolunteersPage() {
@@ -45,6 +47,8 @@ export default function VolunteersPage() {
   const [taskForm, setTaskForm] = useState(emptyTaskForm)
   const [saving, setSaving] = useState(false)
   const [hoursForm, setHoursForm] = useState({ hours: 0, requiredHours: 0 })
+  const [suggestions, setSuggestions] = useState([])
+  const [suggestionsLoading, setSuggestionsLoading] = useState(false)
 
   const loadTasks = async (volunteer) => {
     if (!volunteer) {
@@ -80,8 +84,28 @@ export default function VolunteersPage() {
   }
 
   const handleApprove = async (row) => {
-    await volunteersApi.update(row.dbId, { status: 'Approved' })
-    reload()
+    try {
+      const res = await volunteersApi.update(row.dbId, { status: 'Approved' })
+      if (res?.accountCreated || res?.credentialsSent) {
+        if (res.credentialsSent) {
+          alert('Volunteer approved. Login credentials were emailed via NodeMailer.')
+        } else {
+          alert([
+            'Volunteer approved and account was created, but the credential email was NOT delivered.',
+            res?.mailError ? `Reason: ${res.mailError}` : '',
+            res?.temporaryPassword ? `Temporary password (share securely): ${res.temporaryPassword}` : '',
+            'Ensure `npm run mail` is running and mail-service/.env has a valid Gmail App Password.',
+          ].filter(Boolean).join('\n\n'))
+        }
+      } else if (res?.mailError) {
+        alert(`Volunteer approved, but account provisioning note: ${res.mailError}`)
+      } else {
+        alert('Volunteer approved.')
+      }
+      reload()
+    } catch (err) {
+      alert(err.message || 'Failed to approve volunteer')
+    }
   }
 
   const handleSaveHours = async (e) => {
@@ -101,9 +125,37 @@ export default function VolunteersPage() {
     }
   }
 
-  const handleCreateTask = async (e) => {
-    e.preventDefault()
-    if (!selected) return
+  const loadSuggestions = async (skills, volunteer) => {
+    if (!skills?.length) {
+      setSuggestions([])
+      return
+    }
+    setSuggestionsLoading(true)
+    try {
+      const res = await volunteerMatchApi.suggest({
+        skills,
+        programs: volunteer?.programs || [],
+        availability: volunteer?.availability || '',
+        limit: 5,
+      })
+      setSuggestions(Array.isArray(res.data) ? res.data : [])
+    } catch {
+      setSuggestions([])
+    } finally {
+      setSuggestionsLoading(false)
+    }
+  }
+
+  const openAssignTask = () => {
+    setTaskForm(emptyTaskForm)
+    setSuggestions([])
+    setShowTaskForm(true)
+  }
+
+  const handleCreateTask = async (e, assigneeVolunteerId = null) => {
+    if (e?.preventDefault) e.preventDefault()
+    if (!selected && !assigneeVolunteerId) return
+    const volunteerId = assigneeVolunteerId || selected.dbId
     setSaving(true)
     try {
       await tasksApi.create({
@@ -114,13 +166,18 @@ export default function VolunteersPage() {
         dutyEnd: taskForm.dutyEnd || null,
         dutyHours: taskForm.dutyHours !== '' ? Number(taskForm.dutyHours) : null,
         module: taskForm.module || 'Volunteer',
-        volunteerId: selected.dbId,
+        requiredSkills: taskForm.requiredSkills || [],
+        volunteerId,
         boardColumn: 'todo',
       })
       setShowTaskForm(false)
       setTaskForm(emptyTaskForm)
-      loadTasks(selected)
+      setSuggestions([])
+      if (selected) loadTasks(selected)
       reload()
+      if (assigneeVolunteerId && selected && assigneeVolunteerId !== selected.dbId) {
+        alert('Task assigned to the selected suggested volunteer.')
+      }
     } catch (err) {
       alert(err.message)
     } finally {
@@ -219,6 +276,12 @@ export default function VolunteersPage() {
                   <span className="volunteer-inline-meta"><Mail size={13} /> {selected.email || '—'}</span>
                 </dd>
                 <dt>Programs</dt><dd>{(selected.programs || []).join(', ') || '—'}</dd>
+                <dt>Skills</dt>
+                <dd>
+                  {(selected.skills || []).join(', ') || '—'}
+                  {selected.skillsOther ? ` · Other: ${selected.skillsOther}` : ''}
+                </dd>
+                <dt>Availability</dt><dd>{selected.availability || '—'}</dd>
                 <dt>Assigned Tasks</dt><dd>{selected.assignedTasks || tasks.length}</dd>
               </dl>
 
@@ -250,7 +313,7 @@ export default function VolunteersPage() {
             <section className="volunteer-panel-section">
               <div className="volunteer-panel-section__head">
                 <h3>Assigned Tasks</h3>
-                <button type="button" className="btn btn--sm btn--primary" onClick={() => setShowTaskForm(true)}>
+                <button type="button" className="btn btn--sm btn--primary" onClick={openAssignTask}>
                   + Assign Task
                 </button>
               </div>
@@ -270,6 +333,9 @@ export default function VolunteersPage() {
                         <span>Priority: {t.priority}</span>
                         <span>Due: {t.due || '—'}</span>
                         {t.dutyLabel ? <span>Duty: {t.dutyLabel}</span> : null}
+                        {(t.requiredSkills || []).length ? (
+                          <span>Skills: {(t.requiredSkills || []).join(', ')}</span>
+                        ) : null}
                         {t.completedAtLabel ? <span>Completed: {t.completedAtLabel}</span> : null}
                       </div>
                     </article>
@@ -290,9 +356,9 @@ export default function VolunteersPage() {
 
       {showTaskForm && selected && (
         <div className="admin-modal-overlay" onClick={() => setShowTaskForm(false)}>
-          <div className="admin-modal" onClick={(e) => e.stopPropagation()}>
+          <div className="admin-modal admin-modal--wide" onClick={(e) => e.stopPropagation()}>
             <ModalHeader title={`Assign Task — ${selected.name}`} onClose={() => setShowTaskForm(false)} />
-            <form onSubmit={handleCreateTask}>
+            <form onSubmit={(e) => handleCreateTask(e)}>
               <label>
                 <Req required>Task Title</Req>
                 <input required value={taskForm.title} onChange={(e) => setTaskForm({ ...taskForm, title: e.target.value })} />
@@ -332,8 +398,58 @@ export default function VolunteersPage() {
                   onChange={(e) => setTaskForm({ ...taskForm, dutyHours: e.target.value })}
                 />
               </label>
+
+              <SkillTagPicker
+                label="Required skills for this task"
+                value={taskForm.requiredSkills}
+                showOther={false}
+                onChange={(requiredSkills) => {
+                  setTaskForm({ ...taskForm, requiredSkills })
+                  loadSuggestions(requiredSkills, selected)
+                }}
+              />
+
+              <section className="suggested-volunteers">
+                <div className="suggested-volunteers__head">
+                  <h4>Suggested volunteers</h4>
+                  <span>Ranked by skill match · programs · availability · lighter workload</span>
+                </div>
+                {!taskForm.requiredSkills.length ? (
+                  <p className="beneficiary-view-empty">Select required skills to see top matches.</p>
+                ) : suggestionsLoading ? (
+                  <p className="beneficiary-view-empty">Finding matches…</p>
+                ) : suggestions.length === 0 ? (
+                  <p className="beneficiary-view-empty">No active volunteers matched these skills yet.</p>
+                ) : (
+                  <ul className="suggested-volunteers__list">
+                    {suggestions.map((s) => (
+                      <li key={s.dbId} className={`suggested-volunteers__item${s.dbId === selected.dbId ? ' suggested-volunteers__item--current' : ''}`}>
+                        <div>
+                          <strong>{s.name}</strong>
+                          {s.dbId === selected.dbId ? <span className="suggested-volunteers__badge">Current</span> : null}
+                          <p>{s.whyMatched}</p>
+                        </div>
+                        <button
+                          type="button"
+                          className="btn btn--sm btn--outline"
+                          disabled={saving || !taskForm.title || !taskForm.dutyHours}
+                          onClick={() => handleCreateTask(null, s.dbId)}
+                        >
+                          Assign
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+                <p className="suggested-volunteers__hint">
+                  Suggestions help you choose — you still confirm Assign. Default button below assigns to <strong>{selected.name}</strong>.
+                </p>
+              </section>
+
               <div className="admin-modal__actions">
-                <button type="submit" className="btn btn--primary" disabled={saving}>{saving ? 'Saving…' : 'Assign Task'}</button>
+                <button type="submit" className="btn btn--primary" disabled={saving}>
+                  {saving ? 'Saving…' : `Assign to ${selected.name}`}
+                </button>
                 <button type="button" className="btn btn--ghost" onClick={() => setShowTaskForm(false)}>Cancel</button>
               </div>
             </form>

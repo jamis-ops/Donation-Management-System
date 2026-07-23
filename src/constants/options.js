@@ -55,3 +55,17 @@ export const REPRESENTATIVE_POSITIONS = [
   'DRRM Officer',
   'Representative',
 ]
+
+/** Controlled skill tags for RAF Cebu volunteer matching. */
+export const VOLUNTEER_SKILLS = [
+  'Packing / Repacking',
+  'Logistics / Driving',
+  'First Aid',
+  'Teaching / Tutoring',
+  'Medical / Dental support',
+  'Construction',
+  'Cooking / Food prep',
+  'Translation (Cebuano/English)',
+  'Documentation / Photo',
+  'Community outreach',
+]

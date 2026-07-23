@@ -30,6 +30,9 @@ function map_donor(PDO $pdo, array $row): array
     'dbId' => (int) $row['id'],
     'name' => donor_display_name($row),
     'fullName' => $row['full_name'] ?? '',
+    'firstName' => $row['first_name'] ?? '',
+    'lastName' => $row['last_name'] ?? '',
+    'middleInitial' => $row['middle_initial'] ?? '',
     'donorType' => $row['donor_type'] ?? 'Individual',
     'organization' => $row['organization'] ?? '',
     'contactPerson' => $row['contact_person'] ?? '',
@@ -88,7 +91,18 @@ function read_donor_fields(array $body, ?array $existing = null): array
     : 'Individual';
 
   $organization = trim((string) ($body['organization'] ?? $body['company'] ?? ($existing['organization'] ?? '')));
-  $contactPerson = trim((string) ($body['contactPerson'] ?? $body['contact_person'] ?? ($existing['contact_person'] ?? '')));
+  [$lastName, $firstName, $middleInitial, $composed] = read_name_parts($body);
+  if ($lastName === '' && $firstName === '' && $existing) {
+    $lastName = trim((string) ($existing['last_name'] ?? ''));
+    $firstName = trim((string) ($existing['first_name'] ?? ''));
+    $middleInitial = trim((string) ($existing['middle_initial'] ?? ''));
+    if ($lastName !== '' || $firstName !== '') {
+      $composed = format_full_name($lastName, $firstName, $middleInitial);
+    }
+  }
+  $contactPerson = $composed !== ''
+    ? $composed
+    : trim((string) ($body['contactPerson'] ?? $body['contact_person'] ?? ($existing['contact_person'] ?? '')));
   $fullName = trim((string) ($body['fullName'] ?? $body['name'] ?? $body['full_name'] ?? ($existing['full_name'] ?? '')));
   $email = strtolower(trim((string) ($body['email'] ?? ($existing['email'] ?? ''))));
   $phone = trim((string) ($body['phone'] ?? $body['contactNumber'] ?? ($existing['phone'] ?? '')));
@@ -116,7 +130,11 @@ function read_donor_fields(array $body, ?array $existing = null): array
     }
   }
 
-  return compact('donorType', 'fullName', 'organization', 'contactPerson', 'email', 'phone', 'country', 'address', 'notes');
+  $miDb = $middleInitial !== ''
+    ? strtoupper(substr(preg_replace('/[^a-zA-Z]/', '', $middleInitial) ?: '', 0, 1))
+    : null;
+
+  return compact('donorType', 'fullName', 'organization', 'contactPerson', 'email', 'phone', 'country', 'address', 'notes', 'firstName', 'lastName', 'middleInitial', 'miDb');
 }
 
 require_auth(['Admin', 'Staff']);
@@ -171,19 +189,26 @@ if ($method === 'POST') {
     if ($createAccount) {
       $tempPassword = generate_temp_password();
       $displayName = $fields['contactPerson'] !== '' ? $fields['contactPerson'] : $fields['fullName'];
-      $userId = create_user_account($pdo, 'Donor', $displayName, $fields['email'], $tempPassword, 'ACTIVE');
+      $userId = create_user_account($pdo, 'Donor', $displayName, $fields['email'], $tempPassword, 'ACTIVE', false, [
+        'lastName' => $fields['lastName'],
+        'firstName' => $fields['firstName'],
+        'middleInitial' => $fields['middleInitial'],
+      ]);
       $pdo->prepare('UPDATE users SET email_verified_at = NOW() WHERE id = ?')->execute([$userId]);
       accept_privacy_terms($pdo, $userId);
     }
 
     $code = generate_code('DNR');
     $stmt = $pdo->prepare('
-      INSERT INTO donors (code, full_name, donor_type, organization, contact_person, email, phone, country, address, notes, user_id)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO donors (code, full_name, first_name, last_name, middle_initial, donor_type, organization, contact_person, email, phone, country, address, notes, user_id)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     ');
     $stmt->execute([
       $code,
       $fields['fullName'],
+      $fields['firstName'] !== '' ? $fields['firstName'] : null,
+      $fields['lastName'] !== '' ? $fields['lastName'] : null,
+      $fields['miDb'],
       $fields['donorType'],
       $fields['organization'] !== '' ? $fields['organization'] : null,
       $fields['contactPerson'] !== '' ? $fields['contactPerson'] : null,
@@ -291,11 +316,14 @@ if ($method === 'PUT') {
 
   $update = $pdo->prepare('
     UPDATE donors
-    SET full_name = ?, donor_type = ?, organization = ?, contact_person = ?, email = ?, phone = ?, country = ?, address = ?, notes = ?
+    SET full_name = ?, first_name = ?, last_name = ?, middle_initial = ?, donor_type = ?, organization = ?, contact_person = ?, email = ?, phone = ?, country = ?, address = ?, notes = ?
     WHERE id = ?
   ');
   $update->execute([
     $fields['fullName'],
+    $fields['firstName'] !== '' ? $fields['firstName'] : null,
+    $fields['lastName'] !== '' ? $fields['lastName'] : null,
+    $fields['miDb'],
     $fields['donorType'],
     $fields['organization'] !== '' ? $fields['organization'] : null,
     $fields['contactPerson'] !== '' ? $fields['contactPerson'] : null,

@@ -1,38 +1,29 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
-import { BARANGAY_TYPES, DONOR_TYPES, NEEDS, REPRESENTATIVE_POSITIONS } from '../constants/options'
+import { BARANGAY_TYPES, NEEDS, REPRESENTATIVE_POSITIONS } from '../constants/options'
 import { MUNICIPALITIES, barangaysForMunicipality } from '../constants/locations'
 import Req from '../components/shared/Req'
+import NameFields from '../components/shared/NameFields'
 import Logo from '../components/shared/Logo'
 import { heroBg } from '../assets'
-
-const ROLES = [
-  { id: 'Donor', label: 'Donor', blurb: 'Give and track your donations.' },
-  { id: 'Volunteer', label: 'Volunteer', blurb: 'Apply and join relief operations.' },
-  { id: 'Beneficiary', label: 'Barangay', blurb: 'Receive and confirm donations.' },
-]
+import { emptyNameParts, formatFullName } from '../utils/personName'
 
 const emptyForm = {
-  name: '', email: '', password: '', phone: '',
-  donorType: 'Individual', organization: '', country: '', address: '',
+  nameParts: emptyNameParts(),
+  email: '', password: '', phone: '',
   barangay: '', municipality: '', barangayType: '', affectedFamilies: '', needs: [],
   representativePosition: '',
+  address: '',
   acceptedPolicies: false,
 }
 
 export default function RegisterPage() {
-  const [role, setRole] = useState('Donor')
   const [form, setForm] = useState(emptyForm)
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
   const [done, setDone] = useState(null)
   const { register } = useAuth()
-
-  const barangayTypes = BARANGAY_TYPES
-  const needOptions = NEEDS
-  const isCompany = form.donorType === 'Company'
-  const isBarangay = role === 'Beneficiary'
 
   const set = (key, value) => setForm((prev) => ({ ...prev, [key]: value }))
 
@@ -43,40 +34,29 @@ export default function RegisterPage() {
       setError('Please accept the Data Privacy Policy and Terms & Conditions.')
       return
     }
-    if (role === 'Donor' && isCompany && !form.organization.trim()) {
-      setError('Company / Organization Name is required.')
-      return
-    }
     setLoading(true)
     try {
+      const fullName = formatFullName(form.nameParts)
       const payload = {
-        role,
-        name: form.name,
+        role: 'Beneficiary',
+        lastName: form.nameParts.lastName,
+        firstName: form.nameParts.firstName,
+        middleInitial: form.nameParts.middleInitial,
+        representativeLastName: form.nameParts.lastName,
+        representativeFirstName: form.nameParts.firstName,
+        representativeMiddleInitial: form.nameParts.middleInitial,
+        name: fullName,
         email: form.email,
         password: form.password,
         phone: form.phone,
         acceptedPolicies: true,
-      }
-      if (role === 'Donor') {
-        Object.assign(payload, {
-          donorType: form.donorType,
-          country: form.country,
-          address: form.address,
-        })
-        if (isCompany) {
-          payload.organization = form.organization
-        }
-      }
-      if (role === 'Beneficiary') {
-        Object.assign(payload, {
-          barangay: form.barangay,
-          municipality: form.municipality,
-          barangayType: form.barangayType,
-          address: form.address,
-          affectedFamilies: Number(form.affectedFamilies) || 0,
-          needs: form.needs,
-          representativePosition: form.representativePosition,
-        })
+        barangay: form.barangay,
+        municipality: form.municipality,
+        barangayType: form.barangayType,
+        address: form.address,
+        affectedFamilies: Number(form.affectedFamilies) || 0,
+        needs: form.needs,
+        representativePosition: form.representativePosition,
       }
       const result = await register(payload)
       setDone({
@@ -141,89 +121,39 @@ export default function RegisterPage() {
       <div className="auth-page__form-wrap">
         <div className="auth-card">
           <Logo className="auth-card__logo" />
-          <h1>Create an account</h1>
-          <p className="auth-card__subtitle">Register as a donor, volunteer, or barangay beneficiary.</p>
-
-          <div className="auth-role-tabs">
-            {ROLES.map((r) => (
-              <button
-                key={r.id}
-                type="button"
-                className={`auth-role-tab${role === r.id ? ' auth-role-tab--active' : ''}`}
-                onClick={() => { setRole(r.id); setError('') }}
-              >
-                <strong>{r.label}</strong>
-                <span>{r.blurb}</span>
-              </button>
-            ))}
-          </div>
+          <h1>Create a barangay account</h1>
+          <p className="auth-card__subtitle">
+            Register as a Barangay / Beneficiary to request and confirm assistance.
+          </p>
+          <p className="auth-card__subtitle" style={{ marginTop: '-0.5rem' }}>
+            Donors: please use the{' '}
+            <Link to="/donate">Donate</Link> page.
+            {' '}Volunteers: please use the{' '}
+            <Link to="/volunteer">Volunteer</Link> page.
+          </p>
 
           {error && <div className="auth-card__error" role="alert">{error}</div>}
 
           <form onSubmit={handleSubmit} className="auth-form">
-            {role === 'Donor' && (
-              <label>
-                <Req required>Donor Type</Req>
-                <select
-                  required
-                  value={form.donorType}
-                  onChange={(e) => setForm((prev) => ({
-                    ...prev,
-                    donorType: e.target.value,
-                    organization: e.target.value === 'Individual' ? '' : prev.organization,
-                  }))}
-                >
-                  {DONOR_TYPES.map((t) => (
-                    <option key={t.value} value={t.value}>{t.label}</option>
-                  ))}
-                </select>
-              </label>
-            )}
-
-            {role === 'Donor' && isCompany && (
-              <label>
-                <Req required>Company / Organization Name</Req>
-                <input
-                  required
-                  value={form.organization}
-                  onChange={(e) => set('organization', e.target.value)}
-                  placeholder="Acme Foundation Inc."
-                />
-              </label>
-            )}
+            <p className="form-section-title">Representative Name</p>
+            <NameFields
+              value={form.nameParts}
+              onChange={(nameParts) => setForm((prev) => ({ ...prev, nameParts }))}
+            />
 
             <label>
-              <Req required>
-                {isBarangay
-                  ? 'Representative Full Name'
-                  : role === 'Donor' && isCompany
-                    ? 'Contact Person'
-                    : 'Full Name'}
-              </Req>
-              <input
+              <Req required>Position / Role</Req>
+              <select
                 required
-                value={form.name}
-                onChange={(e) => set('name', e.target.value)}
-                placeholder={isBarangay ? 'Barangay representative' : 'Your full name'}
-                autoComplete="name"
-              />
+                value={form.representativePosition}
+                onChange={(e) => set('representativePosition', e.target.value)}
+              >
+                <option value="">Select position…</option>
+                {REPRESENTATIVE_POSITIONS.map((p) => (
+                  <option key={p} value={p}>{p}</option>
+                ))}
+              </select>
             </label>
-
-            {isBarangay && (
-              <label>
-                <Req required>Position / Role</Req>
-                <select
-                  required
-                  value={form.representativePosition}
-                  onChange={(e) => set('representativePosition', e.target.value)}
-                >
-                  <option value="">Select position…</option>
-                  {REPRESENTATIVE_POSITIONS.map((p) => (
-                    <option key={p} value={p}>{p}</option>
-                  ))}
-                </select>
-              </label>
-            )}
 
             <label>
               <Req required>Email</Req>
@@ -243,94 +173,80 @@ export default function RegisterPage() {
               </label>
             </div>
 
-            {role === 'Donor' && (
-              <div className="auth-form__row auth-form__row--split">
-                <label>
-                  Country
-                  <input value={form.country} onChange={(e) => set('country', e.target.value)} placeholder="Philippines" />
-                </label>
-                <label>
-                  Address
-                  <input value={form.address} onChange={(e) => set('address', e.target.value)} placeholder="Street, City" />
-                </label>
-              </div>
-            )}
+            <div className="auth-form__row auth-form__row--split">
+              <label>
+                <Req required>Municipality / City</Req>
+                <select
+                  required
+                  value={form.municipality}
+                  onChange={(e) => setForm((prev) => ({
+                    ...prev,
+                    municipality: e.target.value,
+                    barangay: '',
+                  }))}
+                >
+                  <option value="">Select municipality/city…</option>
+                  {MUNICIPALITIES.map((m) => (
+                    <option key={m} value={m}>{m}</option>
+                  ))}
+                </select>
+              </label>
+              <label>
+                <Req required>Barangay Name</Req>
+                <select
+                  required
+                  value={form.barangay}
+                  disabled={!form.municipality}
+                  onChange={(e) => set('barangay', e.target.value)}
+                >
+                  <option value="">
+                    {form.municipality ? 'Select barangay…' : 'Select municipality first…'}
+                  </option>
+                  {barangaysForMunicipality(form.municipality).map((b) => (
+                    <option key={b} value={b}>{b}</option>
+                  ))}
+                </select>
+              </label>
+            </div>
 
-            {isBarangay && (
-              <>
-                <div className="auth-form__row auth-form__row--split">
-                  <label>
-                    <Req required>Municipality / City</Req>
-                    <select
-                      required
-                      value={form.municipality}
-                      onChange={(e) => setForm((prev) => ({
-                        ...prev,
-                        municipality: e.target.value,
-                        barangay: '',
-                      }))}
-                    >
-                      <option value="">Select municipality/city…</option>
-                      {MUNICIPALITIES.map((m) => (
-                        <option key={m} value={m}>{m}</option>
-                      ))}
-                    </select>
-                  </label>
-                  <label>
-                    <Req required>Barangay Name</Req>
-                    <select
-                      required
-                      value={form.barangay}
-                      disabled={!form.municipality}
-                      onChange={(e) => set('barangay', e.target.value)}
-                    >
-                      <option value="">
-                        {form.municipality ? 'Select barangay…' : 'Select municipality first…'}
-                      </option>
-                      {barangaysForMunicipality(form.municipality).map((b) => (
-                        <option key={b} value={b}>{b}</option>
-                      ))}
-                    </select>
-                  </label>
+            <div className="auth-form__row auth-form__row--split">
+              <label>
+                Barangay Type
+                <select value={form.barangayType} onChange={(e) => set('barangayType', e.target.value)}>
+                  <option value="">Select type...</option>
+                  {BARANGAY_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
+                </select>
+              </label>
+              <label>
+                Number of Affected Families
+                <input type="number" min="0" value={form.affectedFamilies} onChange={(e) => set('affectedFamilies', e.target.value)} />
+              </label>
+            </div>
+
+            <label>
+              Complete Address
+              <input value={form.address} onChange={(e) => set('address', e.target.value)} placeholder="Purok / Street, Barangay, City, Province" />
+            </label>
+
+            {NEEDS.length > 0 && (
+              <fieldset className="needs-fieldset">
+                <legend>Needs (select all that apply)</legend>
+                <div className="needs-grid">
+                  {NEEDS.map((n) => (
+                    <label key={n} className="need-check">
+                      <input
+                        type="checkbox"
+                        checked={form.needs.includes(n)}
+                        onChange={(e) => setForm((prev) => ({
+                          ...prev,
+                          needs: e.target.checked ? [...prev.needs, n] : prev.needs.filter((x) => x !== n),
+                        }))}
+                      />
+                      {n}
+                    </label>
+                  ))}
                 </div>
-                <div className="auth-form__row auth-form__row--split">
-                  <label>
-                    Barangay Type
-                    <select value={form.barangayType} onChange={(e) => set('barangayType', e.target.value)}>
-                      <option value="">Select type...</option>
-                      {barangayTypes.map((t) => <option key={t} value={t}>{t}</option>)}
-                    </select>
-                  </label>
-                  <label>
-                    Number of Affected Families
-                    <input type="number" min="0" value={form.affectedFamilies} onChange={(e) => set('affectedFamilies', e.target.value)} />
-                  </label>
-                </div>
-                <label>
-                  Complete Address
-                  <input value={form.address} onChange={(e) => set('address', e.target.value)} placeholder="Purok / Street, Barangay, City, Province" />
-                </label>
-                {needOptions.length > 0 && (
-                  <fieldset className="needs-fieldset">
-                    <legend>Needs (select all that apply)</legend>
-                    <div className="needs-grid">
-                      {needOptions.map((n) => (
-                        <label key={n} className="need-check">
-                          <input
-                            type="checkbox"
-                            checked={form.needs.includes(n)}
-                            onChange={(e) => setForm((prev) => ({
-                              ...prev,
-                              needs: e.target.checked ? [...prev.needs, n] : prev.needs.filter((x) => x !== n),
-                            }))}
-                          />
-                          {n}
-                        </label>
-                      ))}
-                    </div>
-                  </fieldset>
-                )}
-              </>
+              </fieldset>
             )}
 
             <label className="auth-policy-check">

@@ -1,9 +1,35 @@
-import { useState } from 'react'
-import { faqCategories } from '../data/mockData'
+import { useEffect, useState } from 'react'
+import { faqCategories as mockFaqs } from '../data/mockData'
+import { fetchPublishedContent } from '../api/resources'
+
+function groupFaqs(items) {
+  const map = new Map()
+  for (const item of items) {
+    const category = item.meta?.category || 'General'
+    if (!map.has(category)) map.set(category, [])
+    map.get(category).push({
+      q: item.title,
+      a: item.body || item.summary || '',
+    })
+  }
+  return Array.from(map.entries()).map(([name, faqItems]) => ({ name, items: faqItems }))
+}
 
 export default function FAQPage() {
+  const [categories, setCategories] = useState(mockFaqs)
   const [openIndex, setOpenIndex] = useState(null)
   let globalIndex = 0
+
+  useEffect(() => {
+    let cancelled = false
+    fetchPublishedContent('faqs', []).then((items) => {
+      if (cancelled) return
+      if (items.length > 0 && items[0]?.title) {
+        setCategories(groupFaqs(items))
+      }
+    })
+    return () => { cancelled = true }
+  }, [])
 
   return (
     <div className="page">
@@ -16,7 +42,7 @@ export default function FAQPage() {
 
       <section className="section">
         <div className="container container--narrow">
-          {faqCategories.map((category) => (
+          {categories.map((category) => (
             <div key={category.name} className="faq-category">
               <h2>{category.name}</h2>
               <div className="faq-list">

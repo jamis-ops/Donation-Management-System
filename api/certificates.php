@@ -58,17 +58,25 @@ if ($method === 'POST') {
   if ($user['role'] === 'Donor') {
     $reference = trim((string) ($body['reference'] ?? ''));
     if ($reference !== '') {
-      $own = $pdo->prepare('SELECT COUNT(*) FROM donations WHERE tracking_code = ? AND donor_email = ?');
+      $own = $pdo->prepare('SELECT status FROM donations WHERE tracking_code = ? AND donor_email = ? LIMIT 1');
       $own->execute([$reference, $user['email']]);
-      if (!$own->fetchColumn()) {
+      $donation = $own->fetch();
+      if (!$donation) {
         json_response(['ok' => false, 'error' => 'That donation reference does not belong to your account'], 403);
       }
+      $allowed = ['Verified', 'Allocated', 'Distributed', 'Completed', 'In Inventory', 'Certificate / Official Receipt'];
+      if (!in_array($donation['status'], $allowed, true)) {
+        json_response(['ok' => false, 'error' => 'Certificates are only available after the donation has been verified by Admin'], 400);
+      }
+    } else {
+      json_response(['ok' => false, 'error' => 'A verified donation reference is required'], 400);
     }
+    // Force Certificate of Donation — Official Receipt module is not ready yet
     $code = generate_code('CERT');
     $stmt = $pdo->prepare('INSERT INTO certificates (code, cert_type, recipient_type, recipient_name, reference_code, details, cert_date, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?)');
     $stmt->execute([
       $code,
-      in_array($body['type'] ?? '', ['Certificate of Donation', 'Official Receipt'], true) ? $body['type'] : 'Certificate of Donation',
+      'Certificate of Donation',
       'Donor',
       $user['name'],
       $reference ?: null,
@@ -92,11 +100,29 @@ if ($method === 'POST') {
     json_response(['ok' => false, 'error' => 'Recipient is required'], 400);
   }
 
+  $certType = $body['type'] ?? 'Certificate of Donation';
+  // Hide unfinished Official Receipt generation
+  if ($certType === 'Official Receipt') {
+    json_response(['ok' => false, 'error' => 'Official Receipt module is not available yet. Use Certificate of Donation.'], 400);
+  }
+  if (!empty($body['reference'])) {
+    $ref = trim((string) $body['reference']);
+    $d = $pdo->prepare('SELECT status FROM donations WHERE tracking_code = ? LIMIT 1');
+    $d->execute([$ref]);
+    $dRow = $d->fetch();
+    if ($dRow) {
+      $allowed = ['Verified', 'Allocated', 'Distributed', 'Completed', 'In Inventory', 'Certificate / Official Receipt'];
+      if (!in_array($dRow['status'], $allowed, true)) {
+        json_response(['ok' => false, 'error' => 'Donation must be verified before generating a certificate'], 400);
+      }
+    }
+  }
+
   $code = generate_code('CERT');
   $stmt = $pdo->prepare('INSERT INTO certificates (code, cert_type, recipient_type, recipient_name, reference_code, details, signatory_name, signatory_title, cert_date, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)');
   $stmt->execute([
     $code,
-    $body['type'] ?? 'Certificate of Donation',
+    $certType,
     $body['recipientType'] ?? 'Donor',
     $recipient,
     $body['reference'] ?? null,

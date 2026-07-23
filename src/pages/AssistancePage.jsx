@@ -1,23 +1,56 @@
 import { useState } from 'react'
 import { programs } from '../data/mockData'
+import { submitPublicAssistance } from '../api/resources'
+
+const emptyForm = {
+  fullName: '',
+  email: '',
+  phone: '',
+  address: '',
+  assistanceType: '',
+  description: '',
+}
 
 export default function AssistancePage() {
   const [submitted, setSubmitted] = useState(false)
   const [reference, setReference] = useState('')
-  const [form, setForm] = useState({
-    fullName: '',
-    email: '',
-    phone: '',
-    address: '',
-    assistanceType: '',
-    description: '',
-    documents: null,
-  })
+  const [submitError, setSubmitError] = useState('')
+  const [submitting, setSubmitting] = useState(false)
+  const [form, setForm] = useState(emptyForm)
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault()
-    setReference(`AST-${Math.random().toString(36).slice(2, 8).toUpperCase()}`)
-    setSubmitted(true)
+    setSubmitError('')
+    setSubmitting(true)
+    try {
+      const selected = programs.find((p) => p.id === form.assistanceType)
+      const typeLabel =
+        form.assistanceType === 'other'
+          ? 'Other'
+          : selected?.name || form.assistanceType
+      const res = await submitPublicAssistance({
+        fullName: form.fullName,
+        email: form.email,
+        phone: form.phone,
+        address: form.address,
+        barangay: form.address,
+        type: typeLabel,
+        assistanceType: typeLabel,
+        description: form.description,
+        notes: form.description,
+      })
+      const code = res.trackingCode || res.data?.id
+      if (!code) {
+        throw new Error('Request saved but no reference code was returned')
+      }
+      setReference(code)
+      setSubmitted(true)
+      setForm(emptyForm)
+    } catch (err) {
+      setSubmitError(err.message || 'Failed to submit request')
+    } finally {
+      setSubmitting(false)
+    }
   }
 
   return (
@@ -49,7 +82,7 @@ export default function AssistancePage() {
                 type="button"
                 className="btn btn--outline"
                 style={{ marginTop: '1.5rem' }}
-                onClick={() => setSubmitted(false)}
+                onClick={() => { setSubmitted(false); setReference('') }}
               >
                 Submit Another Request
               </button>
@@ -57,6 +90,9 @@ export default function AssistancePage() {
           ) : (
             <form className="form-card" onSubmit={handleSubmit}>
               <h2>Assistance Request Form</h2>
+              {submitError ? (
+                <p role="alert" style={{ color: '#c0392b', marginBottom: '1rem' }}>{submitError}</p>
+              ) : null}
 
               <div className="form-row">
                 <label>
@@ -128,21 +164,8 @@ export default function AssistancePage() {
                 />
               </label>
 
-              <label>
-                Upload Supporting Documents
-                <input
-                  type="file"
-                  multiple
-                  accept="image/*,.pdf"
-                  onChange={(e) => setForm({ ...form, documents: e.target.files })}
-                />
-                <span className="field-hint">
-                  Valid ID, barangay certificate, medical records, or damage photos
-                </span>
-              </label>
-
-              <button type="submit" className="btn btn--primary btn--lg">
-                Submit Request
+              <button type="submit" className="btn btn--primary btn--lg" disabled={submitting}>
+                {submitting ? 'Submitting…' : 'Submit Request'}
               </button>
             </form>
           )}

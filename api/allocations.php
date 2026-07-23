@@ -23,6 +23,7 @@ function map_allocation(PDO $pdo, array $row): array
     'program' => $row['program'],
     'beneficiary' => $benName,
     'beneficiaryId' => $row['beneficiary_id'] ? (int) $row['beneficiary_id'] : null,
+    'assistanceRequestId' => !empty($row['assistance_request_id']) ? (int) $row['assistance_request_id'] : null,
     'status' => $row['status'],
     'priority' => $row['priority'] ?? 'Medium',
     'notes' => $row['notes'] ?? '',
@@ -52,21 +53,39 @@ $body = read_json_body();
 if ($method === 'POST') {
   $code = generate_code('ALC');
   $priority = in_array($body['priority'] ?? 'Medium', ['Low', 'Medium', 'High', 'Critical'], true) ? $body['priority'] : 'Medium';
-  $stmt = $pdo->prepare('INSERT INTO allocations (code, resource_name, quantity, program, beneficiary_target, beneficiary_id, status, priority, notes, allocation_date) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)');
+  $assistanceRequestId = !empty($body['assistanceRequestId']) ? (int) $body['assistanceRequestId'] : null;
+  $qty = (int) ($body['quantity'] ?? 0);
+  $resource = trim((string) ($body['resource'] ?? ''));
+  $status = $body['status'] ?? 'Pending';
+
+  $stmt = $pdo->prepare('INSERT INTO allocations (code, resource_name, quantity, program, beneficiary_target, beneficiary_id, assistance_request_id, status, priority, notes, allocation_date) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)');
   $stmt->execute([
     $code,
-    $body['resource'] ?? '',
-    (int) ($body['quantity'] ?? 0),
+    $resource,
+    $qty,
     $body['program'] ?? null,
     $body['beneficiary'] ?? null,
     $body['beneficiaryId'] ?? null,
-    $body['status'] ?? 'Pending',
+    $assistanceRequestId,
+    $status,
     $priority,
     $body['notes'] ?? null,
     $body['allocationDate'] ?? date('Y-m-d'),
   ]);
-  notify_admins($pdo, 'allocation', 'New resource allocation', "Allocated {$body['resource']} for {$body['beneficiary']}", '/admin/allocation');
-  audit_log($pdo, 'create', 'allocation', $code, "Allocated {$body['resource']} for {$body['beneficiary']}");
+
+  // Sync inventory allocated counter + stock state when reserved/allocated
+  if ($resource !== '' && $qty > 0 && in_array($status, ['Reserved', 'Allocated'], true)) {
+    $inv = $pdo->prepare('SELECT id FROM inventory_items WHERE LOWER(item_name) = LOWER(?) LIMIT 1');
+    $inv->execute([$resource]);
+    $invId = $inv->fetchColumn();
+    if ($invId) {
+      $pdo->prepare("UPDATE inventory_items SET allocated = allocated + ?, stock_state = ? WHERE id = ?")
+        ->execute([$qty, $status === 'Reserved' ? 'Reserved' : 'Allocated', (int) $invId]);
+    }
+  }
+
+  notify_admins($pdo, 'allocation', 'New resource allocation', "Allocated {$resource} for {$body['beneficiary']}", '/admin/allocation');
+  audit_log($pdo, 'create', 'allocation', $code, "Allocated {$resource} for {$body['beneficiary']}");
   $newId = (int) $pdo->lastInsertId();
   $stmt = $pdo->prepare('SELECT * FROM allocations WHERE id = ?');
   $stmt->execute([$newId]);
@@ -88,13 +107,14 @@ if ($method === 'PUT') {
     : 'Medium';
   $newStatus = $body['status'] ?? $existing['status'];
 
-  $update = $pdo->prepare('UPDATE allocations SET resource_name = ?, quantity = ?, program = ?, beneficiary_target = ?, beneficiary_id = ?, status = ?, priority = ?, notes = ?, allocation_date = ? WHERE id = ?');
+  $update = $pdo->prepare('UPDATE allocations SET resource_name = ?, quantity = ?, program = ?, beneficiary_target = ?, beneficiary_id = ?, assistance_request_id = ?, status = ?, priority = ?, notes = ?, allocation_date = ? WHERE id = ?');
   $update->execute([
     $body['resource'] ?? $existing['resource_name'],
     (int) ($body['quantity'] ?? $existing['quantity']),
     $body['program'] ?? $existing['program'],
     $body['beneficiary'] ?? $existing['beneficiary_target'],
-    $body['beneficiaryId'] ?? $existing['beneficiary_id'],
+    array_key_exists('beneficiaryId', $body) ? ($body['beneficiaryId'] ?: null) : $existing['beneficiary_id'],
+    array_key_exists('assistanceRequestId', $body) ? ($body['assistanceRequestId'] ?: null) : ($existing['assistance_request_id'] ?? null),
     $newStatus,
     $priority,
     $body['notes'] ?? $existing['notes'],
