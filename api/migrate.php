@@ -360,6 +360,10 @@ try {
   addColumn($pdo, 'beneficiaries', 'representative_last_name', 'VARCHAR(80) NULL AFTER representative_first_name');
   addColumn($pdo, 'beneficiaries', 'representative_middle_initial', 'VARCHAR(5) NULL AFTER representative_last_name');
 
+  // v19: Link allocations → distribution events (handoff)
+  addColumn($pdo, 'allocations', 'distribution_id', 'BIGINT UNSIGNED NULL AFTER assistance_request_id');
+  echo "Ensured allocations.distribution_id for distribution handoff\n";
+
   echo "\nMigration complete!\n";
 } catch (Throwable $e) {
   http_response_code(500);

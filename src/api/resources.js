@@ -56,7 +56,10 @@ export const distributionsApi = {
   ...resourceApi('/api/distributions.php'),
   listForProof: () => apiFetch('/api/distributions.php?forProof=1'),
 }
-export const allocationsApi = resourceApi('/api/allocations.php')
+export const allocationsApi = {
+  ...resourceApi('/api/allocations.php'),
+  listReadyForDistribution: () => apiFetch('/api/allocations.php?readyForDistribution=1'),
+}
 export const certificatesApi = resourceApi('/api/certificates.php')
 export const needsStockApi = {
   get: () => apiFetch('/api/needs_stock.php'),

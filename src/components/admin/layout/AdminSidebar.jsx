@@ -28,8 +28,8 @@ const navGroups = [
   {
     label: 'People',
     items: [
-      { to: '/admin/beneficiaries', label: 'Beneficiaries', icon: Users },
       { to: '/admin/donors', label: 'Donors', icon: HeartHandshake },
+      { to: '/admin/beneficiaries', label: 'Beneficiaries', icon: Users },
       { to: '/admin/volunteers', label: 'Volunteers', icon: UserCheck },
       { to: '/admin/staff', label: 'Staff', icon: UserCog },
     ],

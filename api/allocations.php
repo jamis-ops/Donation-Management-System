@@ -9,10 +9,25 @@ $id = get_id_param();
 function map_allocation(PDO $pdo, array $row): array
 {
   $benName = $row['beneficiary_target'];
+  $affectedFamilies = 0;
+  $beneficiaryNeeds = [];
   if (!empty($row['beneficiary_id'])) {
-    $b = $pdo->prepare('SELECT full_name FROM beneficiaries WHERE id = ?');
+    $b = $pdo->prepare('SELECT full_name, affected_families, needs, category FROM beneficiaries WHERE id = ?');
     $b->execute([$row['beneficiary_id']]);
-    $benName = $b->fetchColumn() ?: $benName;
+    $ben = $b->fetch();
+    if ($ben) {
+      $benName = $ben['full_name'] ?: $benName;
+      $affectedFamilies = (int) ($ben['affected_families'] ?? 0);
+      if (!empty($ben['needs'])) {
+        $decoded = json_decode((string) $ben['needs'], true);
+        if (is_array($decoded)) {
+          $beneficiaryNeeds = array_values(array_filter(array_map('strval', $decoded)));
+        }
+      }
+      if (!$beneficiaryNeeds && !empty($ben['category'])) {
+        $beneficiaryNeeds = array_values(array_filter(array_map('trim', explode(',', (string) $ben['category']))));
+      }
+    }
   }
 
   return [
@@ -24,6 +39,9 @@ function map_allocation(PDO $pdo, array $row): array
     'beneficiary' => $benName,
     'beneficiaryId' => $row['beneficiary_id'] ? (int) $row['beneficiary_id'] : null,
     'assistanceRequestId' => !empty($row['assistance_request_id']) ? (int) $row['assistance_request_id'] : null,
+    'distributionId' => !empty($row['distribution_id']) ? (int) $row['distribution_id'] : null,
+    'affectedFamilies' => $affectedFamilies,
+    'beneficiaryNeeds' => $beneficiaryNeeds,
     'status' => $row['status'],
     'priority' => $row['priority'] ?? 'Medium',
     'notes' => $row['notes'] ?? '',
@@ -44,6 +62,19 @@ if ($method === 'GET') {
     }
     json_response(['ok' => true, 'data' => map_allocation($pdo, $row)]);
   }
+
+  // Allocations ready to plan into a distribution event
+  if (!empty($_GET['readyForDistribution']) && $_GET['readyForDistribution'] === '1') {
+    $rows = $pdo->query("
+      SELECT * FROM allocations
+      WHERE status IN ('Reserved','Allocated')
+        AND (distribution_id IS NULL OR distribution_id = 0)
+        AND beneficiary_id IS NOT NULL
+      ORDER BY FIELD(priority,'Critical','High','Medium','Low'), allocation_date DESC
+    ")->fetchAll();
+    json_response(['ok' => true, 'data' => array_map(fn($r) => map_allocation($pdo, $r), $rows)]);
+  }
+
   $rows = $pdo->query('SELECT * FROM allocations ORDER BY FIELD(priority,"Critical","High","Medium","Low"), allocation_date DESC')->fetchAll();
   json_response(['ok' => true, 'data' => array_map(fn($r) => map_allocation($pdo, $r), $rows)]);
 }

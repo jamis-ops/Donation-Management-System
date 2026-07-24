@@ -11,7 +11,7 @@ const pageTitles = {
   '/admin/beneficiaries': 'Beneficiary Management',
   '/admin/inventory': 'Inventory Tracking',
   '/admin/allocation': 'Resource Allocation',
-  '/admin/distributions': 'Distribution Logistics',
+  '/admin/distributions': 'Logistics & Distribution',
   '/admin/volunteers': 'Volunteer Management',
   '/admin/staff': 'Staff Management',
   '/admin/reports': 'Reports & Analytics',

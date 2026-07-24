@@ -1,5 +1,6 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Link, NavLink, useLocation } from 'react-router-dom'
+import { ChevronDown } from 'lucide-react'
 import { useAuth } from '../../context/AuthContext'
 import { getHomeForRole } from '../../utils/roleRoutes'
 import Logo from '../shared/Logo'
@@ -31,10 +32,34 @@ function getActiveNavId(pathname, hashSection) {
 
 export default function Header() {
   const [menuOpen, setMenuOpen] = useState(false)
+  const [loginMenuOpen, setLoginMenuOpen] = useState(false)
   const [hashSection, setHashSection] = useState('')
+  const loginMenuRef = useRef(null)
   const { pathname } = useLocation()
   const { user, isAuthenticated } = useAuth()
   const activeId = getActiveNavId(pathname, hashSection)
+
+  useEffect(() => {
+    setLoginMenuOpen(false)
+  }, [pathname])
+
+  useEffect(() => {
+    if (!loginMenuOpen) return undefined
+    const onPointerDown = (e) => {
+      if (loginMenuRef.current && !loginMenuRef.current.contains(e.target)) {
+        setLoginMenuOpen(false)
+      }
+    }
+    const onKeyDown = (e) => {
+      if (e.key === 'Escape') setLoginMenuOpen(false)
+    }
+    document.addEventListener('pointerdown', onPointerDown)
+    document.addEventListener('keydown', onKeyDown)
+    return () => {
+      document.removeEventListener('pointerdown', onPointerDown)
+      document.removeEventListener('keydown', onKeyDown)
+    }
+  }, [loginMenuOpen])
 
   useEffect(() => {
     if (pathname !== '/') {
@@ -151,13 +176,44 @@ export default function Header() {
                 My Portal
               </Link>
             ) : (
-              <Link
-                to="/login"
-                className="btn btn--ghost-dark btn--sm"
-                onClick={() => setMenuOpen(false)}
-              >
-                Log In
-              </Link>
+              <div className={`nav-account${loginMenuOpen ? ' nav-account--open' : ''}`} ref={loginMenuRef}>
+                <button
+                  type="button"
+                  className="btn btn--ghost-dark btn--sm nav-account__trigger"
+                  aria-haspopup="menu"
+                  aria-expanded={loginMenuOpen}
+                  onClick={() => setLoginMenuOpen((o) => !o)}
+                >
+                  Log In
+                  <ChevronDown size={14} aria-hidden className="nav-account__chevron" />
+                </button>
+                {loginMenuOpen && (
+                  <div className="nav-account__menu" role="menu" aria-label="Account">
+                    <Link
+                      to="/login"
+                      role="menuitem"
+                      className="nav-account__item"
+                      onClick={() => {
+                        setLoginMenuOpen(false)
+                        setMenuOpen(false)
+                      }}
+                    >
+                      Log In
+                    </Link>
+                    <Link
+                      to="/register"
+                      role="menuitem"
+                      className="nav-account__item"
+                      onClick={() => {
+                        setLoginMenuOpen(false)
+                        setMenuOpen(false)
+                      }}
+                    >
+                      Sign Up
+                    </Link>
+                  </div>
+                )}
+              </div>
             )}
 
             <Link

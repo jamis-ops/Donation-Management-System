@@ -175,7 +175,12 @@ CREATE TABLE IF NOT EXISTS allocations (
   quantity INT UNSIGNED NOT NULL DEFAULT 0,
   program VARCHAR(80) NULL,
   beneficiary_target VARCHAR(120) NULL,
+  beneficiary_id BIGINT UNSIGNED NULL,
+  assistance_request_id BIGINT UNSIGNED NULL,
+  distribution_id BIGINT UNSIGNED NULL,
   status VARCHAR(50) NOT NULL DEFAULT 'Pending',
+  priority ENUM('Low','Medium','High','Critical') NOT NULL DEFAULT 'Medium',
+  notes TEXT NULL,
   allocation_date DATE NOT NULL,
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP

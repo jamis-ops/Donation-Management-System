@@ -8,17 +8,19 @@ export default function NameFields({
   value = {},
   onChange,
   required = true,
-  lastLabel = 'Last Name (LN)',
-  firstLabel = 'First Name (FN)',
-  middleLabel = 'Middle Initial (MI)',
+  lastLabel = 'Last Name',
+  firstLabel = 'First Name',
+  middleLabel = 'MI',
   disabled = false,
 }) {
   const set = (key, v) => onChange?.({ ...value, [key]: v })
 
   return (
     <div className="form-row form-row--names">
-      <label>
-        {required ? <Req required>{lastLabel}</Req> : lastLabel}
+      <label className="name-fields__field">
+        <span className="name-fields__label">
+          {required ? <Req required>{lastLabel}</Req> : lastLabel}
+        </span>
         <input
           required={required}
           disabled={disabled}
@@ -28,8 +30,10 @@ export default function NameFields({
           autoComplete="family-name"
         />
       </label>
-      <label>
-        {required ? <Req required>{firstLabel}</Req> : firstLabel}
+      <label className="name-fields__field">
+        <span className="name-fields__label">
+          {required ? <Req required>{firstLabel}</Req> : firstLabel}
+        </span>
         <input
           required={required}
           disabled={disabled}
@@ -39,8 +43,8 @@ export default function NameFields({
           autoComplete="given-name"
         />
       </label>
-      <label>
-        {middleLabel}
+      <label className="name-fields__field name-fields__field--mi">
+        <span className="name-fields__label">{middleLabel}</span>
         <input
           disabled={disabled}
           maxLength={5}
@@ -48,6 +52,7 @@ export default function NameFields({
           onChange={(e) => set('middleInitial', e.target.value.replace(/[^a-zA-Z.]/g, '').slice(0, 5))}
           placeholder="A"
           autoComplete="additional-name"
+          aria-label="Middle Initial"
         />
       </label>
     </div>

@@ -26,6 +26,23 @@ function map_distribution(PDO $pdo, array $row): array
     $eventName = trim(($row['code'] ?? '') . ' — ' . ($row['location'] ?? 'Distribution'));
   }
 
+  $linkedAllocs = [];
+  try {
+    $aStmt = $pdo->prepare('SELECT id, code, resource_name, quantity, status FROM allocations WHERE distribution_id = ? ORDER BY id ASC');
+    $aStmt->execute([(int) $row['id']]);
+    foreach ($aStmt->fetchAll() as $a) {
+      $linkedAllocs[] = [
+        'dbId' => (int) $a['id'],
+        'id' => $a['code'],
+        'resource' => $a['resource_name'],
+        'quantity' => (int) $a['quantity'],
+        'status' => $a['status'],
+      ];
+    }
+  } catch (Throwable $e) {
+    $linkedAllocs = [];
+  }
+
   return [
     'id' => $row['code'],
     'dbId' => (int) $row['id'],
@@ -53,6 +70,8 @@ function map_distribution(PDO $pdo, array $row): array
     'itemsSummary' => $row['items_summary'] ?? '',
     'coordinator' => $row['coordinator'] ?? '',
     'notes' => $row['notes'] ?? '',
+    'allocations' => $linkedAllocs,
+    'allocationIds' => array_map(fn($a) => $a['dbId'], $linkedAllocs),
     'proofsCount' => (int) $proofCount->fetchColumn(),
     'workflowSteps' => distribution_workflow_steps(),
   ];
@@ -185,40 +204,124 @@ if ($method === 'POST') {
   $code = generate_code('DST');
   $proofStatus = $body['proofStatus'] ?? 'Awaiting Proof';
   $isDelivery = ($body['type'] ?? 'Delivery') === 'Delivery';
+
+  // Optional handoff: build distribution from confirmed allocations
+  $allocationIds = [];
+  if (!empty($body['allocationIds']) && is_array($body['allocationIds'])) {
+    $allocationIds = array_values(array_unique(array_map('intval', $body['allocationIds'])));
+  } elseif (!empty($body['allocationId'])) {
+    $allocationIds = [(int) $body['allocationId']];
+  }
+
+  $fromAllocations = [];
+  if ($allocationIds) {
+    $placeholders = implode(',', array_fill(0, count($allocationIds), '?'));
+    $stmtA = $pdo->prepare("SELECT * FROM allocations WHERE id IN ({$placeholders})");
+    $stmtA->execute($allocationIds);
+    $fromAllocations = $stmtA->fetchAll();
+    if (count($fromAllocations) !== count($allocationIds)) {
+      json_response(['ok' => false, 'error' => 'One or more allocations were not found'], 400);
+    }
+    foreach ($fromAllocations as $a) {
+      if (!in_array($a['status'], ['Reserved', 'Allocated'], true)) {
+        json_response(['ok' => false, 'error' => "Allocation {$a['code']} must be Reserved or Allocated before planning distribution"], 400);
+      }
+      if (!empty($a['distribution_id'])) {
+        json_response(['ok' => false, 'error' => "Allocation {$a['code']} is already linked to a distribution"], 400);
+      }
+    }
+    $benIds = array_unique(array_filter(array_map(fn($a) => (int) ($a['beneficiary_id'] ?? 0), $fromAllocations)));
+    if (count($benIds) !== 1) {
+      json_response(['ok' => false, 'error' => 'All selected allocations must belong to the same barangay'], 400);
+    }
+  }
+
   $beneficiaryId = !empty($body['beneficiaryId']) ? (int) $body['beneficiaryId'] : null;
+  if (!$beneficiaryId && $fromAllocations) {
+    $beneficiaryId = (int) ($fromAllocations[0]['beneficiary_id'] ?? 0) ?: null;
+  }
   if (!$beneficiaryId) {
     json_response(['ok' => false, 'error' => 'Target barangay (beneficiary) is required for a distribution event'], 400);
   }
+
+  $benRow = $pdo->prepare('SELECT full_name, barangay, affected_families FROM beneficiaries WHERE id = ?');
+  $benRow->execute([$beneficiaryId]);
+  $benInfo = $benRow->fetch() ?: [];
+
   $location = trim((string) ($body['location'] ?? ''));
+  if ($location === '') {
+    $location = trim((string) ($benInfo['barangay'] ?? $benInfo['full_name'] ?? ''));
+  }
+
+  $itemsSummary = trim((string) ($body['itemsSummary'] ?? ''));
+  if ($itemsSummary === '' && $fromAllocations) {
+    $parts = [];
+    foreach ($fromAllocations as $a) {
+      $parts[] = trim($a['resource_name']) . ' × ' . (int) $a['quantity'];
+    }
+    $itemsSummary = implode('; ', $parts);
+  }
+
+  $program = $body['program'] ?? null;
+  if (($program === null || $program === '') && $fromAllocations) {
+    foreach ($fromAllocations as $a) {
+      if (!empty($a['program'])) {
+        $program = $a['program'];
+        break;
+      }
+    }
+  }
+
+  $beneficiariesCount = (int) ($body['beneficiaries'] ?? 0);
+  if ($beneficiariesCount <= 0) {
+    $beneficiariesCount = (int) ($benInfo['affected_families'] ?? 0);
+  }
+
   $eventName = trim((string) ($body['eventName'] ?? ''));
   if ($eventName === '') {
-    $eventName = $code . ' — ' . ($location !== '' ? $location : 'Distribution');
+    $place = $location !== '' ? $location : 'Distribution';
+    $eventName = 'Distribution — ' . $place;
   }
+
+  $notes = $body['notes'] ?? null;
+  if (($notes === null || $notes === '') && $fromAllocations) {
+    $codes = array_map(fn($a) => $a['code'], $fromAllocations);
+    $notes = 'Created from allocation(s): ' . implode(', ', $codes);
+  }
+
   $stmt = $pdo->prepare('INSERT INTO distributions (code, event_name, location, beneficiary_id, program, distribution_date, schedule_time, beneficiaries_count, volunteers_count, vehicles_count, distance_km, fuel_liters, fuel_cost, status, distribution_type, items_summary, coordinator, notes, proof_status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)');
   $stmt->execute([
     $code,
     $eventName,
     $location,
     $beneficiaryId,
-    $body['program'] ?? null,
+    $program,
     $body['distributionDate'] ?? null,
     $body['scheduleTime'] ?? null,
-    (int) ($body['beneficiaries'] ?? 0),
+    $beneficiariesCount,
     (int) ($body['volunteers'] ?? 0),
     (int) ($body['vehicles'] ?? 0),
-    $isDelivery && isset($body['distanceKm']) ? (float) $body['distanceKm'] : null,
-    $isDelivery && isset($body['fuelLiters']) ? (float) $body['fuelLiters'] : null,
-    $isDelivery && isset($body['fuelCost']) ? (float) $body['fuelCost'] : null,
+    $isDelivery && isset($body['distanceKm']) && $body['distanceKm'] !== '' ? (float) $body['distanceKm'] : null,
+    $isDelivery && isset($body['fuelLiters']) && $body['fuelLiters'] !== '' ? (float) $body['fuelLiters'] : null,
+    $isDelivery && isset($body['fuelCost']) && $body['fuelCost'] !== '' ? (float) $body['fuelCost'] : null,
     $body['status'] ?? 'Planning',
     $body['type'] ?? 'Delivery',
-    $body['itemsSummary'] ?? null,
+    $itemsSummary !== '' ? $itemsSummary : null,
     $body['coordinator'] ?? null,
-    $body['notes'] ?? null,
+    $notes,
     $proofStatus,
   ]);
-  notify_admins($pdo, 'distribution', 'New distribution planned', "Distribution {$code} scheduled for {$location}", '/admin/distributions');
-  audit_log($pdo, 'create', 'distribution', $code, "Planned distribution for {$location}");
   $newId = (int) $pdo->lastInsertId();
+
+  if ($fromAllocations) {
+    $link = $pdo->prepare('UPDATE allocations SET distribution_id = ?, status = CASE WHEN status = \'Reserved\' THEN \'Allocated\' ELSE status END WHERE id = ?');
+    foreach ($fromAllocations as $a) {
+      $link->execute([$newId, (int) $a['id']]);
+    }
+  }
+
+  notify_admins($pdo, 'distribution', 'New distribution planned', "Distribution {$code} scheduled for {$location}", '/admin/distributions');
+  audit_log($pdo, 'create', 'distribution', $code, "Planned distribution for {$location}" . ($allocationIds ? ' from allocations' : ''));
   $stmt = $pdo->prepare('SELECT * FROM distributions WHERE id = ?');
   $stmt->execute([$newId]);
   json_response(['ok' => true, 'data' => map_distribution($pdo, $stmt->fetch())], 201);
@@ -286,6 +389,14 @@ if ($method === 'PUT') {
 
   if ($newStatus !== $existing['status']) {
     notify_admins($pdo, 'status_update', 'Distribution status updated', "Distribution {$existing['code']} is now {$newStatus}", '/admin/distributions');
+    if (in_array($newStatus, ['Delivered', 'Completed'], true)) {
+      try {
+        $pdo->prepare("UPDATE allocations SET status = 'Delivered' WHERE distribution_id = ? AND status IN ('Reserved','Allocated')")
+          ->execute([$id]);
+      } catch (Throwable $e) {
+        // column may not exist yet pre-migrate
+      }
+    }
   }
 
   audit_log($pdo, 'update', 'distribution', $existing['code'], "Updated distribution" . ($newStatus !== $existing['status'] ? " (status: {$newStatus})" : ''));
@@ -302,6 +413,11 @@ if ($method === 'DELETE') {
   $del = $pdo->prepare('SELECT code FROM distributions WHERE id = ?');
   $del->execute([$id]);
   $delCode = $del->fetchColumn();
+  try {
+    $pdo->prepare('UPDATE allocations SET distribution_id = NULL WHERE distribution_id = ?')->execute([$id]);
+  } catch (Throwable $e) {
+    // ignore if column missing
+  }
   $pdo->prepare('DELETE FROM distributions WHERE id = ?')->execute([$id]);
   audit_log($pdo, 'delete', 'distribution', $delCode ?: (string) $id, 'Deleted distribution');
   json_response(['ok' => true]);
