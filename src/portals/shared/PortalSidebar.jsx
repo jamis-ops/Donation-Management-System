@@ -16,6 +16,7 @@ import {
   Upload,
   Settings,
   ExternalLink,
+  Heart,
 } from 'lucide-react'
 import { useAuth } from '../../context/AuthContext'
 import Logo from '../../components/shared/Logo'
@@ -28,6 +29,7 @@ const portalMenus = {
     items: [
       { to: '/donor', label: 'Dashboard', icon: LayoutDashboard, end: true },
       { to: '/donor/donations', label: 'My Donations', icon: History },
+      { to: '/donor/impact', label: 'My Impact', icon: Heart },
       { to: '/donor/certificates', label: 'Certificates', icon: FileBadge },
       { to: '/donor/settings', label: 'Settings', icon: Settings },
     ],
@@ -35,7 +37,7 @@ const portalMenus = {
   Volunteer: {
     title: 'Volunteer Portal',
     base: '/volunteer-portal',
-    color: '#2563eb',
+    color: '#AF101A',
     items: [
       { to: '/volunteer-portal', label: 'Dashboard', icon: LayoutDashboard, end: true },
       { to: '/volunteer-portal/tasks', label: 'My Tasks', icon: ClipboardList },
@@ -65,6 +67,7 @@ const portalMenus = {
     items: [
       { to: '/staff', label: 'Dashboard', icon: LayoutDashboard, end: true },
       { to: '/staff/donations', label: 'Donations', icon: HeartHandshake },
+      { to: '/staff/verification', label: 'Verification', icon: ClipboardList },
       { to: '/staff/inventory', label: 'Inventory', icon: Package },
       { to: '/staff/distributions', label: 'Distributions', icon: Truck },
       { to: '/staff/tasks', label: 'My Tasks', icon: ListTodo },

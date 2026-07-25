@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 
 /** Adds `.is-visible` when the element enters the viewport (fade/slide animations). */
-export default function Reveal({ as: Tag = 'div', className = '', children, delay = 0, ...rest }) {
+export default function Reveal({ as: Tag = 'div', className = '', children, delay = 0, style, ...rest }) {
   const ref = useRef(null)
   const [visible, setVisible] = useState(false)
 
@@ -25,11 +25,16 @@ export default function Reveal({ as: Tag = 'div', className = '', children, dela
     return () => io.disconnect()
   }, [])
 
+  const mergedStyle = {
+    ...(delay ? { transitionDelay: `${delay}ms` } : null),
+    ...style,
+  }
+
   return (
     <Tag
       ref={ref}
       className={`reveal${visible ? ' is-visible' : ''}${className ? ` ${className}` : ''}`}
-      style={delay ? { transitionDelay: `${delay}ms` } : undefined}
+      style={Object.keys(mergedStyle).length ? mergedStyle : undefined}
       {...rest}
     >
       {children}

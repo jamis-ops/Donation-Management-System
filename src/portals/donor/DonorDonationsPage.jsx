@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
-import { Search, X } from 'lucide-react'
+import { Search, X, Download, TrendingUp, DollarSign, Package, Calendar, Users, MapPin } from 'lucide-react'
 import StatusBadge from '../../components/admin/shared/StatusBadge'
 import ApiState from '../../components/admin/shared/ApiState'
 import { donationsApi, certificatesApi } from '../../api/resources'
@@ -12,14 +12,46 @@ export default function DonorDonationsPage() {
   const { data, loading, error, reload } = useApiList(() => donationsApi.list())
   const [selected, setSelected] = useState(null)
   const [search, setSearch] = useState('')
+  const [typeFilter, setTypeFilter] = useState('All')
+  const [statusFilter, setStatusFilter] = useState('All')
   const [busy, setBusy] = useState(false)
   const [notice, setNotice] = useState('')
 
-  const filtered = data.filter((d) =>
-    !search ||
-    d.trackingCode?.toLowerCase().includes(search.toLowerCase()) ||
-    d.status?.toLowerCase().includes(search.toLowerCase())
-  )
+  // Calculate statistics
+  const totalMonetary = data
+    .filter(d => d.type === 'Monetary' && d.status !== 'Cancelled')
+    .reduce((sum, d) => sum + parseFloat(d.amount.replace(/[₱,]/g, '')), 0)
+  
+  const inKindCount = data.filter(d => d.type === 'In-Kind').length
+  const distributedCount = data.filter(d => d.status === 'Distributed').length
+  const totalBeneficiaries = data.reduce((sum, d) => sum + (d.beneficiaries || 0), 0)
+
+  // Apply filters
+  const filtered = data.filter((d) => {
+    const matchesSearch = !search ||
+      d.trackingCode?.toLowerCase().includes(search.toLowerCase()) ||
+      d.program?.toLowerCase().includes(search.toLowerCase()) ||
+      d.status?.toLowerCase().includes(search.toLowerCase())
+    
+    const matchesType = typeFilter === 'All' || d.type === typeFilter
+    const matchesStatus = statusFilter === 'All' || d.status === statusFilter
+    
+    return matchesSearch && matchesType && matchesStatus
+  })
+
+  const typeCounts = {
+    All: data.length,
+    Monetary: data.filter(d => d.type === 'Monetary').length,
+    'In-Kind': data.filter(d => d.type === 'In-Kind').length,
+  }
+
+  const statusCounts = {
+    All: data.length,
+    'Pending Verification': data.filter(d => d.status === 'Pending Verification').length,
+    'Verified': data.filter(d => d.status === 'Verified').length,
+    'In Transit': data.filter(d => d.status === 'In Transit').length,
+    'Distributed': data.filter(d => d.status === 'Distributed').length,
+  }
 
   const handleCancel = async (row) => {
     if (!window.confirm(`Cancel donation ${row.trackingCode}? This cannot be undone.`)) return
@@ -49,7 +81,29 @@ export default function DonorDonationsPage() {
     }
   }
 
-  const canRequestCert = selected && !['Pending Verification'].includes(selected.status)
+  const handleExportCSV = () => {
+    const headers = ['Tracking Code', 'Type', 'Amount', 'Program', 'Date', 'Status', 'Beneficiaries']
+    const rows = filtered.map(d => [
+      d.trackingCode,
+      d.type,
+      `"${d.amount}"`,
+      `"${d.program || ''}"`,
+      d.date,
+      d.status,
+      d.beneficiaries || 0,
+    ])
+    
+    const csv = [headers.join(','), ...rows.map(r => r.join(','))].join('\n')
+    const blob = new Blob([csv], { type: 'text/csv' })
+    const url = window.URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = 'my-donations.csv'
+    a.click()
+    window.URL.revokeObjectURL(url)
+  }
+
+  const canRequestCert = selected && !['Pending Verification', 'Cancelled'].includes(selected.status)
 
   return (
     <ApiState loading={loading} error={error} onRetry={reload}>
@@ -60,59 +114,204 @@ export default function DonorDonationsPage() {
         </div>
       )}
 
+      {/* Analytics Cards */}
+      <div className="donor-analytics-cards">
+        <div className="donor-analytics-card">
+          <div className="donor-analytics-card__icon">
+            <DollarSign size={20} />
+          </div>
+          <div className="donor-analytics-card__content">
+            <span className="donor-analytics-card__value">₱{totalMonetary.toLocaleString()}</span>
+            <span className="donor-analytics-card__label">Total Monetary</span>
+          </div>
+        </div>
+        <div className="donor-analytics-card donor-analytics-card--blue">
+          <div className="donor-analytics-card__icon">
+            <Package size={20} />
+          </div>
+          <div className="donor-analytics-card__content">
+            <span className="donor-analytics-card__value">{inKindCount}</span>
+            <span className="donor-analytics-card__label">In-Kind Donations</span>
+          </div>
+        </div>
+        <div className="donor-analytics-card donor-analytics-card--green">
+          <div className="donor-analytics-card__icon">
+            <TrendingUp size={20} />
+          </div>
+          <div className="donor-analytics-card__content">
+            <span className="donor-analytics-card__value">{distributedCount}</span>
+            <span className="donor-analytics-card__label">Distributed</span>
+          </div>
+        </div>
+        <div className="donor-analytics-card donor-analytics-card--purple">
+          <div className="donor-analytics-card__icon">
+            <Users size={20} />
+          </div>
+          <div className="donor-analytics-card__content">
+            <span className="donor-analytics-card__value">{totalBeneficiaries}</span>
+            <span className="donor-analytics-card__label">Lives Impacted</span>
+          </div>
+        </div>
+      </div>
+
       <section className="portal-panel">
         <div className="portal-panel__header">
           <h2>My Donations</h2>
-          <Link to="/donate" className="btn btn--sm btn--primary">+ Make a Donation</Link>
+          <div className="portal-panel__actions">
+            <button 
+              type="button" 
+              className="btn btn--sm btn--outline" 
+              onClick={handleExportCSV}
+              disabled={filtered.length === 0}
+            >
+              <Download size={14} /> Export CSV
+            </button>
+            <Link to="/donate" className="btn btn--sm btn--primary">+ Make a Donation</Link>
+          </div>
         </div>
 
-        <div className="portal-search">
-          <Search size={15} />
-          <input
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search by tracking code or status..."
-          />
-        </div>
-
-        <div className="portal-table-wrap">
-          <table className="portal-table">
-            <thead>
-              <tr><th>Tracking Code</th><th>Type</th><th>Amount / Items</th><th>Date</th><th>Status</th><th></th></tr>
-            </thead>
-            <tbody>
-              {filtered.length === 0 ? (
-                <tr><td colSpan={6} style={{ textAlign: 'center', color: '#6b7280' }}>No donations found.</td></tr>
-              ) : filtered.map((d) => (
-                <tr key={d.id}>
-                  <td><strong>{d.trackingCode}</strong></td>
-                  <td>{d.type}</td>
-                  <td>{d.amount}</td>
-                  <td>{d.date}</td>
-                  <td><StatusBadge status={d.status} /></td>
-                  <td>
-                    <button type="button" className="btn btn--sm btn--outline" onClick={() => setSelected(d)}>
-                      Track
-                    </button>
-                  </td>
-                </tr>
+        {/* Filter Bar */}
+        <div className="portal-filter-bar">
+          <div className="portal-filter-bar__search">
+            <Search size={18} />
+            <input
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Search by tracking code, program, or status..."
+              className="portal-search-input"
+            />
+          </div>
+          
+          <div className="portal-filter-section">
+            <span className="portal-filter-label">Type:</span>
+            <div className="portal-filter-bar__filters">
+              {Object.keys(typeCounts).map((type) => (
+                <button
+                  key={type}
+                  onClick={() => setTypeFilter(type)}
+                  className={`portal-filter-btn ${typeFilter === type ? 'active' : ''}`}
+                >
+                  {type} <span className="portal-filter-btn__count">({typeCounts[type]})</span>
+                </button>
               ))}
-            </tbody>
-          </table>
+            </div>
+          </div>
+
+          <div className="portal-filter-section">
+            <span className="portal-filter-label">Status:</span>
+            <div className="portal-filter-bar__filters">
+              {Object.keys(statusCounts).map((status) => (
+                <button
+                  key={status}
+                  onClick={() => setStatusFilter(status)}
+                  className={`portal-filter-btn ${statusFilter === status ? 'active' : ''}`}
+                >
+                  {status} <span className="portal-filter-btn__count">({statusCounts[status]})</span>
+                </button>
+              ))}
+            </div>
+          </div>
         </div>
+
+        {/* Donations List */}
+        {filtered.length === 0 ? (
+          <div className="portal-empty">
+            <Package size={36} />
+            <p>
+              {search 
+                ? `No donations found matching "${search}"`
+                : typeFilter !== 'All' || statusFilter !== 'All'
+                ? 'No donations match the selected filters'
+                : 'No donations yet. Make your first donation to get started!'}
+            </p>
+          </div>
+        ) : (
+          <div className="donor-donations-grid">
+            {filtered.map((d) => (
+              <div key={d.id} className="donor-donation-card">
+                <div className="donor-donation-card__header">
+                  <div className="donor-donation-card__tracking">
+                    <strong>{d.trackingCode}</strong>
+                    <span className={`donor-donation-type donor-donation-type--${d.type.toLowerCase()}`}>
+                      {d.type}
+                    </span>
+                  </div>
+                  <StatusBadge status={d.status} />
+                </div>
+                
+                <div className="donor-donation-card__body">
+                  <div className="donor-donation-card__amount">
+                    {d.type === 'Monetary' ? <DollarSign size={16} /> : <Package size={16} />}
+                    <span>{d.amount}</span>
+                  </div>
+                  
+                  <div className="donor-donation-card__details">
+                    <span className="donor-donation-card__program">{d.program}</span>
+                    <span className="donor-donation-card__date">
+                      <Calendar size={14} /> {d.date}
+                    </span>
+                    {d.beneficiaries > 0 && (
+                      <span className="donor-donation-card__impact">
+                        <Users size={14} /> {d.beneficiaries} beneficiaries
+                      </span>
+                    )}
+                  </div>
+                </div>
+
+                <div className="donor-donation-card__actions">
+                  <button 
+                    type="button" 
+                    className="btn btn--sm btn--outline" 
+                    onClick={() => setSelected(d)}
+                  >
+                    Track Details
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
       </section>
 
+      {/* Tracking Modal */}
       {selected && (
         <div className="admin-modal-overlay" onClick={() => setSelected(null)}>
           <div className="admin-modal admin-modal--wide" onClick={(e) => e.stopPropagation()}>
             <ModalHeader title={`Donation ${selected.trackingCode}`} onClose={() => setSelected(null)} />
 
-            <dl className="detail-list" style={{ marginBottom: '1.25rem' }}>
-              <dt>Type</dt><dd>{selected.type}</dd>
-              <dt>Amount / Items</dt><dd>{selected.amount}</dd>
-              <dt>Date</dt><dd>{selected.date}</dd>
-              <dt>Status</dt><dd><StatusBadge status={selected.status} /></dd>
-            </dl>
+            <div className="donor-tracking-details">
+              <div className="donor-tracking-header">
+                <div className="donor-tracking-amount">
+                  <span className="donor-tracking-amount__value">{selected.amount}</span>
+                  <span className="donor-tracking-amount__label">{selected.type} Donation</span>
+                </div>
+                <StatusBadge status={selected.status} />
+              </div>
+
+              <div className="donor-tracking-grid">
+                <div className="donor-tracking-item">
+                  <MapPin size={16} />
+                  <div>
+                    <span className="donor-tracking-item__label">Program</span>
+                    <strong>{selected.program}</strong>
+                  </div>
+                </div>
+                <div className="donor-tracking-item">
+                  <Calendar size={16} />
+                  <div>
+                    <span className="donor-tracking-item__label">Date</span>
+                    <strong>{selected.date}</strong>
+                  </div>
+                </div>
+                <div className="donor-tracking-item">
+                  <Users size={16} />
+                  <div>
+                    <span className="donor-tracking-item__label">Beneficiaries</span>
+                    <strong>{selected.beneficiaries || 'Pending'}</strong>
+                  </div>
+                </div>
+              </div>
+            </div>
 
             <DonationUpdatesTimeline donationId={selected.dbId} />
 

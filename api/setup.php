@@ -205,9 +205,11 @@ try {
 
   seedIfEmpty($pdo, 'volunteer_schedule', function () use ($pdo) {
     $volId = (int) $pdo->query("SELECT id FROM volunteers WHERE code = 'VOL-201' LIMIT 1")->fetchColumn();
+    $d1 = date('Y-m-d', strtotime('+3 days'));
+    $d2 = date('Y-m-d', strtotime('+7 days'));
     $rows = [
-      [$volId, '2026-07-02', 'Repacking shift — Cebu HQ', '8:00 AM'],
-      [$volId, '2026-07-05', 'Talisay relief distribution', '6:00 AM'],
+      [$volId, $d1, 'Repacking shift — Cebu HQ', '8:00 AM'],
+      [$volId, $d2, 'Talisay relief distribution', '6:00 AM'],
     ];
     $stmt = $pdo->prepare('INSERT INTO volunteer_schedule (volunteer_id, event_date, event_title, event_time) VALUES (?, ?, ?, ?)');
     foreach ($rows as $row) {

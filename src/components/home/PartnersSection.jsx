@@ -17,6 +17,40 @@ function mapCmsPartner(item, index) {
   }
 }
 
+function PartnerCard({ partner, index }) {
+  const [isHovered, setIsHovered] = useState(false)
+
+  return (
+    <Reveal
+      as="article"
+      className={`partner-logo-card ${isHovered ? 'partner-logo-card--hovered' : ''}`}
+      delay={Math.min(index * 45, 270)}
+      title={partner.name}
+      onMouseEnter={() => setIsHovered(true)}
+      onMouseLeave={() => setIsHovered(false)}
+    >
+      <div className="partner-logo-card__frame">
+        {partner.logo ? (
+          <img 
+            src={partner.logo} 
+            alt={partner.name} 
+            loading="lazy"
+            style={{
+              filter: isHovered ? 'grayscale(0)' : 'grayscale(100%)',
+              transform: isHovered ? 'scale(1.05)' : 'scale(1)',
+              transition: 'all 0.4s ease',
+            }}
+          />
+        ) : (
+          <span className="partner-logo-card__fallback">{partner.name.slice(0, 2).toUpperCase()}</span>
+        )}
+      </div>
+      <p className="partner-logo-card__name">{partner.name}</p>
+      {partner.location && <span className="partner-logo-card__loc">{partner.location}</span>}
+    </Reveal>
+  )
+}
+
 export default function PartnersSection() {
   const [list, setList] = useState(mockPartners)
 
@@ -42,21 +76,11 @@ export default function PartnersSection() {
           />
         </Reveal>
 
-        <Reveal className="partners-logo-grid">
-          {list.map((partner) => (
-            <article key={partner.id} className="partner-logo-card" title={partner.name}>
-              <div className="partner-logo-card__frame">
-                {partner.logo ? (
-                  <img src={partner.logo} alt={partner.name} loading="lazy" />
-                ) : (
-                  <span className="partner-logo-card__fallback">{partner.name.slice(0, 2).toUpperCase()}</span>
-                )}
-              </div>
-              <p className="partner-logo-card__name">{partner.name}</p>
-              {partner.location && <span className="partner-logo-card__loc">{partner.location}</span>}
-            </article>
+        <div className="partners-logo-grid">
+          {list.map((partner, i) => (
+            <PartnerCard key={partner.id} partner={partner} index={i} />
           ))}
-        </Reveal>
+        </div>
       </div>
     </section>
   )

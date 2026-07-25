@@ -41,7 +41,7 @@ if ($method === 'GET') {
     $stmt = $pdo->prepare('SELECT * FROM certificates WHERE recipient_name = ? OR reference_code IN (SELECT tracking_code FROM donations WHERE donor_email = ?) ORDER BY id DESC');
     $stmt->execute([$user['name'], $user['email']]);
   } elseif ($user['role'] === 'Volunteer') {
-    $stmt = $pdo->prepare('SELECT * FROM certificates WHERE recipient_name = ? ORDER BY id DESC');
+    $stmt = $pdo->prepare('SELECT * FROM certificates WHERE recipient_name = ? AND (recipient_type = \'Volunteer\' OR recipient_type IS NULL OR recipient_type = \'\') ORDER BY id DESC');
     $stmt->execute([$user['name']]);
   } else {
     $stmt = $pdo->query('SELECT * FROM certificates ORDER BY id DESC');

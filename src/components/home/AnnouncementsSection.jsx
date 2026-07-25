@@ -1,8 +1,10 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
+import { Calendar, Tag } from 'lucide-react'
 import { announcements as mockAnnouncements } from '../../data/mockData'
 import { fetchPublishedContent } from '../../api/resources'
 import { findMockMatch, resolveCmsImage } from '../../utils/cmsMedia'
+import { useIntersectionObserver } from '../../hooks/useIntersectionObserver'
 import SectionHeading from '../shared/SectionHeading'
 import Reveal from '../shared/Reveal'
 
@@ -30,8 +32,59 @@ function mapCmsAnnouncement(item, index) {
   }
 }
 
+function AnnouncementCard({ item, index, isVisible }) {
+  const [isHovered, setIsHovered] = useState(false)
+
+  return (
+    <Reveal 
+      as="article" 
+      className={`announcement-card announcement-card--media ${isVisible ? 'announcement-card--slide-in' : ''}`}
+      delay={index * 60}
+      onMouseEnter={() => setIsHovered(true)}
+      onMouseLeave={() => setIsHovered(false)}
+      style={{
+        animationDelay: `${index * 0.1}s`,
+      }}
+    >
+      {item.image && (
+        <div className="announcement-card__media">
+          <img 
+            src={item.image} 
+            alt="" 
+            loading="lazy"
+            style={{
+              transform: isHovered ? 'scale(1.08)' : 'scale(1)',
+              transition: 'transform 0.5s ease-out',
+            }}
+          />
+          <div className="announcement-card__overlay" />
+        </div>
+      )}
+      <div className="announcement-card__content">
+        <div className="announcement-card__meta">
+          <span className="announcement-card__category">
+            <Tag size={14} />
+            {item.category}
+          </span>
+          {item.date && (
+            <time dateTime={item.date} className="announcement-card__date">
+              <Calendar size={14} />
+              {formatDate(item.date)}
+            </time>
+          )}
+        </div>
+        <h3>{item.title}</h3>
+        <p>{item.excerpt}</p>
+      </div>
+    </Reveal>
+  )
+}
+
 export default function AnnouncementsSection() {
   const [list, setList] = useState(mockAnnouncements)
+  const [ref, isIntersecting, hasIntersected] = useIntersectionObserver({
+    threshold: 0.1,
+  })
 
   useEffect(() => {
     let cancelled = false
@@ -45,7 +98,7 @@ export default function AnnouncementsSection() {
   }, [])
 
   return (
-    <section id="news" className="section announcements-section">
+    <section id="news" className="section announcements-section" ref={ref}>
       <div className="container">
         <Reveal>
           <SectionHeading
@@ -56,24 +109,22 @@ export default function AnnouncementsSection() {
         </Reveal>
         <div className="announcements-grid announcements-grid--media">
           {list.map((item, i) => (
-            <Reveal key={item.id} as="article" className="announcement-card announcement-card--media" delay={i * 60}>
-              {item.image && (
-                <div className="announcement-card__media">
-                  <img src={item.image} alt="" loading="lazy" />
-                </div>
-              )}
-              <div className="announcement-card__content">
-                <span className="announcement-card__category">{item.category}</span>
-                {item.date && <time dateTime={item.date}>{formatDate(item.date)}</time>}
-                <h3>{item.title}</h3>
-                <p>{item.excerpt}</p>
-              </div>
-            </Reveal>
+            <AnnouncementCard 
+              key={item.id} 
+              item={item} 
+              index={i}
+              isVisible={hasIntersected}
+            />
           ))}
         </div>
         <Reveal className="section-cta">
-          <Link to="/stories" className="btn btn--outline">
-            Read Success Stories
+          <Link to="/stories" className="btn btn--outline btn--animated">
+            <span className="btn__text">Read Success Stories</span>
+            <span className="btn__icon">
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                <path d="M1 8h14M8 1l7 7-7 7" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+              </svg>
+            </span>
           </Link>
         </Reveal>
       </div>

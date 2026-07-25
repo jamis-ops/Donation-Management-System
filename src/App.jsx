@@ -44,6 +44,7 @@ import AccountSettingsPage from './pages/AccountSettingsPage'
 import DonorDashboard from './portals/donor/DonorDashboard'
 import DonorDonationsPage from './portals/donor/DonorDonationsPage'
 import DonorCertificatesPage from './portals/donor/DonorCertificatesPage'
+import DonorImpactPage from './portals/donor/DonorImpactPage'
 import VolunteerDashboard from './portals/volunteer/VolunteerDashboard'
 import VolunteerTasksPage from './portals/volunteer/VolunteerTasksPage'
 import VolunteerSchedulePage from './portals/volunteer/VolunteerSchedulePage'
@@ -59,6 +60,7 @@ import StaffDonationsPage from './portals/staff/StaffDonationsPage'
 import StaffInventoryPage from './portals/staff/StaffInventoryPage'
 import StaffDistributionsPage from './portals/staff/StaffDistributionsPage'
 import StaffTasksPage from './portals/staff/StaffTasksPage'
+import StaffVerificationPage from './portals/staff/StaffVerificationPage'
 
 /** Old email links used /verify?token=… — silently hand off to the API (no UI). */
 function LegacyVerifyRedirect() {
@@ -135,6 +137,7 @@ const router = createBrowserRouter([
     children: [
       { index: true, element: <DonorDashboard /> },
       { path: 'donations', element: <DonorDonationsPage /> },
+      { path: 'impact', element: <DonorImpactPage /> },
       { path: 'certificates', element: <DonorCertificatesPage /> },
       { path: 'settings', element: <AccountSettingsPage /> },
     ],
@@ -181,6 +184,7 @@ const router = createBrowserRouter([
     children: [
       { index: true, element: <StaffDashboard /> },
       { path: 'donations', element: <StaffDonationsPage /> },
+      { path: 'verification', element: <StaffVerificationPage /> },
       { path: 'inventory', element: <StaffInventoryPage /> },
       { path: 'distributions', element: <StaffDistributionsPage /> },
       { path: 'tasks', element: <StaffTasksPage /> },

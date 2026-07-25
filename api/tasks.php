@@ -290,9 +290,6 @@ if ($method === 'PUT') {
   if (!$id) {
     json_response(['ok' => false, 'error' => 'Task id is required'], 400);
   }
-  if ($user['role'] === 'Volunteer') {
-    json_response(['ok' => false, 'error' => 'Access denied'], 403);
-  }
   $stmt = $pdo->prepare('SELECT * FROM tasks WHERE id = ? LIMIT 1');
   $stmt->execute([$id]);
   $existing = $stmt->fetch();
@@ -303,9 +300,20 @@ if ($method === 'PUT') {
   $isAssignee = ((int) ($existing['assignee_user_id'] ?? 0) === (int) $user['id'])
     || (strcasecmp((string) ($existing['assignee'] ?? ''), (string) $user['name']) === 0);
 
-  // Staff may only update tasks assigned to them (e.g. mark Done).
-  if ($user['role'] === 'Staff' && !$isAssignee) {
-    json_response(['ok' => false, 'error' => 'You can only update tasks assigned to you'], 403);
+  // Volunteers and staff may only update tasks assigned to them (e.g. mark Done).
+  if (in_array($user['role'], ['Volunteer', 'Staff'], true) && !$isAssignee) {
+    // Also allow match by volunteer profile name when assignee_user_id is unset.
+    if ($user['role'] === 'Volunteer') {
+      $vol = $pdo->prepare('SELECT full_name FROM volunteers WHERE user_id = ? LIMIT 1');
+      $vol->execute([$user['id']]);
+      $volName = (string) ($vol->fetchColumn() ?: '');
+      if ($volName !== '' && strcasecmp((string) ($existing['assignee'] ?? ''), $volName) === 0) {
+        $isAssignee = true;
+      }
+    }
+    if (!$isAssignee) {
+      json_response(['ok' => false, 'error' => 'You can only update tasks assigned to you'], 403);
+    }
   }
 
   $column = $body['boardColumn'] ?? $existing['board_column'];
@@ -313,8 +321,8 @@ if ($method === 'PUT') {
     $column = $existing['board_column'];
   }
 
-  // Staff limited to status changes on their own tasks.
-  if ($user['role'] === 'Staff') {
+  // Volunteer / Staff limited to status changes on their own tasks.
+  if (in_array($user['role'], ['Volunteer', 'Staff'], true)) {
     $update = $pdo->prepare('UPDATE tasks SET board_column = ?, completed_at = CASE WHEN ? = \'done\' THEN COALESCE(completed_at, NOW()) ELSE NULL END WHERE id = ?');
     $update->execute([$column, $column, $id]);
 

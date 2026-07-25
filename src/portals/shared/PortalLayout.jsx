@@ -7,6 +7,7 @@ import NotificationBell from '../../components/admin/shared/NotificationBell'
 const titles = {
   '/donor': { title: 'Donor Dashboard', sub: 'Track your donations and certificates.' },
   '/donor/donations': { title: 'My Donations', sub: 'Full history of your contributions.' },
+  '/donor/impact': { title: 'My Impact', sub: 'See how your donations help communities.' },
   '/donor/certificates': { title: 'Certificates', sub: 'Download and manage your certificates.' },
   '/donor/settings': { title: 'Account Settings', sub: 'Update your profile and password.' },
   '/volunteer-portal': { title: 'Volunteer Dashboard', sub: 'Your tasks, schedule, and hours.' },
@@ -23,6 +24,7 @@ const titles = {
   '/beneficiary/settings': { title: 'Account Settings', sub: 'Update your profile and password.' },
   '/staff': { title: 'Staff Dashboard', sub: 'Operations, tasks, and inventory.' },
   '/staff/donations': { title: 'Donation Processing', sub: 'Donations pending your action.' },
+  '/staff/verification': { title: 'Donation Verification', sub: 'Review and verify submitted donations.' },
   '/staff/inventory': { title: 'Inventory', sub: 'Current stock levels.' },
   '/staff/distributions': { title: 'Distributions', sub: 'Scheduled distribution events.' },
   '/staff/tasks': { title: 'My Tasks', sub: 'Tasks assigned to you.' },
@@ -31,7 +33,7 @@ const titles = {
 
 const roleBadgeColor = {
   Donor: '#AF101A',
-  Volunteer: '#2563eb',
+  Volunteer: '#AF101A',
   Beneficiary: '#16a34a',
   Staff: '#d97706',
 }

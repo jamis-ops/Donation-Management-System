@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Eye, Pencil, Trash2, ArrowRightCircle, Truck } from 'lucide-react'
+import { Eye, Pencil, Trash2, ArrowRightCircle, Truck, Sparkles } from 'lucide-react'
 import { allocationsApi, beneficiariesApi, needsStockApi, assistanceRequestsApi } from '../../api/resources'
 import { useApiList } from '../../hooks/useApiList'
 import { useFilters } from '../../hooks/useFilters'
@@ -13,6 +13,9 @@ import ModalHeader from '../../components/admin/shared/ModalHeader'
 
 const STATUS_OPTIONS = ['Pending', 'Reserved', 'Allocated', 'Delivered', 'Cancelled']
 const PRIORITY_OPTIONS = ['Low', 'Medium', 'High', 'Critical']
+
+// How many packs a single affected family is assumed to need for one listed need.
+const PACKS_PER_FAMILY = 1
 
 const filterConfig = {
   searchKeys: ['id', 'resource', 'program', 'beneficiary'],
@@ -27,6 +30,12 @@ const filterConfig = {
 const emptyForm = {
   resource: '', quantity: '', program: '', beneficiaryId: '', assistanceRequestId: '',
   status: 'Pending', priority: 'Medium', notes: '',
+}
+
+function suggestedQuantity(barangay) {
+  if (!barangay) return 0
+  const families = Number(barangay.affectedFamilies) || 0
+  return families * PACKS_PER_FAMILY
 }
 
 export default function AllocationPage() {
@@ -59,6 +68,10 @@ export default function AllocationPage() {
         setBeneficiaryNeeds([])
       })
   }, [data])
+
+  const selectedBarangay = barangays.find((b) => String(b.dbId) === String(form.beneficiaryId))
+  const recommendedQty = suggestedQuantity(selectedBarangay)
+  const quantityMatchesSuggestion = form.quantity !== '' && Number(form.quantity) === recommendedQty
 
   const openEdit = (row) => {
     setEditRow(row)
@@ -98,6 +111,24 @@ export default function AllocationPage() {
     })
   }
 
+  const quickAllocateForNeed = (barangay, need) => {
+    const qty = suggestedQuantity(barangay)
+    setDetailRow(null)
+    setEditRow(null)
+    setForm({
+      ...emptyForm,
+      resource: need,
+      quantity: qty ? String(qty) : '',
+      program: need,
+      beneficiaryId: String(barangay.beneficiaryId ?? barangay.dbId ?? ''),
+      priority: barangay.status === 'Critical' ? 'Critical' : 'Medium',
+      notes: qty
+        ? `Auto-suggested: ${barangay.affectedFamilies || 0} affected families × ${PACKS_PER_FAMILY} pack(s) for "${need}".`
+        : '',
+    })
+    setShowCreate(true)
+  }
+
   const planDistribution = (rows) => {
     const list = Array.isArray(rows) ? rows : [rows]
     const ready = list.filter((r) => ['Reserved', 'Allocated'].includes(r.status) && !r.distributionId)
@@ -128,15 +159,23 @@ export default function AllocationPage() {
 
   const handleSave = async (e) => {
     e.preventDefault()
+    if (!form.resource?.trim()) {
+      alert('Resource is required.')
+      return
+    }
+    if (!form.quantity || Number(form.quantity) < 1) {
+      alert('Quantity must be at least 1.')
+      return
+    }
     setSaving(true)
     try {
-      const ben = barangays.find((b) => b.dbId === Number(form.beneficiaryId))
+      const ben = barangays.find((b) => Number(b.dbId) === Number(form.beneficiaryId))
       const payload = {
-        resource: form.resource,
+        resource: form.resource.trim(),
         quantity: Number(form.quantity),
         program: form.program,
         beneficiaryId: form.beneficiaryId ? Number(form.beneficiaryId) : null,
-        beneficiary: ben?.barangay || ben?.name,
+        beneficiary: ben?.barangay || ben?.name || ben?.fullName || '',
         assistanceRequestId: form.assistanceRequestId ? Number(form.assistanceRequestId) : null,
         status: form.status,
         priority: form.priority,
@@ -148,6 +187,7 @@ export default function AllocationPage() {
       } else {
         await allocationsApi.create(payload)
         setShowCreate(false)
+        setForm(emptyForm)
       }
       reload()
     } catch (err) {
@@ -191,6 +231,11 @@ export default function AllocationPage() {
   }
 
   const canPlan = (row) => ['Reserved', 'Allocated'].includes(row.status) && !row.distributionId
+
+  const closeForm = () => {
+    setEditRow(null)
+    setShowCreate(false)
+  }
 
   const columns = [
     { key: 'id', label: 'ID' },
@@ -239,23 +284,24 @@ export default function AllocationPage() {
     },
   ]
 
+  const needOptions = selectedBarangay?.needs || []
+
   const FormFields = (
     <>
-      <label>Resource (packs)<input required value={form.resource} onChange={(e) => setForm({ ...form, resource: e.target.value })} /></label>
-      <div className="form-row">
-        <label>Quantity<input type="number" min="1" required value={form.quantity} onChange={(e) => setForm({ ...form, quantity: e.target.value })} /></label>
-        <label>Program / Need<input value={form.program} onChange={(e) => setForm({ ...form, program: e.target.value })} /></label>
-      </div>
-      <label>Linked Assistance Request
-        <select value={form.assistanceRequestId} onChange={(e) => setForm({ ...form, assistanceRequestId: e.target.value })}>
-          <option value="">None</option>
-          {(requests || []).map((r) => (
-            <option key={r.dbId} value={r.dbId}>{r.id || r.code} — {r.type} ({r.status})</option>
-          ))}
-        </select>
-      </label>
-      <label>Target Barangay
-        <select value={form.beneficiaryId} onChange={(e) => setForm({ ...form, beneficiaryId: e.target.value })}>
+      <label>
+        Target Barangay
+        <select
+          value={form.beneficiaryId}
+          onChange={(e) => {
+            const id = e.target.value
+            const ben = barangays.find((b) => String(b.dbId) === id)
+            setForm((f) => ({
+              ...f,
+              beneficiaryId: id,
+              quantity: f.quantity === '' && ben ? String(suggestedQuantity(ben)) : f.quantity,
+            }))
+          }}
+        >
           <option value="">Select barangay</option>
           {barangays.map((b) => (
             <option key={b.dbId} value={b.dbId}>
@@ -265,34 +311,110 @@ export default function AllocationPage() {
           ))}
         </select>
       </label>
-      {form.beneficiaryId && (() => {
-        const b = barangays.find((x) => String(x.dbId) === String(form.beneficiaryId))
-        if (!b) return null
-        return (
-          <div className="alloc-ben-context">
-            <strong>Barangay context</strong>
-            <p>{b.affectedFamilies || 0} affected families</p>
-            <div className="alloc-need-tags">
-              {(b.needs || []).length
-                ? (b.needs || []).map((n) => <span key={n} className="alloc-need-tag">{n}</span>)
-                : <span className="alloc-need-tag alloc-need-tag--muted">No needs listed</span>}
-            </div>
+
+      {selectedBarangay && (
+        <div className="alloc-ben-context">
+          <strong>Barangay context</strong>
+          <p>{selectedBarangay.affectedFamilies || 0} affected families</p>
+          <div className="alloc-need-tags">
+            {needOptions.length
+              ? needOptions.map((n) => (
+                  <button
+                    type="button"
+                    key={n}
+                    className={`alloc-need-tag alloc-need-tag--clickable${form.program === n ? ' alloc-need-tag--active' : ''}`}
+                    onClick={() => setForm((f) => ({ ...f, program: n, resource: f.resource || n }))}
+                    title="Click to set as the Program / Need for this allocation"
+                  >
+                    {n}
+                  </button>
+                ))
+              : <span className="alloc-need-tag alloc-need-tag--muted">No needs listed</span>}
           </div>
-        )
-      })()}
+        </div>
+      )}
+
+      <label>
+        Resource (packs)
+        <input
+          required
+          value={form.resource}
+          onChange={(e) => setForm({ ...form, resource: e.target.value })}
+        />
+      </label>
+
       <div className="form-row">
-        <label>Priority
+        <label>
+          Quantity
+          <input
+            type="number"
+            min="1"
+            required
+            value={form.quantity}
+            onChange={(e) => setForm({ ...form, quantity: e.target.value })}
+          />
+        </label>
+        <label>
+          Program / Need
+          <input
+            list="allocation-need-options"
+            value={form.program}
+            onChange={(e) => setForm({ ...form, program: e.target.value })}
+            placeholder={needOptions.length ? 'Pick a listed need or type your own' : 'e.g. Food, Hygiene kits'}
+          />
+          <datalist id="allocation-need-options">
+            {needOptions.map((n) => <option key={n} value={n} />)}
+          </datalist>
+        </label>
+      </div>
+
+      {selectedBarangay && (
+        <div className={`alloc-suggestion${quantityMatchesSuggestion ? ' alloc-suggestion--applied' : ''}`}>
+          <Sparkles size={14} aria-hidden />
+          <span>
+            {selectedBarangay.affectedFamilies || 0} affected families × {PACKS_PER_FAMILY} pack{PACKS_PER_FAMILY === 1 ? '' : 's'} ≈{' '}
+            <strong>{recommendedQty} recommended</strong>
+          </span>
+          {!quantityMatchesSuggestion && recommendedQty > 0 && (
+            <button
+              type="button"
+              className="btn btn--ghost btn--sm"
+              onClick={() => setForm((f) => ({ ...f, quantity: String(recommendedQty) }))}
+            >
+              Use suggested quantity
+            </button>
+          )}
+        </div>
+      )}
+
+      <label>
+        Linked Assistance Request
+        <select value={form.assistanceRequestId} onChange={(e) => setForm({ ...form, assistanceRequestId: e.target.value })}>
+          <option value="">None</option>
+          {(requests || []).map((r) => (
+            <option key={r.dbId} value={r.dbId}>{r.id || r.code} — {r.type} ({r.status})</option>
+          ))}
+        </select>
+      </label>
+
+      <div className="form-row">
+        <label>
+          Priority
           <select value={form.priority} onChange={(e) => setForm({ ...form, priority: e.target.value })}>
             {PRIORITY_OPTIONS.map((p) => <option key={p} value={p}>{p}</option>)}
           </select>
         </label>
-        <label>Status
+        <label>
+          Status
           <select value={form.status} onChange={(e) => setForm({ ...form, status: e.target.value })}>
             {STATUS_OPTIONS.map((s) => <option key={s} value={s}>{s}</option>)}
           </select>
         </label>
       </div>
-      <label>Notes<textarea rows={2} value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} /></label>
+      <label>
+        Notes
+        <textarea rows={2} value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} />
+      </label>
     </>
   )
 
@@ -300,9 +422,15 @@ export default function AllocationPage() {
     <>
       <PageHeader
         title="Resource Allocation"
-        description="Match barangay needs and affected families to available inventory. Confirm quantities here, then use Plan Distribution to schedule delivery."
+        description="Match barangay needs and affected families to available inventory. Quantities are suggested automatically from affected families — confirm here, then use Plan Distribution to schedule delivery."
         actions={
-          <button type="button" className="btn btn--primary" onClick={() => { setShowCreate(true); setForm(emptyForm) }}>+ New Allocation</button>
+          <button
+            type="button"
+            className="btn btn--primary"
+            onClick={() => { setShowCreate(true); setForm(emptyForm) }}
+          >
+            + New Allocation
+          </button>
         }
       />
 
@@ -318,7 +446,10 @@ export default function AllocationPage() {
       {beneficiaryNeeds.length > 0 && (
         <section className="admin-panel alloc-needs-panel">
           <h2>Barangay Needs Overview</h2>
-          <p className="alloc-panel-hint">Needs and family counts used to calculate recommended pack quantities (≈ 1 pack per family per need).</p>
+          <p className="alloc-panel-hint">
+            Needs and family counts used to calculate recommended pack quantities (≈ {PACKS_PER_FAMILY} pack per family per need).
+            Click a need to start an allocation for it.
+          </p>
           <div className="alloc-needs-grid">
             {beneficiaryNeeds.slice(0, 8).map((b) => (
               <article key={b.beneficiaryId} className="alloc-needs-card">
@@ -326,10 +457,22 @@ export default function AllocationPage() {
                   <strong>{b.name}</strong>
                   <StatusBadge status={b.status} />
                 </div>
-                <p className="alloc-needs-card__meta">{b.affectedFamilies} affected families</p>
+                <p className="alloc-needs-card__meta">
+                  {b.affectedFamilies} affected families · ≈ {suggestedQuantity(b)} packs/need
+                </p>
                 <div className="alloc-need-tags">
                   {(b.needs || []).length
-                    ? b.needs.map((n) => <span key={n} className="alloc-need-tag">{n}</span>)
+                    ? b.needs.map((n) => (
+                        <button
+                          type="button"
+                          key={n}
+                          className="alloc-need-tag alloc-need-tag--clickable"
+                          onClick={() => quickAllocateForNeed(b, n)}
+                          title={`Quick-allocate for "${n}"`}
+                        >
+                          {n}
+                        </button>
+                      ))
                     : <span className="alloc-need-tag alloc-need-tag--muted">No needs listed</span>}
                 </div>
               </article>
@@ -344,7 +487,10 @@ export default function AllocationPage() {
           <p className="alloc-panel-hint">Auto-matched from barangay needs × affected families against available inventory.</p>
           <div className="volunteer-task-list">
             {recs.slice(0, 8).map((rec) => (
-              <article key={`${rec.assistanceRequestId || 'b'}-${rec.beneficiaryId}-${rec.inventoryId}-${rec.need}`} className="volunteer-task-card">
+              <article
+                key={`${rec.assistanceRequestId || 'b'}-${rec.beneficiaryId}-${rec.inventoryId}-${rec.need}`}
+                className="volunteer-task-card"
+              >
                 <div className="volunteer-task-card__top">
                   <strong>{rec.resource} × {rec.quantity} {rec.unit}</strong>
                   <StatusBadge status={rec.priority} />
@@ -453,17 +599,17 @@ export default function AllocationPage() {
       )}
 
       {(editRow || showCreate) && (
-        <div className="admin-modal-overlay" onClick={() => { setEditRow(null); setShowCreate(false) }}>
+        <div className="admin-modal-overlay" onClick={closeForm}>
           <div className="admin-modal admin-modal--wide" onClick={(e) => e.stopPropagation()}>
             <ModalHeader
               title={editRow ? `Edit Allocation ${editRow.id}` : 'New Allocation'}
-              onClose={() => { setEditRow(null); setShowCreate(false) }}
+              onClose={closeForm}
             />
             <form onSubmit={handleSave}>
               {FormFields}
               <div className="admin-modal__actions">
                 <button type="submit" className="btn btn--primary" disabled={saving}>{saving ? 'Saving...' : 'Save'}</button>
-                <button type="button" className="btn btn--ghost" onClick={() => { setEditRow(null); setShowCreate(false) }}>Cancel</button>
+                <button type="button" className="btn btn--ghost" onClick={closeForm}>Cancel</button>
               </div>
             </form>
           </div>
