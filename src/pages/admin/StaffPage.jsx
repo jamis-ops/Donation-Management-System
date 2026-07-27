@@ -11,6 +11,8 @@ import ApiState from '../../components/admin/shared/ApiState'
 import FilterBar from '../../components/admin/shared/FilterBar'
 import ModalHeader from '../../components/admin/shared/ModalHeader'
 import Req from '../../components/shared/Req'
+import { useSeeMore } from '../../hooks/useSeeMore'
+import { SeeMoreToggle } from '../../components/admin/shared/SeeMoreList'
 import NameFields from '../../components/shared/NameFields'
 import { emptyNameParts, formatFullName } from '../../utils/personName'
 
@@ -48,6 +50,7 @@ export default function StaffPage() {
   const [editForm, setEditForm] = useState(null)
   const [tasks, setTasks] = useState([])
   const [tasksLoading, setTasksLoading] = useState(false)
+  const tasksSeeMore = useSeeMore(tasks, 3)
   const [showTaskForm, setShowTaskForm] = useState(false)
   const [taskForm, setTaskForm] = useState(emptyTaskForm)
   const [successMsg, setSuccessMsg] = useState('')
@@ -218,7 +221,7 @@ export default function StaffPage() {
 
       <FilterBar controller={filters} searchPlaceholder="Search by ID, name, or email..." />
       <ApiState loading={loading} error={error} onRetry={reload}>
-        <DataTable columns={columns} data={filters.filtered} onRowClick={openStaff} />
+        <DataTable columns={columns} data={filters.filtered} onRowClick={openStaff} initialVisible={5} />
       </ApiState>
 
       {selected && editForm && (
@@ -284,8 +287,9 @@ export default function StaffPage() {
               ) : tasks.length === 0 ? (
                 <p className="beneficiary-view-empty">No tasks assigned yet.</p>
               ) : (
+                <div className="see-more-wrap">
                 <div className="volunteer-task-list">
-                  {tasks.map((t) => (
+                  {tasksSeeMore.visible.map((t) => (
                     <article key={t.dbId || t.id} className="volunteer-task-card">
                       <div className="volunteer-task-card__top">
                         <strong>{t.title}</strong>
@@ -298,6 +302,14 @@ export default function StaffPage() {
                       </div>
                     </article>
                   ))}
+                </div>
+                {tasksSeeMore.needsToggle && (
+                  <SeeMoreToggle
+                    expanded={tasksSeeMore.expanded}
+                    onToggle={tasksSeeMore.toggle}
+                    hiddenCount={tasksSeeMore.hiddenCount}
+                  />
+                )}
                 </div>
               )}
               <p className="volunteer-panel-hint">

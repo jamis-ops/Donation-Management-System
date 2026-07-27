@@ -1,10 +1,135 @@
 <?php
 declare(strict_types=1);
 require __DIR__ . '/bootstrap.php';
+require_once __DIR__ . '/mailer.php';
 
 $pdo = db();
 $method = request_method();
 $id = get_id_param();
+$action = $_GET['action'] ?? $_POST['action'] ?? null;
+$body = read_json_body();
+if (!empty($body['action'])) {
+  $action = $body['action'];
+}
+
+// ── Unauthenticated Public Actions ──
+
+if ($method === 'GET' && $action === 'validate_token') {
+  $token = trim((string) ($_GET['token'] ?? ''));
+  if ($token === '') {
+    json_response(['ok' => false, 'error' => 'Token is required'], 400);
+  }
+  $stmt = $pdo->prepare('SELECT id, full_name, representative_email, invitation_expires, invitation_status FROM beneficiaries WHERE invitation_token = ? LIMIT 1');
+  $stmt->execute([$token]);
+  $ben = $stmt->fetch();
+  if (!$ben) {
+    json_response(['ok' => false, 'valid' => false, 'error' => 'Invalid invitation link.'], 404);
+  }
+  $expired = !empty($ben['invitation_expires']) && strtotime($ben['invitation_expires']) < time();
+  if ($expired) {
+    json_response([
+      'ok' => true,
+      'valid' => false,
+      'expired' => true,
+      'barangayName' => $ben['full_name'],
+      'email' => $ben['representative_email'],
+      'error' => 'This invitation has expired. Please contact Rise Above Foundation for a new invite.',
+    ]);
+  }
+  json_response([
+    'ok' => true,
+    'valid' => true,
+    'expired' => false,
+    'barangayName' => $ben['full_name'],
+    'email' => $ben['representative_email'],
+  ]);
+}
+
+if ($method === 'POST' && $action === 'accept_invite') {
+  $token = trim((string) ($body['token'] ?? ''));
+  $password = (string) ($body['password'] ?? '');
+  if ($token === '' || $password === '') {
+    json_response(['ok' => false, 'error' => 'Token and password are required.'], 400);
+  }
+  if (strlen($password) < 6) {
+    json_response(['ok' => false, 'error' => 'Password must be at least 6 characters.'], 400);
+  }
+
+  $stmt = $pdo->prepare('SELECT b.*, u.id as user_account_id FROM beneficiaries b LEFT JOIN users u ON u.id = b.user_id WHERE b.invitation_token = ? LIMIT 1');
+  $stmt->execute([$token]);
+  $ben = $stmt->fetch();
+  if (!$ben) {
+    json_response(['ok' => false, 'error' => 'Invalid or expired invitation token.'], 404);
+  }
+  if (!empty($ben['invitation_expires']) && strtotime($ben['invitation_expires']) < time()) {
+    json_response(['ok' => false, 'error' => 'This invitation has expired. Please contact Rise Above Foundation for a new invite.'], 400);
+  }
+
+  [$repLast, $repFirst, $repMi, $repName] = read_name_parts([
+    'lastName' => $body['representativeLastName'] ?? $body['lastName'] ?? '',
+    'firstName' => $body['representativeFirstName'] ?? $body['firstName'] ?? '',
+    'middleInitial' => $body['representativeMiddleInitial'] ?? $body['middleInitial'] ?? '',
+    'name' => $body['representativeName'] ?? '',
+  ]);
+  $repMiDb = $repMi !== '' ? strtoupper(substr(preg_replace('/[^a-zA-Z]/', '', $repMi) ?: '', 0, 1)) : null;
+
+  try {
+    $pdo->beginTransaction();
+
+    $email = strtolower(trim((string) ($ben['representative_email'] ?? '')));
+    $userId = (int) ($ben['user_id'] ?? 0);
+
+    if ($userId > 0) {
+      // Update existing user record password and status
+      $hash = password_hash($password, PASSWORD_DEFAULT);
+      $pdo->prepare('UPDATE users SET password_hash = ?, status = "ACTIVE", email_verified_at = NOW(), must_change_password = 0 WHERE id = ?')
+        ->execute([$hash, $userId]);
+    } else {
+      // Create user record
+      $userId = create_user_account($pdo, 'Beneficiary', $repName !== '' ? $repName : $ben['full_name'], $email, $password, 'ACTIVE', true, [
+        'lastName' => $repLast,
+        'firstName' => $repFirst,
+        'middleInitial' => $repMi,
+      ]);
+    }
+
+    // Update beneficiary record
+    $pdo->prepare('
+      UPDATE beneficiaries
+      SET user_id = ?, status = "Active", invitation_status = "accepted", invitation_token = NULL,
+          representative_name = COALESCE(NULLIF(?, ""), representative_name),
+          representative_first_name = COALESCE(NULLIF(?, ""), representative_first_name),
+          representative_last_name = COALESCE(NULLIF(?, ""), representative_last_name),
+          representative_middle_initial = COALESCE(NULLIF(?, ""), representative_middle_initial),
+          representative_position = COALESCE(NULLIF(?, ""), representative_position),
+          representative_phone = COALESCE(NULLIF(?, ""), representative_phone)
+      WHERE id = ?
+    ')->execute([
+      $userId,
+      $repName,
+      $repFirst,
+      $repLast,
+      $repMiDb,
+      $body['representativePosition'] ?? null,
+      $body['contactNumber'] ?? $body['representativePhone'] ?? null,
+      $ben['id'],
+    ]);
+
+    $pdo->commit();
+  } catch (Throwable $e) {
+    if ($pdo->inTransaction()) {
+      $pdo->rollBack();
+    }
+    json_response(['ok' => false, 'error' => 'Could not accept invitation: ' . $e->getMessage()], 500);
+  }
+
+  notify_admins($pdo, 'beneficiary', 'Barangay invite accepted', "{$ben['full_name']} accepted partnership invitation", '/admin/beneficiaries');
+  audit_log($pdo, 'accept_invite', 'beneficiary', $ben['code'], "Accepted invitation for {$ben['full_name']}");
+
+  json_response(['ok' => true, 'message' => 'Invitation accepted successfully! You can now log in.']);
+}
+
+// ── Authenticated Actions ──
 
 function map_beneficiary(PDO $pdo, array $row): array
 {
@@ -19,6 +144,11 @@ function map_beneficiary(PDO $pdo, array $row): array
   $proofs = $pdo->prepare('SELECT COUNT(*) FROM distribution_proofs WHERE beneficiary_id = ?');
   $proofs->execute([$row['id']]);
   $proofCount = (int) $proofs->fetchColumn();
+
+  // Derive highest open request priority
+  $prioStmt = $pdo->prepare('SELECT priority FROM assistance_requests WHERE beneficiary_id = ? AND status NOT IN ("Completed","Rejected") ORDER BY FIELD(priority, "Critical", "High", "Medium", "Low") LIMIT 1');
+  $prioStmt->execute([$row['id']]);
+  $derivedPriority = $prioStmt->fetchColumn() ?: null;
 
   $needs = [];
   if (!empty($row['needs'])) {
@@ -45,6 +175,10 @@ function map_beneficiary(PDO $pdo, array $row): array
     'category' => $row['category'],
     'needs' => $needs,
     'status' => $row['status'],
+    'invitationStatus' => $row['invitation_status'] ?? 'none',
+    'invitationExpires' => format_date($row['invitation_expires'] ?? null),
+    'invitationToken' => $row['invitation_token'] ?? null,
+    'derivedPriority' => $derivedPriority,
     'notes' => $row['notes'] ?? '',
     'requests' => $requestCount,
     'proofsSubmitted' => $proofCount,
@@ -88,7 +222,59 @@ if ($user['role'] === 'Beneficiary') {
   json_response(['ok' => false, 'error' => 'Access denied'], 403);
 }
 
-$body = read_json_body();
+// ── Invite / Reinvite Actions (Admin / Staff) ──
+
+if ($method === 'POST' && ($action === 'invite' || $action === 'reinvite')) {
+  $email = strtolower(trim((string) ($body['email'] ?? $body['representativeEmail'] ?? '')));
+  $barangay = trim((string) ($body['barangayName'] ?? $body['barangay'] ?? $body['name'] ?? ''));
+  $municipality = trim((string) ($body['municipality'] ?? ''));
+
+  if ($email === '' || !filter_var($email, FILTER_VALIDATE_EMAIL)) {
+    json_response(['ok' => false, 'error' => 'A valid email address is required.'], 400);
+  }
+  if ($action === 'invite' && $barangay === '') {
+    json_response(['ok' => false, 'error' => 'Barangay name is required.'], 400);
+  }
+
+  $token = bin2hex(random_bytes(16)); // 32 hex chars
+  $expires = date('Y-m-d H:i:s', time() + (7 * 86400)); // 7 days
+
+  if ($action === 'reinvite' || ($id && $id > 0)) {
+    $stmt = $pdo->prepare('SELECT * FROM beneficiaries WHERE id = ? OR LOWER(representative_email) = ? LIMIT 1');
+    $stmt->execute([$id ?: 0, $email]);
+    $existing = $stmt->fetch();
+    if ($existing) {
+      $pdo->prepare('UPDATE beneficiaries SET invitation_token = ?, invitation_expires = ?, invitation_status = "invited" WHERE id = ?')
+        ->execute([$token, $expires, $existing['id']]);
+      $barangay = $existing['full_name'];
+      $targetId = (int) $existing['id'];
+    }
+  }
+
+  if (empty($targetId)) {
+    $code = generate_code('BEN');
+    $stmt = $pdo->prepare('
+      INSERT INTO beneficiaries (code, full_name, barangay, municipality, representative_email, invitation_token, invitation_expires, invitation_status, status)
+      VALUES (?, ?, ?, ?, ?, ?, ?, "invited", "Pending Approval")
+    ');
+    $stmt->execute([$code, $barangay, $barangay, $municipality, $email, $token, $expires]);
+    $targetId = (int) $pdo->lastInsertId();
+  }
+
+  // Send invitation email
+  try {
+    send_invitation_email($email, $barangay, $token);
+  } catch (Throwable $e) {
+    // best-effort email dispatch
+  }
+
+  notify_admins($pdo, 'beneficiary', 'Barangay invited', "Invitation sent to {$email} for {$barangay}", '/admin/beneficiaries');
+  audit_log($pdo, 'invite', 'beneficiary', (string) $targetId, "Sent invitation to {$email} for {$barangay}");
+
+  $stmt = $pdo->prepare('SELECT * FROM beneficiaries WHERE id = ?');
+  $stmt->execute([$targetId]);
+  json_response(['ok' => true, 'data' => map_beneficiary($pdo, $stmt->fetch())], 201);
+}
 
 if ($method === 'POST') {
   $barangay = trim((string) ($body['barangay'] ?? $body['name'] ?? ''));
@@ -97,7 +283,6 @@ if ($method === 'POST') {
   }
   $code = generate_code('BEN');
   $needsArr = is_array($body['needs'] ?? null) ? array_values(array_map('strval', $body['needs'])) : [];
-  // The "Category" now represents the beneficiary's needs.
   $category = count($needsArr) > 0 ? implode(', ', $needsArr) : ($body['category'] ?? null);
   [$repLast, $repFirst, $repMi, $repName] = read_name_parts([
     'lastName' => $body['representativeLastName'] ?? $body['representative_last_name'] ?? $body['lastName'] ?? '',
@@ -157,7 +342,6 @@ if ($method === 'PUT') {
   $newStatus = $body['status'] ?? $existing['status'];
 
   $needsValue = array_key_exists('needs', $body) ? encode_needs($body['needs']) : $existing['needs'];
-  // Keep the category in sync with the selected needs.
   if (array_key_exists('needs', $body) && is_array($body['needs']) && count($body['needs']) > 0) {
     $category = implode(', ', array_values(array_map('strval', $body['needs'])));
   } else {
@@ -223,17 +407,70 @@ if ($method === 'PUT') {
 }
 
 if ($method === 'DELETE') {
+  require_auth(['Admin']);
   if (!$id) {
     json_response(['ok' => false, 'error' => 'Barangay id is required'], 400);
   }
-  $del = $pdo->prepare('SELECT code, full_name FROM beneficiaries WHERE id = ?');
+  $del = $pdo->prepare('SELECT id, code, full_name, user_id FROM beneficiaries WHERE id = ?');
   $del->execute([$id]);
   $delRow = $del->fetch();
-  $pdo->prepare('DELETE FROM beneficiaries WHERE id = ?')->execute([$id]);
-  if ($delRow) {
-    audit_log($pdo, 'delete', 'beneficiary', $delRow['code'], "Deleted barangay {$delRow['full_name']}");
+  if (!$delRow) {
+    json_response(['ok' => false, 'error' => 'Barangay not found'], 404);
   }
-  json_response(['ok' => true]);
+
+  try {
+    $pdo->beginTransaction();
+
+    // Collect linked assistance requests so we can clear non-cascading refs first.
+    $reqIds = [];
+    try {
+      $reqStmt = $pdo->prepare('SELECT id FROM assistance_requests WHERE beneficiary_id = ?');
+      $reqStmt->execute([$id]);
+      $reqIds = array_map('intval', $reqStmt->fetchAll(PDO::FETCH_COLUMN) ?: []);
+    } catch (Throwable $e) {
+    }
+
+    if ($reqIds) {
+      $placeholders = implode(',', array_fill(0, count($reqIds), '?'));
+      try {
+        $pdo->prepare("UPDATE allocations SET assistance_request_id = NULL WHERE assistance_request_id IN ($placeholders)")->execute($reqIds);
+      } catch (Throwable $e) {
+      }
+      try {
+        $pdo->prepare("UPDATE distributions SET request_id = NULL WHERE request_id IN ($placeholders)")->execute($reqIds);
+      } catch (Throwable $e) {
+      }
+    }
+
+    // Clear optional links that may not cascade.
+    try {
+      $pdo->prepare('UPDATE allocations SET beneficiary_id = NULL WHERE beneficiary_id = ?')->execute([$id]);
+    } catch (Throwable $e) {
+    }
+    try {
+      $pdo->prepare('UPDATE distributions SET beneficiary_id = NULL WHERE beneficiary_id = ?')->execute([$id]);
+    } catch (Throwable $e) {
+    }
+    try {
+      $pdo->prepare('DELETE FROM distribution_proofs WHERE beneficiary_id = ?')->execute([$id]);
+    } catch (Throwable $e) {
+    }
+    try {
+      $pdo->prepare('DELETE FROM assistance_requests WHERE beneficiary_id = ?')->execute([$id]);
+    } catch (Throwable $e) {
+    }
+
+    $pdo->prepare('DELETE FROM beneficiaries WHERE id = ?')->execute([$id]);
+    $pdo->commit();
+  } catch (Throwable $e) {
+    if ($pdo->inTransaction()) {
+      $pdo->rollBack();
+    }
+    json_response(['ok' => false, 'error' => 'Failed to delete barangay: ' . $e->getMessage()], 500);
+  }
+
+  audit_log($pdo, 'delete', 'beneficiary', $delRow['code'], "Deleted barangay {$delRow['full_name']}");
+  json_response(['ok' => true, 'message' => 'Barangay deleted']);
 }
 
 json_response(['ok' => false, 'error' => 'Method not allowed'], 405);

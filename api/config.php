@@ -37,8 +37,18 @@ function json_response($data, int $status = 200): void {
 }
 
 function read_json_body(): array {
+  // php://input can only be read once — cache so request_method() + handlers
+  // can both access the same payload (POST/PUT JSON).
+  static $cached = null;
+  if ($cached !== null) {
+    return $cached;
+  }
   $raw = file_get_contents('php://input');
-  if ($raw === false || trim($raw) === '') return [];
+  if ($raw === false || trim($raw) === '') {
+    $cached = [];
+    return $cached;
+  }
   $data = json_decode($raw, true);
-  return is_array($data) ? $data : [];
+  $cached = is_array($data) ? $data : [];
+  return $cached;
 }

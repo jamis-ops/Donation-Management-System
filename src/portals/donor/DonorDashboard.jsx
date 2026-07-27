@@ -1,8 +1,8 @@
 import { Link } from 'react-router-dom'
 import {
-  HeartHandshake, FileBadge, ArrowRight, Heart, Users, GraduationCap,
-  Stethoscope, Home, Package, Gift, Clock, CheckSquare, Award, Calendar,
-  Trophy, Star, TrendingUp, Inbox,
+  HeartHandshake, FileBadge, ArrowRight, Heart, Users,
+  Package, Gift, Clock, CheckSquare, Award, Calendar,
+  Trophy, Star, TrendingUp, Inbox, HandHeart, BadgeCheck, Lock, Check,
 } from 'lucide-react'
 import StatusBadge from '../../components/admin/shared/StatusBadge'
 import ApiState from '../../components/admin/shared/ApiState'
@@ -26,26 +26,31 @@ const activityIconMap = {
 
 const milestoneIconMap = {
   heart: Heart,
-  trophy: Trophy,
-  calendar: Calendar,
-  star: Star,
+  handHeart: HandHeart,
   users: Users,
+  trendingUp: TrendingUp,
+  trophy: Trophy,
+  star: Star,
   award: Award,
+  gift: Gift,
+  heartHandshake: HeartHandshake,
+  calendar: Calendar,
+  package: Package,
+  badgeCheck: BadgeCheck,
 }
 
-const emptyImpact = {
-  familiesHelped: 0,
-  mealsProvided: 0,
-  childrenEducated: 0,
-  medicalConsultations: 0,
-  housesBuilt: 0,
-  disasterReliefPackages: 0,
+function formatProgress(milestone) {
+  if (milestone.unit === 'peso') {
+    const cur = Number(milestone.current || 0).toLocaleString('en-PH', { maximumFractionDigits: 0 })
+    const tgt = Number(milestone.target || 0).toLocaleString('en-PH', { maximumFractionDigits: 0 })
+    return `₱${cur} / ₱${tgt}`
+  }
+  return `${milestone.current ?? 0} / ${milestone.target ?? 0}`
 }
 
 export default function DonorDashboard() {
   const { data, loading, error, reload } = useApiObject(() => getPortalData())
 
-  const impact = data?.impactStats || emptyImpact
   const donations = data?.donations || []
   const milestones = data?.milestones || []
   const activity = data?.recentActivity || []
@@ -73,67 +78,89 @@ export default function DonorDashboard() {
             })}
           </div>
 
-          <section className="portal-panel">
+          <section className="portal-panel donor-achievements">
             <div className="portal-panel__header">
-              <h2>Your Impact Summary</h2>
-              <Link to="/donor/impact" className="portal-panel__link">View Details</Link>
+              <div>
+                <h2>Milestone Achievements</h2>
+                <p className="donor-achievements__sub">
+                  Unlock badges as your contributions grow. Progress updates automatically from your donation record.
+                </p>
+              </div>
+              <span className="portal-panel__count">
+                {achievedMilestones.length} / {milestones.length || 0} unlocked
+              </span>
             </div>
-            <div className="donor-impact-grid">
-              <div className="donor-impact-card">
-                <div className="donor-impact-card__icon">
-                  <Users size={24} />
-                </div>
-                <div className="donor-impact-card__content">
-                  <span className="donor-impact-card__value">{impact.familiesHelped}</span>
-                  <span className="donor-impact-card__label">Families Helped</span>
-                </div>
+
+            {milestones.length === 0 ? (
+              <div className="portal-empty">
+                <Trophy size={28} />
+                <p>Achievements will appear here once your donation history loads.</p>
               </div>
-              <div className="donor-impact-card">
-                <div className="donor-impact-card__icon donor-impact-card__icon--green">
-                  <Heart size={24} />
+            ) : (
+              <>
+                <div className="donor-achievements-grid">
+                  {milestones.map((milestone) => {
+                    const Icon = milestoneIconMap[milestone.icon] || Trophy
+                    const unlocked = Boolean(milestone.achieved)
+                    const tier = milestone.tier || 'bronze'
+                    return (
+                      <article
+                        key={milestone.id}
+                        className={[
+                          'donor-achievement',
+                          unlocked ? 'donor-achievement--unlocked' : 'donor-achievement--locked',
+                          `donor-achievement--${tier}`,
+                        ].join(' ')}
+                      >
+                        <div className="donor-achievement__badge" aria-hidden>
+                          <Icon size={22} strokeWidth={2.25} />
+                          <span className="donor-achievement__seal">
+                            {unlocked ? <Check size={12} strokeWidth={3} /> : <Lock size={11} />}
+                          </span>
+                        </div>
+                        <div className="donor-achievement__body">
+                          <div className="donor-achievement__top">
+                            <strong>{milestone.title}</strong>
+                            <span className={`donor-achievement__tier donor-achievement__tier--${tier}`}>
+                              {tier}
+                            </span>
+                          </div>
+                          <p>{milestone.description}</p>
+                          {unlocked ? (
+                            <span className="donor-achievement__unlocked">
+                              Unlocked{milestone.date ? ` · ${milestone.date}` : ''}
+                            </span>
+                          ) : (
+                            <div className="donor-achievement__progress">
+                              <div className="donor-achievement__progress-meta">
+                                <span>{formatProgress(milestone)}</span>
+                                <span>{milestone.progress ?? 0}%</span>
+                              </div>
+                              <div
+                                className="donor-achievement__bar"
+                                role="progressbar"
+                                aria-valuenow={milestone.progress ?? 0}
+                                aria-valuemin={0}
+                                aria-valuemax={100}
+                              >
+                                <span style={{ width: `${Math.min(100, milestone.progress ?? 0)}%` }} />
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      </article>
+                    )
+                  })}
                 </div>
-                <div className="donor-impact-card__content">
-                  <span className="donor-impact-card__value">{Number(impact.mealsProvided || 0).toLocaleString()}</span>
-                  <span className="donor-impact-card__label">Meals Provided</span>
-                </div>
-              </div>
-              <div className="donor-impact-card">
-                <div className="donor-impact-card__icon donor-impact-card__icon--blue">
-                  <GraduationCap size={24} />
-                </div>
-                <div className="donor-impact-card__content">
-                  <span className="donor-impact-card__value">{impact.childrenEducated}</span>
-                  <span className="donor-impact-card__label">Children Educated</span>
-                </div>
-              </div>
-              <div className="donor-impact-card">
-                <div className="donor-impact-card__icon donor-impact-card__icon--purple">
-                  <Stethoscope size={24} />
-                </div>
-                <div className="donor-impact-card__content">
-                  <span className="donor-impact-card__value">{impact.medicalConsultations}</span>
-                  <span className="donor-impact-card__label">Medical Consultations</span>
-                </div>
-              </div>
-              <div className="donor-impact-card">
-                <div className="donor-impact-card__icon donor-impact-card__icon--orange">
-                  <Home size={24} />
-                </div>
-                <div className="donor-impact-card__content">
-                  <span className="donor-impact-card__value">{impact.housesBuilt}</span>
-                  <span className="donor-impact-card__label">Houses Built</span>
-                </div>
-              </div>
-              <div className="donor-impact-card">
-                <div className="donor-impact-card__icon donor-impact-card__icon--crimson">
-                  <Package size={24} />
-                </div>
-                <div className="donor-impact-card__content">
-                  <span className="donor-impact-card__value">{impact.disasterReliefPackages}</span>
-                  <span className="donor-impact-card__label">Relief Packages</span>
-                </div>
-              </div>
-            </div>
+
+                {nextMilestone && (
+                  <div className="donor-next-milestone">
+                    <strong>Next unlock:</strong> {nextMilestone.title} — {nextMilestone.description}
+                    {typeof nextMilestone.progress === 'number' ? ` (${nextMilestone.progress}% there)` : ''}
+                  </div>
+                )}
+              </>
+            )}
           </section>
 
           <section className="portal-panel portal-quick-actions">
@@ -148,10 +175,6 @@ export default function DonorDashboard() {
               <Link to="/donor/donations" className="portal-quick-action">
                 <TrendingUp size={24} />
                 <span>Track Donations</span>
-              </Link>
-              <Link to="/donor/impact" className="portal-quick-action">
-                <Heart size={24} />
-                <span>View Impact</span>
               </Link>
               <Link to="/donor/certificates" className="portal-quick-action">
                 <FileBadge size={24} />
@@ -218,40 +241,6 @@ export default function DonorDashboard() {
               )}
             </section>
           </div>
-
-          <section className="portal-panel">
-            <div className="portal-panel__header">
-              <h2>Your Milestones</h2>
-              <span className="portal-panel__count">{achievedMilestones.length} achieved</span>
-            </div>
-            <div className="donor-milestones-grid">
-              {milestones.slice(0, 6).map((milestone) => {
-                const Icon = milestoneIconMap[milestone.icon] || Trophy
-                return (
-                  <div
-                    key={milestone.id}
-                    className={`donor-milestone ${milestone.achieved ? 'donor-milestone--achieved' : 'donor-milestone--locked'}`}
-                  >
-                    <div className="donor-milestone__icon">
-                      <Icon size={20} />
-                    </div>
-                    <div className="donor-milestone__content">
-                      <strong>{milestone.title}</strong>
-                      <span>{milestone.description}</span>
-                      {milestone.achieved && milestone.date && (
-                        <span className="donor-milestone__date">Achieved {milestone.date}</span>
-                      )}
-                    </div>
-                  </div>
-                )
-              })}
-            </div>
-            {nextMilestone && (
-              <div className="donor-next-milestone">
-                <strong>Next Milestone:</strong> {nextMilestone.title} — {nextMilestone.description}
-              </div>
-            )}
-          </section>
 
           <div className="portal-actions">
             <Link to="/donate" className="btn btn--primary">

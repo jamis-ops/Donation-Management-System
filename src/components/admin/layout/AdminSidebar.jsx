@@ -1,11 +1,12 @@
-import { NavLink } from 'react-router-dom'
+import { NavLink, useLocation } from 'react-router-dom'
 import {
   LayoutDashboard,
   HeartHandshake,
   Package,
   GitBranch,
   Truck,
-  Users,
+  Building2,
+  FileText,
   UserCheck,
   UserCog,
   BarChart3,
@@ -26,10 +27,10 @@ const navGroups = [
     ],
   },
   {
-    label: 'People',
+    label: 'People & Partners',
     items: [
       { to: '/admin/donors', label: 'Donors', icon: HeartHandshake },
-      { to: '/admin/beneficiaries', label: 'Beneficiaries', icon: Users },
+      { to: '/admin/beneficiaries', label: 'Barangays', icon: Building2 },
       { to: '/admin/volunteers', label: 'Volunteers', icon: UserCheck },
       { to: '/admin/staff', label: 'Staff', icon: UserCog },
     ],
@@ -37,6 +38,7 @@ const navGroups = [
   {
     label: 'Operations',
     items: [
+      { to: '/admin/requests', label: 'Relief Requests', icon: FileText },
       { to: '/admin/donations', label: 'Donations', icon: HeartHandshake },
       { to: '/admin/inventory', label: 'Inventory', icon: Package },
       { to: '/admin/allocation', label: 'Resource Allocation', icon: GitBranch },
@@ -54,8 +56,16 @@ const navGroups = [
   },
 ]
 
+function isItemActive(pathname, item, navIsActive) {
+  if (item.to === '/admin/beneficiaries') {
+    return pathname.startsWith('/admin/beneficiaries') || pathname.startsWith('/admin/barangays')
+  }
+  return navIsActive
+}
+
 export default function AdminSidebar({ open, onClose }) {
   const { user, logout } = useAuth()
+  const { pathname } = useLocation()
 
   const handleLogout = async () => {
     await logout()
@@ -72,12 +82,10 @@ export default function AdminSidebar({ open, onClose }) {
         />
       )}
       <aside className={`admin-sidebar${open ? ' admin-sidebar--open' : ''}`}>
-        {/* Brand */}
         <div className="admin-sidebar__brand">
           <Logo to="/admin" size="sm" />
         </div>
 
-        {/* Navigation */}
         <nav className="admin-sidebar__nav" aria-label="Admin navigation">
           {navGroups.map((group, gi) => (
             <div key={group.label}>
@@ -92,7 +100,7 @@ export default function AdminSidebar({ open, onClose }) {
                         to={item.to}
                         end={item.end}
                         className={({ isActive }) =>
-                          `admin-sidebar__link${isActive ? ' admin-sidebar__link--active' : ''}`
+                          `admin-sidebar__link${isItemActive(pathname, item, isActive) ? ' admin-sidebar__link--active' : ''}`
                         }
                         onClick={onClose}
                       >
@@ -107,7 +115,6 @@ export default function AdminSidebar({ open, onClose }) {
           ))}
         </nav>
 
-        {/* Footer */}
         <div className="admin-sidebar__footer">
           <div className="admin-sidebar__user">
             <div className="admin-sidebar__avatar">

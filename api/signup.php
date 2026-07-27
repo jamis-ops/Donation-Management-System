@@ -11,14 +11,13 @@ if (request_method() !== 'POST') {
 $body = read_json_body();
 
 $role = ucfirst(strtolower(trim((string) ($body['role'] ?? ''))));
-// Donors: created after donation verification. Volunteers: public Volunteer application → Admin approve.
-$allowedRoles = ['Beneficiary'];
-if (!in_array($role, $allowedRoles, true)) {
-  json_response([
-    'ok' => false,
-    'error' => 'Self-registration is only available for Barangay / Beneficiary accounts. Donors submit a donation at /donate; volunteers apply at /volunteer.',
-  ], 400);
-}
+// Barangay registration is now by invitation only. No public self-registration.
+// Donors: auto-created after donation verification. Volunteers: public application → Admin approve.
+$allowedRoles = []; // No roles allow public self-registration
+json_response([
+  'ok' => false,
+  'error' => 'Barangay registration is by invitation only. Please contact Rise Above Foundation for partnership inquiries. Donors submit a donation at /donate; volunteers apply at /volunteer.',
+], 403);
 
 [$lastName, $firstName, $middleInitial, $name] = read_name_parts([
   'lastName' => $body['representativeLastName'] ?? $body['representative_last_name'] ?? $body['lastName'] ?? $body['last_name'] ?? '',

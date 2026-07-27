@@ -8,6 +8,8 @@ import ApiState from '../../components/admin/shared/ApiState'
 import LineChart from '../../components/admin/charts/LineChart'
 import BarChart from '../../components/admin/charts/BarChart'
 import DonutChart from '../../components/admin/charts/DonutChart'
+import { useSeeMore } from '../../hooks/useSeeMore'
+import { SeeMoreToggle } from '../../components/admin/shared/SeeMoreList'
 
 const GRANULARITIES = [
   { value: 'week', label: 'Week' },
@@ -29,6 +31,7 @@ export default function ReportsPage() {
   const beneficiariesByCategory = (data?.beneficiariesByCategory || []).filter((d) => d.value > 0)
   const distributionByLocation = (data?.distributionByLocation || []).filter((d) => d.value > 0)
   const programFulfillment = data?.programFulfillment || []
+  const programSeeMore = useSeeMore(programFulfillment, 3)
 
   const donationsSeries = [
     {
@@ -214,8 +217,9 @@ export default function ReportsPage() {
               <section className="admin-panel admin-panel--chart">
                 <h3 className="admin-chart__title">Allocated vs. Distributed by Program</h3>
                 {programFulfillment.length > 0 ? (
+                  <div className="see-more-wrap">
                   <div className="demand-supply-grid demand-supply-grid--vertical">
-                    {programFulfillment.map((item) => (
+                    {programSeeMore.visible.map((item) => (
                       <div key={item.program} className="demand-supply-card">
                         <strong>{item.program}</strong>
                         <div className="demand-supply-dual">
@@ -237,6 +241,14 @@ export default function ReportsPage() {
                         </div>
                       </div>
                     ))}
+                  </div>
+                  {programSeeMore.needsToggle && (
+                    <SeeMoreToggle
+                      expanded={programSeeMore.expanded}
+                      onToggle={programSeeMore.toggle}
+                      hiddenCount={programSeeMore.hiddenCount}
+                    />
+                  )}
                   </div>
                 ) : (
                   <ChartEmpty message="No allocations recorded yet." />

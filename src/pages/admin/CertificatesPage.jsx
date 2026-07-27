@@ -208,7 +208,7 @@ export default function CertificatesPage() {
       <FilterBar controller={filters} searchPlaceholder="Search by ID, recipient, or reference..." />
 
       <ApiState loading={loading} error={error} onRetry={reload}>
-        <DataTable columns={columns} data={filters.filtered} onRowClick={setPreview} />
+        <DataTable columns={columns} data={filters.filtered} onRowClick={setPreview} initialVisible={5} />
       </ApiState>
 
       {showForm && (

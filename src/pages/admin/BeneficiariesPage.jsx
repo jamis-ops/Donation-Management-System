@@ -1,50 +1,41 @@
-import { useMemo, useState } from 'react'
-import { Eye, Pencil, Trash2, FileImage, HandHelping } from 'lucide-react'
-import { beneficiariesApi, assistanceRequestsApi, getDistributionProofs } from '../../api/resources'
+import { useEffect, useMemo, useState } from 'react'
+import { useLocation, useNavigate } from 'react-router-dom'
+import { Mail, Plus, Users, Activity, Clock, AlertCircle, Eye, Pencil, Trash2, Send } from 'lucide-react'
+import { beneficiariesApi, assistanceRequestsApi } from '../../api/resources'
 import { useApiList } from '../../hooks/useApiList'
-import { NEEDS, BARANGAY_TYPES, REPRESENTATIVE_POSITIONS } from '../../constants/options'
-import { MUNICIPALITIES, barangaysForMunicipality } from '../../constants/locations'
-import Req from '../../components/shared/Req'
-import NameFields from '../../components/shared/NameFields'
 import { useFilters } from '../../hooks/useFilters'
+import { MUNICIPALITIES, barangaysForMunicipality } from '../../constants/locations'
+import { BARANGAY_TYPES, NEEDS, REPRESENTATIVE_POSITIONS } from '../../constants/options'
 import PageHeader from '../../components/admin/shared/PageHeader'
 import DataTable from '../../components/admin/shared/DataTable'
 import StatusBadge from '../../components/admin/shared/StatusBadge'
-import ApiState from '../../components/admin/shared/ApiState'
 import FilterBar from '../../components/admin/shared/FilterBar'
-import AdminProofReview from '../../components/admin/shared/AdminProofReview'
 import ModalHeader from '../../components/admin/shared/ModalHeader'
+import Req from '../../components/shared/Req'
+import NameFields from '../../components/shared/NameFields'
+import ApiState from '../../components/admin/shared/ApiState'
 import { emptyNameParts, formatFullName, parseFullName } from '../../utils/personName'
+import { BENEFICIARIES_CHANGED, notifyBeneficiariesChanged } from '../../utils/beneficiariesSync'
 
-const STATUS_OPTIONS = ['Pending Approval', 'Approved', 'Active', 'Suspended']
-const PRIORITY_OPTIONS = ['Low', 'Medium', 'High']
+const STATUS_OPTIONS = ['Active', 'Approved', 'Pending Approval', 'Suspended']
+const PRIORITY_RANK = { Critical: 4, High: 3, Medium: 2, Low: 1 }
 
-const barangayFilterConfig = {
-  searchKeys: ['id', 'barangay', 'municipality', 'representativeName', 'address', 'representativeEmail'],
+const filterConfig = {
+  searchKeys: ['barangay', 'municipality', 'representativeName', 'name', 'representativeEmail'],
   filters: [
-    { key: 'status', label: 'Status' },
-    { key: 'barangayType', label: 'Type' },
+    { key: 'status', label: 'Status', options: STATUS_OPTIONS },
+  ],
+  sorts: [
+    { key: 'barangay', label: 'Name' },
+    { key: 'affectedFamilies', label: 'Affected Families' },
+    { key: 'municipality', label: 'Municipality' },
   ],
 }
 
-const requestFilterConfig = {
-  searchKeys: ['id', 'beneficiary', 'type'],
-  filters: [
-    { key: 'status', label: 'Status' },
-    { key: 'priority', label: 'Priority' },
-  ],
-  dateKey: 'date',
-}
-
-const proofFilterConfig = {
-  searchKeys: ['distributionCode', 'eventName', 'barangay', 'fileName'],
-  filters: [{ key: 'status', label: 'Status', options: ['Pending', 'Approved', 'Rejected'] }],
-}
-
-const emptyForm = {
+const emptyCreateForm = {
   barangay: '',
-  barangayType: '',
   municipality: '',
+  barangayType: '',
   address: '',
   affectedFamilies: '',
   needs: [],
@@ -53,7 +44,26 @@ const emptyForm = {
   representativePhone: '',
   representativeEmail: '',
   notes: '',
-  status: 'Pending Approval',
+  status: 'Active',
+}
+
+function normalizeNeeds(value) {
+  if (Array.isArray(value)) return value.filter(Boolean)
+  if (typeof value === 'string' && value.trim()) {
+    return value.split(',').map((n) => n.trim()).filter(Boolean)
+  }
+  return []
+}
+
+function toggleNeed(list, need) {
+  return list.includes(need) ? list.filter((n) => n !== need) : [...list, need]
+}
+
+const emptyInviteForm = {
+  email: '',
+  barangay: '',
+  municipality: '',
+  province: 'Cebu',
 }
 
 function formFromRow(row) {
@@ -65,112 +75,153 @@ function formFromRow(row) {
         middleInitial: row.representativeMiddleInitial || '',
       }
     : parseFullName(row.representativeName || '')
+
   return {
     barangay: row.barangay || row.name || '',
     barangayType: row.barangayType || '',
     municipality: row.municipality || '',
     address: row.address || '',
     affectedFamilies: row.affectedFamilies ?? '',
-    needs: Array.isArray(row.needs) ? row.needs : [],
+    needs: normalizeNeeds(row.needs),
     nameParts,
     representativePosition: row.representativePosition || '',
     representativePhone: row.representativePhone || '',
     representativeEmail: row.representativeEmail || '',
     notes: row.notes || '',
-    status: row.status || 'Pending Approval',
+    status: row.status || 'Active',
   }
 }
 
+function priorityClass(priority) {
+  const key = String(priority || 'none').toLowerCase()
+  return `beneficiaries-priority beneficiaries-priority--${key}`
+}
+
 export default function BeneficiariesPage() {
-  const { data: beneficiaries, loading, error, reload } = useApiList(() => beneficiariesApi.list())
-  const { data: assistanceRequests, loading: reqLoading, error: reqError, reload: reloadReq } = useApiList(() => assistanceRequestsApi.list())
-  const { data: proofs, loading: proofLoading, error: proofError, reload: reloadProofs } = useApiList(() => getDistributionProofs())
-  const barangayTypes = BARANGAY_TYPES
-  const needOptions = NEEDS
-  const barangayFilters = useFilters(beneficiaries, barangayFilterConfig)
-  const requestFilters = useFilters(assistanceRequests, requestFilterConfig)
-  const proofFilters = useFilters(proofs, proofFilterConfig)
+  const navigate = useNavigate()
+  const location = useLocation()
+  const { data: beneficiaries, loading, error, reload, setData } = useApiList(() => beneficiariesApi.list())
+  const { data: requests } = useApiList(() => assistanceRequestsApi.list())
 
-  const [tab, setTab] = useState('barangays')
-  const [mode, setMode] = useState(null) // 'view' | 'create' | 'edit'
-  const [active, setActive] = useState(null)
-  const [form, setForm] = useState(emptyForm)
+  useEffect(() => {
+    if (location.state?.beneficiariesRefresh) {
+      void reload()
+      navigate(location.pathname, { replace: true, state: {} })
+    }
+  }, [location.state, location.pathname, navigate, reload])
+
+  useEffect(() => {
+    const onChanged = (event) => {
+      const removedId = event.detail?.removedId
+      if (removedId != null) {
+        setData((prev) => (prev || []).filter((b) => Number(b.dbId) !== Number(removedId)))
+      }
+      void reload()
+    }
+    window.addEventListener(BENEFICIARIES_CHANGED, onChanged)
+    return () => window.removeEventListener(BENEFICIARIES_CHANGED, onChanged)
+  }, [reload, setData])
+
+  const filters = useFilters(beneficiaries, filterConfig)
+
+  const [modalMode, setModalMode] = useState(null)
+  const [activeId, setActiveId] = useState(null)
+  const [createForm, setCreateForm] = useState(emptyCreateForm)
+  const [inviteForm, setInviteForm] = useState(emptyInviteForm)
   const [saving, setSaving] = useState(false)
-  const [viewSection, setViewSection] = useState('details') // details | proofs | assistance
 
-  const totalFamilies = beneficiaries.reduce((s, b) => s + (b.affectedFamilies || 0), 0)
-  const pendingProofs = proofs.filter((p) => p.status === 'Pending' || p.status === 'Pending Review').length
+  const totalBeneficiaries = beneficiaries.length
+  const activeBeneficiaries = beneficiaries.filter((b) => b.status === 'Active' || b.status === 'Approved').length
+  const pendingInvites = beneficiaries.filter((b) => b.status === 'Pending Approval').length
 
-  const activeProofs = useMemo(() => {
-    if (!active) return []
-    return proofs.filter((p) => Number(p.beneficiaryId) === Number(active.dbId))
-  }, [proofs, active])
+  const urgentNeedsCount = useMemo(() => {
+    if (!requests) return 0
+    return requests.filter((r) => (
+      ['Pending Review', 'Under Review'].includes(r.status)
+      && ['High', 'Critical'].includes(r.priority)
+    )).length
+  }, [requests])
 
-  const activeRequests = useMemo(() => {
-    if (!active) return []
-    return assistanceRequests.filter((r) => Number(r.beneficiaryId) === Number(active.dbId))
-  }, [assistanceRequests, active])
+  const latestRequestsMap = useMemo(() => {
+    const map = {}
+    ;(requests || []).forEach((req) => {
+      const bId = req.beneficiaryId
+      if (!map[bId] || new Date(req.date) > new Date(map[bId].date)) {
+        map[bId] = req
+      }
+    })
+    return map
+  }, [requests])
 
-  const openCreate = () => {
-    setActive(null)
-    setForm(emptyForm)
-    setMode('create')
+  const openPriorityMap = useMemo(() => {
+    const map = {}
+    ;(requests || []).forEach((req) => {
+      if (['Completed', 'Done', 'Rejected', 'Cancelled'].includes(req.status)) return
+      const bId = req.beneficiaryId
+      const rank = PRIORITY_RANK[req.priority] || 0
+      if (!map[bId] || rank > (PRIORITY_RANK[map[bId]] || 0)) {
+        map[bId] = req.priority || 'Low'
+      }
+    })
+    return map
+  }, [requests])
+
+  const openInvite = () => {
+    setInviteForm(emptyInviteForm)
+    setModalMode('invite')
   }
 
-  const openView = (row) => {
-    setActive(row)
-    setViewSection('details')
-    setMode('view')
+  const openCreate = () => {
+    setCreateForm(emptyCreateForm)
+    setModalMode('create')
   }
 
   const openEdit = (row) => {
-    setActive(row)
-    setForm(formFromRow(row))
-    setMode('edit')
+    setActiveId(row.dbId)
+    setCreateForm(formFromRow(row))
+    setModalMode('edit')
   }
 
-  const handleDelete = async (row) => {
-    if (!confirm(`Permanently delete barangay "${row.barangay || row.name}"? Related proofs and assistance history may be affected.`)) return
+  const handleRowClick = (row) => {
+    navigate(`/admin/beneficiaries/${row.dbId}`)
+  }
+
+  const handleDelete = async (e, row) => {
+    e.stopPropagation()
+    if (!window.confirm(`Permanently delete beneficiary "${row.barangay || row.name}"? This cannot be undone.`)) return
     try {
       await beneficiariesApi.remove(row.dbId)
-      if (mode === 'view' && active?.dbId === row.dbId) setMode(null)
+      setData((prev) => (prev || []).filter((b) => Number(b.dbId) !== Number(row.dbId)))
+      notifyBeneficiariesChanged({ removedId: row.dbId })
       reload()
-      reloadReq()
-      reloadProofs()
     } catch (err) {
       alert(err.message)
     }
   }
 
-  const handleSave = async (e) => {
+  const handleReinvite = async (e, row) => {
+    e.stopPropagation()
+    try {
+      await beneficiariesApi.update(row.dbId, { status: 'Pending Approval' })
+      alert(`Invitation resent to ${row.representativeEmail || 'barangay contact'}.`)
+      reload()
+    } catch (err) {
+      alert(err.message)
+    }
+  }
+
+  const handleSaveInvite = async (e) => {
     e.preventDefault()
     setSaving(true)
     try {
-      const representativeName = formatFullName(form.nameParts)
-      const payload = {
-        barangay: form.barangay,
-        barangayType: form.barangayType,
-        municipality: form.municipality,
-        address: form.address,
-        affectedFamilies: Number(form.affectedFamilies) || 0,
-        needs: form.needs,
-        representativeLastName: form.nameParts.lastName,
-        representativeFirstName: form.nameParts.firstName,
-        representativeMiddleInitial: form.nameParts.middleInitial,
-        representativeName,
-        representativePosition: form.representativePosition,
-        representativePhone: form.representativePhone,
-        representativeEmail: form.representativeEmail,
-        notes: form.notes,
-        status: form.status,
-      }
-      if (mode === 'edit' && active) {
-        await beneficiariesApi.update(active.dbId, payload)
-      } else {
-        await beneficiariesApi.create(payload)
-      }
-      setMode(null)
-      setForm(emptyForm)
+      await beneficiariesApi.create({
+        barangay: inviteForm.barangay,
+        municipality: inviteForm.municipality,
+        representativeEmail: inviteForm.email,
+        status: 'Pending Approval',
+      })
+      alert('Invitation recorded. The barangay contact can be onboarded from this beneficiary record.')
+      setModalMode(null)
       reload()
     } catch (err) {
       alert(err.message)
@@ -179,290 +230,251 @@ export default function BeneficiariesPage() {
     }
   }
 
-  const barangayColumns = [
-    { key: 'id', label: 'Code' },
-    { key: 'barangay', label: 'Barangay' },
+  const handleSaveCreateEdit = async (e) => {
+    e.preventDefault()
+    setSaving(true)
+    try {
+      const representativeName = formatFullName(createForm.nameParts)
+      const payload = {
+        barangay: createForm.barangay,
+        municipality: createForm.municipality,
+        barangayType: createForm.barangayType,
+        address: createForm.address,
+        affectedFamilies: Number(createForm.affectedFamilies) || 0,
+        needs: createForm.needs,
+        representativeLastName: createForm.nameParts.lastName,
+        representativeFirstName: createForm.nameParts.firstName,
+        representativeMiddleInitial: createForm.nameParts.middleInitial,
+        representativeName,
+        representativePosition: createForm.representativePosition,
+        representativePhone: createForm.representativePhone,
+        representativeEmail: createForm.representativeEmail,
+        notes: createForm.notes,
+        status: createForm.status,
+      }
+
+      if (modalMode === 'edit' && activeId) {
+        await beneficiariesApi.update(activeId, payload)
+      } else {
+        await beneficiariesApi.create(payload)
+      }
+
+      setModalMode(null)
+      reload()
+    } catch (err) {
+      alert(err.message)
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const columns = [
+    {
+      key: 'barangay',
+      label: 'Barangay Name',
+      render: (row) => <span className="beneficiaries-name">{row.barangay || row.name || '—'}</span>,
+    },
     { key: 'municipality', label: 'Municipality / City', render: (row) => row.municipality || '—' },
+    { key: 'representativeName', label: 'Representative', render: (row) => row.representativeName || '—' },
+    {
+      key: 'affectedFamilies',
+      label: 'Affected Families',
+      render: (row) => (row.affectedFamilies || 0).toLocaleString(),
+    },
     { key: 'status', label: 'Status', render: (row) => <StatusBadge status={row.status} /> },
+    {
+      key: 'priority',
+      label: 'Priority',
+      render: (row) => {
+        const priority = openPriorityMap[row.dbId]
+        if (!priority) return <span className={priorityClass('none')}>None</span>
+        return <span className={priorityClass(priority)}>{priority}</span>
+      },
+    },
+    {
+      key: 'latestRequest',
+      label: 'Latest Request',
+      render: (row) => {
+        const latest = latestRequestsMap[row.dbId]
+        if (!latest) return <div className="beneficiaries-latest__empty">No requests</div>
+        return (
+          <div className="beneficiaries-latest">
+            <span className="beneficiaries-latest__type">{latest.type}</span>
+            <span className="beneficiaries-latest__date">{latest.date || '—'}</span>
+          </div>
+        )
+      },
+    },
     {
       key: 'actions',
       label: 'Actions',
       render: (row) => (
         <div className="table-actions">
-          <button type="button" className="icon-btn" title="View" aria-label="View" onClick={(e) => { e.stopPropagation(); openView(row) }}>
-            <Eye size={15} />
+          <button type="button" className="icon-btn" title="View details" onClick={(e) => { e.stopPropagation(); handleRowClick(row) }}>
+            <Eye size={16} />
           </button>
-          <button type="button" className="icon-btn" title="Edit" aria-label="Edit" onClick={(e) => { e.stopPropagation(); openEdit(row) }}>
-            <Pencil size={15} />
+          <button type="button" className="icon-btn" title="Edit" onClick={(e) => { e.stopPropagation(); openEdit(row) }}>
+            <Pencil size={16} />
           </button>
-          <button type="button" className="icon-btn icon-btn--danger" title="Delete" aria-label="Delete" onClick={(e) => { e.stopPropagation(); handleDelete(row) }}>
-            <Trash2 size={15} />
+          {row.status === 'Pending Approval' && (
+            <button type="button" className="icon-btn" title="Resend invite" onClick={(e) => handleReinvite(e, row)}>
+              <Send size={16} />
+            </button>
+          )}
+          <button type="button" className="icon-btn icon-btn--danger" title="Delete" onClick={(e) => handleDelete(e, row)}>
+            <Trash2 size={16} />
           </button>
         </div>
       ),
     },
-  ]
-
-  const requestColumns = [
-    { key: 'id', label: 'Reference' },
-    { key: 'beneficiary', label: 'Barangay' },
-    { key: 'type', label: 'Assistance Type' },
-    { key: 'date', label: 'Submitted' },
-    {
-      key: 'priority',
-      label: 'Priority',
-      render: (row) => (
-        <select
-          className="inline-select"
-          value={row.priority}
-          onChange={(e) => assistanceRequestsApi.update(row.dbId, { priority: e.target.value }).then(reloadReq)}
-        >
-          {PRIORITY_OPTIONS.map((p) => <option key={p} value={p}>{p}</option>)}
-        </select>
-      ),
-    },
-    {
-      key: 'status',
-      label: 'Status',
-      render: (row) => (
-        <select
-          className="inline-select"
-          value={row.status}
-          onChange={(e) => assistanceRequestsApi.update(row.dbId, { status: e.target.value }).then(reloadReq)}
-        >
-          {['Pending Review', 'Under Review', 'Approved', 'Allocated', 'Rejected'].map((s) => (
-            <option key={s} value={s}>{s}</option>
-          ))}
-        </select>
-      ),
-    },
-  ]
-
-  const proofColumns = [
-    { key: 'barangay', label: 'Barangay' },
-    { key: 'eventName', label: 'Distribution Event', render: (row) => row.eventName || row.distributionCode },
-    { key: 'fileName', label: 'File' },
-    { key: 'submittedAt', label: 'Submitted' },
-    { key: 'status', label: 'Status', render: (row) => <StatusBadge status={row.status} /> },
-  ]
-
-  const exportColumns = [
-    ...barangayColumns.filter((c) => c.key !== 'actions'),
-    { key: 'barangayType', label: 'Type' },
-    { key: 'affectedFamilies', label: 'Affected Families' },
-    { key: 'representativeName', label: 'Representative' },
-    { key: 'representativePosition', label: 'Position' },
-    { key: 'address', label: 'Address' },
   ]
 
   return (
-    <>
+    <div className="beneficiaries-page">
       <PageHeader
-        title="Barangay Beneficiary Management"
-        description="Manage barangays, review proofs, and track assistance requests."
-        actions={<button type="button" className="btn btn--primary" onClick={openCreate}>+ Register Barangay</button>}
+        title="Barangays"
+        description="Select a barangay from the side panel to view its full profile, or manage partners below."
+        actions={(
+          <>
+            <button type="button" className="btn btn--outline" onClick={openInvite}>
+              <Mail size={16} /> Invite Barangay
+            </button>
+            <button type="button" className="btn btn--primary" onClick={openCreate}>
+              <Plus size={16} /> Add Beneficiary
+            </button>
+          </>
+        )}
       />
 
-      <div className="admin-stats-grid admin-stats-grid--compact">
-        <div className="admin-stat-card">
-          <span className="admin-stat-card__value">{beneficiaries.length}</span>
-          <span className="admin-stat-card__label">Barangays Registered</span>
+      <div className="beneficiaries-stats">
+        <div className="beneficiaries-stat">
+          <div className="beneficiaries-stat__icon beneficiaries-stat__icon--brand"><Users size={22} /></div>
+          <div>
+            <span className="beneficiaries-stat__value">{totalBeneficiaries}</span>
+            <span className="beneficiaries-stat__label">Total Beneficiaries</span>
+          </div>
         </div>
-        <div className="admin-stat-card">
-          <span className="admin-stat-card__value">{totalFamilies.toLocaleString()}</span>
-          <span className="admin-stat-card__label">Total Affected Families</span>
+        <div className="beneficiaries-stat">
+          <div className="beneficiaries-stat__icon beneficiaries-stat__icon--success"><Activity size={22} /></div>
+          <div>
+            <span className="beneficiaries-stat__value">{activeBeneficiaries}</span>
+            <span className="beneficiaries-stat__label">Active</span>
+          </div>
         </div>
-        <div className="admin-stat-card">
-          <span className="admin-stat-card__value">{pendingProofs}</span>
-          <span className="admin-stat-card__label">Proofs Pending Review</span>
+        <div className="beneficiaries-stat">
+          <div className="beneficiaries-stat__icon beneficiaries-stat__icon--warning"><Clock size={22} /></div>
+          <div>
+            <span className="beneficiaries-stat__value">{pendingInvites}</span>
+            <span className="beneficiaries-stat__label">Pending Invites</span>
+          </div>
+        </div>
+        <div className="beneficiaries-stat">
+          <div className="beneficiaries-stat__icon beneficiaries-stat__icon--danger"><AlertCircle size={22} /></div>
+          <div>
+            <span className="beneficiaries-stat__value">{urgentNeedsCount}</span>
+            <span className="beneficiaries-stat__label">Urgent Open Needs</span>
+          </div>
         </div>
       </div>
 
-      <div className="admin-tabs">
-        <button type="button" className={`admin-tab${tab === 'barangays' ? ' admin-tab--active' : ''}`} onClick={() => setTab('barangays')}>Barangays</button>
-        <button type="button" className={`admin-tab${tab === 'requests' ? ' admin-tab--active' : ''}`} onClick={() => setTab('requests')}>Assistance Requests</button>
-        <button type="button" className={`admin-tab${tab === 'proofs' ? ' admin-tab--active' : ''}`} onClick={() => setTab('proofs')}>
-          Proofs{pendingProofs > 0 ? ` (${pendingProofs})` : ''}
-        </button>
-      </div>
+      <FilterBar
+        controller={filters}
+        searchPlaceholder="Search by barangay, municipality, or representative…"
+      />
 
-      {tab === 'barangays' && (
-        <>
-          <FilterBar
-            controller={barangayFilters}
-            searchPlaceholder="Search by code, barangay, city, or representative..."
-            exportConfig={{ filename: 'barangay-report', title: 'Barangay Report', columns: exportColumns, rows: barangayFilters.filtered }}
-          />
-          <ApiState loading={loading} error={error} onRetry={reload}>
-            <DataTable columns={barangayColumns} data={barangayFilters.filtered} onRowClick={openView} />
-          </ApiState>
-        </>
-      )}
+      <ApiState loading={loading} error={error} onRetry={reload}>
+        <DataTable
+          columns={columns}
+          data={filters.filtered}
+          onRowClick={handleRowClick}
+          initialVisible={5}
+        />
+      </ApiState>
 
-      {tab === 'requests' && (
-        <>
-          <FilterBar controller={requestFilters} searchPlaceholder="Search by reference, barangay, or type..." />
-          <ApiState loading={reqLoading} error={reqError} onRetry={reloadReq}>
-            <DataTable columns={requestColumns} data={requestFilters.filtered} />
-          </ApiState>
-        </>
-      )}
+      {modalMode === 'invite' && (
+        <div className="admin-modal-overlay" onClick={() => setModalMode(null)}>
+          <div className="admin-modal" onClick={(e) => e.stopPropagation()}>
+            <ModalHeader title="Invite Barangay" onClose={() => setModalMode(null)} />
+            <form onSubmit={handleSaveInvite}>
+              <p style={{ color: 'var(--admin-text-muted)', marginBottom: '1.25rem', fontSize: '0.9rem' }}>
+                Invite a barangay representative to become an official beneficiary partner.
+              </p>
 
-      {tab === 'proofs' && (
-        <>
-          <FilterBar
-            controller={proofFilters}
-            searchPlaceholder="Search by barangay, event, or file name..."
-            exportConfig={{ filename: 'barangay-proofs', title: 'Barangay Proof Report', columns: proofColumns, rows: proofFilters.filtered }}
-          />
-          <ApiState loading={proofLoading} error={proofError} onRetry={reloadProofs}>
-            <AdminProofReview proofs={proofFilters.filtered} onChanged={reloadProofs} />
-          </ApiState>
-        </>
-      )}
+              <label>
+                <Req required>Email Address</Req>
+                <input
+                  type="email"
+                  required
+                  value={inviteForm.email}
+                  onChange={(e) => setInviteForm({ ...inviteForm, email: e.target.value })}
+                  placeholder="representative@email.com"
+                />
+              </label>
 
-      {mode === 'view' && active && (
-        <div className="admin-modal-overlay" onClick={() => setMode(null)}>
-          <div className="admin-modal admin-modal--wide beneficiary-view-modal" onClick={(e) => e.stopPropagation()}>
-            <ModalHeader
-              title={active.barangay || active.name}
-              subtitle={[active.id, active.municipality].filter(Boolean).join(' · ')}
-              onClose={() => setMode(null)}
-            />
-
-            <div className="beneficiary-view-tabs" role="tablist">
-              <button
-                type="button"
-                role="tab"
-                aria-selected={viewSection === 'details'}
-                className={`beneficiary-view-tab${viewSection === 'details' ? ' beneficiary-view-tab--active' : ''}`}
-                onClick={() => setViewSection('details')}
-              >
-                Beneficiary Details
-              </button>
-              <button
-                type="button"
-                role="tab"
-                aria-selected={viewSection === 'proofs'}
-                className={`beneficiary-view-tab${viewSection === 'proofs' ? ' beneficiary-view-tab--active' : ''}`}
-                onClick={() => setViewSection('proofs')}
-              >
-                <FileImage size={14} /> Proofs
-                <span className="beneficiary-view-tab__count">{activeProofs.length}</span>
-              </button>
-              <button
-                type="button"
-                role="tab"
-                aria-selected={viewSection === 'assistance'}
-                className={`beneficiary-view-tab${viewSection === 'assistance' ? ' beneficiary-view-tab--active' : ''}`}
-                onClick={() => setViewSection('assistance')}
-              >
-                <HandHelping size={14} /> Assistance
-                <span className="beneficiary-view-tab__count">{activeRequests.length}</span>
-              </button>
-            </div>
-
-            {viewSection === 'details' && (
-              <div className="beneficiary-view-section">
-                <h3 className="beneficiary-view-section__title">Location &amp; Status</h3>
-                <dl className="detail-list">
-                  <dt>Code</dt><dd>{active.id}</dd>
-                  <dt>Barangay</dt><dd>{active.barangay || active.name || '—'}</dd>
-                  <dt>Municipality / City</dt><dd>{active.municipality || '—'}</dd>
-                  <dt>Barangay Type</dt><dd>{active.barangayType || '—'}</dd>
-                  <dt>Complete Address</dt><dd>{active.address || '—'}</dd>
-                  <dt>No. of Affected Families</dt><dd>{Number(active.affectedFamilies || 0).toLocaleString()}</dd>
-                  <dt>Status</dt><dd><StatusBadge status={active.status} /></dd>
-                </dl>
-
-                <h3 className="beneficiary-view-section__title">Needs</h3>
-                <div className="beneficiary-needs-chips">
-                  {Array.isArray(active.needs) && active.needs.length > 0
-                    ? active.needs.map((n) => <span key={n} className="beneficiary-need-chip">{n}</span>)
-                    : <span className="beneficiary-view-empty">No needs listed</span>}
-                </div>
-
-                <h3 className="beneficiary-view-section__title">Representative Information</h3>
-                <dl className="detail-list">
-                  <dt>Full Name</dt><dd>{active.representativeName || '—'}</dd>
-                  <dt>Position / Role</dt><dd>{active.representativePosition || '—'}</dd>
-                  <dt>Contact Number</dt><dd>{active.representativePhone || '—'}</dd>
-                  <dt>Email</dt><dd>{active.representativeEmail || '—'}</dd>
-                </dl>
-
-                <h3 className="beneficiary-view-section__title">Notes</h3>
-                <p className="beneficiary-view-notes">{active.notes || '—'}</p>
-              </div>
-            )}
-
-            {viewSection === 'proofs' && (
-              <div className="beneficiary-view-section">
-                <ApiState loading={proofLoading} error={proofError} onRetry={reloadProofs}>
-                  {activeProofs.length === 0 ? (
-                    <p className="beneficiary-view-empty">No distribution proofs submitted for this barangay yet.</p>
-                  ) : (
-                    <AdminProofReview
-                      proofs={activeProofs}
-                      onChanged={reloadProofs}
-                      lockedBeneficiaryId={active.dbId}
-                      lockedBarangay={active.barangay || active.name}
-                      hideBarangayFilter
-                    />
-                  )}
-                </ApiState>
-              </div>
-            )}
-
-            {viewSection === 'assistance' && (
-              <div className="beneficiary-view-section">
-                {activeRequests.length === 0 ? (
-                  <p className="beneficiary-view-empty">No assistance requests for this barangay yet.</p>
-                ) : (
-                  <div className="beneficiary-assist-list">
-                    {activeRequests.map((req) => (
-                      <article key={req.dbId || req.id} className="beneficiary-assist-card">
-                        <div className="beneficiary-assist-card__top">
-                          <strong>{req.id}</strong>
-                          <StatusBadge status={req.status} />
-                        </div>
-                        <p className="beneficiary-assist-card__type">{req.type || '—'}</p>
-                        <div className="beneficiary-assist-card__meta">
-                          <span>Submitted: {req.date || '—'}</span>
-                          <span>Priority: {req.priority || '—'}</span>
-                        </div>
-                        {req.notes ? <p className="beneficiary-assist-card__notes">{req.notes}</p> : null}
-                      </article>
+              <div className="form-row">
+                <label>
+                  <Req required>Municipality</Req>
+                  <select
+                    required
+                    value={inviteForm.municipality}
+                    onChange={(e) => setInviteForm({ ...inviteForm, municipality: e.target.value, barangay: '' })}
+                  >
+                    <option value="">Select municipality…</option>
+                    {MUNICIPALITIES.map((m) => <option key={m} value={m}>{m}</option>)}
+                  </select>
+                </label>
+                <label>
+                  <Req required>Barangay</Req>
+                  <select
+                    required
+                    value={inviteForm.barangay}
+                    disabled={!inviteForm.municipality}
+                    onChange={(e) => setInviteForm({ ...inviteForm, barangay: e.target.value })}
+                  >
+                    <option value="">{inviteForm.municipality ? 'Select barangay…' : 'Select municipality first…'}</option>
+                    {barangaysForMunicipality(inviteForm.municipality).map((b) => (
+                      <option key={b} value={b}>{b}</option>
                     ))}
-                  </div>
-                )}
+                  </select>
+                </label>
               </div>
-            )}
 
-            <div className="admin-modal__actions">
-              <button type="button" className="btn btn--outline" onClick={() => openEdit(active)}>Edit</button>
-              <button type="button" className="btn btn--ghost" onClick={() => setMode(null)}>Close</button>
-            </div>
+              <label>
+                Province
+                <input type="text" value={inviteForm.province} readOnly disabled />
+              </label>
+
+              <div className="admin-modal__actions">
+                <button type="submit" className="btn btn--primary" disabled={saving}>
+                  {saving ? 'Sending…' : 'Send Invitation'}
+                </button>
+                <button type="button" className="btn btn--ghost" onClick={() => setModalMode(null)}>Cancel</button>
+              </div>
+            </form>
           </div>
         </div>
       )}
 
-      {(mode === 'create' || mode === 'edit') && (
-        <div className="admin-modal-overlay" onClick={() => setMode(null)}>
+      {(modalMode === 'create' || modalMode === 'edit') && (
+        <div className="admin-modal-overlay" onClick={() => setModalMode(null)}>
           <div className="admin-modal admin-modal--wide" onClick={(e) => e.stopPropagation()}>
-            <ModalHeader title={mode === 'edit' ? 'Edit Barangay' : 'Register Barangay'} onClose={() => setMode(null)} />
-            <form onSubmit={handleSave}>
+            <ModalHeader
+              title={modalMode === 'edit' ? 'Edit Beneficiary' : 'Add Beneficiary'}
+              onClose={() => setModalMode(null)}
+            />
+            <form onSubmit={handleSaveCreateEdit}>
               <div className="form-row">
                 <label>
                   <Req required>Municipality / City</Req>
                   <select
                     required
-                    value={form.municipality}
-                    onChange={(e) => setForm({ ...form, municipality: e.target.value, barangay: '' })}
+                    value={createForm.municipality}
+                    onChange={(e) => setCreateForm({ ...createForm, municipality: e.target.value, barangay: '' })}
                   >
                     <option value="">Select municipality/city…</option>
                     {MUNICIPALITIES.map((m) => <option key={m} value={m}>{m}</option>)}
-                    {form.municipality && !MUNICIPALITIES.includes(form.municipality) && (
-                      <option value={form.municipality}>{form.municipality}</option>
+                    {createForm.municipality && !MUNICIPALITIES.includes(createForm.municipality) && (
+                      <option value={createForm.municipality}>{createForm.municipality}</option>
                     )}
                   </select>
                 </label>
@@ -470,106 +482,162 @@ export default function BeneficiariesPage() {
                   <Req required>Barangay Name</Req>
                   <select
                     required
-                    value={form.barangay}
-                    disabled={!form.municipality}
-                    onChange={(e) => setForm({ ...form, barangay: e.target.value })}
+                    value={createForm.barangay}
+                    disabled={!createForm.municipality}
+                    onChange={(e) => setCreateForm({ ...createForm, barangay: e.target.value })}
                   >
-                    <option value="">{form.municipality ? 'Select barangay…' : 'Select municipality first…'}</option>
-                    {barangaysForMunicipality(form.municipality).map((b) => (
+                    <option value="">{createForm.municipality ? 'Select barangay…' : 'Select municipality first…'}</option>
+                    {barangaysForMunicipality(createForm.municipality).map((b) => (
                       <option key={b} value={b}>{b}</option>
                     ))}
-                    {form.barangay && form.municipality && !barangaysForMunicipality(form.municipality).includes(form.barangay) && (
-                      <option value={form.barangay}>{form.barangay}</option>
+                    {createForm.barangay && createForm.municipality && !barangaysForMunicipality(createForm.municipality).includes(createForm.barangay) && (
+                      <option value={createForm.barangay}>{createForm.barangay}</option>
                     )}
                   </select>
                 </label>
               </div>
+
               <div className="form-row">
                 <label>
                   Barangay Type
-                  <select value={form.barangayType} onChange={(e) => setForm({ ...form, barangayType: e.target.value })}>
-                    <option value="">Select type...</option>
-                    {barangayTypes.map((t) => <option key={t} value={t}>{t}</option>)}
-                    {form.barangayType && !barangayTypes.includes(form.barangayType) && (
-                      <option value={form.barangayType}>{form.barangayType}</option>
+                  <select value={createForm.barangayType} onChange={(e) => setCreateForm({ ...createForm, barangayType: e.target.value })}>
+                    <option value="">Select type…</option>
+                    {BARANGAY_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
+                    {createForm.barangayType && !BARANGAY_TYPES.includes(createForm.barangayType) && (
+                      <option value={createForm.barangayType}>{createForm.barangayType}</option>
                     )}
                   </select>
                 </label>
                 <label>
-                  <Req required>Number of Affected Families</Req>
-                  <input type="number" min="0" required value={form.affectedFamilies} onChange={(e) => setForm({ ...form, affectedFamilies: e.target.value })} />
+                  <Req required>Affected Families</Req>
+                  <input
+                    type="number"
+                    min="0"
+                    required
+                    value={createForm.affectedFamilies}
+                    onChange={(e) => setCreateForm({ ...createForm, affectedFamilies: e.target.value })}
+                  />
                 </label>
               </div>
+
               <label>
                 <Req required>Complete Address</Req>
-                <input required value={form.address} onChange={(e) => setForm({ ...form, address: e.target.value })} placeholder="Purok / Street, Barangay, City, Province" />
+                <input
+                  required
+                  value={createForm.address}
+                  onChange={(e) => setCreateForm({ ...createForm, address: e.target.value })}
+                  placeholder="Purok / Street, Barangay, City, Province"
+                />
               </label>
-              <fieldset className="needs-fieldset">
-                <legend>Type of Beneficiary — Needs (select all that apply)</legend>
-                <div className="needs-grid">
-                  {needOptions.map((n) => {
-                    const checked = form.needs.includes(n)
-                    return (
-                      <label key={n} className="need-check">
+
+              <fieldset>
+                <legend>Type of Needs</legend>
+                <div className="checkbox-grid">
+                  {NEEDS.map((need) => (
+                    <label key={need} className="checkbox-label">
+                      <input
+                        type="checkbox"
+                        checked={createForm.needs.includes(need)}
+                        onChange={() => setCreateForm({
+                          ...createForm,
+                          needs: toggleNeed(createForm.needs, need),
+                        })}
+                      />
+                      {need}
+                    </label>
+                  ))}
+                  {createForm.needs
+                    .filter((n) => !NEEDS.includes(n))
+                    .map((need) => (
+                      <label key={need} className="checkbox-label">
                         <input
                           type="checkbox"
-                          checked={checked}
-                          onChange={(e) => setForm((prev) => ({
-                            ...prev,
-                            needs: e.target.checked
-                              ? [...prev.needs, n]
-                              : prev.needs.filter((x) => x !== n),
-                          }))}
+                          checked
+                          onChange={() => setCreateForm({
+                            ...createForm,
+                            needs: toggleNeed(createForm.needs, need),
+                          })}
                         />
-                        {n}
+                        {need}
                       </label>
-                    )
-                  })}
+                    ))}
                 </div>
               </fieldset>
-              <p className="form-section-title">Representative Information</p>
+
+              <p className="form-section-title" style={{ marginTop: '1.25rem', marginBottom: '0.85rem', fontWeight: 650, color: 'var(--admin-text)' }}>
+                Representative Information
+              </p>
+
               <NameFields
-                value={form.nameParts}
-                onChange={(nameParts) => setForm({ ...form, nameParts })}
+                value={createForm.nameParts}
+                onChange={(nameParts) => setCreateForm({ ...createForm, nameParts })}
               />
+
               <label>
                 <Req required>Position / Role</Req>
-                <select required value={form.representativePosition} onChange={(e) => setForm({ ...form, representativePosition: e.target.value })}>
+                <select
+                  required
+                  value={createForm.representativePosition}
+                  onChange={(e) => setCreateForm({ ...createForm, representativePosition: e.target.value })}
+                >
                   <option value="">Select position…</option>
                   {REPRESENTATIVE_POSITIONS.map((p) => <option key={p} value={p}>{p}</option>)}
-                  {form.representativePosition && !REPRESENTATIVE_POSITIONS.includes(form.representativePosition) && (
-                    <option value={form.representativePosition}>{form.representativePosition}</option>
+                  {createForm.representativePosition && !REPRESENTATIVE_POSITIONS.includes(createForm.representativePosition) && (
+                    <option value={createForm.representativePosition}>{createForm.representativePosition}</option>
                   )}
                 </select>
               </label>
+
               <div className="form-row">
                 <label>
                   <Req required>Contact Number</Req>
-                  <input required value={form.representativePhone} onChange={(e) => setForm({ ...form, representativePhone: e.target.value })} placeholder="+63 9xx xxx xxxx" />
+                  <input
+                    required
+                    value={createForm.representativePhone}
+                    onChange={(e) => setCreateForm({ ...createForm, representativePhone: e.target.value })}
+                    placeholder="+63 9xx xxx xxxx"
+                  />
                 </label>
                 <label>
                   <Req required>Email Address</Req>
-                  <input type="email" required value={form.representativeEmail} onChange={(e) => setForm({ ...form, representativeEmail: e.target.value })} placeholder="poc@email.com" />
+                  <input
+                    type="email"
+                    required
+                    value={createForm.representativeEmail}
+                    onChange={(e) => setCreateForm({ ...createForm, representativeEmail: e.target.value })}
+                    placeholder="poc@email.com"
+                  />
                 </label>
               </div>
-              <label>
-                Status
-                <select value={form.status} onChange={(e) => setForm({ ...form, status: e.target.value })}>
-                  {STATUS_OPTIONS.map((s) => <option key={s} value={s}>{s}</option>)}
-                </select>
-              </label>
-              <label>
-                Notes
-                <textarea rows={2} value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} />
-              </label>
+
+              <div className="form-row">
+                <label>
+                  Status
+                  <select value={createForm.status} onChange={(e) => setCreateForm({ ...createForm, status: e.target.value })}>
+                    {STATUS_OPTIONS.map((s) => <option key={s} value={s}>{s}</option>)}
+                  </select>
+                </label>
+                <label>
+                  Notes
+                  <input
+                    type="text"
+                    value={createForm.notes}
+                    onChange={(e) => setCreateForm({ ...createForm, notes: e.target.value })}
+                    placeholder="Optional notes…"
+                  />
+                </label>
+              </div>
+
               <div className="admin-modal__actions">
-                <button type="submit" className="btn btn--primary" disabled={saving}>{saving ? 'Saving...' : 'Save'}</button>
-                <button type="button" className="btn btn--ghost" onClick={() => setMode(null)}>Cancel</button>
+                <button type="submit" className="btn btn--primary" disabled={saving}>
+                  {saving ? 'Saving…' : 'Save Beneficiary'}
+                </button>
+                <button type="button" className="btn btn--ghost" onClick={() => setModalMode(null)}>Cancel</button>
               </div>
             </form>
           </div>
         </div>
       )}
-    </>
+    </div>
   )
 }

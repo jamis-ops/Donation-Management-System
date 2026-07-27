@@ -40,7 +40,7 @@ export default function PrivacyPolicyPage() {
             You may request access, correction, or deletion of your personal data by contacting
             {' '}<a href="mailto:riseabove@riseabove-cebu.org">riseabove@riseabove-cebu.org</a>.
           </p>
-          <p><Link to="/register">← Back to Sign Up</Link></p>
+          <p><Link to="/login">← Back to Log In</Link></p>
         </div>
       </section>
     </div>

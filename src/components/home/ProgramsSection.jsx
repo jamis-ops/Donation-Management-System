@@ -138,6 +138,8 @@ export default function ProgramsSection() {
     return () => { cancelled = true }
   }, [])
 
+  const featuredList = list.slice(0, 6)
+
   return (
     <section id="programs" className="section projects-section">
       <div className="container">
@@ -150,10 +152,30 @@ export default function ProgramsSection() {
         </Reveal>
 
         <div className="projects-grid">
-          {list.map((program, i) => (
+          {featuredList.map((program, i) => (
             <ProgramCard key={program.id} program={program} index={i} />
           ))}
         </div>
+
+        {list.length > 6 && (
+          <div style={{ textAlign: 'center', marginTop: '40px' }}>
+            <Link
+              to="/donate"
+              className="btn btn--outline btn--lg"
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '8px',
+                padding: '12px 28px',
+                borderRadius: '50px',
+                fontWeight: 600,
+              }}
+            >
+              See All Projects &amp; Support
+              <ArrowRight size={18} />
+            </Link>
+          </div>
+        )}
       </div>
     </section>
   )

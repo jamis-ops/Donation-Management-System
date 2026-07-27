@@ -18,7 +18,7 @@ function normalize_proof_status(?string $status): string
 
 function map_proof(PDO $pdo, array $row): array
 {
-  $distStmt = $pdo->prepare('SELECT code, event_name, location, program, status, distribution_date FROM distributions WHERE id = ?');
+  $distStmt = $pdo->prepare('SELECT id, code, event_name, location, program, status, distribution_date, request_id FROM distributions WHERE id = ?');
   $distStmt->execute([$row['distribution_id']]);
   $distribution = $distStmt->fetch() ?: [];
 
@@ -29,6 +29,42 @@ function map_proof(PDO $pdo, array $row): array
   $eventName = trim((string) ($distribution['event_name'] ?? ''));
   if ($eventName === '') {
     $eventName = trim(($distribution['code'] ?? '') . ' — ' . ($distribution['location'] ?? ''));
+  }
+
+  $requestInfo = null;
+  $requestId = !empty($distribution['request_id']) ? (int) $distribution['request_id'] : null;
+  if (!$requestId && !empty($distribution['id'])) {
+    try {
+      $ar = $pdo->prepare(
+        'SELECT assistance_request_id FROM allocations
+         WHERE distribution_id = ? AND assistance_request_id IS NOT NULL
+         ORDER BY id ASC LIMIT 1'
+      );
+      $ar->execute([(int) $distribution['id']]);
+      $fromAlloc = $ar->fetchColumn();
+      if ($fromAlloc) {
+        $requestId = (int) $fromAlloc;
+      }
+    } catch (Throwable $e) {
+    }
+  }
+  if ($requestId) {
+    $rp = $pdo->prepare(
+      'SELECT id, reference_code, assistance_type, status, notes, request_date
+       FROM assistance_requests WHERE id = ? LIMIT 1'
+    );
+    $rp->execute([$requestId]);
+    $reqRow = $rp->fetch();
+    if ($reqRow) {
+      $requestInfo = [
+        'dbId' => (int) $reqRow['id'],
+        'id' => $reqRow['reference_code'],
+        'type' => $reqRow['assistance_type'],
+        'status' => $reqRow['status'],
+        'notes' => $reqRow['notes'] ?? '',
+        'date' => format_date($reqRow['request_date'] ?? null),
+      ];
+    }
   }
 
   $fileType = (string) ($row['file_type'] ?? '');
@@ -47,6 +83,8 @@ function map_proof(PDO $pdo, array $row): array
     'distributionDate' => format_date($distribution['distribution_date'] ?? null),
     'distributionStatus' => $distribution['status'] ?? '',
     'program' => $distribution['program'] ?? '',
+    'requestId' => $requestId ?: null,
+    'request' => $requestInfo,
     'beneficiaryId' => (int) $row['beneficiary_id'],
     'barangay' => $beneficiary['full_name'] ?? $beneficiary['barangay'] ?? '',
     'fileName' => $fileName,

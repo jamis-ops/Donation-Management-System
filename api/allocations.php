@@ -30,6 +30,39 @@ function map_allocation(PDO $pdo, array $row): array
     }
   }
 
+  // Check for linked draft distribution
+  $draftDistId = null;
+  $draftDistCode = null;
+  if (!empty($row['distribution_id'])) {
+    $dd = $pdo->prepare('SELECT id, code, status FROM distributions WHERE id = ? LIMIT 1');
+    $dd->execute([$row['distribution_id']]);
+    $ddRow = $dd->fetch();
+    if ($ddRow) {
+      $draftDistId = (int) $ddRow['id'];
+      $draftDistCode = $ddRow['code'];
+    }
+  }
+
+  // Linked relief request reference (for admin tables + tracking)
+  $assistanceRequestId = !empty($row['assistance_request_id']) ? (int) $row['assistance_request_id'] : null;
+  $assistanceRequestCode = null;
+  $assistanceRequestType = null;
+  $assistanceRequestStatus = null;
+  if ($assistanceRequestId) {
+    try {
+      $ar = $pdo->prepare('SELECT reference_code, assistance_type, status FROM assistance_requests WHERE id = ? LIMIT 1');
+      $ar->execute([$assistanceRequestId]);
+      $arRow = $ar->fetch();
+      if ($arRow) {
+        $assistanceRequestCode = $arRow['reference_code'] ?? null;
+        $assistanceRequestType = $arRow['assistance_type'] ?? null;
+        $assistanceRequestStatus = $arRow['status'] ?? null;
+      }
+    } catch (Throwable $e) {
+      // older schemas may differ
+    }
+  }
+
   return [
     'id' => $row['code'],
     'dbId' => (int) $row['id'],
@@ -38,8 +71,13 @@ function map_allocation(PDO $pdo, array $row): array
     'program' => $row['program'],
     'beneficiary' => $benName,
     'beneficiaryId' => $row['beneficiary_id'] ? (int) $row['beneficiary_id'] : null,
-    'assistanceRequestId' => !empty($row['assistance_request_id']) ? (int) $row['assistance_request_id'] : null,
+    'assistanceRequestId' => $assistanceRequestId,
+    'assistanceRequestCode' => $assistanceRequestCode,
+    'assistanceRequestType' => $assistanceRequestType,
+    'assistanceRequestStatus' => $assistanceRequestStatus,
     'distributionId' => !empty($row['distribution_id']) ? (int) $row['distribution_id'] : null,
+    'draftDistributionId' => $draftDistId,
+    'draftDistributionCode' => $draftDistCode,
     'affectedFamilies' => $affectedFamilies,
     'beneficiaryNeeds' => $beneficiaryNeeds,
     'status' => $row['status'],
@@ -50,6 +88,84 @@ function map_allocation(PDO $pdo, array $row): array
   ];
 }
 
+/**
+ * Auto-create a distribution draft when allocation is approved (status → Allocated).
+ */
+function auto_create_distribution_draft(PDO $pdo, array $allocation): ?int
+{
+  $beneficiaryId = $allocation['beneficiary_id'] ?? null;
+  if (!$beneficiaryId) {
+    return null;
+  }
+
+  // Get barangay info
+  $ben = $pdo->prepare('SELECT full_name, barangay, affected_families FROM beneficiaries WHERE id = ?');
+  $ben->execute([$beneficiaryId]);
+  $benInfo = $ben->fetch();
+  $barangayName = $benInfo ? ($benInfo['full_name'] ?? 'Unknown') : 'Unknown';
+  $location = $benInfo ? ($benInfo['barangay'] ?? $benInfo['full_name'] ?? '') : '';
+
+  $code = generate_code('DST');
+  $eventName = "Distribution — {$barangayName}";
+  $program = $allocation['program'] ?? null;
+  $itemsSummary = trim(($allocation['resource_name'] ?? '') . ' × ' . (int) ($allocation['quantity'] ?? 0));
+  $notes = "Auto-created from Allocation {$allocation['code']}";
+  $beneficiariesCount = (int) ($benInfo['affected_families'] ?? 0);
+
+  // Determine request_id from linked assistance request
+  $requestId = !empty($allocation['assistance_request_id']) ? (int) $allocation['assistance_request_id'] : null;
+
+  $stmt = $pdo->prepare('INSERT INTO distributions (code, event_name, location, beneficiary_id, program, beneficiaries_count, status, distribution_type, items_summary, notes, proof_status, request_id, source_allocation_ids) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)');
+  $stmt->execute([
+    $code,
+    $eventName,
+    $location,
+    (int) $beneficiaryId,
+    $program,
+    $beneficiariesCount,
+    'Planning',
+    'Delivery',
+    $itemsSummary !== '' ? $itemsSummary : null,
+    $notes,
+    'Awaiting Proof',
+    $requestId,
+    json_encode([(int) $allocation['id']]),
+  ]);
+
+  $distId = (int) $pdo->lastInsertId();
+
+  // Link allocation to distribution
+  $pdo->prepare('UPDATE allocations SET distribution_id = ? WHERE id = ?')->execute([$distId, (int) $allocation['id']]);
+
+  // Notify
+  notify_admins($pdo, 'distribution', 'Distribution draft created', "Auto-draft {$code} created for {$barangayName} from Allocation {$allocation['code']}", '/admin/distributions');
+  audit_log($pdo, 'auto-create', 'distribution', $code, "Auto-created from allocation {$allocation['code']} for {$barangayName}");
+
+  return $distId;
+}
+
+/**
+ * Once resources are allocated against a relief request, mark that request Allocated
+ * so it leaves the active Relief Requests queue.
+ */
+function mark_request_allocated(PDO $pdo, ?int $requestId): void
+{
+  if (!$requestId || $requestId <= 0) {
+    return;
+  }
+  try {
+    $pdo->prepare("
+      UPDATE assistance_requests
+      SET status = 'Allocated'
+      WHERE id = ?
+        AND status NOT IN ('Allocated', 'Completed', 'Rejected', 'Cancelled')
+    ")->execute([$requestId]);
+  } catch (Throwable $e) {
+    // best-effort status sync
+  }
+}
+
+// Resource allocation is an admin/staff operation
 require_auth(['Admin', 'Staff']);
 
 if ($method === 'GET') {
@@ -118,9 +234,29 @@ if ($method === 'POST') {
   notify_admins($pdo, 'allocation', 'New resource allocation', "Allocated {$resource} for {$body['beneficiary']}", '/admin/allocation');
   audit_log($pdo, 'create', 'allocation', $code, "Allocated {$resource} for {$body['beneficiary']}");
   $newId = (int) $pdo->lastInsertId();
+
+  // Leave Relief Requests queue once this request has been allocated
+  mark_request_allocated($pdo, $assistanceRequestId);
+
+  // ── Auto-create distribution draft if status is Allocated ──
+  $draftDistId = null;
+  if ($status === 'Allocated' && !empty($body['beneficiaryId'])) {
+    $stmt2 = $pdo->prepare('SELECT * FROM allocations WHERE id = ?');
+    $stmt2->execute([$newId]);
+    $newAlloc = $stmt2->fetch();
+    if ($newAlloc) {
+      $draftDistId = auto_create_distribution_draft($pdo, $newAlloc);
+    }
+  }
+
   $stmt = $pdo->prepare('SELECT * FROM allocations WHERE id = ?');
   $stmt->execute([$newId]);
-  json_response(['ok' => true, 'data' => map_allocation($pdo, $stmt->fetch())], 201);
+  $result = map_allocation($pdo, $stmt->fetch());
+  if ($draftDistId) {
+    $result['draftDistributionCreated'] = true;
+    $result['draftDistributionId'] = $draftDistId;
+  }
+  json_response(['ok' => true, 'data' => $result], 201);
 }
 
 if ($method === 'PUT') {
@@ -137,6 +273,7 @@ if ($method === 'PUT') {
     ? ($body['priority'] ?? $existing['priority'])
     : 'Medium';
   $newStatus = $body['status'] ?? $existing['status'];
+  $oldStatus = $existing['status'];
 
   $update = $pdo->prepare('UPDATE allocations SET resource_name = ?, quantity = ?, program = ?, beneficiary_target = ?, beneficiary_id = ?, assistance_request_id = ?, status = ?, priority = ?, notes = ?, allocation_date = ? WHERE id = ?');
   $update->execute([
@@ -153,6 +290,22 @@ if ($method === 'PUT') {
     $id,
   ]);
 
+  $linkedRequestId = array_key_exists('assistanceRequestId', $body)
+    ? (!empty($body['assistanceRequestId']) ? (int) $body['assistanceRequestId'] : null)
+    : (!empty($existing['assistance_request_id']) ? (int) $existing['assistance_request_id'] : null);
+  mark_request_allocated($pdo, $linkedRequestId);
+
+  // ── Auto-create distribution draft when status changes TO Allocated ──
+  $draftDistId = null;
+  if ($newStatus === 'Allocated' && $oldStatus !== 'Allocated' && empty($existing['distribution_id'])) {
+    $stmt2 = $pdo->prepare('SELECT * FROM allocations WHERE id = ?');
+    $stmt2->execute([$id]);
+    $updatedAlloc = $stmt2->fetch();
+    if ($updatedAlloc && !empty($updatedAlloc['beneficiary_id'])) {
+      $draftDistId = auto_create_distribution_draft($pdo, $updatedAlloc);
+    }
+  }
+
   if ($newStatus !== $existing['status'] || $priority !== ($existing['priority'] ?? 'Medium')) {
     notify_admins($pdo, 'status_update', 'Allocation updated', "Allocation {$existing['code']} → status: {$newStatus}, priority: {$priority}", '/admin/allocation');
   }
@@ -161,7 +314,12 @@ if ($method === 'PUT') {
 
   $stmt = $pdo->prepare('SELECT * FROM allocations WHERE id = ?');
   $stmt->execute([$id]);
-  json_response(['ok' => true, 'data' => map_allocation($pdo, $stmt->fetch())]);
+  $result = map_allocation($pdo, $stmt->fetch());
+  if ($draftDistId) {
+    $result['draftDistributionCreated'] = true;
+    $result['draftDistributionId'] = $draftDistId;
+  }
+  json_response(['ok' => true, 'data' => $result]);
 }
 
 if ($method === 'DELETE') {

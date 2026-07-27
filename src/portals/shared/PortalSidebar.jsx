@@ -16,7 +16,6 @@ import {
   Upload,
   Settings,
   ExternalLink,
-  Heart,
 } from 'lucide-react'
 import { useAuth } from '../../context/AuthContext'
 import Logo from '../../components/shared/Logo'
@@ -29,7 +28,6 @@ const portalMenus = {
     items: [
       { to: '/donor', label: 'Dashboard', icon: LayoutDashboard, end: true },
       { to: '/donor/donations', label: 'My Donations', icon: History },
-      { to: '/donor/impact', label: 'My Impact', icon: Heart },
       { to: '/donor/certificates', label: 'Certificates', icon: FileBadge },
       { to: '/donor/settings', label: 'Settings', icon: Settings },
     ],

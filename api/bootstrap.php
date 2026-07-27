@@ -20,8 +20,18 @@ function require_auth(?array $roles = null): array
   if (!$user) {
     json_response(['ok' => false, 'error' => 'Authentication required. Please log in.'], 401);
   }
-  if ($roles !== null && !in_array($user['role'], $roles, true)) {
-    json_response(['ok' => false, 'error' => 'You do not have permission for this action.'], 403);
+  if ($roles !== null) {
+    $role = (string) ($user['role'] ?? '');
+    $allowed = false;
+    foreach ($roles as $allowedRole) {
+      if (strcasecmp($role, (string) $allowedRole) === 0) {
+        $allowed = true;
+        break;
+      }
+    }
+    if (!$allowed) {
+      json_response(['ok' => false, 'error' => 'You do not have permission for this action.'], 403);
+    }
   }
   return $user;
 }
@@ -685,3 +695,106 @@ function money_display(string $type, $amount, ?string $items = null): string
   $value = (float) $amount;
   return '₱' . number_format($value, $value == floor($value) ? 0 : 2);
 }
+
+/**
+ * Load donations for a logged-in donor by email and/or linked donors.user_id / donors.email.
+ * Deduplicates rows matched by both email and donor_id.
+ *
+ * @return list<array<string,mixed>>
+ */
+function donations_for_donor_user(PDO $pdo, array $user): array
+{
+  $email = trim((string) ($user['email'] ?? ''));
+  $userId = (int) ($user['id'] ?? 0);
+
+  $donorIds = [];
+  try {
+    $donorLookup = $pdo->prepare(
+      'SELECT id FROM donors
+       WHERE (user_id IS NOT NULL AND user_id = ?)
+          OR (email IS NOT NULL AND email <> "" AND LOWER(email) = LOWER(?))'
+    );
+    $donorLookup->execute([$userId, $email]);
+    foreach ($donorLookup->fetchAll() as $dRow) {
+      $donorIds[] = (int) $dRow['id'];
+    }
+    $donorIds = array_values(array_unique(array_filter($donorIds)));
+  } catch (Throwable $e) {
+    $donorIds = [];
+  }
+
+  $sql = 'SELECT * FROM donations WHERE 0=1';
+  $params = [];
+  if ($email !== '') {
+    $sql = 'SELECT * FROM donations WHERE (donor_email IS NOT NULL AND donor_email <> "" AND LOWER(donor_email) = LOWER(?))';
+    $params[] = $email;
+  }
+  if ($donorIds) {
+    $placeholders = implode(',', array_fill(0, count($donorIds), '?'));
+    if ($params) {
+      $sql .= " OR donor_id IN ($placeholders)";
+    } else {
+      $sql = "SELECT * FROM donations WHERE donor_id IN ($placeholders)";
+    }
+    foreach ($donorIds as $did) {
+      $params[] = $did;
+    }
+  }
+
+  if (!$params) {
+    return [];
+  }
+
+  $sql .= ' ORDER BY donation_date DESC, id DESC';
+  $stmt = $pdo->prepare($sql);
+  $stmt->execute($params);
+  $rawRows = $stmt->fetchAll();
+
+  $seen = [];
+  $rows = [];
+  foreach ($rawRows as $row) {
+    $rid = (int) ($row['id'] ?? 0);
+    if ($rid > 0) {
+      if (isset($seen[$rid])) {
+        continue;
+      }
+      $seen[$rid] = true;
+    }
+    $rows[] = $row;
+  }
+  return $rows;
+}
+
+/**
+ * True when a donor owns a donation row (email or linked donor_id).
+ */
+function donation_belongs_to_donor_user(PDO $pdo, array $donation, array $user): bool
+{
+  $email = trim((string) ($user['email'] ?? ''));
+  $donationEmail = trim((string) ($donation['donor_email'] ?? ''));
+  if ($email !== '' && $donationEmail !== '' && strcasecmp($email, $donationEmail) === 0) {
+    return true;
+  }
+
+  $donorId = (int) ($donation['donor_id'] ?? 0);
+  if ($donorId <= 0) {
+    return false;
+  }
+
+  try {
+    $stmt = $pdo->prepare(
+      'SELECT id FROM donors
+       WHERE id = ?
+         AND (
+           (user_id IS NOT NULL AND user_id = ?)
+           OR (email IS NOT NULL AND email <> "" AND LOWER(email) = LOWER(?))
+         )
+       LIMIT 1'
+    );
+    $stmt->execute([$donorId, (int) ($user['id'] ?? 0), $email]);
+    return (bool) $stmt->fetchColumn();
+  } catch (Throwable $e) {
+    return false;
+  }
+}
+

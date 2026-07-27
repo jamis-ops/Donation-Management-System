@@ -9,12 +9,14 @@ $id = get_id_param();
 function map_distribution(PDO $pdo, array $row): array
 {
   $barangay = '';
+  $barangayMunicipality = '';
   if (!empty($row['beneficiary_id'])) {
-    $b = $pdo->prepare('SELECT full_name, affected_families FROM beneficiaries WHERE id = ?');
+    $b = $pdo->prepare('SELECT full_name, affected_families, municipality FROM beneficiaries WHERE id = ?');
     $b->execute([$row['beneficiary_id']]);
     $ben = $b->fetch();
     if ($ben) {
       $barangay = $ben['full_name'] . ' (' . $ben['affected_families'] . ' families)';
+      $barangayMunicipality = $ben['municipality'] ?? '';
     }
   }
 
@@ -43,12 +45,67 @@ function map_distribution(PDO $pdo, array $row): array
     $linkedAllocs = [];
   }
 
+  // Linked request urgency + details
+  $requestPriority = null;
+  $requestInfo = null;
+  $requestId = !empty($row['request_id']) ? (int) $row['request_id'] : null;
+
+  // Fallback: resolve via linked allocation if distribution.request_id is empty
+  if (!$requestId) {
+    try {
+      $ar = $pdo->prepare(
+        'SELECT assistance_request_id FROM allocations
+         WHERE distribution_id = ? AND assistance_request_id IS NOT NULL
+         ORDER BY id ASC LIMIT 1'
+      );
+      $ar->execute([(int) $row['id']]);
+      $fromAlloc = $ar->fetchColumn();
+      if ($fromAlloc) {
+        $requestId = (int) $fromAlloc;
+      }
+    } catch (Throwable $e) {
+      // column may be missing on older DBs
+    }
+  }
+
+  if ($requestId) {
+    $rp = $pdo->prepare(
+      'SELECT id, reference_code, assistance_type, status, priority, notes, request_date
+       FROM assistance_requests WHERE id = ? LIMIT 1'
+    );
+    $rp->execute([$requestId]);
+    $reqRow = $rp->fetch();
+    if ($reqRow) {
+      $requestPriority = $reqRow['priority'] ?: null;
+      $requestInfo = [
+        'dbId' => (int) $reqRow['id'],
+        'id' => $reqRow['reference_code'],
+        'type' => $reqRow['assistance_type'],
+        'status' => $reqRow['status'],
+        'priority' => $reqRow['priority'],
+        'notes' => $reqRow['notes'] ?? '',
+        'date' => format_date($reqRow['request_date'] ?? null),
+        'requestDate' => $reqRow['request_date'] ?? null,
+      ];
+    }
+  }
+
+  // Source allocation IDs for grouped distributions
+  $sourceAllocIds = [];
+  if (!empty($row['source_allocation_ids'])) {
+    $decoded = json_decode((string) $row['source_allocation_ids'], true);
+    if (is_array($decoded)) {
+      $sourceAllocIds = array_map('intval', $decoded);
+    }
+  }
+
   return [
     'id' => $row['code'],
     'dbId' => (int) $row['id'],
     'eventName' => $eventName,
     'location' => $row['location'],
     'barangay' => $barangay,
+    'barangayMunicipality' => $barangayMunicipality,
     'beneficiaryId' => $row['beneficiary_id'] ? (int) $row['beneficiary_id'] : null,
     'program' => $row['program'],
     'date' => format_date($row['distribution_date']),
@@ -74,6 +131,11 @@ function map_distribution(PDO $pdo, array $row): array
     'allocationIds' => array_map(fn($a) => $a['dbId'], $linkedAllocs),
     'proofsCount' => (int) $proofCount->fetchColumn(),
     'workflowSteps' => distribution_workflow_steps(),
+    'requestId' => $requestId ?: null,
+    'requestPriority' => $requestPriority,
+    'request' => $requestInfo,
+    'sourceAllocationIds' => $sourceAllocIds,
+    'isAutoDraft' => str_contains($row['notes'] ?? '', 'Auto-created from Allocation'),
   ];
 }
 
@@ -100,12 +162,80 @@ function distributions_for_beneficiary(PDO $pdo, array $ben, bool $forProof = fa
       if ($status === 'Completed' && $proof === 'Proof Verified') {
         return false;
       }
-      // Allow resubmission when previously rejected, and normal pending/submitted events.
-      return true;
+      // Only deliveries that can reasonably need receipt proof
+      $eligible = ['Delivered', 'Awaiting Proof', 'In Transit', 'Preparing', 'Completed'];
+      if ($proof === 'Proof Rejected' || $proof === 'Proof Submitted' || $proof === 'Awaiting Proof') {
+        return true;
+      }
+      return in_array($status, $eligible, true);
     }));
   }
 
   return $rows;
+}
+
+/**
+ * Auto-close linked assistance request when all its distributions are completed.
+ */
+function try_close_linked_request(PDO $pdo, int $distributionId): void
+{
+  // Find the request linked to this distribution (via allocation or direct link)
+  $requestId = null;
+
+  // Check direct request_id on distribution
+  try {
+    $dr = $pdo->prepare('SELECT request_id FROM distributions WHERE id = ? AND request_id IS NOT NULL LIMIT 1');
+    $dr->execute([$distributionId]);
+    $requestId = $dr->fetchColumn();
+  } catch (Throwable $e) {}
+
+  // Check via linked allocations
+  if (!$requestId) {
+    try {
+      $ar = $pdo->prepare('SELECT DISTINCT a.assistance_request_id FROM allocations a WHERE a.distribution_id = ? AND a.assistance_request_id IS NOT NULL');
+      $ar->execute([$distributionId]);
+      $requestId = $ar->fetchColumn();
+    } catch (Throwable $e) {}
+  }
+
+  if (!$requestId) {
+    return;
+  }
+
+  // Check if ALL distributions linked to this request are completed
+  $allDone = true;
+
+  // Find all allocations for this request
+  $allocs = $pdo->prepare('SELECT id, distribution_id FROM allocations WHERE assistance_request_id = ?');
+  $allocs->execute([$requestId]);
+  foreach ($allocs->fetchAll() as $alloc) {
+    if (empty($alloc['distribution_id'])) {
+      $allDone = false;
+      break;
+    }
+    $ds = $pdo->prepare('SELECT status FROM distributions WHERE id = ? LIMIT 1');
+    $ds->execute([$alloc['distribution_id']]);
+    $distStatus = $ds->fetchColumn();
+    if ($distStatus !== 'Completed') {
+      $allDone = false;
+      break;
+    }
+  }
+
+  // Also check direct-linked distributions
+  try {
+    $directDists = $pdo->prepare('SELECT status FROM distributions WHERE request_id = ? AND status != ?');
+    $directDists->execute([$requestId, 'Completed']);
+    if ($directDists->fetchColumn()) {
+      $allDone = false;
+    }
+  } catch (Throwable $e) {}
+
+  if ($allDone) {
+    $pdo->prepare("UPDATE assistance_requests SET status = 'Completed' WHERE id = ? AND status NOT IN ('Rejected','Completed')")
+      ->execute([$requestId]);
+    audit_log($pdo, 'auto-complete', 'assistance_request', (string) $requestId, 'Auto-completed: all linked distributions finished');
+  }
 }
 
 $user = require_auth(['Admin', 'Staff', 'Beneficiary']);
@@ -158,7 +288,6 @@ if ($user['role'] === 'Beneficiary') {
   if (!$dist || !distribution_belongs_to_beneficiary($dist, $benRow)) {
     json_response(['ok' => false, 'error' => 'Distribution not found for your barangay'], 404);
   }
-  // Claim orphan events when the barangay confirms receipt.
   if (empty($dist['beneficiary_id'])) {
     $pdo->prepare('UPDATE distributions SET beneficiary_id = ? WHERE id = ?')->execute([$benRow['id'], $id]);
     $dist['beneficiary_id'] = $benRow['id'];
@@ -199,6 +328,104 @@ if ($user['role'] === 'Beneficiary') {
 }
 
 require_auth(['Admin', 'Staff']);
+
+// ── Grouping action: merge multiple Planning distributions for same barangay ──
+if ($method === 'POST' && !empty($body['action']) && $body['action'] === 'group') {
+  $distIds = $body['distributionIds'] ?? $body['distribution_ids'] ?? [];
+  if (!is_array($distIds) || count($distIds) < 2) {
+    json_response(['ok' => false, 'error' => 'At least 2 distribution IDs are required for grouping'], 400);
+  }
+  $distIds = array_map('intval', $distIds);
+
+  $placeholders = implode(',', array_fill(0, count($distIds), '?'));
+  $stmt = $pdo->prepare("SELECT * FROM distributions WHERE id IN ({$placeholders})");
+  $stmt->execute($distIds);
+  $dists = $stmt->fetchAll();
+
+  if (count($dists) !== count($distIds)) {
+    json_response(['ok' => false, 'error' => 'One or more distributions not found'], 400);
+  }
+
+  // Validate: all must be same beneficiary and status Planning
+  $benIds = [];
+  foreach ($dists as $d) {
+    if ($d['status'] !== 'Planning') {
+      json_response(['ok' => false, 'error' => "Distribution {$d['code']} is not in Planning status"], 400);
+    }
+    $benIds[] = (int) ($d['beneficiary_id'] ?? 0);
+  }
+  $benIds = array_unique($benIds);
+  if (count($benIds) !== 1 || $benIds[0] === 0) {
+    json_response(['ok' => false, 'error' => 'All distributions must belong to the same barangay'], 400);
+  }
+
+  // Merge: combine items, notes, source allocation IDs
+  $mergedItems = [];
+  $mergedNotes = [];
+  $allSourceAllocIds = [];
+  $mergedPrograms = [];
+  $mergedRequestIds = [];
+
+  foreach ($dists as $d) {
+    if (!empty($d['items_summary'])) {
+      $mergedItems[] = $d['items_summary'];
+    }
+    if (!empty($d['notes'])) {
+      $mergedNotes[] = $d['notes'];
+    }
+    if (!empty($d['source_allocation_ids'])) {
+      $decoded = json_decode($d['source_allocation_ids'], true);
+      if (is_array($decoded)) {
+        $allSourceAllocIds = array_merge($allSourceAllocIds, $decoded);
+      }
+    }
+    if (!empty($d['program'])) {
+      $mergedPrograms[] = $d['program'];
+    }
+    if (!empty($d['request_id'])) {
+      $mergedRequestIds[] = (int) $d['request_id'];
+    }
+  }
+
+  $benInfo = $pdo->prepare('SELECT full_name, barangay, affected_families FROM beneficiaries WHERE id = ?');
+  $benInfo->execute([$benIds[0]]);
+  $ben = $benInfo->fetch();
+  $barangayName = $ben ? $ben['full_name'] : 'Unknown';
+
+  $code = generate_code('DST');
+  $stmt = $pdo->prepare('INSERT INTO distributions (code, event_name, location, beneficiary_id, program, beneficiaries_count, status, distribution_type, items_summary, notes, proof_status, request_id, source_allocation_ids) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)');
+  $stmt->execute([
+    $code,
+    "Grouped Distribution — {$barangayName}",
+    $ben['barangay'] ?? $barangayName,
+    $benIds[0],
+    implode(', ', array_unique($mergedPrograms)) ?: null,
+    (int) ($ben['affected_families'] ?? 0),
+    'Planning',
+    'Delivery',
+    implode('; ', $mergedItems) ?: null,
+    'Grouped from: ' . implode(', ', array_map(fn($d) => $d['code'], $dists)),
+    'Awaiting Proof',
+    $mergedRequestIds ? $mergedRequestIds[0] : null,
+    json_encode(array_values(array_unique($allSourceAllocIds))),
+  ]);
+  $newId = (int) $pdo->lastInsertId();
+
+  // Re-link allocations to the merged distribution
+  foreach ($distIds as $oldDistId) {
+    $pdo->prepare('UPDATE allocations SET distribution_id = ? WHERE distribution_id = ?')->execute([$newId, $oldDistId]);
+  }
+
+  // Delete the individual drafts
+  $pdo->prepare("DELETE FROM distributions WHERE id IN ({$placeholders})")->execute($distIds);
+
+  audit_log($pdo, 'group', 'distribution', $code, "Grouped " . count($distIds) . " distributions for {$barangayName}");
+  notify_admins($pdo, 'distribution', 'Distributions grouped', "Merged " . count($distIds) . " drafts into {$code} for {$barangayName}", '/admin/distributions');
+
+  $stmt = $pdo->prepare('SELECT * FROM distributions WHERE id = ?');
+  $stmt->execute([$newId]);
+  json_response(['ok' => true, 'data' => map_distribution($pdo, $stmt->fetch())], 201);
+}
 
 if ($method === 'POST') {
   $code = generate_code('DST');
@@ -289,7 +516,18 @@ if ($method === 'POST') {
     $notes = 'Created from allocation(s): ' . implode(', ', $codes);
   }
 
-  $stmt = $pdo->prepare('INSERT INTO distributions (code, event_name, location, beneficiary_id, program, distribution_date, schedule_time, beneficiaries_count, volunteers_count, vehicles_count, distance_km, fuel_liters, fuel_cost, status, distribution_type, items_summary, coordinator, notes, proof_status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)');
+  // Determine request_id
+  $requestId = $body['requestId'] ?? null;
+  if (!$requestId && $fromAllocations) {
+    foreach ($fromAllocations as $a) {
+      if (!empty($a['assistance_request_id'])) {
+        $requestId = (int) $a['assistance_request_id'];
+        break;
+      }
+    }
+  }
+
+  $stmt = $pdo->prepare('INSERT INTO distributions (code, event_name, location, beneficiary_id, program, distribution_date, schedule_time, beneficiaries_count, volunteers_count, vehicles_count, distance_km, fuel_liters, fuel_cost, status, distribution_type, items_summary, coordinator, notes, proof_status, request_id, source_allocation_ids) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)');
   $stmt->execute([
     $code,
     $eventName,
@@ -310,6 +548,8 @@ if ($method === 'POST') {
     $body['coordinator'] ?? null,
     $notes,
     $proofStatus,
+    $requestId ? (int) $requestId : null,
+    $allocationIds ? json_encode($allocationIds) : null,
   ]);
   $newId = (int) $pdo->lastInsertId();
 
@@ -353,7 +593,6 @@ if ($method === 'PUT') {
   $beneficiaryId = array_key_exists('beneficiaryId', $body)
     ? (!empty($body['beneficiaryId']) ? (int) $body['beneficiaryId'] : null)
     : ($existing['beneficiary_id'] ? (int) $existing['beneficiary_id'] : null);
-  // Only enforce barangay when the admin is editing the assignment itself.
   if (array_key_exists('beneficiaryId', $body) && !$beneficiaryId) {
     json_response(['ok' => false, 'error' => 'Target barangay (beneficiary) is required for a distribution event'], 400);
   }
@@ -395,6 +634,14 @@ if ($method === 'PUT') {
           ->execute([$id]);
       } catch (Throwable $e) {
         // column may not exist yet pre-migrate
+      }
+    }
+    // Auto-close linked request when distribution is Completed
+    if ($newStatus === 'Completed') {
+      try {
+        try_close_linked_request($pdo, (int) $id);
+      } catch (Throwable $e) {
+        // best-effort
       }
     }
   }

@@ -7,7 +7,6 @@ import NotificationBell from '../../components/admin/shared/NotificationBell'
 const titles = {
   '/donor': { title: 'Donor Dashboard', sub: 'Track your donations and certificates.' },
   '/donor/donations': { title: 'My Donations', sub: 'Full history of your contributions.' },
-  '/donor/impact': { title: 'My Impact', sub: 'See how your donations help communities.' },
   '/donor/certificates': { title: 'Certificates', sub: 'Download and manage your certificates.' },
   '/donor/settings': { title: 'Account Settings', sub: 'Update your profile and password.' },
   '/volunteer-portal': { title: 'Volunteer Dashboard', sub: 'Your tasks, schedule, and hours.' },

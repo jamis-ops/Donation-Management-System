@@ -206,7 +206,7 @@ export default function DonorsPage() {
         exportConfig={{ filename: 'donor-report', title: 'Donor Report', columns, rows: filters.filtered }}
       />
       <ApiState loading={loading} error={error} onRetry={reload}>
-        <DataTable columns={columns} data={filters.filtered} onRowClick={openView} />
+        <DataTable columns={columns} data={filters.filtered} onRowClick={openView} initialVisible={5} />
       </ApiState>
 
       {mode === 'view' && active && (

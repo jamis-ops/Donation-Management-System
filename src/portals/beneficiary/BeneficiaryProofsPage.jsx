@@ -1,15 +1,29 @@
 import { useState } from 'react'
-import { Upload, FileCheck, Image, Calendar, MapPin, AlertTriangle, CheckCircle2, Clock3, Download } from 'lucide-react'
+import { Upload, FileCheck, Image, Calendar, MapPin, AlertTriangle, CheckCircle2, Clock3, Download, FileText } from 'lucide-react'
 import { distributionsApi, getDistributionProofs, uploadDistributionProof } from '../../api/resources'
 import { useApiList } from '../../hooks/useApiList'
 import ApiState from '../../components/admin/shared/ApiState'
 import StatusBadge from '../../components/admin/shared/StatusBadge'
 
-function eventLabel(d) {
+function requestOptionLabel(d) {
+  const req = d.request
+  if (req?.type) {
+    const bits = [req.type]
+    if (req.date) bits.push(req.date)
+    let label = bits.join(' — ')
+    if (req.status) label += ` (${req.status})`
+    if (d.location) label += ` · ${d.location}`
+    return label
+  }
+  // Fallback when no linked request
   if (d.eventName) return `${d.eventName} (${d.status})`
   const parts = [d.id, d.location, d.date].filter(Boolean)
-  if (d.program) parts.push(d.program)
   return `${parts.join(' · ')} — ${d.status}`
+}
+
+function proofTitle(p) {
+  if (p.request?.type) return p.request.type
+  return p.eventName || p.distributionCode || 'Proof submission'
 }
 
 function statusIcon(status) {
@@ -30,11 +44,12 @@ export default function BeneficiaryProofsPage() {
   const [message, setMessage] = useState('')
 
   const selected = events.find((d) => String(d.dbId) === String(form.distributionId))
+  const selectedRequest = selected?.request || null
 
   const handleSubmit = async (e) => {
     e.preventDefault()
     if (!form.distributionId) {
-      setMessage('Please select a distribution event before submitting proof.')
+      setMessage('Please select the relief request you want to submit proof for.')
       return
     }
     if (!form.file) {
@@ -45,6 +60,7 @@ export default function BeneficiaryProofsPage() {
     setMessage('')
     try {
       const fd = new FormData()
+      // Still attach to the matched distribution behind the scenes
       fd.append('distributionId', String(form.distributionId))
       fd.append('notes', form.notes)
       fd.append('proof', form.file)
@@ -67,43 +83,66 @@ export default function BeneficiaryProofsPage() {
           <FileCheck size={22} />
           <div>
             <h2>Submit Distribution Proof</h2>
-            <p>Select your distribution event and upload photos or documents. An administrator will Approve or Reject your submission.</p>
+            <p>
+              Select the relief request you submitted, then upload photos or documents showing the goods were received.
+              An administrator will Approve or Reject your submission.
+            </p>
           </div>
         </div>
 
         <ApiState loading={distLoading} error={distError} onRetry={reloadDist}>
           <form onSubmit={handleSubmit} className="proof-upload-form">
             <label>
-              Distribution Event <span className="proof-required">*</span>
+              Your Relief Request <span className="proof-required">*</span>
               <select
                 required
                 value={form.distributionId}
                 onChange={(e) => setForm({ ...form, distributionId: e.target.value })}
               >
-                <option value="">Select distribution event…</option>
+                <option value="">Select the request you made…</option>
                 {events.map((d) => (
                   <option key={d.dbId} value={d.dbId}>
-                    {eventLabel(d)}
+                    {requestOptionLabel(d)}
                   </option>
                 ))}
               </select>
               {events.length === 0 && (
                 <span className="proof-field-hint">
-                  No distribution events are available right now. If a previous proof was rejected, resubmit after the admin updates the event — or ask them to assign a distribution to your barangay.
+                  No requests are ready for proof yet. Proof opens after your request has been allocated and a delivery is assigned to your barangay. If a previous proof was rejected, you can resubmit once the delivery is awaiting proof again.
                 </span>
               )}
             </label>
 
             {selected && (
               <div className="proof-event-summary">
-                <strong>{selected.eventName || selected.id}</strong>
-                <span className="proof-event-summary__row"><MapPin size={14} /> {selected.location}</span>
+                <strong>
+                  {selectedRequest?.type || selected.eventName || selected.id}
+                </strong>
+                {selectedRequest?.notes && (
+                  <span className="proof-event-summary__row">
+                    <FileText size={14} /> {selectedRequest.notes}
+                  </span>
+                )}
+                {selectedRequest?.date && (
+                  <span className="proof-event-summary__row">
+                    <Calendar size={14} /> Requested {selectedRequest.date}
+                    {selectedRequest.status ? ` · ${selectedRequest.status}` : ''}
+                  </span>
+                )}
                 <span className="proof-event-summary__row">
-                  <Calendar size={14} /> {selected.date}
+                  <MapPin size={14} /> Delivery: {selected.location || '—'}
+                </span>
+                <span className="proof-event-summary__row">
+                  <Calendar size={14} /> {selected.date || 'Schedule TBD'}
                   {selected.scheduleTime ? ` at ${selected.scheduleTime}` : ''}
                 </span>
-                {selected.itemsSummary && <span className="proof-event-summary__items">{selected.itemsSummary}</span>}
-                <StatusBadge status={selected.status} />
+                {selected.itemsSummary && (
+                  <span className="proof-event-summary__items">{selected.itemsSummary}</span>
+                )}
+                <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap' }}>
+                  {selectedRequest?.status && <StatusBadge status={selectedRequest.status} />}
+                  <StatusBadge status={selected.proofStatus || selected.status} />
+                </div>
               </div>
             )}
 
@@ -161,9 +200,11 @@ export default function BeneficiaryProofsPage() {
                     )}
                   </div>
                   <div className="proof-list__info">
-                    <strong>{p.eventName || p.distributionCode}</strong>
+                    <strong>{proofTitle(p)}</strong>
                     <span>
-                      {p.distributionLocation}
+                      {p.request?.date ? `Requested ${p.request.date}` : null}
+                      {p.request?.date && (p.distributionLocation || p.distributionDate) ? ' · ' : ''}
+                      {p.distributionLocation || ''}
                       {p.distributionDate && p.distributionDate !== '—' ? ` · ${p.distributionDate}` : ''}
                     </span>
                     <span className="proof-list__date">Submitted {p.submittedAt}</span>

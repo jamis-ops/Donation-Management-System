@@ -5,6 +5,8 @@ import {
 import StatusBadge from './StatusBadge'
 import ModalHeader from './ModalHeader'
 import { reviewProof } from '../../../api/resources'
+import { useSeeMore } from '../../../hooks/useSeeMore'
+import { SeeMoreToggle } from './SeeMoreList'
 
 function isPending(status) {
   return status === 'Pending' || status === 'Pending Review'
@@ -47,6 +49,7 @@ export default function AdminProofReview({
     if (!hideBarangayFilter && !lockedBarangay && barangayFilter && p.barangay !== barangayFilter) return false
     return true
   })
+  const proofsSeeMore = useSeeMore(filtered, 3)
 
   const counts = {
     pending: scoped.filter((p) => isPending(p.status)).length,
@@ -130,8 +133,9 @@ export default function AdminProofReview({
           <p>No proof submissions match this filter.</p>
         </div>
       ) : (
+        <div className="see-more-wrap">
         <div className="proof-review__grid">
-          {filtered.map((p) => (
+          {proofsSeeMore.visible.map((p) => (
             <article key={p.id} className={`proof-card proof-card--${(p.status || 'Pending').toLowerCase()}`}>
               <div className="proof-card__media">
                 {p.isImage ? (
@@ -200,6 +204,14 @@ export default function AdminProofReview({
               </div>
             </article>
           ))}
+        </div>
+        {proofsSeeMore.needsToggle && (
+          <SeeMoreToggle
+            expanded={proofsSeeMore.expanded}
+            onToggle={proofsSeeMore.toggle}
+            hiddenCount={proofsSeeMore.hiddenCount}
+          />
+        )}
         </div>
       )}
 

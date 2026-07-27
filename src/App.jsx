@@ -20,9 +20,9 @@ import FAQPage from './pages/FAQPage'
 import PrivacyPolicyPage from './pages/PrivacyPolicyPage'
 import TermsPage from './pages/TermsPage'
 import UserLoginPage from './pages/LoginPage'
-import RegisterPage from './pages/RegisterPage'
 import ChangePasswordPage from './pages/ChangePasswordPage'
 import VerifiedPage from './pages/VerifiedPage'
+import AcceptInvitePage from './pages/AcceptInvitePage'
 
 // Admin pages
 import AdminLoginPage from './pages/admin/LoginPage'
@@ -30,6 +30,8 @@ import DashboardPage from './pages/admin/DashboardPage'
 import DonationsPage from './pages/admin/DonationsPage'
 import DonorsPage from './pages/admin/DonorsPage'
 import BeneficiariesPage from './pages/admin/BeneficiariesPage'
+import BarangayDetailsPage from './pages/admin/BarangayDetailsPage'
+import RequestsPage from './pages/admin/RequestsPage'
 import InventoryPage from './pages/admin/InventoryPage'
 import AllocationPage from './pages/admin/AllocationPage'
 import DistributionsPage from './pages/admin/DistributionsPage'
@@ -44,7 +46,6 @@ import AccountSettingsPage from './pages/AccountSettingsPage'
 import DonorDashboard from './portals/donor/DonorDashboard'
 import DonorDonationsPage from './portals/donor/DonorDonationsPage'
 import DonorCertificatesPage from './portals/donor/DonorCertificatesPage'
-import DonorImpactPage from './portals/donor/DonorImpactPage'
 import VolunteerDashboard from './portals/volunteer/VolunteerDashboard'
 import VolunteerTasksPage from './portals/volunteer/VolunteerTasksPage'
 import VolunteerSchedulePage from './portals/volunteer/VolunteerSchedulePage'
@@ -78,7 +79,8 @@ function LegacyVerifyRedirect() {
 
 const router = createBrowserRouter([
   { path: 'login', element: <UserLoginPage /> },
-  { path: 'register', element: <RegisterPage /> },
+  { path: 'register', element: <Navigate to="/contact" replace /> },
+  { path: 'accept-invite/:token', element: <AcceptInvitePage /> },
   { path: 'change-password', element: <ChangePasswordPage /> },
   { path: 'verified', element: <VerifiedPage /> },
   {
@@ -115,6 +117,9 @@ const router = createBrowserRouter([
       { path: 'donations', element: <DonationsPage /> },
       { path: 'donors', element: <DonorsPage /> },
       { path: 'beneficiaries', element: <BeneficiariesPage /> },
+      { path: 'beneficiaries/:id', element: <BarangayDetailsPage /> },
+      { path: 'barangays/:id', element: <BarangayDetailsPage /> },
+      { path: 'requests', element: <RequestsPage /> },
       { path: 'inventory', element: <InventoryPage /> },
       { path: 'allocation', element: <AllocationPage /> },
       { path: 'distributions', element: <DistributionsPage /> },
@@ -137,7 +142,6 @@ const router = createBrowserRouter([
     children: [
       { index: true, element: <DonorDashboard /> },
       { path: 'donations', element: <DonorDonationsPage /> },
-      { path: 'impact', element: <DonorImpactPage /> },
       { path: 'certificates', element: <DonorCertificatesPage /> },
       { path: 'settings', element: <AccountSettingsPage /> },
     ],

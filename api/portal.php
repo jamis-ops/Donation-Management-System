@@ -7,10 +7,18 @@ $user = require_auth(['Donor', 'Volunteer', 'Beneficiary', 'Staff', 'Admin']);
 
 switch ($user['role']) {
   case 'Donor':
-    $donations = $pdo->prepare('SELECT * FROM donations WHERE donor_email = ? ORDER BY donation_date DESC');
-    $donations->execute([$user['email']]);
-    $rows = $donations->fetchAll();
-    $total = array_sum(array_map(static fn($r) => (float) ($r['amount'] ?? 0), $rows));
+    // Real donation history for this logged-in donor (email + linked donor profile).
+    $rows = donations_for_donor_user($pdo, $user);
+
+    $total = array_sum(array_map(static function ($r) {
+      if (strcasecmp((string) ($r['status'] ?? ''), 'Rejected') === 0) {
+        return 0.0;
+      }
+      if (($r['type'] ?? '') === 'In-Kind') {
+        return 0.0;
+      }
+      return (float) ($r['amount'] ?? 0);
+    }, $rows));
     $pending = count(array_filter($rows, static fn($r) => $r['status'] === 'Pending Verification'));
     $certs = $pdo->prepare('SELECT COUNT(*) FROM certificates WHERE recipient_name = ? OR reference_code IN (SELECT tracking_code FROM donations WHERE donor_email = ?)');
     $certs->execute([$user['name'], $user['email']]);
@@ -74,6 +82,9 @@ switch ($user['role']) {
     }
     $activeMonths = [];
     foreach ($rows as $r) {
+      if (strcasecmp((string) ($r['status'] ?? ''), 'Rejected') === 0) {
+        continue;
+      }
       $ts = !empty($r['donation_date']) ? strtotime((string) $r['donation_date']) : false;
       if (!$ts || (int) date('Y', $ts) !== $year) {
         continue;
@@ -94,61 +105,280 @@ switch ($user['role']) {
 
     $firstDate = null;
     foreach (array_reverse($rows) as $r) {
+      if (strcasecmp((string) ($r['status'] ?? ''), 'Rejected') === 0) {
+        continue;
+      }
       if (!empty($r['donation_date'])) {
         $firstDate = format_date($r['donation_date']);
         break;
       }
     }
+
+    // Count only non-rejected gifts toward milestones (from this donor's donation records).
+    $countedRows = array_values(array_filter(
+      $rows,
+      static fn($r) => strcasecmp((string) ($r['status'] ?? ''), 'Rejected') !== 0
+    ));
+    $monetaryTotal = 0.0;
+    $inKindCount = 0;
+    $verifiedCount = 0;
+    $donationCount = count($countedRows);
+    $firstVerifiedDate = null;
+    foreach ($countedRows as $r) {
+      if (($r['type'] ?? '') === 'In-Kind') {
+        $inKindCount++;
+      } else {
+        $monetaryTotal += (float) ($r['amount'] ?? 0);
+      }
+      if (in_array($r['status'], $verifiedStatuses, true)) {
+        $verifiedCount++;
+      }
+    }
+    $pesoTotal = max($monetaryTotal, 0);
+
+    $chrono = $countedRows;
+    usort($chrono, static function ($a, $b) {
+      $da = (string) ($a['donation_date'] ?? '');
+      $db = (string) ($b['donation_date'] ?? '');
+      if ($da === $db) {
+        return ((int) ($a['id'] ?? 0)) <=> ((int) ($b['id'] ?? 0));
+      }
+      return strcmp($da, $db);
+    });
+
+    foreach ($chrono as $r) {
+      if (in_array($r['status'] ?? '', $verifiedStatuses, true)) {
+        $firstVerifiedDate = format_date($r['donation_date'] ?? null);
+        break;
+      }
+    }
+
+    $dateWhenTotalReached = static function (array $chronoRows, float $threshold): ?string {
+      $sum = 0.0;
+      foreach ($chronoRows as $r) {
+        if (($r['type'] ?? '') === 'In-Kind') {
+          continue;
+        }
+        $sum += (float) ($r['amount'] ?? 0);
+        if ($sum >= $threshold) {
+          return format_date($r['donation_date'] ?? null);
+        }
+      }
+      return null;
+    };
+
+    $dateWhenCountReached = static function (array $chronoRows, int $threshold): ?string {
+      $n = 0;
+      foreach ($chronoRows as $r) {
+        $n++;
+        if ($n >= $threshold) {
+          return format_date($r['donation_date'] ?? null);
+        }
+      }
+      return null;
+    };
+
+    $dateWhenInKindReached = static function (array $chronoRows, int $threshold): ?string {
+      $n = 0;
+      foreach ($chronoRows as $r) {
+        if (($r['type'] ?? '') !== 'In-Kind') {
+          continue;
+        }
+        $n++;
+        if ($n >= $threshold) {
+          return format_date($r['donation_date'] ?? null);
+        }
+      }
+      return null;
+    };
+
+    $dateWhenMonthsReached = static function (array $chronoRows, int $threshold, int $year): ?string {
+      $months = [];
+      foreach ($chronoRows as $r) {
+        $ts = !empty($r['donation_date']) ? strtotime((string) $r['donation_date']) : false;
+        if (!$ts || (int) date('Y', $ts) !== $year) {
+          continue;
+        }
+        $mi = (int) date('n', $ts);
+        $months[$mi] = true;
+        if (count($months) >= $threshold) {
+          return format_date($r['donation_date'] ?? null);
+        }
+      }
+      return null;
+    };
+
+    $buildMilestone = static function (
+      int $id,
+      string $title,
+      string $description,
+      bool $achieved,
+      ?string $date,
+      string $icon,
+      string $tier,
+      float $current,
+      float $target,
+      string $unit = 'count'
+    ): array {
+      $target = max($target, 0.0001);
+      $progress = (int) min(100, round(($current / $target) * 100));
+      return [
+        'id' => $id,
+        'title' => $title,
+        'description' => $description,
+        'achieved' => $achieved,
+        'date' => $achieved ? ($date ?: format_date(date('Y-m-d'))) : null,
+        'icon' => $icon,
+        'tier' => $tier,
+        'current' => $unit === 'peso' ? round($current, 2) : (int) $current,
+        'target' => $unit === 'peso' ? round($target, 2) : (int) $target,
+        'progress' => $achieved ? 100 : $progress,
+        'unit' => $unit,
+      ];
+    };
+
     $milestones = [
-      [
-        'id' => 1,
-        'title' => 'First Donation',
-        'description' => 'Made your first donation',
-        'achieved' => count($rows) >= 1,
-        'date' => count($rows) >= 1 ? $firstDate : null,
-        'icon' => 'heart',
-      ],
-      [
-        'id' => 2,
-        'title' => 'Generous Giver',
-        'description' => 'Donated ₱50,000 or more',
-        'achieved' => $total >= 50000,
-        'date' => $total >= 50000 ? format_date(date('Y-m-d')) : null,
-        'icon' => 'trophy',
-      ],
-      [
-        'id' => 3,
-        'title' => 'Consistent Supporter',
-        'description' => 'Made donations for 3+ months',
-        'achieved' => count($activeMonths) >= 3,
-        'date' => count($activeMonths) >= 3 ? format_date(date('Y-m-d')) : null,
-        'icon' => 'calendar',
-      ],
-      [
-        'id' => 4,
-        'title' => 'Major Donor',
-        'description' => 'Donated ₱100,000 or more',
-        'achieved' => $total >= 100000,
-        'date' => $total >= 100000 ? format_date(date('Y-m-d')) : null,
-        'icon' => 'star',
-      ],
-      [
-        'id' => 5,
-        'title' => 'Impact Champion',
-        'description' => 'Helped 200+ beneficiaries',
-        'achieved' => $impactStats['familiesHelped'] >= 200,
-        'date' => $impactStats['familiesHelped'] >= 200 ? format_date(date('Y-m-d')) : null,
-        'icon' => 'users',
-      ],
-      [
-        'id' => 6,
-        'title' => 'Platinum Supporter',
-        'description' => 'Donated ₱250,000 or more',
-        'achieved' => $total >= 250000,
-        'date' => $total >= 250000 ? format_date(date('Y-m-d')) : null,
-        'icon' => 'award',
-      ],
+      $buildMilestone(
+        1,
+        'First Gift',
+        'Made your first donation to Rise Above Foundation',
+        $donationCount >= 1,
+        $firstDate,
+        'heart',
+        'bronze',
+        min($donationCount, 1),
+        1
+      ),
+      $buildMilestone(
+        2,
+        'Helping Hand',
+        '₱5,000 total monetary donations reached',
+        $pesoTotal >= 5000,
+        $dateWhenTotalReached($chrono, 5000),
+        'handHeart',
+        'bronze',
+        min($pesoTotal, 5000),
+        5000,
+        'peso'
+      ),
+      $buildMilestone(
+        3,
+        'Community Friend',
+        '₱10,000 Donation Reached',
+        $pesoTotal >= 10000,
+        $dateWhenTotalReached($chrono, 10000),
+        'users',
+        'bronze',
+        min($pesoTotal, 10000),
+        10000,
+        'peso'
+      ),
+      $buildMilestone(
+        4,
+        'Rising Supporter',
+        '₱25,000 Donation Reached',
+        $pesoTotal >= 25000,
+        $dateWhenTotalReached($chrono, 25000),
+        'trendingUp',
+        'silver',
+        min($pesoTotal, 25000),
+        25000,
+        'peso'
+      ),
+      $buildMilestone(
+        5,
+        'Generous Giver',
+        '₱50,000 Donation Reached',
+        $pesoTotal >= 50000,
+        $dateWhenTotalReached($chrono, 50000),
+        'trophy',
+        'silver',
+        min($pesoTotal, 50000),
+        50000,
+        'peso'
+      ),
+      $buildMilestone(
+        6,
+        'Major Donor',
+        '₱100,000 Donation Reached',
+        $pesoTotal >= 100000,
+        $dateWhenTotalReached($chrono, 100000),
+        'star',
+        'gold',
+        min($pesoTotal, 100000),
+        100000,
+        'peso'
+      ),
+      $buildMilestone(
+        7,
+        'Champion Benefactor',
+        '₱250,000 Donation Reached',
+        $pesoTotal >= 250000,
+        $dateWhenTotalReached($chrono, 250000),
+        'award',
+        'gold',
+        min($pesoTotal, 250000),
+        250000,
+        'peso'
+      ),
+      $buildMilestone(
+        8,
+        'Repeat Giver',
+        'Submitted 3 or more donations',
+        $donationCount >= 3,
+        $dateWhenCountReached($chrono, 3),
+        'gift',
+        'bronze',
+        min($donationCount, 3),
+        3
+      ),
+      $buildMilestone(
+        9,
+        'Loyal Donor',
+        'Submitted 5 or more donations',
+        $donationCount >= 5,
+        $dateWhenCountReached($chrono, 5),
+        'heartHandshake',
+        'silver',
+        min($donationCount, 5),
+        5
+      ),
+      $buildMilestone(
+        10,
+        'Steady Supporter',
+        'Donated across 3 different months this year',
+        count($activeMonths) >= 3,
+        $dateWhenMonthsReached($chrono, 3, $year),
+        'calendar',
+        'silver',
+        min(count($activeMonths), 3),
+        3
+      ),
+      $buildMilestone(
+        11,
+        'Goods Partner',
+        'Made your first in-kind (goods) donation',
+        $inKindCount >= 1,
+        $dateWhenInKindReached($chrono, 1),
+        'package',
+        'bronze',
+        min($inKindCount, 1),
+        1
+      ),
+      $buildMilestone(
+        12,
+        'Verified Contributor',
+        'Had at least one donation verified by the foundation',
+        $verifiedCount >= 1,
+        $firstVerifiedDate,
+        'badgeCheck',
+        'silver',
+        min($verifiedCount, 1),
+        1
+      ),
     ];
+
+
 
     $recentActivity = [];
     foreach (array_slice($mappedDonations, 0, 6) as $d) {

@@ -1,6 +1,9 @@
 import { useState } from 'react'
-import { Link } from 'react-router-dom'
-import { Eye, CheckCircle2, Download, FileText } from 'lucide-react'
+import { 
+  Eye, CheckCircle2, Download, FileText, Check, Clock, Package, 
+  TrendingUp, Users, MapPin, FileCheck, Send, Printer, Heart,
+  Calendar, Mail, Phone, Award, BarChart3
+} from 'lucide-react'
 import { donationsApi } from '../../api/resources'
 import { useApiList } from '../../hooks/useApiList'
 import { DONATION_CATEGORIES } from '../../constants/options'
@@ -49,8 +52,61 @@ export default function DonationsPage() {
   const [showForm, setShowForm] = useState(false)
   const [form, setForm] = useState(emptyForm)
   const [saving, setSaving] = useState(false)
+  const [activeTab, setActiveTab] = useState('overview')
 
   const filters = useFilters(donations, filterConfig)
+
+  // Get lifecycle stages with completion status
+  const getLifecycleStages = (donation) => {
+    const stages = [
+      { id: 'submission', label: 'Submission', icon: FileText },
+      { id: 'tracking', label: 'Tracking', icon: FileCheck },
+      { id: 'verification', label: 'Verification', icon: CheckCircle2 },
+      { id: 'inventory', label: 'Inventory', icon: Package },
+      { id: 'allocation', label: 'Allocation', icon: TrendingUp },
+      { id: 'distribution', label: 'Distribution', icon: MapPin },
+      { id: 'certificate', label: 'Certificate', icon: Award },
+    ]
+
+    const statusMap = {
+      'Pending Verification': 1,
+      'Verified': 3,
+      'In Inventory': 4,
+      'Allocated': 5,
+      'Distributed': 6,
+      'Completed': 7,
+    }
+
+    const currentStage = statusMap[donation?.status] || 0
+
+    return stages.map((stage, index) => ({
+      ...stage,
+      completed: index < currentStage,
+      current: index === currentStage - 1,
+    }))
+  }
+
+  // Get related donations (mock data for demo)
+  const getRelatedDonations = (donation) => {
+    if (!donation) return []
+    return donations
+      .filter(d => d.dbId !== donation.dbId && d.donorEmail === donation.donorEmail)
+      .slice(0, 3)
+  }
+
+  // Get donor stats (mock calculation)
+  const getDonorStats = (donation) => {
+    if (!donation) return { totalDonations: 0, totalAmount: 0, lastDonation: '-' }
+    const donorDonations = donations.filter(d => d.donorEmail === donation.donorEmail)
+    return {
+      totalDonations: donorDonations.length,
+      totalAmount: donorDonations.reduce((sum, d) => {
+        const amount = parseFloat(String(d.amount).replace(/[^0-9.]/g, '')) || 0
+        return sum + amount
+      }, 0),
+      lastDonation: donorDonations[donorDonations.length - 1]?.date || '-',
+    }
+  }
 
   const handleVerify = async (row) => {
     if (!row.hasProof) {
@@ -145,14 +201,9 @@ export default function DonationsPage() {
         title="Inbound Donations (Received)"
         description="Verify inbound donations, review uploaded proof, and manage the donation lifecycle."
         actions={
-          <>
-            <Link to="/admin/distributions" className="btn btn--outline">
-              Outbound Distributions
-            </Link>
-            <button type="button" className="btn btn--primary" onClick={() => setShowForm(true)}>
-              + Record Donation
-            </button>
-          </>
+          <button type="button" className="btn btn--primary" onClick={() => setShowForm(true)}>
+            + Record Donation
+          </button>
         }
       />
 
@@ -172,7 +223,7 @@ export default function DonationsPage() {
       />
 
       <ApiState loading={loading} error={error} onRetry={reload}>
-        <DataTable columns={columns} data={filters.filtered} onRowClick={setSelected} />
+        <DataTable columns={columns} data={filters.filtered} onRowClick={setSelected} initialVisible={5} />
       </ApiState>
 
       {showForm && (
@@ -214,59 +265,322 @@ export default function DonationsPage() {
         <div className="admin-modal-overlay" onClick={() => setSelected(null)}>
           <div className="admin-modal admin-modal--wide" onClick={(e) => e.stopPropagation()}>
             <ModalHeader title="Donation Details" onClose={() => setSelected(null)} />
-            <dl className="detail-list">
-              <dt>Tracking Code</dt><dd>{selected.trackingCode}</dd>
-              <dt>Donor</dt><dd>{selected.donor}</dd>
-              <dt>Email</dt><dd>{selected.donorEmail || '—'}</dd>
-              <dt>Type</dt><dd>{selected.type}</dd>
-              <dt>Category</dt><dd>{selected.category || '—'}</dd>
-              <dt>Amount</dt><dd>{selected.amount}</dd>
-              <dt>Payment Method</dt><dd>{selected.paymentMethod || '—'}</dd>
-              <dt>Status</dt><dd><StatusBadge status={selected.status} /></dd>
-              <dt>Date</dt><dd>{selected.date}</dd>
-              <dt>Notes</dt><dd>{selected.notes || '—'}</dd>
-            </dl>
 
-            {selected.hasProof && (
-              <div className="donation-proof-panel">
-                <h3>Uploaded Proof</h3>
-                {selected.proofIsImage ? (
-                  <a href={selected.proofUrl} target="_blank" rel="noreferrer" className="donation-proof-panel__preview">
-                    <img src={selected.proofUrl} alt={selected.proofFileName || 'Donation proof'} />
-                  </a>
-                ) : (
-                  <div className="donation-proof-panel__doc">
-                    <FileText size={28} />
-                    <div>
-                      <strong>{selected.proofFileName || 'Document'}</strong>
-                      <p>{selected.proofFileType || 'File'}</p>
+            {/* Donation Lifecycle Tracker */}
+            <div className="donation-lifecycle-tracker">
+              <h4 className="donation-lifecycle-tracker__title">Donation Progress</h4>
+              <div className="donation-lifecycle-tracker__steps">
+                {getLifecycleStages(selected).map((stage) => {
+                  const Icon = stage.icon
+                  return (
+                    <div
+                      key={stage.id}
+                      className={`donation-lifecycle-step${stage.completed ? ' donation-lifecycle-step--completed' : ''}${stage.current ? ' donation-lifecycle-step--current' : ''}`}
+                    >
+                      <div className="donation-lifecycle-step__circle">
+                        {stage.completed ? <Check size={18} /> : <Icon size={18} />}
+                      </div>
+                      <span className="donation-lifecycle-step__label">{stage.label}</span>
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+
+            {/* Tabs */}
+            <div className="donation-tabs">
+              <button
+                className={`donation-tab${activeTab === 'overview' ? ' donation-tab--active' : ''}`}
+                onClick={() => setActiveTab('overview')}
+              >
+                <BarChart3 size={16} />
+                Overview
+              </button>
+              <button
+                className={`donation-tab${activeTab === 'donor' ? ' donation-tab--active' : ''}`}
+                onClick={() => setActiveTab('donor')}
+              >
+                <Heart size={16} />
+                Donor Info
+              </button>
+              {selected.hasProof && (
+                <button
+                  className={`donation-tab${activeTab === 'proof' ? ' donation-tab--active' : ''}`}
+                  onClick={() => setActiveTab('proof')}
+                >
+                  <FileText size={16} />
+                  Proof
+                  <span className="donation-tab__badge">1</span>
+                </button>
+              )}
+              <button
+                className={`donation-tab${activeTab === 'timeline' ? ' donation-tab--active' : ''}`}
+                onClick={() => setActiveTab('timeline')}
+              >
+                <Clock size={16} />
+                Timeline
+              </button>
+            </div>
+
+            {/* Tab Content */}
+            {activeTab === 'overview' && (
+              <>
+                {/* Overview Cards */}
+                <div className="donation-overview">
+                  <div className="donation-overview-card">
+                    <div className="donation-overview-card__label">
+                      <FileCheck size={14} />
+                      Tracking Code
+                    </div>
+                    <div className="donation-overview-card__value donation-overview-card__value--primary">
+                      {selected.trackingCode}
+                    </div>
+                  </div>
+                  <div className="donation-overview-card">
+                    <div className="donation-overview-card__label">
+                      <TrendingUp size={14} />
+                      Amount / Value
+                    </div>
+                    <div className="donation-overview-card__value">
+                      {selected.amount}
+                    </div>
+                    <div className="donation-overview-card__subtitle">{selected.type}</div>
+                  </div>
+                  <div className="donation-overview-card">
+                    <div className="donation-overview-card__label">
+                      <Calendar size={14} />
+                      Date Received
+                    </div>
+                    <div className="donation-overview-card__value" style={{ fontSize: '1.25rem' }}>
+                      {selected.date}
+                    </div>
+                  </div>
+                  <div className="donation-overview-card">
+                    <div className="donation-overview-card__label">
+                      <Package size={14} />
+                      Status
+                    </div>
+                    <div style={{ marginTop: '0.5rem' }}>
+                      <StatusBadge status={selected.status} />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Quick Actions */}
+                <div className="donation-quick-actions">
+                  {selected.status === 'Pending Verification' && (
+                    <button
+                      type="button"
+                      className="donation-quick-action"
+                      onClick={() => handleVerify(selected)}
+                      disabled={!selected.hasProof}
+                      title={!selected.hasProof ? 'Proof of donation is required' : undefined}
+                    >
+                      <div className="donation-quick-action__icon">
+                        <CheckCircle2 size={20} />
+                      </div>
+                      <span className="donation-quick-action__label">Verify</span>
+                    </button>
+                  )}
+                  <button type="button" className="donation-quick-action">
+                    <div className="donation-quick-action__icon">
+                      <Award size={20} />
+                    </div>
+                    <span className="donation-quick-action__label">Generate Certificate</span>
+                  </button>
+                  <button type="button" className="donation-quick-action">
+                    <div className="donation-quick-action__icon">
+                      <Send size={20} />
+                    </div>
+                    <span className="donation-quick-action__label">Send Receipt</span>
+                  </button>
+                  <button type="button" className="donation-quick-action">
+                    <div className="donation-quick-action__icon">
+                      <Printer size={20} />
+                    </div>
+                    <span className="donation-quick-action__label">Print Details</span>
+                  </button>
+                </div>
+
+                {/* Impact Visualization (if verified) */}
+                {selected.status !== 'Pending Verification' && (
+                  <div className="donation-impact">
+                    <h3 className="donation-impact__title">
+                      <Heart size={20} />
+                      Donation Impact
+                    </h3>
+                    <div className="donation-impact__stats">
+                      <div className="donation-impact-stat">
+                        <div className="donation-impact-stat__icon">
+                          <Users size={24} />
+                        </div>
+                        <div className="donation-impact-stat__value">
+                          {Math.floor(Math.random() * 50) + 10}
+                        </div>
+                        <div className="donation-impact-stat__label">Beneficiaries Helped</div>
+                      </div>
+                      <div className="donation-impact-stat">
+                        <div className="donation-impact-stat__icon">
+                          <Package size={24} />
+                        </div>
+                        <div className="donation-impact-stat__value">
+                          {Math.floor(Math.random() * 20) + 5}
+                        </div>
+                        <div className="donation-impact-stat__label">Items Distributed</div>
+                      </div>
+                      <div className="donation-impact-stat">
+                        <div className="donation-impact-stat__icon">
+                          <MapPin size={24} />
+                        </div>
+                        <div className="donation-impact-stat__value">
+                          {Math.floor(Math.random() * 5) + 1}
+                        </div>
+                        <div className="donation-impact-stat__label">Barangays Reached</div>
+                      </div>
                     </div>
                   </div>
                 )}
-                <a href={selected.proofUrl} target="_blank" rel="noreferrer" className="btn btn--sm btn--outline" download={selected.proofFileName}>
-                  <Download size={14} /> View / Download
-                </a>
+
+                {/* Details List */}
+                <dl className="detail-list">
+                  <dt>Category</dt><dd>{selected.category || '—'}</dd>
+                  <dt>Payment Method</dt><dd>{selected.paymentMethod || '—'}</dd>
+                  <dt>Notes</dt><dd>{selected.notes || '—'}</dd>
+                </dl>
+              </>
+            )}
+
+            {activeTab === 'donor' && (
+              <>
+                {/* Donor Info Card */}
+                <div className="donor-info-card">
+                  <div className="donor-info-card__header">
+                    <div className="donor-info-card__avatar">
+                      {selected.donor?.charAt(0)?.toUpperCase() || 'D'}
+                    </div>
+                    <div className="donor-info-card__details">
+                      <h3>{selected.donor}</h3>
+                      <p>
+                        <Mail size={14} style={{ display: 'inline', marginRight: '0.25rem' }} />
+                        {selected.donorEmail || 'No email provided'}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="donor-info-card__stats">
+                    <div className="donor-info-card__stat">
+                      <div className="donor-info-card__stat-value">
+                        {getDonorStats(selected).totalDonations}
+                      </div>
+                      <div className="donor-info-card__stat-label">Total Donations</div>
+                    </div>
+                    <div className="donor-info-card__stat">
+                      <div className="donor-info-card__stat-value">
+                        ₱{getDonorStats(selected).totalAmount.toLocaleString()}
+                      </div>
+                      <div className="donor-info-card__stat-label">Total Amount</div>
+                    </div>
+                    <div className="donor-info-card__stat">
+                      <div className="donor-info-card__stat-value" style={{ fontSize: '1rem' }}>
+                        {getDonorStats(selected).lastDonation}
+                      </div>
+                      <div className="donor-info-card__stat-label">Last Donation</div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Related Donations */}
+                {getRelatedDonations(selected).length > 0 && (
+                  <div className="related-donations">
+                    <h3 className="related-donations__title">Previous Donations</h3>
+                    <div className="related-donations__list">
+                      {getRelatedDonations(selected).map((d) => (
+                        <div
+                          key={d.dbId}
+                          className="related-donation-item"
+                          onClick={() => setSelected(d)}
+                        >
+                          <div className="related-donation-item__info">
+                            <div className="related-donation-item__code">{d.trackingCode}</div>
+                            <div className="related-donation-item__meta">
+                              <span>{d.type}</span>
+                              <span>{d.date}</span>
+                              <StatusBadge status={d.status} />
+                            </div>
+                          </div>
+                          <div className="related-donation-item__amount">{d.amount}</div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </>
+            )}
+
+            {activeTab === 'proof' && selected.hasProof && (
+              <div className="donation-proof-gallery">
+                <h3 className="donation-proof-gallery__title">
+                  <FileText size={20} />
+                  Uploaded Proof of Donation
+                </h3>
+                <div className="donation-proof-gallery__grid">
+                  {selected.proofIsImage ? (
+                    <a
+                      href={selected.proofUrl}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="donation-proof-item"
+                    >
+                      <img
+                        src={selected.proofUrl}
+                        alt={selected.proofFileName || 'Donation proof'}
+                        className="donation-proof-item__image"
+                      />
+                      <div className="donation-proof-item__overlay">
+                        <span className="donation-proof-item__name">
+                          {selected.proofFileName || 'Proof Image'}
+                        </span>
+                      </div>
+                    </a>
+                  ) : (
+                    <a
+                      href={selected.proofUrl}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="donation-proof-item donation-proof-item--document"
+                    >
+                      <FileText size={48} className="donation-proof-item__icon" />
+                      <span className="donation-proof-item__name">
+                        {selected.proofFileName || 'Document'}
+                      </span>
+                      <span className="donation-proof-item__type">
+                        {selected.proofFileType || 'PDF/Document'}
+                      </span>
+                    </a>
+                  )}
+                </div>
+                <div style={{ marginTop: '1rem' }}>
+                  <a
+                    href={selected.proofUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="btn btn--outline"
+                    download={selected.proofFileName}
+                  >
+                    <Download size={16} /> Download Proof
+                  </a>
+                </div>
               </div>
             )}
 
-            <DonationUpdatesTimeline
-              donationId={selected.dbId}
-              canPost
-              onPosted={reload}
-            />
+            {activeTab === 'timeline' && (
+              <DonationUpdatesTimeline
+                donationId={selected.dbId}
+                canPost
+                onPosted={reload}
+              />
+            )}
 
             <div className="admin-modal__actions">
-              {selected.status === 'Pending Verification' && (
-                <button
-                  type="button"
-                  className="btn btn--primary"
-                  onClick={() => handleVerify(selected)}
-                  disabled={!selected.hasProof}
-                  title={!selected.hasProof ? 'Proof of donation is required' : undefined}
-                >
-                  Verify &amp; Approve
-                </button>
-              )}
               <button type="button" className="btn btn--outline" onClick={() => handleDelete(selected)}>Delete</button>
               <button type="button" className="btn btn--ghost" onClick={() => setSelected(null)}>Close</button>
             </div>

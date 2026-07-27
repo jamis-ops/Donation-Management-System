@@ -11,6 +11,8 @@ import FilterBar from '../../components/admin/shared/FilterBar'
 import ModalHeader from '../../components/admin/shared/ModalHeader'
 import Req from '../../components/shared/Req'
 import SkillTagPicker from '../../components/shared/SkillTagPicker'
+import { useSeeMore } from '../../hooks/useSeeMore'
+import { SeeMoreToggle } from '../../components/admin/shared/SeeMoreList'
 
 const filterConfig = {
   searchKeys: ['id', 'name', 'email'],
@@ -43,6 +45,7 @@ export default function VolunteersPage() {
   const [selected, setSelected] = useState(null)
   const [tasks, setTasks] = useState([])
   const [tasksLoading, setTasksLoading] = useState(false)
+  const tasksSeeMore = useSeeMore(tasks, 3)
   const [showTaskForm, setShowTaskForm] = useState(false)
   const [taskForm, setTaskForm] = useState(emptyTaskForm)
   const [saving, setSaving] = useState(false)
@@ -231,7 +234,7 @@ export default function VolunteersPage() {
         exportConfig={{ filename: 'volunteer-report', title: 'Volunteer Report', columns, rows: filters.filtered }}
       />
       <ApiState loading={loading} error={error} onRetry={reload}>
-        <DataTable columns={columns} data={filters.filtered} onRowClick={openVolunteer} />
+        <DataTable columns={columns} data={filters.filtered} onRowClick={openVolunteer} initialVisible={5} />
       </ApiState>
 
       {selected && (
@@ -322,8 +325,9 @@ export default function VolunteersPage() {
               ) : tasks.length === 0 ? (
                 <p className="beneficiary-view-empty">No tasks assigned to this volunteer yet.</p>
               ) : (
+                <div className="see-more-wrap">
                 <div className="volunteer-task-list">
-                  {tasks.map((t) => (
+                  {tasksSeeMore.visible.map((t) => (
                     <article key={t.dbId || t.id} className="volunteer-task-card">
                       <div className="volunteer-task-card__top">
                         <strong>{t.title}</strong>
@@ -340,6 +344,14 @@ export default function VolunteersPage() {
                       </div>
                     </article>
                   ))}
+                </div>
+                {tasksSeeMore.needsToggle && (
+                  <SeeMoreToggle
+                    expanded={tasksSeeMore.expanded}
+                    onToggle={tasksSeeMore.toggle}
+                    hiddenCount={tasksSeeMore.hiddenCount}
+                  />
+                )}
                 </div>
               )}
             </section>

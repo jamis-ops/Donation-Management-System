@@ -1,4 +1,20 @@
-export default function DataTable({ columns, data, onRowClick }) {
+import { useSeeMore } from '../../../hooks/useSeeMore'
+import { SeeMoreToggle } from './SeeMoreList'
+
+export default function DataTable({
+  columns,
+  data,
+  onRowClick,
+  /** When set, only the first N rows show until the user expands. */
+  initialVisible,
+}) {
+  const limit = typeof initialVisible === 'number' && initialVisible > 0 ? initialVisible : null
+  const { visible, expanded, toggle, needsToggle, hiddenCount, total } = useSeeMore(
+    data,
+    limit ?? (data?.length || 0),
+  )
+  const rows = limit ? visible : data
+
   return (
     <div className="data-table-wrapper">
       <table className="data-table">
@@ -17,9 +33,9 @@ export default function DataTable({ columns, data, onRowClick }) {
               </td>
             </tr>
           ) : (
-            data.map((row, i) => (
+            rows.map((row, i) => (
               <tr
-                key={row.id ?? i}
+                key={row.id ?? row.dbId ?? i}
                 onClick={() => onRowClick?.(row)}
                 className={onRowClick ? 'data-table__row--clickable' : ''}
               >
@@ -35,10 +51,26 @@ export default function DataTable({ columns, data, onRowClick }) {
       </table>
 
       {data.length > 0 && (
-        <div className="data-table__footer">
+        <div className={`data-table__footer${limit && needsToggle ? ' data-table__footer--see-more' : ''}`}>
+          {limit && needsToggle && (
+            <SeeMoreToggle
+              expanded={expanded}
+              onToggle={toggle}
+              hiddenCount={hiddenCount}
+            />
+          )}
           <span className="data-table__count">
-            Showing <strong>{data.length}</strong>{' '}
-            {data.length === 1 ? 'record' : 'records'}
+            {limit && needsToggle && !expanded ? (
+              <>
+                Showing <strong>{rows.length}</strong> of <strong>{total}</strong>{' '}
+                {total === 1 ? 'record' : 'records'}
+              </>
+            ) : (
+              <>
+                Showing <strong>{data.length}</strong>{' '}
+                {data.length === 1 ? 'record' : 'records'}
+              </>
+            )}
           </span>
         </div>
       )}

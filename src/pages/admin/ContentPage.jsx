@@ -18,6 +18,8 @@ import ApiState from '../../components/admin/shared/ApiState'
 import ModalHeader from '../../components/admin/shared/ModalHeader'
 import Req from '../../components/shared/Req'
 import { useAuth } from '../../context/AuthContext'
+import { useSeeMore } from '../../hooks/useSeeMore'
+import { SeeMoreToggle } from '../../components/admin/shared/SeeMoreList'
 
 const TYPES = [
   { key: 'programs', label: 'Programs' },
@@ -125,6 +127,8 @@ export default function ContentPage() {
         i.body?.toLowerCase().includes(q)
     )
   }, [items, search])
+
+  const contentSeeMore = useSeeMore(filtered, 5)
 
   const openCreate = () => {
     setEditRow(null)
@@ -256,6 +260,7 @@ export default function ContentPage() {
             )}
           </div>
         ) : (
+          <div className="see-more-wrap">
           <div className="cms-table-wrap">
             <table className="cms-table">
               <thead>
@@ -269,7 +274,9 @@ export default function ContentPage() {
                 </tr>
               </thead>
               <tbody>
-                {filtered.map((row, idx) => (
+                {contentSeeMore.visible.map((row) => {
+                  const idx = filtered.indexOf(row)
+                  return (
                   <tr key={row.id}>
                     <td>
                       <div className="cms-order-btns">
@@ -345,9 +352,18 @@ export default function ContentPage() {
                       </div>
                     </td>
                   </tr>
-                ))}
+                  )
+                })}
               </tbody>
             </table>
+          </div>
+          {contentSeeMore.needsToggle && (
+            <SeeMoreToggle
+              expanded={contentSeeMore.expanded}
+              onToggle={contentSeeMore.toggle}
+              hiddenCount={contentSeeMore.hiddenCount}
+            />
+          )}
           </div>
         )}
       </ApiState>

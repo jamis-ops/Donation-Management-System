@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Download, FileText } from 'lucide-react'
+import { Download, FileText, Eye, CheckCircle2, XCircle } from 'lucide-react'
 import StatusBadge from '../../components/admin/shared/StatusBadge'
 import ApiState from '../../components/admin/shared/ApiState'
 import ModalHeader from '../../components/admin/shared/ModalHeader'
@@ -20,23 +20,44 @@ function verifyResultMessage(res) {
 export default function StaffDonationsPage() {
   const { data, loading, error, reload } = useApiList(() => donationsApi.list())
   const [selected, setSelected] = useState(null)
+  const [busy, setBusy] = useState(false)
 
   const handleVerify = async (row) => {
     if (!row.hasProof) {
       alert('Cannot approve: proof of donation is required.')
       return
     }
+    if (!window.confirm(`Verify donation ${row.trackingCode} from ${row.donor}?`)) return
+    setBusy(true)
     try {
       const res = await donationsApi.update(row.dbId, { status: 'Verified' })
-      if (res?.accountCreated || res?.credentialsSent) {
+      if (res?.accountCreated || res?.credentialsSent || res?.message) {
         alert(verifyResultMessage(res))
-      } else if (res?.message) {
-        alert(res.message)
       }
       reload()
       setSelected(null)
     } catch (err) {
       alert(err.message || 'Failed to verify donation')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const handleReject = async (row) => {
+    const reason = window.prompt('Reason for rejection (optional):')
+    if (reason === null) return
+    setBusy(true)
+    try {
+      await donationsApi.update(row.dbId, {
+        status: 'Rejected',
+        ...(reason.trim() ? { notes: reason.trim() } : {}),
+      })
+      reload()
+      setSelected(null)
+    } catch (err) {
+      alert(err.message || 'Failed to reject donation')
+    } finally {
+      setBusy(false)
     }
   }
 
@@ -52,36 +73,72 @@ export default function StaffDonationsPage() {
                 <th>Donor</th>
                 <th>Amount</th>
                 <th>Status</th>
-                <th>Action</th>
+                <th>Actions</th>
               </tr>
             </thead>
             <tbody>
-              {data.map((d) => (
-                <tr
-                  key={d.id}
-                  style={{ cursor: 'pointer' }}
-                  onClick={() => setSelected(d)}
-                >
-                  <td>{d.trackingCode}</td>
-                  <td>{d.donor}</td>
-                  <td>{d.amount}</td>
-                  <td><StatusBadge status={d.status} /></td>
-                  <td>
-                    {d.status === 'Pending Verification' && (
-                      <button
-                        type="button"
-                        className="btn btn--sm btn--primary"
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          handleVerify(d)
-                        }}
-                      >
-                        Verify
-                      </button>
-                    )}
+              {data.length === 0 ? (
+                <tr>
+                  <td colSpan={5} style={{ textAlign: 'center', color: 'var(--admin-text-muted)' }}>
+                    No donations to process right now.
                   </td>
                 </tr>
-              ))}
+              ) : (
+                data.map((d) => (
+                  <tr key={d.id}>
+                    <td><strong>{d.trackingCode}</strong></td>
+                    <td>{d.donor}</td>
+                    <td>{d.amount}</td>
+                    <td><StatusBadge status={d.status} /></td>
+                    <td>
+                      <div className="table-actions" style={{ display: 'flex', gap: '0.35rem', flexWrap: 'wrap' }}>
+                        <button
+                          type="button"
+                          className="btn btn--sm btn--outline"
+                          title="View details"
+                          onClick={() => setSelected(d)}
+                        >
+                          <Eye size={14} /> View
+                        </button>
+                        {d.hasProof && (
+                          <a
+                            href={d.proofUrl}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="btn btn--sm btn--outline"
+                            title="View proof"
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            <FileText size={14} /> Proof
+                          </a>
+                        )}
+                        {d.status === 'Pending Verification' && (
+                          <>
+                            <button
+                              type="button"
+                              className="btn btn--sm btn--primary"
+                              title={d.hasProof ? 'Verify donation' : 'Proof required before verify'}
+                              disabled={busy || !d.hasProof}
+                              onClick={() => handleVerify(d)}
+                            >
+                              <CheckCircle2 size={14} /> Verify
+                            </button>
+                            <button
+                              type="button"
+                              className="btn btn--sm btn--danger"
+                              title="Reject donation"
+                              disabled={busy}
+                              onClick={() => handleReject(d)}
+                            >
+                              <XCircle size={14} /> Reject
+                            </button>
+                          </>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                ))
+              )}
             </tbody>
           </table>
         </div>
@@ -134,15 +191,25 @@ export default function StaffDonationsPage() {
 
             <div className="admin-modal__actions">
               {selected.status === 'Pending Verification' && (
-                <button
-                  type="button"
-                  className="btn btn--primary"
-                  onClick={() => handleVerify(selected)}
-                  disabled={!selected.hasProof}
-                  title={!selected.hasProof ? 'Proof of donation is required' : undefined}
-                >
-                  Verify &amp; Approve
-                </button>
+                <>
+                  <button
+                    type="button"
+                    className="btn btn--primary"
+                    onClick={() => handleVerify(selected)}
+                    disabled={busy || !selected.hasProof}
+                    title={!selected.hasProof ? 'Proof of donation is required' : undefined}
+                  >
+                    <CheckCircle2 size={16} /> Verify &amp; Approve
+                  </button>
+                  <button
+                    type="button"
+                    className="btn btn--outline"
+                    onClick={() => handleReject(selected)}
+                    disabled={busy}
+                  >
+                    <XCircle size={16} /> Reject
+                  </button>
+                </>
               )}
               <button type="button" className="btn btn--ghost" onClick={() => setSelected(null)}>Close</button>
             </div>

@@ -92,19 +92,17 @@ if ($method === 'GET') {
     if (!$row) {
       json_response(['ok' => false, 'error' => 'Donation not found'], 404);
     }
-    if ($user['role'] === 'Donor' && strcasecmp((string) $row['donor_email'], (string) $user['email']) !== 0) {
+    if ($user['role'] === 'Donor' && !donation_belongs_to_donor_user($pdo, $row, $user)) {
       json_response(['ok' => false, 'error' => 'Access denied'], 403);
     }
     json_response(['ok' => true, 'data' => map_donation($row)]);
   }
 
   if ($user['role'] === 'Donor') {
-    $stmt = $pdo->prepare('SELECT * FROM donations WHERE donor_email = ? ORDER BY donation_date DESC, id DESC');
-    $stmt->execute([$user['email']]);
+    $rows = donations_for_donor_user($pdo, $user);
   } else {
-    $stmt = $pdo->query('SELECT * FROM donations ORDER BY donation_date DESC, id DESC');
+    $rows = $pdo->query('SELECT * FROM donations ORDER BY donation_date DESC, id DESC')->fetchAll();
   }
-  $rows = $stmt->fetchAll();
   json_response(['ok' => true, 'data' => array_map('map_donation', $rows)]);
 }
 
@@ -284,7 +282,7 @@ if ($method === 'DELETE') {
     if (!$row) {
       json_response(['ok' => false, 'error' => 'Donation not found'], 404);
     }
-    if (strcasecmp((string) $row['donor_email'], (string) $user['email']) !== 0) {
+    if (!donation_belongs_to_donor_user($pdo, $row, $user)) {
       json_response(['ok' => false, 'error' => 'Access denied'], 403);
     }
     if ($row['status'] !== 'Pending Verification') {

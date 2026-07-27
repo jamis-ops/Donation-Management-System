@@ -1,7 +1,10 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
-import { Eye, Pencil, Trash2, ArrowRightCircle } from 'lucide-react'
-import { distributionsApi, beneficiariesApi, volunteerMatchApi, allocationsApi } from '../../api/resources'
+import {
+  Eye, Pencil, ArrowRightCircle, MapPin, Calendar, Package, Users,
+  Truck, UserRound, FileCheck, ClipboardList, Route, Fuel, StickyNote,
+} from 'lucide-react'
+import { distributionsApi, beneficiariesApi, volunteerMatchApi } from '../../api/resources'
 import { useApiList } from '../../hooks/useApiList'
 import { useFilters } from '../../hooks/useFilters'
 import PageHeader from '../../components/admin/shared/PageHeader'
@@ -12,12 +15,15 @@ import ApiState from '../../components/admin/shared/ApiState'
 import FilterBar from '../../components/admin/shared/FilterBar'
 import ModalHeader from '../../components/admin/shared/ModalHeader'
 import SkillTagPicker from '../../components/shared/SkillTagPicker'
+import RowActionsMenu from '../../components/admin/shared/RowActionsMenu'
+import { useSeeMore } from '../../hooks/useSeeMore'
+import { SeeMoreToggle } from '../../components/admin/shared/SeeMoreList'
 
 const WORKFLOW = ['Planning', 'Preparing', 'In Transit', 'Delivered', 'Awaiting Proof', 'Completed']
 const PROOF_STATUS = ['Not Required', 'Awaiting Proof', 'Proof Submitted', 'Proof Verified', 'Proof Rejected']
 
 const filterConfig = {
-  searchKeys: ['id', 'barangay', 'location', 'program', 'coordinator', 'eventName'],
+  searchKeys: ['barangay', 'location', 'program', 'coordinator', 'eventName', 'itemsSummary'],
   filters: [
     { key: 'status', label: 'Status' },
   ],
@@ -29,20 +35,6 @@ const emptyForm = {
   beneficiaries: '', volunteers: '', vehicles: '', distanceKm: '', status: 'Planning',
   type: 'Delivery', itemsSummary: '', coordinator: '', notes: '', proofStatus: 'Awaiting Proof',
   allocationIds: [],
-}
-
-const KM_PER_LITER = 8
-const FUEL_PRICE = 65
-const BENEFICIARIES_PER_VOLUNTEER = 40
-
-function estimateLogistics({ distanceKm, vehicles, beneficiaries }) {
-  const dist = Number(distanceKm) || 0
-  const veh = Number(vehicles) || 0
-  const ben = Number(beneficiaries) || 0
-  const liters = dist > 0 && veh > 0 ? +(((dist * 2) / KM_PER_LITER) * veh).toFixed(1) : 0
-  const cost = +(liters * FUEL_PRICE).toFixed(2)
-  const suggestedManpower = ben > 0 ? Math.max(veh, Math.ceil(ben / BENEFICIARIES_PER_VOLUNTEER)) : veh
-  return { liters, cost, suggestedManpower }
 }
 
 function formFromAllocations(allocs, barangays) {
@@ -74,7 +66,6 @@ export default function DistributionsPage() {
   const navigate = useNavigate()
   const { data, loading, error, reload } = useApiList(() => distributionsApi.list())
   const { data: barangays } = useApiList(() => beneficiariesApi.list())
-  const { data: readyAllocations, reload: reloadReady } = useApiList(() => allocationsApi.listReadyForDistribution())
   const filters = useFilters(data, filterConfig)
   const [detailRow, setDetailRow] = useState(null)
   const [editRow, setEditRow] = useState(null)
@@ -85,20 +76,41 @@ export default function DistributionsPage() {
   const [saving, setSaving] = useState(false)
   const [manpowerSkills, setManpowerSkills] = useState(['Logistics / Driving', 'Packing / Repacking'])
   const [manpowerSuggestions, setManpowerSuggestions] = useState([])
-  const [selectedReadyIds, setSelectedReadyIds] = useState([])
   const [showVolunteerHelp, setShowVolunteerHelp] = useState(false)
+  const [selectedDraftIds, setSelectedDraftIds] = useState([])
+  const [grouping, setGrouping] = useState(false)
 
-  const readyByBarangay = useMemo(() => {
-    const map = new Map()
-    for (const a of readyAllocations || []) {
-      const key = a.beneficiaryId || a.beneficiary || 'unknown'
-      if (!map.has(key)) {
-        map.set(key, { label: a.beneficiary || 'Barangay', items: [] })
-      }
-      map.get(key).items.push(a)
+  const planningDrafts = useMemo(() => {
+    return (data || []).filter((d) => d.status === 'Planning')
+  }, [data])
+  const draftsSeeMore = useSeeMore(planningDrafts, 3)
+
+  const handleGroupDrafts = async () => {
+    if (selectedDraftIds.length < 2) {
+      alert('Select at least 2 draft distributions for the same barangay to group.')
+      return
     }
-    return [...map.values()]
-  }, [readyAllocations])
+    setGrouping(true)
+    try {
+      const res = await fetch('/api/distributions.php', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'group', distributionIds: selectedDraftIds }),
+        credentials: 'include',
+      }).then((r) => r.json())
+
+      if (res?.ok) {
+        setSelectedDraftIds([])
+        reload()
+      } else {
+        alert(res?.error || 'Failed to group distributions')
+      }
+    } catch (err) {
+      alert(err.message)
+    } finally {
+      setGrouping(false)
+    }
+  }
 
   useEffect(() => {
     const incoming = location.state?.fromAllocations
@@ -122,34 +134,6 @@ export default function DistributionsPage() {
       .then((res) => setManpowerSuggestions(Array.isArray(res.data) ? res.data : []))
       .catch(() => setManpowerSuggestions([]))
   }, [showCreate, editRow, showVolunteerHelp, manpowerSkills, form.program])
-
-  const openCreateFromReady = () => {
-    const picked = (readyAllocations || []).filter((a) => selectedReadyIds.includes(a.dbId))
-    if (!picked.length) {
-      alert('Select the packs you want to deliver for one barangay.')
-      return
-    }
-    const benIds = [...new Set(picked.map((a) => a.beneficiaryId))]
-    if (benIds.length !== 1) {
-      alert('Please select packs for only one barangay at a time.')
-      return
-    }
-    const prefilled = formFromAllocations(picked, barangays)
-    setForm(prefilled)
-    setShowCreate(true)
-    setEditRow(null)
-    setShowVolunteerHelp(false)
-  }
-
-  const selectBarangayGroup = (items) => {
-    const ids = items.map((i) => i.dbId)
-    const allSelected = ids.every((id) => selectedReadyIds.includes(id))
-    setSelectedReadyIds((prev) => (
-      allSelected
-        ? prev.filter((id) => !ids.includes(id))
-        : [...new Set([...prev, ...ids])]
-    ))
-  }
 
   const openEdit = (row) => {
     setEditRow(row)
@@ -197,7 +181,6 @@ export default function DistributionsPage() {
     }
     setSaving(true)
     try {
-      const est = estimateLogistics(form)
       const payload = {
         eventName: form.eventName,
         location: form.location,
@@ -209,8 +192,6 @@ export default function DistributionsPage() {
         volunteers: Number(form.volunteers) || 0,
         vehicles: Number(form.vehicles) || 0,
         distanceKm: form.type === 'Delivery' && form.distanceKm !== '' ? Number(form.distanceKm) : '',
-        fuelLiters: form.type === 'Delivery' ? est.liters : '',
-        fuelCost: form.type === 'Delivery' ? est.cost : '',
         status: form.status,
         type: form.type,
         itemsSummary: form.itemsSummary,
@@ -218,6 +199,7 @@ export default function DistributionsPage() {
         notes: form.notes,
         proofStatus: form.proofStatus,
       }
+
       if (editRow) {
         await distributionsApi.update(editRow.dbId, payload)
         setEditRow(null)
@@ -227,8 +209,6 @@ export default function DistributionsPage() {
         }
         await distributionsApi.create(payload)
         setShowCreate(false)
-        setSelectedReadyIds([])
-        reloadReady()
       }
       setShowVolunteerHelp(false)
       reload()
@@ -256,23 +236,29 @@ export default function DistributionsPage() {
   }
 
   const handleDelete = async (row) => {
-    if (!confirm(`Delete delivery ${row.id}? This cannot be undone.`)) return
+    if (!confirm('Delete this delivery? This cannot be undone.')) return
     try {
       await distributionsApi.remove(row.dbId)
       setDetailRow(null)
       setEditRow(null)
       reload()
-      reloadReady()
     } catch (err) {
       alert(err.message || 'Failed to delete distribution')
     }
   }
 
   const fromAllocation = !!form.allocationIds?.length
-  const est = estimateLogistics(form)
 
   const columns = [
-    { key: 'id', label: 'ID' },
+    {
+      key: 'request',
+      label: 'Request ID',
+      render: (row) => (
+        <span className="alloc-request-id" title={row.request?.type || ''}>
+          {row.request?.id || (row.requestId ? `#${row.requestId}` : '—')}
+        </span>
+      ),
+    },
     {
       key: 'eventName',
       label: 'Delivery',
@@ -290,22 +276,18 @@ export default function DistributionsPage() {
       key: 'actions',
       label: 'Actions',
       render: (row) => (
-        <div className="table-actions" onClick={(e) => e.stopPropagation()}>
-          <button type="button" className="icon-btn" title="View details" aria-label="View details" onClick={() => setDetailRow(row)}>
-            <Eye size={15} />
-          </button>
-          <button type="button" className="icon-btn" title="Edit" aria-label="Edit" onClick={() => openEdit(row)}>
-            <Pencil size={15} />
-          </button>
-          {WORKFLOW.indexOf(row.status) < WORKFLOW.length - 1 && (
-            <button type="button" className="icon-btn icon-btn--success" title="Update status" aria-label="Update status" onClick={() => openStatus(row)}>
-              <ArrowRightCircle size={15} />
-            </button>
-          )}
-          <button type="button" className="icon-btn icon-btn--danger" title="Delete" aria-label="Delete" onClick={() => handleDelete(row)}>
-            <Trash2 size={15} />
-          </button>
-        </div>
+        <RowActionsMenu
+          items={[
+            { label: 'View', icon: <Eye size={14} />, onClick: () => setDetailRow(row) },
+            { label: 'Edit', icon: <Pencil size={14} />, onClick: () => openEdit(row) },
+            {
+              label: 'Update status',
+              icon: <ArrowRightCircle size={14} />,
+              onClick: () => openStatus(row),
+              hidden: WORKFLOW.indexOf(row.status) >= WORKFLOW.length - 1,
+            },
+          ]}
+        />
       ),
     },
   ]
@@ -314,7 +296,7 @@ export default function DistributionsPage() {
     <>
       <PageHeader
         title="Logistics & Distribution"
-        description="Schedule and track deliveries. Packs and barangay come from Resource Allocation — add date, vehicles, and manpower here."
+        description="Schedule and track deliveries. Approved resource allocations appear in the Ready to Schedule Queue below automatically."
         actions={
           <button
             type="button"
@@ -331,141 +313,334 @@ export default function DistributionsPage() {
         }
       />
 
-      {(readyAllocations || []).length > 0 && (
-        <section className="admin-panel dist-ready-panel">
-          <div className="dist-ready-panel__head">
+      {planningDrafts.length > 0 && (
+        <section className="admin-panel" style={{ marginBottom: '24px', borderLeft: '4px solid #3b82f6' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px' }}>
             <div>
-              <h2>Ready to deliver</h2>
-              <p>These packs are already reserved/allocated. Pick one barangay’s items, then plan the delivery.</p>
+              <h2 style={{ margin: 0, fontSize: '1.15rem', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                📅 Ready to Schedule Queue ({planningDrafts.length})
+              </h2>
+              <p style={{ margin: '4px 0 0', color: 'var(--admin-text-muted, #94a3b8)', fontSize: '0.88rem' }}>
+                Auto-drafted distributions from approved allocations. Select date, team, and logistics to schedule delivery.
+              </p>
             </div>
-            <button
-              type="button"
-              className="btn btn--primary btn--sm"
-              disabled={!selectedReadyIds.length}
-              onClick={openCreateFromReady}
-            >
-              Plan selected ({selectedReadyIds.length})
-            </button>
+            {selectedDraftIds.length > 1 && (
+              <button
+                type="button"
+                className="btn btn--primary btn--sm"
+                onClick={handleGroupDrafts}
+                disabled={grouping}
+              >
+                {grouping ? 'Grouping...' : `Group Selected (${selectedDraftIds.length}) into 1 Distribution`}
+              </button>
+            )}
           </div>
 
-          <div className="dist-ready-groups">
-            {readyByBarangay.map((group) => {
-              const ids = group.items.map((i) => i.dbId)
-              const selectedCount = ids.filter((id) => selectedReadyIds.includes(id)).length
-              const allSelected = selectedCount === ids.length
+          <div className="see-more-wrap">
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '16px' }}>
+            {draftsSeeMore.visible.map((draft) => {
+              const isSelected = selectedDraftIds.includes(draft.dbId)
               return (
-                <div key={group.label} className="dist-ready-group">
-                  <div className="dist-ready-group__head">
+                <div
+                  key={draft.dbId}
+                  style={{
+                    background: isSelected ? 'rgba(59, 130, 246, 0.08)' : 'var(--admin-surface, #1e293b)',
+                    border: isSelected ? '1px solid #3b82f6' : '1px solid var(--admin-border, #334155)',
+                    borderRadius: '10px',
+                    padding: '16px',
+                    position: 'relative',
+                    transition: 'all 0.2s ease',
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: '10px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <input
+                        type="checkbox"
+                        checked={isSelected}
+                        onChange={(e) => {
+                          if (e.target.checked) {
+                            setSelectedDraftIds((prev) => [...prev, draft.dbId])
+                          } else {
+                            setSelectedDraftIds((prev) => prev.filter((id) => id !== draft.dbId))
+                          }
+                        }}
+                        style={{ cursor: 'pointer', width: '16px', height: '16px' }}
+                      />
+                      <span style={{ fontSize: '0.78rem', fontWeight: 600, color: 'var(--admin-text-muted, #94a3b8)' }}>
+                        Draft
+                      </span>
+                    </div>
+                    <StatusBadge status={draft.status} />
+                  </div>
+
+                  <h3 style={{ margin: '0 0 6px', fontSize: '1rem', color: 'var(--admin-text, #f1f5f9)' }}>
+                    {draft.barangay || draft.eventName || 'Barangay'}
+                  </h3>
+
+                  <div style={{ fontSize: '0.85rem', color: '#94a3b8', marginBottom: '12px' }}>
+                    📦 <strong>Items:</strong> {draft.itemsSummary || 'Packs allocated'}
+                  </div>
+
+                  {draft.requestPriority && (
+                    <div style={{ fontSize: '0.8rem', marginBottom: '12px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <span>Urgency:</span>
+                      <span style={{
+                        padding: '2px 8px',
+                        borderRadius: '4px',
+                        fontWeight: 600,
+                        fontSize: '0.75rem',
+                        background: draft.requestPriority === 'Critical' ? '#fee2e2' : '#fefce8',
+                        color: draft.requestPriority === 'Critical' ? '#dc2626' : '#d97706',
+                      }}>
+                        {draft.requestPriority}
+                      </span>
+                    </div>
+                  )}
+
+                  <div style={{ display: 'flex', gap: '8px', marginTop: '12px' }}>
                     <button
                       type="button"
-                      className="btn btn--ghost btn--sm"
-                      onClick={() => selectBarangayGroup(group.items)}
+                      className="btn btn--primary btn--sm"
+                      style={{ flex: 1 }}
+                      onClick={() => openEdit(draft)}
                     >
-                      {allSelected ? 'Clear' : 'Select all'} · {group.label}
+                      Schedule Delivery &rarr;
                     </button>
-                    <span>{group.items.length} item{group.items.length === 1 ? '' : 's'}</span>
-                  </div>
-                  <div className="dist-ready-list">
-                    {group.items.map((a) => {
-                      const checked = selectedReadyIds.includes(a.dbId)
-                      return (
-                        <label key={a.dbId} className={`dist-ready-item${checked ? ' dist-ready-item--selected' : ''}`}>
-                          <input
-                            type="checkbox"
-                            checked={checked}
-                            onChange={() => {
-                              setSelectedReadyIds((prev) => (
-                                checked ? prev.filter((id) => id !== a.dbId) : [...prev, a.dbId]
-                              ))
-                            }}
-                          />
-                          <div>
-                            <strong>{a.resource} × {a.quantity}</strong>
-                            <span>{a.id}</span>
-                          </div>
-                          <StatusBadge status={a.status} />
-                        </label>
-                      )
-                    })}
                   </div>
                 </div>
               )
             })}
+          </div>
+          {draftsSeeMore.needsToggle && (
+            <SeeMoreToggle
+              expanded={draftsSeeMore.expanded}
+              onToggle={draftsSeeMore.toggle}
+              hiddenCount={draftsSeeMore.hiddenCount}
+            />
+          )}
           </div>
         </section>
       )}
 
       <FilterBar
         controller={filters}
-        searchPlaceholder="Search deliveries by ID, barangay, or event..."
+        searchPlaceholder="Search deliveries by barangay or event..."
         exportConfig={{ filename: 'distribution-report', title: 'Distribution Report', columns, rows: filters.filtered }}
       />
 
       <ApiState loading={loading} error={error} onRetry={reload}>
-        <DataTable columns={columns} data={filters.filtered} onRowClick={setDetailRow} />
+        <DataTable columns={columns} data={filters.filtered} onRowClick={setDetailRow} initialVisible={5} />
       </ApiState>
 
       {detailRow && (
         <div className="admin-modal-overlay" onClick={() => setDetailRow(null)}>
-          <div className="admin-modal admin-modal--wide" onClick={(e) => e.stopPropagation()}>
-            <ModalHeader title="Delivery details" onClose={() => setDetailRow(null)} />
-            <WorkflowStepper steps={WORKFLOW} currentStatus={detailRow.status} />
+          <div className="admin-modal admin-modal--xl dist-detail-modal" onClick={(e) => e.stopPropagation()}>
+            <ModalHeader
+              title="Delivery details"
+              subtitle={detailRow.eventName || detailRow.barangay || detailRow.location || 'Logistics event'}
+              onClose={() => setDetailRow(null)}
+            />
 
-            <div className="dist-detail-grid">
-              <section className="dist-detail-card">
-                <h3>Overview</h3>
-                <dl className="detail-list detail-list--compact">
-                  <dt>ID</dt><dd>{detailRow.id}</dd>
-                  <dt>Event</dt><dd>{detailRow.eventName || '—'}</dd>
-                  <dt>Barangay</dt><dd>{detailRow.barangay || '—'}</dd>
-                  <dt>Location</dt><dd>{detailRow.location || '—'}</dd>
-                  <dt>Items</dt><dd>{detailRow.itemsSummary || '—'}</dd>
-                  <dt>Schedule</dt><dd>{detailRow.date || '—'}{detailRow.scheduleTime ? ` · ${detailRow.scheduleTime}` : ''}</dd>
-                  <dt>Status</dt><dd><StatusBadge status={detailRow.status} /></dd>
-                </dl>
+            <div className="dist-detail">
+              <header className="dist-detail__hero">
+                <div className="dist-detail__hero-main">
+                  <h3 className="dist-detail__title">
+                    {detailRow.eventName || detailRow.location || 'Untitled delivery'}
+                  </h3>
+                  <div className="dist-detail__meta">
+                    <span>
+                      <MapPin size={14} aria-hidden />
+                      {[detailRow.barangay, detailRow.barangayMunicipality || detailRow.location]
+                        .filter(Boolean)
+                        .filter((v, i, arr) => arr.indexOf(v) === i)
+                        .join(' · ') || '—'}
+                    </span>
+                    <span>
+                      <Calendar size={14} aria-hidden />
+                      {detailRow.date || 'Unscheduled'}
+                      {detailRow.scheduleTime ? ` · ${detailRow.scheduleTime}` : ''}
+                    </span>
+                    {detailRow.program ? (
+                      <span>
+                        <ClipboardList size={14} aria-hidden />
+                        {detailRow.program}
+                      </span>
+                    ) : null}
+                  </div>
+                </div>
+                <div className="dist-detail__hero-aside">
+                  <StatusBadge status={detailRow.status} />
+                  {detailRow.type ? <span className="dist-detail__pill">{detailRow.type}</span> : null}
+                  {(detailRow.request?.id || detailRow.requestId) ? (
+                    <span className="alloc-request-id" title={detailRow.request?.type || 'Linked request'}>
+                      {detailRow.request?.id || `#${detailRow.requestId}`}
+                    </span>
+                  ) : null}
+                </div>
+              </header>
+
+              <section className="dist-detail__progress" aria-label="Delivery progress">
+                <WorkflowStepper steps={WORKFLOW} currentStatus={detailRow.status} />
               </section>
 
-              <section className="dist-detail-card">
-                <h3>Logistics</h3>
-                <dl className="detail-list detail-list--compact">
-                  <dt>Type</dt><dd>{detailRow.type || '—'}</dd>
-                  <dt>Coordinator</dt><dd>{detailRow.coordinator || '—'}</dd>
-                  <dt>Families / recipients</dt><dd>{detailRow.beneficiaries ?? '—'}</dd>
-                  <dt>Volunteers</dt><dd>{detailRow.volunteers ?? 0}</dd>
-                  <dt>Vehicles</dt><dd>{detailRow.vehicles ?? 0}</dd>
-                  {detailRow.type === 'Delivery' && (
-                    <>
-                      <dt>Distance</dt><dd>{detailRow.distanceKm != null ? `${detailRow.distanceKm} km` : '—'}</dd>
-                      <dt>Est. fuel</dt>
+              <div className="dist-detail__metrics">
+                <div className="dist-detail__metric">
+                  <Users size={16} aria-hidden />
+                  <div>
+                    <strong>{detailRow.beneficiaries ?? '—'}</strong>
+                    <span>Families</span>
+                  </div>
+                </div>
+                <div className="dist-detail__metric">
+                  <UserRound size={16} aria-hidden />
+                  <div>
+                    <strong>{detailRow.volunteers ?? 0}</strong>
+                    <span>Volunteers</span>
+                  </div>
+                </div>
+                <div className="dist-detail__metric">
+                  <Truck size={16} aria-hidden />
+                  <div>
+                    <strong>{detailRow.vehicles ?? 0}</strong>
+                    <span>Vehicles</span>
+                  </div>
+                </div>
+                <div className="dist-detail__metric">
+                  <Route size={16} aria-hidden />
+                  <div>
+                    <strong>
+                      {detailRow.distanceKm != null ? `${detailRow.distanceKm} km` : '—'}
+                    </strong>
+                    <span>Distance</span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="dist-detail__grid">
+                <section className="dist-detail__card">
+                  <h4>
+                    <Package size={15} aria-hidden />
+                    Cargo & request
+                  </h4>
+                  <dl className="dist-detail__list">
+                    <div>
+                      <dt>Items</dt>
                       <dd>
-                        {detailRow.fuelLiters != null
-                          ? `${detailRow.fuelLiters} L · ₱${Number(detailRow.fuelCost || 0).toLocaleString()}`
+                        {detailRow.itemsSummary ? (
+                          <ul className="dist-detail__items">
+                            {String(detailRow.itemsSummary)
+                              .split(/;|\n/)
+                              .map((item) => item.trim())
+                              .filter(Boolean)
+                              .map((item) => (
+                                <li key={item}>{item}</li>
+                              ))}
+                          </ul>
+                        ) : '—'}
+                      </dd>
+                    </div>
+                    <div>
+                      <dt>Request ID</dt>
+                      <dd>
+                        {detailRow.request?.id || detailRow.requestId ? (
+                          <span className="alloc-request-id">
+                            {detailRow.request?.id || `#${detailRow.requestId}`}
+                            {detailRow.request?.type ? ` · ${detailRow.request.type}` : ''}
+                          </span>
+                        ) : '—'}
+                      </dd>
+                    </div>
+                    <div>
+                      <dt>Request status</dt>
+                      <dd>
+                        {detailRow.request?.status
+                          ? <StatusBadge status={detailRow.request.status} />
                           : '—'}
                       </dd>
-                    </>
-                  )}
-                </dl>
-              </section>
+                    </div>
+                    <div>
+                      <dt>Location</dt>
+                      <dd>{detailRow.location || '—'}</dd>
+                    </div>
+                  </dl>
+                </section>
 
-              <section className="dist-detail-card">
-                <h3>Proof & receipt</h3>
-                <dl className="detail-list detail-list--compact">
-                  <dt>Proof</dt><dd><StatusBadge status={detailRow.proofStatus} /></dd>
-                  <dt>Proofs uploaded</dt><dd>{detailRow.proofsCount ?? 0}</dd>
-                  <dt>Receipt</dt>
-                  <dd>
-                    <StatusBadge status={detailRow.receiptStatus} />
-                    {detailRow.receivedQuantity != null ? ` · ${detailRow.receivedQuantity} received` : ''}
-                  </dd>
-                  <dt>From allocation</dt>
-                  <dd>
-                    {(detailRow.allocations || []).length
-                      ? detailRow.allocations.map((a) => `${a.resource} × ${a.quantity}`).join('; ')
-                      : 'Manual / none'}
-                  </dd>
-                  <dt>Notes</dt><dd>{detailRow.notes || '—'}</dd>
-                </dl>
-              </section>
+                <section className="dist-detail__card">
+                  <h4>
+                    <Truck size={15} aria-hidden />
+                    Logistics
+                  </h4>
+                  <dl className="dist-detail__list">
+                    <div>
+                      <dt>Coordinator</dt>
+                      <dd>{detailRow.coordinator || 'Unassigned'}</dd>
+                    </div>
+                    <div>
+                      <dt>Type</dt>
+                      <dd>{detailRow.type || '—'}</dd>
+                    </div>
+                    {detailRow.fuelLiters != null && (
+                      <div>
+                        <dt><span className="dist-detail__dt-inline"><Fuel size={12} aria-hidden /> Fuel</span></dt>
+                        <dd>
+                          {detailRow.fuelLiters} L
+                          {detailRow.fuelCost != null ? ` · ₱${Number(detailRow.fuelCost).toLocaleString()}` : ''}
+                        </dd>
+                      </div>
+                    )}
+                    <div>
+                      <dt>From allocation</dt>
+                      <dd>
+                        {(detailRow.allocations || []).length ? (
+                          <ul className="dist-detail__items">
+                            {detailRow.allocations.map((a) => (
+                              <li key={a.dbId || a.id || `${a.resource}-${a.quantity}`}>
+                                {a.resource} × {a.quantity}
+                              </li>
+                            ))}
+                          </ul>
+                        ) : 'Manual / none'}
+                      </dd>
+                    </div>
+                  </dl>
+                </section>
+
+                <section className="dist-detail__card dist-detail__card--wide">
+                  <h4>
+                    <FileCheck size={15} aria-hidden />
+                    Proof & receipt
+                  </h4>
+                  <div className="dist-detail__status-row">
+                    <div className="dist-detail__status-block">
+                      <span className="dist-detail__status-label">Proof</span>
+                      <StatusBadge status={detailRow.proofStatus} />
+                      <small>{detailRow.proofsCount ?? 0} uploaded</small>
+                    </div>
+                    <div className="dist-detail__status-block">
+                      <span className="dist-detail__status-label">Receipt</span>
+                      <StatusBadge status={detailRow.receiptStatus} />
+                      <small>
+                        {detailRow.receivedQuantity != null
+                          ? `${detailRow.receivedQuantity} received${detailRow.receivedAt ? ` · ${detailRow.receivedAt}` : ''}`
+                          : 'Awaiting confirmation'}
+                      </small>
+                    </div>
+                  </div>
+                  {detailRow.receiptNotes ? (
+                    <p className="dist-detail__notes-inline">{detailRow.receiptNotes}</p>
+                  ) : null}
+                </section>
+
+                {detailRow.notes ? (
+                  <section className="dist-detail__card dist-detail__card--wide dist-detail__card--notes">
+                    <h4>
+                      <StickyNote size={15} aria-hidden />
+                      Notes
+                    </h4>
+                    <p className="dist-detail__notes">{detailRow.notes}</p>
+                  </section>
+                ) : null}
+              </div>
             </div>
 
             <div className="admin-modal__actions">
@@ -486,7 +661,7 @@ export default function DistributionsPage() {
             <ModalHeader title="Update status" onClose={() => setStatusRow(null)} />
             <form onSubmit={handleUpdateStatus}>
               <p className="dist-status-hint">
-                {statusRow.eventName || statusRow.barangay || statusRow.id}
+                {statusRow.eventName || statusRow.barangay || 'Delivery'}
               </p>
               <label>
                 Current progress
@@ -507,7 +682,7 @@ export default function DistributionsPage() {
         <div className="admin-modal-overlay" onClick={closeForm}>
           <div className="admin-modal admin-modal--wide" onClick={(e) => e.stopPropagation()}>
             <ModalHeader
-              title={editRow ? `Edit ${editRow.id}` : 'Plan delivery'}
+              title={editRow ? 'Edit delivery' : 'Plan delivery'}
               onClose={closeForm}
             />
 
@@ -617,13 +792,6 @@ export default function DistributionsPage() {
                     </label>
                   )}
                 </div>
-                {form.type === 'Delivery' && (
-                  <div className="logistics-estimate">
-                    <div><span>Est. fuel</span><strong>{est.liters} L</strong></div>
-                    <div><span>Est. cost</span><strong>₱{est.cost.toLocaleString()}</strong></div>
-                    <div><span>Suggested volunteers</span><strong>{est.suggestedManpower}</strong></div>
-                  </div>
-                )}
 
                 <button
                   type="button"

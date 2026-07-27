@@ -37,7 +37,7 @@ export default function TermsPage() {
             Questions about these terms may be sent to
             {' '}<a href="mailto:riseabove@riseabove-cebu.org">riseabove@riseabove-cebu.org</a>.
           </p>
-          <p><Link to="/register">← Back to Sign Up</Link></p>
+          <p><Link to="/login">← Back to Log In</Link></p>
         </div>
       </section>
     </div>
