@@ -1,11 +1,11 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
-import { Mail, Plus, Users, Activity, Clock, AlertCircle, Eye, Pencil, Trash2, Send } from 'lucide-react'
+import { Mail, Plus, Users, Activity, Clock, AlertCircle, Eye, Pencil, Trash2, Send, CheckCircle2, XCircle } from 'lucide-react'
 import { beneficiariesApi, assistanceRequestsApi } from '../../api/resources'
 import { useApiList } from '../../hooks/useApiList'
 import { useFilters } from '../../hooks/useFilters'
 import { MUNICIPALITIES, barangaysForMunicipality } from '../../constants/locations'
-import { BARANGAY_TYPES, NEEDS, REPRESENTATIVE_POSITIONS } from '../../constants/options'
+import { BARANGAY_TYPES, REPRESENTATIVE_POSITIONS } from '../../constants/options'
 import PageHeader from '../../components/admin/shared/PageHeader'
 import DataTable from '../../components/admin/shared/DataTable'
 import StatusBadge from '../../components/admin/shared/StatusBadge'
@@ -13,11 +13,16 @@ import FilterBar from '../../components/admin/shared/FilterBar'
 import ModalHeader from '../../components/admin/shared/ModalHeader'
 import Req from '../../components/shared/Req'
 import NameFields from '../../components/shared/NameFields'
+import NeedsPicker from '../../components/shared/NeedsPicker'
 import ApiState from '../../components/admin/shared/ApiState'
 import { emptyNameParts, formatFullName, parseFullName } from '../../utils/personName'
 import { BENEFICIARIES_CHANGED, notifyBeneficiariesChanged } from '../../utils/beneficiariesSync'
+import { canInviteBarangay, canStartOrRefreshInvite, isAwaitingBarangayApproval } from '../../utils/barangayInvite'
+import { notify, suppressNotificationToast } from '../../utils/toast'
 
-const STATUS_OPTIONS = ['Active', 'Approved', 'Pending Approval', 'Suspended']
+const STATUS_OPTIONS = ['Active', 'Approved', 'Pending Approval', 'Suspended', 'Rejected']
+/** Create-only statuses — Edit never changes partnership status. */
+const CREATE_STATUS_OPTIONS = ['Active', 'Pending Approval', 'Suspended']
 const PRIORITY_RANK = { Critical: 4, High: 3, Medium: 2, Low: 1 }
 
 const filterConfig = {
@@ -55,10 +60,6 @@ function normalizeNeeds(value) {
   return []
 }
 
-function toggleNeed(list, need) {
-  return list.includes(need) ? list.filter((n) => n !== need) : [...list, need]
-}
-
 const emptyInviteForm = {
   email: '',
   barangay: '',
@@ -90,6 +91,38 @@ function formFromRow(row) {
     notes: row.notes || '',
     status: row.status || 'Active',
   }
+}
+
+function toastInviteResult(res, email) {
+  if (res?.invitationSent) {
+    notify.success(res?.message || `Invitation emailed to ${email || 'barangay contact'}.`)
+    return
+  }
+  const detail = res?.mailError || res?.message || 'Email could not be delivered.'
+  notify.warning(detail)
+  if (res?.inviteUrl) {
+    notify.info(`Invite link: ${res.inviteUrl}`, 8000)
+  }
+}
+
+function normalizeLocationLabel(value) {
+  return String(value || '')
+    .trim()
+    .toLowerCase()
+    .replace(/^(brgy\.?|barangay)\s+/i, '')
+    .replace(/\s+/g, ' ')
+}
+
+function isDuplicateBarangay(list, barangay, municipality, excludeId = null) {
+  const bKey = normalizeLocationLabel(barangay)
+  const mKey = normalizeLocationLabel(municipality)
+  if (!bKey || !mKey) return false
+  return (list || []).some((row) => {
+    if (excludeId != null && Number(row.dbId) === Number(excludeId)) return false
+    const rowBarangay = normalizeLocationLabel(row.barangay || row.name)
+    const rowMuni = normalizeLocationLabel(row.municipality)
+    return rowBarangay === bKey && rowMuni === mKey
+  })
 }
 
 function priorityClass(priority) {
@@ -129,10 +162,11 @@ export default function BeneficiariesPage() {
   const [createForm, setCreateForm] = useState(emptyCreateForm)
   const [inviteForm, setInviteForm] = useState(emptyInviteForm)
   const [saving, setSaving] = useState(false)
+  const [actionBusyId, setActionBusyId] = useState(null)
 
   const totalBeneficiaries = beneficiaries.length
   const activeBeneficiaries = beneficiaries.filter((b) => b.status === 'Active' || b.status === 'Approved').length
-  const pendingInvites = beneficiaries.filter((b) => b.status === 'Pending Approval').length
+  const pendingInvites = beneficiaries.filter((b) => isAwaitingBarangayApproval(b)).length
 
   const urgentNeedsCount = useMemo(() => {
     if (!requests) return 0
@@ -193,38 +227,125 @@ export default function BeneficiariesPage() {
       await beneficiariesApi.remove(row.dbId)
       setData((prev) => (prev || []).filter((b) => Number(b.dbId) !== Number(row.dbId)))
       notifyBeneficiariesChanged({ removedId: row.dbId })
+      notify.success('Beneficiary deleted.')
       reload()
     } catch (err) {
-      alert(err.message)
+      notify.error(err.message)
     }
   }
 
   const handleReinvite = async (e, row) => {
     e.stopPropagation()
+    const email = String(row.representativeEmail || '').trim()
+    if (!email) {
+      notify.warning('Add a representative email before sending an invite.')
+      return
+    }
     try {
-      await beneficiariesApi.update(row.dbId, { status: 'Pending Approval' })
-      alert(`Invitation resent to ${row.representativeEmail || 'barangay contact'}.`)
+      const res = await beneficiariesApi.reinvite(row.dbId, {
+        email,
+        barangay: row.barangay || row.name,
+        municipality: row.municipality || '',
+      })
+      toastInviteResult(res, email)
+      notifyBeneficiariesChanged()
       reload()
     } catch (err) {
-      alert(err.message)
+      notify.error(err.message || 'Failed to send invitation')
+    }
+  }
+
+  const handleApprove = async (e, row) => {
+    e.stopPropagation()
+    if (actionBusyId === row.dbId) return
+    const name = row.barangay || row.name || 'this barangay'
+    if (!window.confirm(`Approve partnership application for "${name}"? This creates their account and emails login credentials.`)) return
+    setActionBusyId(row.dbId)
+    try {
+      const res = await beneficiariesApi.approve(row.dbId)
+      if (res?.credentialsSent) {
+        suppressNotificationToast('beneficiary_credentials')
+        notify.success(res?.message || 'Login credentials have been successfully sent to the approved Barangay.')
+      } else if (res?.accountCreated) {
+        notify.warning(
+          [
+            res?.message || 'Barangay approved and account was created.',
+            res?.temporaryPassword ? `Temporary password (share securely): ${res.temporaryPassword}` : '',
+            res?.mailError ? `Email note: ${res.mailError}` : 'Credential email was not delivered.',
+          ].filter(Boolean).join(' '),
+        )
+      } else {
+        notify.success(res?.message || 'Barangay approved.')
+        if (res?.mailError) notify.warning(res.mailError)
+      }
+      notifyBeneficiariesChanged()
+      reload()
+    } catch (err) {
+      notify.error(err.message || 'Failed to approve barangay')
+    } finally {
+      setActionBusyId(null)
+    }
+  }
+
+  const handleReject = async (e, row) => {
+    e.stopPropagation()
+    if (actionBusyId === row.dbId) return
+    const name = row.barangay || row.name || 'this barangay'
+    if (!window.confirm(`Reject partnership application for "${name}"?`)) return
+    setActionBusyId(row.dbId)
+    try {
+      const res = await beneficiariesApi.reject(row.dbId)
+      notify.success(res?.message || 'Application rejected.')
+      notifyBeneficiariesChanged()
+      reload()
+    } catch (err) {
+      notify.error(err.message || 'Failed to reject application')
+    } finally {
+      setActionBusyId(null)
     }
   }
 
   const handleSaveInvite = async (e) => {
     e.preventDefault()
+    const email = String(inviteForm.email || '').trim()
+    if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      notify.warning('Enter a valid representative email address.')
+      return
+    }
+    if (!inviteForm.barangay?.trim() || !inviteForm.municipality?.trim()) {
+      notify.warning('Barangay name and municipality/city are required.')
+      return
+    }
     setSaving(true)
     try {
-      await beneficiariesApi.create({
+      const existing = (beneficiaries || []).find((row) => (
+        normalizeLocationLabel(row.barangay || row.name) === normalizeLocationLabel(inviteForm.barangay)
+        && normalizeLocationLabel(row.municipality) === normalizeLocationLabel(inviteForm.municipality)
+      ))
+      if (existing && !canStartOrRefreshInvite(existing)) {
+        if (isAwaitingBarangayApproval(existing)) {
+          notify.warning('This barangay already submitted registration and is awaiting approval. Use Approve instead.')
+        } else {
+          notify.warning('This barangay is already registered. Invite is only for new barangays.')
+        }
+        return
+      }
+      const payload = {
         barangay: inviteForm.barangay,
         municipality: inviteForm.municipality,
-        representativeEmail: inviteForm.email,
-        status: 'Pending Approval',
-      })
-      alert('Invitation recorded. The barangay contact can be onboarded from this beneficiary record.')
+        email,
+        representativeEmail: email,
+      }
+      const res = existing?.dbId
+        ? await beneficiariesApi.reinvite(existing.dbId, payload)
+        : await beneficiariesApi.invite(payload)
+      toastInviteResult(res, email)
       setModalMode(null)
+      setInviteForm(emptyInviteForm)
+      notifyBeneficiariesChanged()
       reload()
     } catch (err) {
-      alert(err.message)
+      notify.error(err.message || 'Failed to send invitation')
     } finally {
       setSaving(false)
     }
@@ -232,6 +353,15 @@ export default function BeneficiariesPage() {
 
   const handleSaveCreateEdit = async (e) => {
     e.preventDefault()
+    if (!createForm.barangay?.trim() || !createForm.municipality?.trim()) {
+      notify.warning('Barangay name and municipality/city are required.')
+      return
+    }
+    const excludeId = modalMode === 'edit' ? activeId : null
+    if (isDuplicateBarangay(beneficiaries, createForm.barangay, createForm.municipality, excludeId)) {
+      notify.warning(`Barangay "${createForm.barangay}" in ${createForm.municipality} is already registered.`)
+      return
+    }
     setSaving(true)
     try {
       const representativeName = formatFullName(createForm.nameParts)
@@ -254,15 +384,19 @@ export default function BeneficiariesPage() {
       }
 
       if (modalMode === 'edit' && activeId) {
+        const existing = beneficiaries.find((b) => Number(b.dbId) === Number(activeId))
+        // Status is not editable in Edit — preserve current partnership/operational status.
+        payload.status = existing?.status || payload.status
         await beneficiariesApi.update(activeId, payload)
       } else {
         await beneficiariesApi.create(payload)
       }
 
+      notify.success(modalMode === 'edit' ? 'Beneficiary updated.' : 'Beneficiary created.')
       setModalMode(null)
       reload()
     } catch (err) {
-      alert(err.message)
+      notify.error(err.message)
     } finally {
       setSaving(false)
     }
@@ -281,7 +415,14 @@ export default function BeneficiariesPage() {
       label: 'Affected Families',
       render: (row) => (row.affectedFamilies || 0).toLocaleString(),
     },
-    { key: 'status', label: 'Status', render: (row) => <StatusBadge status={row.status} /> },
+    { key: 'status', label: 'Status', render: (row) => (
+      <div className="beneficiaries-status-cell">
+        <StatusBadge status={row.status} />
+        {isAwaitingBarangayApproval(row) && (
+          <span className="beneficiaries-review-pill">Awaiting approval</span>
+        )}
+      </div>
+    ) },
     {
       key: 'priority',
       label: 'Priority',
@@ -308,24 +449,63 @@ export default function BeneficiariesPage() {
     {
       key: 'actions',
       label: 'Actions',
-      render: (row) => (
-        <div className="table-actions">
-          <button type="button" className="icon-btn" title="View details" onClick={(e) => { e.stopPropagation(); handleRowClick(row) }}>
-            <Eye size={16} />
-          </button>
-          <button type="button" className="icon-btn" title="Edit" onClick={(e) => { e.stopPropagation(); openEdit(row) }}>
-            <Pencil size={16} />
-          </button>
-          {row.status === 'Pending Approval' && (
-            <button type="button" className="icon-btn" title="Resend invite" onClick={(e) => handleReinvite(e, row)}>
-              <Send size={16} />
-            </button>
-          )}
-          <button type="button" className="icon-btn icon-btn--danger" title="Delete" onClick={(e) => handleDelete(e, row)}>
-            <Trash2 size={16} />
-          </button>
-        </div>
-      ),
+      render: (row) => {
+        const awaitingReview = isAwaitingBarangayApproval(row)
+        const showInvite = canInviteBarangay(row)
+        const busy = actionBusyId === row.dbId
+        return (
+          <div className="table-actions" onClick={(e) => e.stopPropagation()}>
+            {awaitingReview ? (
+              <div className="beneficiaries-review-actions">
+                <button
+                  type="button"
+                  className="btn btn--sm btn--primary"
+                  title="Approve application and email login credentials"
+                  disabled={busy}
+                  onClick={(e) => handleApprove(e, row)}
+                >
+                  <CheckCircle2 size={14} /> Approve
+                </button>
+                <button
+                  type="button"
+                  className="btn btn--sm btn--outline-danger"
+                  title="Reject application"
+                  disabled={busy}
+                  onClick={(e) => handleReject(e, row)}
+                >
+                  <XCircle size={14} /> Reject
+                </button>
+                <button type="button" className="icon-btn" title="View details" onClick={() => handleRowClick(row)}>
+                  <Eye size={16} />
+                </button>
+              </div>
+            ) : (
+              <>
+                <button type="button" className="icon-btn" title="View details" onClick={() => handleRowClick(row)}>
+                  <Eye size={16} />
+                </button>
+                <button type="button" className="icon-btn" title="Edit" onClick={() => openEdit(row)}>
+                  <Pencil size={16} />
+                </button>
+                {showInvite && (
+                  <button
+                    type="button"
+                    className="icon-btn"
+                    title={row.representativeEmail ? 'Resend invitation' : 'Add representative email first'}
+                    disabled={!row.representativeEmail || busy}
+                    onClick={(e) => handleReinvite(e, row)}
+                  >
+                    <Send size={16} />
+                  </button>
+                )}
+                <button type="button" className="icon-btn icon-btn--danger" title="Delete" onClick={(e) => handleDelete(e, row)}>
+                  <Trash2 size={16} />
+                </button>
+              </>
+            )}
+          </div>
+        )
+      },
     },
   ]
 
@@ -340,7 +520,7 @@ export default function BeneficiariesPage() {
               <Mail size={16} /> Invite Barangay
             </button>
             <button type="button" className="btn btn--primary" onClick={openCreate}>
-              <Plus size={16} /> Add Beneficiary
+              <Plus size={16} /> Add Barangay
             </button>
           </>
         )}
@@ -365,7 +545,7 @@ export default function BeneficiariesPage() {
           <div className="beneficiaries-stat__icon beneficiaries-stat__icon--warning"><Clock size={22} /></div>
           <div>
             <span className="beneficiaries-stat__value">{pendingInvites}</span>
-            <span className="beneficiaries-stat__label">Pending Invites</span>
+            <span className="beneficiaries-stat__label">Pending Approval</span>
           </div>
         </div>
         <div className="beneficiaries-stat">
@@ -387,6 +567,7 @@ export default function BeneficiariesPage() {
           columns={columns}
           data={filters.filtered}
           onRowClick={handleRowClick}
+          rowClassName={(row) => (isAwaitingBarangayApproval(row) ? 'data-table__row--pending-review' : '')}
           initialVisible={5}
         />
       </ApiState>
@@ -397,7 +578,7 @@ export default function BeneficiariesPage() {
             <ModalHeader title="Invite Barangay" onClose={() => setModalMode(null)} />
             <form onSubmit={handleSaveInvite}>
               <p style={{ color: 'var(--admin-text-muted)', marginBottom: '1.25rem', fontSize: '0.9rem' }}>
-                Invite a barangay representative to become an official beneficiary partner.
+                Send a partnership invitation. The representative completes a registration form, then appears here as Pending Approval until you approve and issue credentials.
               </p>
 
               <label>
@@ -459,7 +640,7 @@ export default function BeneficiariesPage() {
         <div className="admin-modal-overlay" onClick={() => setModalMode(null)}>
           <div className="admin-modal admin-modal--wide" onClick={(e) => e.stopPropagation()}>
             <ModalHeader
-              title={modalMode === 'edit' ? 'Edit Beneficiary' : 'Add Beneficiary'}
+              title={modalMode === 'edit' ? 'Edit Barangay' : 'Add Barangay'}
               onClose={() => setModalMode(null)}
             />
             <form onSubmit={handleSaveCreateEdit}>
@@ -530,39 +711,12 @@ export default function BeneficiariesPage() {
                 />
               </label>
 
-              <fieldset>
-                <legend>Type of Needs</legend>
-                <div className="checkbox-grid">
-                  {NEEDS.map((need) => (
-                    <label key={need} className="checkbox-label">
-                      <input
-                        type="checkbox"
-                        checked={createForm.needs.includes(need)}
-                        onChange={() => setCreateForm({
-                          ...createForm,
-                          needs: toggleNeed(createForm.needs, need),
-                        })}
-                      />
-                      {need}
-                    </label>
-                  ))}
-                  {createForm.needs
-                    .filter((n) => !NEEDS.includes(n))
-                    .map((need) => (
-                      <label key={need} className="checkbox-label">
-                        <input
-                          type="checkbox"
-                          checked
-                          onChange={() => setCreateForm({
-                            ...createForm,
-                            needs: toggleNeed(createForm.needs, need),
-                          })}
-                        />
-                        {need}
-                      </label>
-                    ))}
-                </div>
-              </fieldset>
+              <NeedsPicker
+                value={createForm.needs}
+                onChange={(needs) => setCreateForm({ ...createForm, needs })}
+                note={createForm.notes}
+                onNoteChange={(notes) => setCreateForm({ ...createForm, notes })}
+              />
 
               <p className="form-section-title" style={{ marginTop: '1.25rem', marginBottom: '0.85rem', fontWeight: 650, color: 'var(--admin-text)' }}>
                 Representative Information
@@ -610,27 +764,20 @@ export default function BeneficiariesPage() {
                 </label>
               </div>
 
-              <div className="form-row">
+              {modalMode === 'create' && (
                 <label>
                   Status
                   <select value={createForm.status} onChange={(e) => setCreateForm({ ...createForm, status: e.target.value })}>
-                    {STATUS_OPTIONS.map((s) => <option key={s} value={s}>{s}</option>)}
+                    {CREATE_STATUS_OPTIONS.map((s) => (
+                      <option key={s} value={s}>{s}</option>
+                    ))}
                   </select>
                 </label>
-                <label>
-                  Notes
-                  <input
-                    type="text"
-                    value={createForm.notes}
-                    onChange={(e) => setCreateForm({ ...createForm, notes: e.target.value })}
-                    placeholder="Optional notes…"
-                  />
-                </label>
-              </div>
+              )}
 
               <div className="admin-modal__actions">
                 <button type="submit" className="btn btn--primary" disabled={saving}>
-                  {saving ? 'Saving…' : 'Save Beneficiary'}
+                  {saving ? 'Saving…' : 'Save Barangay'}
                 </button>
                 <button type="button" className="btn btn--ghost" onClick={() => setModalMode(null)}>Cancel</button>
               </div>

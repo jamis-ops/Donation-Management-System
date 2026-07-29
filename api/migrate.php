@@ -360,6 +360,12 @@ try {
   addColumn($pdo, 'beneficiaries', 'representative_last_name', 'VARCHAR(80) NULL AFTER representative_first_name');
   addColumn($pdo, 'beneficiaries', 'representative_middle_initial', 'VARCHAR(5) NULL AFTER representative_last_name');
 
+  // v20: Barangay invitation workflow columns
+  addColumn($pdo, 'beneficiaries', 'invitation_token', 'VARCHAR(64) NULL AFTER status');
+  addColumn($pdo, 'beneficiaries', 'invitation_expires', 'DATETIME NULL AFTER invitation_token');
+  addColumn($pdo, 'beneficiaries', 'invitation_status', "VARCHAR(20) NOT NULL DEFAULT 'none' AFTER invitation_expires");
+  echo "Ensured beneficiaries invitation columns\n";
+
   // v19: Link allocations → distribution events (handoff)
   addColumn($pdo, 'allocations', 'distribution_id', 'BIGINT UNSIGNED NULL AFTER assistance_request_id');
   echo "Ensured allocations.distribution_id for distribution handoff\n";

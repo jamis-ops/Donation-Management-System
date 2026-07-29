@@ -6,6 +6,7 @@ import ModalHeader from '../../components/admin/shared/ModalHeader'
 import DonationUpdatesTimeline from '../../components/shared/DonationUpdatesTimeline'
 import { donationsApi } from '../../api/resources'
 import { useApiList } from '../../hooks/useApiList'
+import { notify } from '../../utils/toast'
 
 function verifyResultMessage(res) {
   if (!res?.accountCreated) {
@@ -55,18 +56,18 @@ export default function StaffVerificationPage() {
 
   const handleVerify = async (row) => {
     if (!row.hasProof) {
-      alert('Cannot approve: proof of donation is required.')
+      notify.warning('Cannot approve: proof of donation is required.')
       return
     }
     if (!window.confirm(`Verify donation ${row.trackingCode} from ${row.donor}?`)) return
     setBusy(true)
     try {
       const res = await donationsApi.update(row.dbId, { status: 'Verified' })
-      alert(verifyResultMessage(res))
+      notify.success(verifyResultMessage(res))
       setSelected(null)
       reload()
     } catch (err) {
-      alert(err.message || 'Failed to verify donation')
+      notify.error(err.message || 'Failed to verify donation')
     } finally {
       setBusy(false)
     }
@@ -78,10 +79,11 @@ export default function StaffVerificationPage() {
     setBusy(true)
     try {
       await donationsApi.update(row.dbId, { status: 'Rejected', notes: reason || undefined })
+      notify.success('Donation rejected.')
       setSelected(null)
       reload()
     } catch (err) {
-      alert(err.message || 'Failed to reject donation')
+      notify.error(err.message || 'Failed to reject donation')
     } finally {
       setBusy(false)
     }

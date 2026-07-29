@@ -1,18 +1,19 @@
 import { useState } from 'react'
 import { Eye, Pencil, Trash2, UserPlus } from 'lucide-react'
-import { Link } from 'react-router-dom'
 import { donorsApi } from '../../api/resources'
 import { useApiList } from '../../hooks/useApiList'
 import { useFilters } from '../../hooks/useFilters'
 import { DONOR_TYPES } from '../../constants/options'
 import Req from '../../components/shared/Req'
 import NameFields from '../../components/shared/NameFields'
+import PolicyLinks from '../../components/shared/PolicyLinks'
 import PageHeader from '../../components/admin/shared/PageHeader'
 import DataTable from '../../components/admin/shared/DataTable'
 import ApiState from '../../components/admin/shared/ApiState'
 import FilterBar from '../../components/admin/shared/FilterBar'
 import ModalHeader from '../../components/admin/shared/ModalHeader'
 import { emptyNameParts, formatFullName, parseFullName } from '../../utils/personName'
+import { notify } from '../../utils/toast'
 
 const emptyForm = {
   donorType: 'Individual',
@@ -44,6 +45,15 @@ function accountResultMessage(res) {
   }
   bits.push('Ensure `npm run mail` is running and mail-service/.env has a valid Gmail App Password. See mail-service/.env.example.')
   return bits.join('\n\n')
+}
+
+function toastAccountResult(res) {
+  if (!res?.accountCreated) return
+  if (res.credentialsSent) {
+    notify.success('Donor saved. Login credentials were emailed to the donor.')
+    return
+  }
+  notify.warning(accountResultMessage(res).replace(/\n\n/g, '. '))
 }
 
 export default function DonorsPage() {
@@ -95,7 +105,7 @@ export default function DonorsPage() {
   const handleSave = async (e) => {
     e.preventDefault()
     if (isCompany && !form.organization.trim()) {
-      alert('Company / Organization Name is required.')
+      notify.warning('Company / Organization Name is required.')
       return
     }
     setSaving(true)
@@ -124,13 +134,15 @@ export default function DonorsPage() {
         res = await donorsApi.create(payload)
       }
       if (res?.accountCreated) {
-        alert(accountResultMessage(res))
+        toastAccountResult(res)
+      } else {
+        notify.success(mode === 'edit' ? 'Donor updated.' : 'Donor saved.')
       }
       setMode(null)
       setForm(emptyForm)
       reload()
     } catch (err) {
-      alert(err.message)
+      notify.error(err.message)
     } finally {
       setSaving(false)
     }
@@ -146,11 +158,11 @@ export default function DonorsPage() {
         email: active.email,
         acceptedPolicies: true,
       })
-      alert(accountResultMessage(res))
+      toastAccountResult(res)
       setMode(null)
       reload()
     } catch (err) {
-      alert(err.message)
+      notify.error(err.message)
     } finally {
       setSaving(false)
     }
@@ -160,10 +172,11 @@ export default function DonorsPage() {
     if (!confirm(`Permanently delete donor "${row.name}" and their portal login (if any)? Donation history will be kept but unlinked.`)) return
     try {
       await donorsApi.remove(row.dbId)
+      notify.success('Donor deleted.')
       if (mode === 'view' && active?.dbId === row.dbId) setMode(null)
       reload()
     } catch (err) {
-      alert(err.message)
+      notify.error(err.message)
     }
   }
 
@@ -328,9 +341,7 @@ export default function DonorsPage() {
                         onChange={(e) => setForm({ ...form, acceptedPolicies: e.target.checked })}
                       />
                       Donor accepts the{' '}
-                      <Link to="/privacy" target="_blank" rel="noreferrer">Data Privacy Policy</Link>
-                      {' '}and{' '}
-                      <Link to="/terms" target="_blank" rel="noreferrer">Terms &amp; Conditions</Link>
+                      <PolicyLinks />
                       <span className="req"> *</span>
                     </label>
                   )}

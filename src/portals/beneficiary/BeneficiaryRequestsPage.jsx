@@ -7,6 +7,7 @@ import { assistanceRequestsApi } from '../../api/resources'
 import { useApiList } from '../../hooks/useApiList'
 import { programs } from '../../data/mockData'
 import Req from '../../components/shared/Req'
+import { notify } from '../../utils/toast'
 
 // Calamity/Event types
 const CALAMITY_TYPES = [
@@ -173,6 +174,7 @@ export default function BeneficiaryRequestsPage() {
           calamityTags: [calamityType],
         })
         setEditingRequest(null)
+        notify.success('Request updated.')
       } else {
         // Create new request
         await assistanceRequestsApi.create({
@@ -181,6 +183,7 @@ export default function BeneficiaryRequestsPage() {
           notes: structuredNotes,
           calamityTags: [calamityType],
         })
+        notify.success('Request submitted.')
       }
       setForm(emptyForm)
       setShowForm(false)
@@ -282,10 +285,11 @@ export default function BeneficiaryRequestsPage() {
     setSaving(true)
     try {
       await assistanceRequestsApi.remove(requestId)
+      notify.success('Request cancelled.')
       setSelectedRequest(null)
       reload()
     } catch (err) {
-      alert(err.message)
+      notify.error(err.message)
     } finally {
       setSaving(false)
     }

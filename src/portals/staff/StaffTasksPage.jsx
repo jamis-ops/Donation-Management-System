@@ -3,6 +3,7 @@ import { CheckCircle2, Clock, AlertCircle, Filter, Search, Calendar, User, Tag }
 import ApiState from '../../components/admin/shared/ApiState'
 import { getPortalData, tasksApi } from '../../api/resources'
 import { useApiObject } from '../../hooks/useApiList'
+import { notify } from '../../utils/toast'
 
 export default function StaffTasksPage() {
   const { data: portalData, loading, error, reload } = useApiObject(() => getPortalData())
@@ -84,10 +85,11 @@ export default function StaffTasksPage() {
     setSaving(true)
     try {
       await tasksApi.update(task.dbId, { boardColumn: 'done' })
+      notify.success('Task marked as completed.')
       setSelectedTask(null)
       reload()
     } catch (err) {
-      alert(err.message || 'Failed to update task')
+      notify.error(err.message || 'Failed to update task')
     } finally {
       setSaving(false)
     }
@@ -333,10 +335,11 @@ export default function StaffTasksPage() {
                             setSaving(true)
                             try {
                               await tasksApi.update(selectedTask.dbId, { boardColumn: 'inProgress' })
+                              notify.success('Task started.')
                               setSelectedTask(null)
                               reload()
                             } catch (err) {
-                              alert(err.message || 'Failed to update task')
+                              notify.error(err.message || 'Failed to update task')
                             } finally {
                               setSaving(false)
                             }

@@ -3,6 +3,7 @@ import { Package, AlertTriangle, TrendingUp, TrendingDown, Search, Filter, Plus,
 import ApiState from '../../components/admin/shared/ApiState'
 import { getPortalData, inventoryApi } from '../../api/resources'
 import { useApiObject } from '../../hooks/useApiList'
+import { notify } from '../../utils/toast'
 
 export default function StaffInventoryPage() {
   const { data: portalData, loading, error, reload } = useApiObject(() => getPortalData())
@@ -58,7 +59,7 @@ export default function StaffInventoryPage() {
 
   const handleStockUpdate = async () => {
     if (!stockAmount || isNaN(stockAmount)) {
-      alert('Please enter a valid amount')
+      notify.warning('Please enter a valid amount')
       return
     }
     const amount = parseInt(stockAmount, 10)
@@ -68,11 +69,11 @@ export default function StaffInventoryPage() {
       : current - amount
 
     if (newStock < 0) {
-      alert('Cannot remove more stock than available')
+      notify.warning('Cannot remove more stock than available')
       return
     }
     if (!selectedItem.dbId) {
-      alert('Missing inventory item id')
+      notify.warning('Missing inventory item id')
       return
     }
 
@@ -81,13 +82,14 @@ export default function StaffInventoryPage() {
         quantity: newStock,
         notes: stockNotes || undefined,
       })
+      notify.success('Stock updated.')
       setShowStockModal(false)
       setStockAmount('')
       setStockNotes('')
       setSelectedItem(null)
       reload()
     } catch (err) {
-      alert(err.message || 'Failed to update stock')
+      notify.error(err.message || 'Failed to update stock')
     }
   }
 

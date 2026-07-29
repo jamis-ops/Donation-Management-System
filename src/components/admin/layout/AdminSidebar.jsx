@@ -122,7 +122,11 @@ export default function AdminSidebar({ open, onClose }) {
             </div>
             <div>
               <strong>{user?.name || 'Admin'}</strong>
-              <span>{user?.role || 'Administrator'}</span>
+              <span>
+                {user?.role === 'SuperAdmin' || user?.isSuperAdmin
+                  ? 'Super Admin'
+                  : (user?.role || 'Administrator')}
+              </span>
             </div>
           </div>
 

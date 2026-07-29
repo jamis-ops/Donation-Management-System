@@ -142,13 +142,17 @@ if ($method === 'POST') {
     $link = ($body['recipientType'] ?? 'Donor') === 'Volunteer' ? '/volunteer-portal/certificates' : '/donor/certificates';
     create_notification($pdo, 'certificate', 'Certificate ready', "Your {$body['type']} ({$code}) is ready to view and download.", $link, (int) $recipientRow['id']);
     if (!empty($recipientRow['email']) && ($body['status'] ?? 'Generated') === 'Generated') {
+      $safeRecipient = htmlspecialchars($recipient, ENT_QUOTES, 'UTF-8');
+      $safeType = htmlspecialchars((string) ($body['type'] ?? 'certificate'), ENT_QUOTES, 'UTF-8');
+      $safeCode = htmlspecialchars($code, ENT_QUOTES, 'UTF-8');
       send_mail(
         $recipientRow['email'],
         $recipient,
         "Your certificate {$code} is ready",
-        "<p>Hello {$recipient},</p>"
-          . "<p>Your <strong>{$body['type']}</strong> (Certificate No. <strong>{$code}</strong>) has been issued.</p>"
-          . "<p>Log in to your portal to view, download, or print it.</p>"
+        "<p>Hello {$safeRecipient},</p>"
+          . "<p>Your <strong>{$safeType}</strong> (Certificate No. <strong>{$safeCode}</strong>) has been issued.</p>"
+          . '<p>Log in to your portal to view, download, or print it.</p>'
+          . email_link_html($link, 'View certificate')
       );
     }
   }
@@ -195,13 +199,17 @@ if ($method === 'PUT') {
       $link = ($existing['recipient_type'] ?? 'Donor') === 'Volunteer' ? '/volunteer-portal/certificates' : '/donor/certificates';
       create_notification($pdo, 'certificate', 'Certificate ready', "Your {$existing['cert_type']} ({$existing['code']}) is ready to view and download.", $link, (int) $recipientRow['id']);
       if (!empty($recipientRow['email'])) {
+        $safeRecipient = htmlspecialchars((string) $existing['recipient_name'], ENT_QUOTES, 'UTF-8');
+        $safeType = htmlspecialchars((string) $existing['cert_type'], ENT_QUOTES, 'UTF-8');
+        $safeCode = htmlspecialchars((string) $existing['code'], ENT_QUOTES, 'UTF-8');
         send_mail(
           $recipientRow['email'],
           $existing['recipient_name'],
           "Your certificate {$existing['code']} is ready",
-          "<p>Hello {$existing['recipient_name']},</p>"
-            . "<p>Your <strong>{$existing['cert_type']}</strong> (Certificate No. <strong>{$existing['code']}</strong>) has been issued.</p>"
-            . "<p>Log in to your portal to view, download, or print it.</p>"
+          "<p>Hello {$safeRecipient},</p>"
+            . "<p>Your <strong>{$safeType}</strong> (Certificate No. <strong>{$safeCode}</strong>) has been issued.</p>"
+            . '<p>Log in to your portal to view, download, or print it.</p>'
+            . email_link_html($link, 'View certificate')
         );
       }
     }

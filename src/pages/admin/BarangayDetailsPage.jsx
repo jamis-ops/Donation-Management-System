@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import {
   ArrowLeft, Pencil, Mail, Trash2, FileText, Truck, Package,
-  User, Calendar, Check, Eye, X, Shield, Plus, Upload,
+  User, Calendar, Check, Eye, X, Shield, Plus, Upload, CheckCircle2, XCircle,
 } from 'lucide-react'
 import {
   beneficiariesApi,
@@ -10,15 +10,18 @@ import {
   distributionsApi,
   allocationsApi,
 } from '../../api/resources'
-import { BARANGAY_TYPES, NEEDS } from '../../constants/options'
+import { BARANGAY_TYPES } from '../../constants/options'
 import { useApiList } from '../../hooks/useApiList'
 import StatusBadge from '../../components/admin/shared/StatusBadge'
 import ApiState from '../../components/admin/shared/ApiState'
 import ModalHeader from '../../components/admin/shared/ModalHeader'
 import Req from '../../components/shared/Req'
+import NeedsPicker from '../../components/shared/NeedsPicker'
 import { useSeeMore } from '../../hooks/useSeeMore'
 import { SeeMoreToggle } from '../../components/admin/shared/SeeMoreList'
 import { notifyBeneficiariesChanged } from '../../utils/beneficiariesSync'
+import { canInviteBarangay, isAwaitingBarangayApproval } from '../../utils/barangayInvite'
+import { notify, suppressNotificationToast } from '../../utils/toast'
 
 function normalizeNeeds(value) {
   if (Array.isArray(value)) return value.filter(Boolean)
@@ -26,10 +29,6 @@ function normalizeNeeds(value) {
     return value.split(',').map((n) => n.trim()).filter(Boolean)
   }
   return []
-}
-
-function toggleNeed(list, need) {
-  return list.includes(need) ? list.filter((n) => n !== need) : [...list, need]
 }
 
 const TABS = ['Overview', 'Relief Requests', 'Distributions', 'Tracker', 'Documents']
@@ -84,6 +83,9 @@ export default function BarangayDetailsPage() {
   const [isEditModalOpen, setIsEditModalOpen] = useState(false)
   const [isReqModalOpen, setIsReqModalOpen] = useState(false)
   const [saving, setSaving] = useState(false)
+  const [actionBusy, setActionBusy] = useState(false)
+  const [approveConfirm, setApproveConfirm] = useState(false)
+  const [rejectConfirm, setRejectConfirm] = useState(false)
   const [editForm, setEditForm] = useState({})
 
   useEffect(() => {
@@ -102,6 +104,12 @@ export default function BarangayDetailsPage() {
       notes: beneficiary.notes || '',
       status: beneficiary.status || 'Pending Approval',
     })
+  }, [beneficiary])
+
+  useEffect(() => {
+    if (beneficiary && isAwaitingBarangayApproval(beneficiary)) {
+      setActiveTab('overview')
+    }
   }, [beneficiary])
 
   const loading = benLoading || reqLoading || distLoading || allocLoading
@@ -135,13 +143,23 @@ export default function BarangayDetailsPage() {
 
   const handleEditSubmit = async (e) => {
     e.preventDefault()
+    if (!editForm.barangay?.trim() || !editForm.municipality?.trim()) {
+      notify.warning('Barangay name and municipality/city are required.')
+      return
+    }
     setSaving(true)
     try {
-      await beneficiariesApi.update(beneficiary.dbId, editForm)
+      // Status is not editable here — Approve / Reject on Overview controls partnership status.
+      const { status: _status, ...profileFields } = editForm
+      await beneficiariesApi.update(beneficiary.dbId, {
+        ...profileFields,
+        status: beneficiary.status,
+      })
       await reloadBen()
+      notify.success('Beneficiary updated.')
       setIsEditModalOpen(false)
     } catch (err) {
-      alert(err.message)
+      notify.error(err.message)
     } finally {
       setSaving(false)
     }
@@ -154,23 +172,77 @@ export default function BarangayDetailsPage() {
       const removedId = beneficiary.dbId
       await beneficiariesApi.remove(removedId)
       notifyBeneficiariesChanged({ removedId })
+      notify.success('Barangay deleted.')
       navigate('/admin/beneficiaries', { replace: true, state: { beneficiariesRefresh: Date.now() } })
     } catch (err) {
-      alert(err.message || 'Failed to delete barangay')
+      notify.error(err.message || 'Failed to delete barangay')
     }
   }
 
   const handleSendInvite = async () => {
     if (!beneficiary.representativeEmail) {
-      alert('Add a representative email before sending an invite.')
+      notify.warning('Add a representative email before sending an invite.')
       return
     }
     try {
-      await beneficiariesApi.update(beneficiary.dbId, { status: 'Pending Approval' })
-      alert(`Invitation marked for ${beneficiary.representativeEmail}.`)
+      const res = await beneficiariesApi.reinvite(beneficiary.dbId, {
+        email: beneficiary.representativeEmail,
+        barangay: beneficiary.barangay || beneficiary.name,
+        municipality: beneficiary.municipality || '',
+      })
+      if (res?.invitationSent) {
+        notify.success(res?.message || `Invitation emailed to ${beneficiary.representativeEmail}.`)
+      } else {
+        notify.warning(res?.mailError || res?.message || 'Invitation saved, but email could not be delivered.')
+        if (res?.inviteUrl) notify.info(`Invite link: ${res.inviteUrl}`, 8000)
+      }
       await reloadBen()
     } catch (err) {
-      alert(err.message)
+      notify.error(err.message || 'Failed to send invitation')
+    }
+  }
+
+  const handleApprove = async () => {
+    setApproveConfirm(false)
+    setActionBusy(true)
+    try {
+      const res = await beneficiariesApi.approve(beneficiary.dbId)
+      if (res?.credentialsSent) {
+        suppressNotificationToast('beneficiary_credentials')
+        notify.success(res?.message || 'Login credentials have been successfully sent to the approved Barangay.')
+      } else if (res?.accountCreated) {
+        notify.warning(
+          [
+            res?.message || 'Barangay approved and account was created.',
+            res?.temporaryPassword ? `Temporary password (share securely): ${res.temporaryPassword}` : '',
+            res?.mailError ? `Email note: ${res.mailError}` : 'Credential email was not delivered.',
+          ].filter(Boolean).join(' '),
+        )
+      } else {
+        notify.success(res?.message || 'Barangay approved.')
+        if (res?.mailError) notify.warning(res.mailError)
+      }
+      notifyBeneficiariesChanged()
+      await reloadBen()
+    } catch (err) {
+      notify.error(err.message || 'Failed to approve barangay')
+    } finally {
+      setActionBusy(false)
+    }
+  }
+
+  const handleReject = async () => {
+    setRejectConfirm(false)
+    setActionBusy(true)
+    try {
+      const res = await beneficiariesApi.reject(beneficiary.dbId)
+      notify.success(res?.message || 'Application rejected.')
+      notifyBeneficiariesChanged()
+      await reloadBen()
+    } catch (err) {
+      notify.error(err.message || 'Failed to reject application')
+    } finally {
+      setActionBusy(false)
     }
   }
 
@@ -181,9 +253,82 @@ export default function BarangayDetailsPage() {
   const highestPriority = derivePriority(requests)
 
   const needs = normalizeNeeds(beneficiary.needs)
+  const isPending = isAwaitingBarangayApproval(beneficiary)
+  const barangayName = beneficiary.barangay || beneficiary.name || 'this barangay'
 
   return (
     <div className="barangay-details">
+
+      {/* ── Approve Confirmation Dialog ── */}
+      {approveConfirm && (
+        <div className="approval-confirm-overlay" role="dialog" aria-modal="true" aria-label="Confirm approval">
+          <div className="approval-confirm__card">
+            <div className="approval-confirm__icon approval-confirm__icon--approve">
+              <CheckCircle2 size={24} />
+            </div>
+            <h3 className="approval-confirm__title">Approve Partnership?</h3>
+            <p className="approval-confirm__body">
+              This will create a Barangay account for <strong>{barangayName}</strong> and email their login credentials.
+              This action cannot be undone.
+            </p>
+            <div className="approval-confirm__actions">
+              <button
+                type="button"
+                className="btn approval-overlay__btn-approve"
+                onClick={handleApprove}
+                disabled={actionBusy}
+              >
+                {actionBusy ? 'Approving…' : 'Yes, Approve'}
+              </button>
+              <button
+                type="button"
+                className="btn btn--ghost"
+                onClick={() => setApproveConfirm(false)}
+                disabled={actionBusy}
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Reject Confirmation Dialog ── */}
+      {rejectConfirm && (
+        <div className="approval-confirm-overlay" role="dialog" aria-modal="true" aria-label="Confirm rejection">
+          <div className="approval-confirm__card">
+            <div className="approval-confirm__icon approval-confirm__icon--reject">
+              <XCircle size={24} />
+            </div>
+            <h3 className="approval-confirm__title">Reject Application?</h3>
+            <p className="approval-confirm__body">
+              The partnership application for <strong>{barangayName}</strong> will be rejected.
+              You can re-invite them later if needed.
+            </p>
+            <div className="approval-confirm__actions">
+              <button
+                type="button"
+                className="btn approval-overlay__btn-reject"
+                onClick={handleReject}
+                disabled={actionBusy}
+              >
+                {actionBusy ? 'Rejecting…' : 'Yes, Reject'}
+              </button>
+              <button
+                type="button"
+                className="btn btn--ghost"
+                onClick={() => setRejectConfirm(false)}
+                disabled={actionBusy}
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      <div className="barangay-details__content">
+
       <div className="barangay-details__top">
         <div className="barangay-details__identity">
           <button
@@ -198,17 +343,22 @@ export default function BarangayDetailsPage() {
             <h1 className="barangay-details__title">{beneficiary.barangay || beneficiary.name}</h1>
             <span className="barangay-details__subtitle">{beneficiary.municipality || 'Cebu'}</span>
             <StatusBadge status={beneficiary.status} />
+            {isPending && (
+              <span className="beneficiaries-review-pill">Awaiting approval</span>
+            )}
             {highestPriority && <StatusBadge status={highestPriority} />}
           </div>
         </div>
 
         <div className="barangay-details__actions">
           <button type="button" className="btn btn--outline btn--sm" onClick={() => setIsEditModalOpen(true)}>
-            <Pencil size={14} /> Edit
+            <Pencil size={14} /> Edit profile
           </button>
-          <button type="button" className="btn btn--outline btn--sm" onClick={handleSendInvite}>
-            <Mail size={14} /> Invite
-          </button>
+          {canInviteBarangay(beneficiary) && (
+            <button type="button" className="btn btn--outline btn--sm" onClick={handleSendInvite}>
+              <Mail size={14} /> Resend Invite
+            </button>
+          )}
           <button type="button" className="btn btn--danger btn--sm" onClick={handleDelete}>
             <Trash2 size={14} /> Remove
           </button>
@@ -254,6 +404,39 @@ export default function BarangayDetailsPage() {
 
       {activeTab === 'overview' && (
         <div className="barangay-overview">
+          {isPending && (
+            <div className="barangay-overview-review" role="region" aria-label="Partnership application review">
+              <div className="barangay-overview-review__icon" aria-hidden="true">
+                <Shield size={22} />
+              </div>
+              <div className="barangay-overview-review__copy">
+                <span className="barangay-overview-review__eyebrow">Registration submitted</span>
+                <strong>Partnership application awaiting approval</strong>
+                <p>
+                  Review the representative details below, then approve to create their account and email login credentials,
+                  or reject the application.
+                </p>
+              </div>
+              <div className="barangay-overview-review__actions">
+                <button
+                  type="button"
+                  className="btn approval-overlay__btn-approve"
+                  onClick={() => setApproveConfirm(true)}
+                  disabled={actionBusy}
+                >
+                  <CheckCircle2 size={16} /> Approve
+                </button>
+                <button
+                  type="button"
+                  className="btn approval-overlay__btn-reject"
+                  onClick={() => setRejectConfirm(true)}
+                  disabled={actionBusy}
+                >
+                  <XCircle size={16} /> Reject
+                </button>
+              </div>
+            </div>
+          )}
           <dl className="barangay-facts">
             <div>
               <dt>Representative</dt>
@@ -483,10 +666,12 @@ export default function BarangayDetailsPage() {
         </div>
       )}
 
+      </div>{/* end .barangay-details__content */}
+
       {isEditModalOpen && (
         <div className="admin-modal-overlay" onClick={() => setIsEditModalOpen(false)}>
           <div className="admin-modal admin-modal--wide" onClick={(e) => e.stopPropagation()}>
-            <ModalHeader title="Edit Beneficiary" onClose={() => setIsEditModalOpen(false)} />
+            <ModalHeader title="Edit Barangay" onClose={() => setIsEditModalOpen(false)} />
             <form onSubmit={handleEditSubmit}>
               <div className="form-row">
                 <label>
@@ -518,39 +703,12 @@ export default function BarangayDetailsPage() {
                 <Req required>Complete Address</Req>
                 <input required value={editForm.address} onChange={(e) => setEditForm({ ...editForm, address: e.target.value })} />
               </label>
-              <fieldset>
-                <legend>Type of Needs</legend>
-                <div className="checkbox-grid">
-                  {NEEDS.map((need) => (
-                    <label key={need} className="checkbox-label">
-                      <input
-                        type="checkbox"
-                        checked={(editForm.needs || []).includes(need)}
-                        onChange={() => setEditForm({
-                          ...editForm,
-                          needs: toggleNeed(editForm.needs || [], need),
-                        })}
-                      />
-                      {need}
-                    </label>
-                  ))}
-                  {(editForm.needs || [])
-                    .filter((n) => !NEEDS.includes(n))
-                    .map((need) => (
-                      <label key={need} className="checkbox-label">
-                        <input
-                          type="checkbox"
-                          checked
-                          onChange={() => setEditForm({
-                            ...editForm,
-                            needs: toggleNeed(editForm.needs || [], need),
-                          })}
-                        />
-                        {need}
-                      </label>
-                    ))}
-                </div>
-              </fieldset>
+              <NeedsPicker
+                value={editForm.needs || []}
+                onChange={(needs) => setEditForm({ ...editForm, needs })}
+                note={editForm.notes || ''}
+                onNoteChange={(notes) => setEditForm({ ...editForm, notes })}
+              />
               <p className="form-section-title" style={{ margin: '1.25rem 0 0.85rem', fontWeight: 650 }}>Representative</p>
               <div className="form-row">
                 <label>
@@ -572,19 +730,6 @@ export default function BarangayDetailsPage() {
                   <input type="email" value={editForm.representativeEmail} onChange={(e) => setEditForm({ ...editForm, representativeEmail: e.target.value })} />
                 </label>
               </div>
-              <label>
-                Status
-                <select value={editForm.status} onChange={(e) => setEditForm({ ...editForm, status: e.target.value })}>
-                  <option value="Active">Active</option>
-                  <option value="Approved">Approved</option>
-                  <option value="Pending Approval">Pending Approval</option>
-                  <option value="Suspended">Suspended</option>
-                </select>
-              </label>
-              <label>
-                Notes
-                <textarea rows={3} value={editForm.notes} onChange={(e) => setEditForm({ ...editForm, notes: e.target.value })} />
-              </label>
               <div className="admin-modal__actions" style={{ marginTop: '1.25rem' }}>
                 <button type="submit" className="btn btn--primary" disabled={saving}>{saving ? 'Saving…' : 'Save Changes'}</button>
                 <button type="button" className="btn btn--ghost" onClick={() => setIsEditModalOpen(false)}>Cancel</button>

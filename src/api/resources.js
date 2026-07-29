@@ -34,7 +34,25 @@ export const donationUpdatesApi = {
   create: (body) => apiFetch('/api/donation_updates.php', { method: 'POST', body: JSON.stringify(body) }),
 }
 export const donorsApi = resourceApi('/api/donors.php')
-export const beneficiariesApi = resourceApi('/api/beneficiaries.php')
+export const beneficiariesApi = {
+  ...resourceApi('/api/beneficiaries.php'),
+  invite: (body) => apiFetch('/api/beneficiaries.php?action=invite', {
+    method: 'POST',
+    body: JSON.stringify({ ...body, action: 'invite' }),
+  }),
+  reinvite: (id, body = {}) => apiFetch(`/api/beneficiaries.php?id=${id}&action=reinvite`, {
+    method: 'POST',
+    body: JSON.stringify({ ...body, action: 'reinvite' }),
+  }),
+  approve: (id) => apiFetch(`/api/beneficiaries.php?id=${id}&action=approve`, {
+    method: 'POST',
+    body: JSON.stringify({ action: 'approve' }),
+  }),
+  reject: (id, body = {}) => apiFetch(`/api/beneficiaries.php?id=${id}&action=reject`, {
+    method: 'POST',
+    body: JSON.stringify({ ...body, action: 'reject' }),
+  }),
+}
 export const assistanceRequestsApi = resourceApi('/api/assistance_requests.php')
 export const inventoryApi = resourceApi('/api/inventory.php')
 export const volunteersApi = resourceApi('/api/volunteers.php')

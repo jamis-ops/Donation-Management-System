@@ -15,6 +15,7 @@ import ApiState from '../../components/admin/shared/ApiState'
 import FilterBar from '../../components/admin/shared/FilterBar'
 import ModalHeader from '../../components/admin/shared/ModalHeader'
 import DonationUpdatesTimeline from '../../components/shared/DonationUpdatesTimeline'
+import { notify } from '../../utils/toast'
 
 const lifecycle = [
   'Submission', 'Tracking Code', 'Verification', 'Inventory', 'Repacking',
@@ -35,14 +36,16 @@ const filterConfig = {
   dateKey: 'date',
 }
 
-function verifyResultMessage(res) {
+function toastVerifyResult(res) {
   if (!res?.accountCreated) {
-    return res?.message || 'Donation verified.'
+    notify.success(res?.message || 'Donation verified.')
+    return
   }
   if (res.credentialsSent) {
-    return 'Donation verified. Donor portal account created and login credentials were emailed.'
+    notify.success('Donation verified. Donor portal account created and login credentials were emailed.')
+    return
   }
-  return 'Donation verified. Donor portal account was created, but the credential email was NOT delivered.'
+  notify.warning('Donation verified. Donor portal account was created, but the credential email was NOT delivered.')
 }
 
 export default function DonationsPage() {
@@ -110,20 +113,22 @@ export default function DonationsPage() {
 
   const handleVerify = async (row) => {
     if (!row.hasProof) {
-      alert('Cannot approve: proof of donation is required.')
+      notify.warning('Cannot approve: proof of donation is required.')
       return
     }
     try {
       const res = await donationsApi.update(row.dbId, { status: 'Verified' })
       if (res?.accountCreated || res?.credentialsSent) {
-        alert(verifyResultMessage(res))
+        toastVerifyResult(res)
       } else if (res?.message) {
-        alert(res.message)
+        notify.success(res.message)
+      } else {
+        notify.success('Donation verified.')
       }
       reload()
       setSelected(null)
     } catch (err) {
-      alert(err.message || 'Failed to verify donation')
+      notify.error(err.message || 'Failed to verify donation')
     }
   }
 
@@ -142,9 +147,10 @@ export default function DonationsPage() {
       })
       setShowForm(false)
       setForm(emptyForm)
+      notify.success('Donation recorded.')
       reload()
     } catch (err) {
-      alert(err.message)
+      notify.error(err.message)
     } finally {
       setSaving(false)
     }
@@ -152,9 +158,14 @@ export default function DonationsPage() {
 
   const handleDelete = async (row) => {
     if (!confirm(`Delete donation ${row.trackingCode}?`)) return
-    await donationsApi.remove(row.dbId)
-    reload()
-    setSelected(null)
+    try {
+      await donationsApi.remove(row.dbId)
+      notify.success('Donation deleted.')
+      reload()
+      setSelected(null)
+    } catch (err) {
+      notify.error(err.message)
+    }
   }
 
   const columns = [

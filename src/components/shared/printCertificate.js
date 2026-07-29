@@ -1,4 +1,5 @@
 import { logo } from '../../assets'
+import { notify } from '../../utils/toast'
 
 function escapeHtml(value) {
   return String(value ?? '')
@@ -138,7 +139,7 @@ export function printCertificate(cert) {
 
   const win = window.open('', '_blank', 'width=1200,height=850')
   if (!win) {
-    alert('Please allow pop-ups to print or download the certificate.')
+    notify.warning('Please allow pop-ups to print or download the certificate.')
     return
   }
   win.document.write(html)

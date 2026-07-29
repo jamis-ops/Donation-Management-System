@@ -13,6 +13,12 @@ declare(strict_types=1);
  * 5. Match MAIL_NODE_API_KEY with MAIL_SERVICE_API_KEY in mail-service/.env
  *
  * Gmail App Password: Google Account → Security → 2-Step Verification → App passwords
+ *
+ * === Application URLs (emails & notifications) ===
+ * Set FRONTEND_URL (or APP_URL) to your live SPA origin in production.
+ * Example: https://riseabovefoundation.org
+ * Leave as localhost for local Vite (http://localhost:5173).
+ * If unset, the API derives the URL from Origin / Referer / Host.
  */
 
 define('MAIL_FROM_EMAIL', 'your.gmail@gmail.com');
@@ -34,10 +40,22 @@ define('MAIL_NODE_URL', 'http://127.0.0.1:8025');
 /** Must match MAIL_SERVICE_API_KEY in mail-service/.env (or leave both empty) */
 define('MAIL_NODE_API_KEY', 'change-me-to-a-long-random-string');
 
-define('FRONTEND_URL', 'http://localhost:5173');
-define('API_PUBLIC_URL', '');
-/** “Add Recovery Number Now” button target (update when the page exists) */
-define('RECOVERY_URL', 'http://localhost:5173/login');
+/**
+ * Public SPA origin used in credential, verification, invitation, and status emails.
+ * Local:  http://localhost:5173
+ * Prod:   https://your-production-domain.com
+ */
+define('FRONTEND_URL', getenv('APP_URL') ?: (getenv('FRONTEND_URL') ?: 'http://localhost:5173'));
+
+/**
+ * Public API origin when it differs from the SPA (optional).
+ * Used for email verification links that hit verify.php directly.
+ * Example: https://api.your-domain.com
+ */
+define('API_PUBLIC_URL', getenv('API_PUBLIC_URL') ?: '');
+
+/** “Add Recovery Number Now” button — defaults to SPA /login when empty */
+define('RECOVERY_URL', getenv('RECOVERY_URL') ?: (rtrim((string) FRONTEND_URL, '/') . '/login'));
 
 /** Optional PHP SMTP fallback (usually unused when NodeMailer is running) */
 define('SMTP_HOST', 'smtp.gmail.com');

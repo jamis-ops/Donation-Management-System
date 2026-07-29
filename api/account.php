@@ -4,7 +4,7 @@ require __DIR__ . '/bootstrap.php';
 
 $pdo = db();
 $method = request_method();
-$user = require_auth(['Admin', 'Staff', 'Donor', 'Volunteer', 'Beneficiary']);
+$user = require_auth(['SuperAdmin', 'Admin', 'Staff', 'Donor', 'Volunteer', 'Beneficiary']);
 
 function map_account_user(PDO $pdo, int $userId): array
 {
@@ -37,12 +37,36 @@ function map_account_user(PDO $pdo, int $userId): array
 }
 
 if ($method === 'GET') {
+  if (is_super_admin_user($user)) {
+    json_response([
+      'ok' => true,
+      'data' => [
+        'id' => 0,
+        'name' => $user['name'] ?? SUPER_ADMIN_NAME,
+        'email' => $user['email'] ?? super_admin_email(),
+        'phone' => '',
+        'recoveryPhone' => '',
+        'profilePhoto' => null,
+        'mustChangePassword' => false,
+        'role' => 'SuperAdmin',
+        'isSuperAdmin' => true,
+        'status' => 'ACTIVE',
+      ],
+    ]);
+  }
   json_response(['ok' => true, 'data' => map_account_user($pdo, (int) $user['id'])]);
 }
 
 if ($method === 'PUT') {
   $body = read_json_body();
   $uid = (int) $user['id'];
+
+  if (is_super_admin_user($user)) {
+    json_response([
+      'ok' => false,
+      'error' => 'Super Admin credentials are defined in server configuration (api/super_admin_config.php or environment variables), not in the database. Update the password hash there instead of using this form.',
+    ], 400);
+  }
 
   // Change password
   if (!empty($body['newPassword']) || !empty($body['changePassword'])) {

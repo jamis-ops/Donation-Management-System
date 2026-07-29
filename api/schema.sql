@@ -114,6 +114,9 @@ CREATE TABLE IF NOT EXISTS beneficiaries (
   needs TEXT NULL,
   notes TEXT NULL,
   status VARCHAR(50) NOT NULL DEFAULT 'Pending Approval',
+  invitation_token VARCHAR(64) NULL,
+  invitation_expires DATETIME NULL,
+  invitation_status VARCHAR(20) NOT NULL DEFAULT 'none',
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   CONSTRAINT fk_beneficiaries_user_id FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL

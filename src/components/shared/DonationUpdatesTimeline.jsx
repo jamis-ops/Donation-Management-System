@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Check, Clock } from 'lucide-react'
 import { donationUpdatesApi } from '../../api/resources'
+import { notify } from '../../utils/toast'
 
 const FALLBACK_STAGES = [
   'Donation Received',
@@ -57,8 +58,9 @@ export default function DonationUpdatesTimeline({
       setNote('')
       await load()
       onPosted?.()
+      notify.success('Update posted.')
     } catch (err) {
-      alert(err.message)
+      notify.error(err.message)
     } finally {
       setSaving(false)
     }

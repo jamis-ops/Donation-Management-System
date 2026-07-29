@@ -5,6 +5,8 @@ export default function DataTable({
   columns,
   data,
   onRowClick,
+  /** Optional className for a row (string or (row) => string). */
+  rowClassName,
   /** When set, only the first N rows show until the user expands. */
   initialVisible,
 }) {
@@ -33,19 +35,26 @@ export default function DataTable({
               </td>
             </tr>
           ) : (
-            rows.map((row, i) => (
-              <tr
-                key={row.id ?? row.dbId ?? i}
-                onClick={() => onRowClick?.(row)}
-                className={onRowClick ? 'data-table__row--clickable' : ''}
-              >
-                {columns.map((col) => (
-                  <td key={col.key}>
-                    {col.render ? col.render(row) : row[col.key]}
-                  </td>
-                ))}
-              </tr>
-            ))
+            rows.map((row, i) => {
+              const extraClass = typeof rowClassName === 'function' ? rowClassName(row) : (rowClassName || '')
+              const classes = [
+                onRowClick ? 'data-table__row--clickable' : '',
+                extraClass,
+              ].filter(Boolean).join(' ')
+              return (
+                <tr
+                  key={row.id ?? row.dbId ?? i}
+                  onClick={() => onRowClick?.(row)}
+                  className={classes || undefined}
+                >
+                  {columns.map((col) => (
+                    <td key={col.key}>
+                      {col.render ? col.render(row) : row[col.key]}
+                    </td>
+                  ))}
+                </tr>
+              )
+            })
           )}
         </tbody>
       </table>

@@ -3,6 +3,7 @@ import { Calendar, Download, TrendingUp, Package } from 'lucide-react'
 import ApiState from '../../components/admin/shared/ApiState'
 import { getPortalData } from '../../api/resources'
 import { useApiObject } from '../../hooks/useApiList'
+import { notify } from '../../utils/toast'
 
 export default function BeneficiaryHistoryPage() {
   const { data, loading, error, reload } = useApiObject(() => getPortalData())
@@ -18,7 +19,7 @@ export default function BeneficiaryHistoryPage() {
   const maxMonthlyValue = Math.max(...(data?.benefitsByMonth?.map(m => m.value) || [0]))
 
   const handleExportPDF = () => {
-    alert('Export to PDF functionality - Demo mode')
+    notify.info('Export to PDF functionality - Demo mode')
   }
 
   return (

@@ -378,16 +378,20 @@ if ($method === 'PUT') {
     );
     notify_admins($pdo, 'status_update', 'Donation status updated', "{$donation['trackingCode']} is now {$status}", '/admin/donations');
     if (!empty($existing['donor_email'])) {
+      $donorName = htmlspecialchars((string) $existing['donor_name'], ENT_QUOTES, 'UTF-8');
+      $tracking = htmlspecialchars((string) $existing['tracking_code'], ENT_QUOTES, 'UTF-8');
+      $statusSafe = htmlspecialchars((string) $status, ENT_QUOTES, 'UTF-8');
       send_mail(
         $existing['donor_email'],
         $existing['donor_name'],
         "Donation {$existing['tracking_code']} status update",
-        "<p>Hello {$existing['donor_name']},</p>"
-          . "<p>Your donation <strong>{$existing['tracking_code']}</strong> has been updated to "
-          . "<strong>{$status}</strong>.</p>"
+        "<p>Hello {$donorName},</p>"
+          . "<p>Your donation <strong>{$tracking}</strong> has been updated to "
+          . "<strong>{$statusSafe}</strong>.</p>"
           . ($becomingVerified && !empty($accountProvision['created'])
             ? '<p>A donor portal account was created. Check your email for temporary login credentials, then change your password on first sign-in.</p>'
             : '<p>You can track its full progress anytime from your donor portal.</p>')
+          . email_link_html('/donor/donations', 'Open donor portal')
       );
     }
   }

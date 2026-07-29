@@ -12,6 +12,73 @@ if (!empty($body['action'])) {
   $action = $body['action'];
 }
 
+/**
+ * Normalize barangay / municipality labels for duplicate checks.
+ * Strips common "Brgy." / "Barangay" prefixes and collapses whitespace.
+ */
+function normalize_location_label(string $value): string
+{
+  $value = strtolower(trim($value));
+  $value = preg_replace('/\s+/u', ' ', $value) ?? $value;
+  $value = preg_replace('/^(brgy\.?|barangay)\s+/u', '', $value) ?? $value;
+  return trim($value);
+}
+
+/**
+ * True when another beneficiary already uses this barangay + municipality/city.
+ */
+function beneficiary_location_taken(PDO $pdo, string $barangay, string $municipality, ?int $excludeId = null): bool
+{
+  return find_beneficiary_by_location($pdo, $barangay, $municipality, $excludeId) !== null;
+}
+
+/**
+ * Find an existing barangay by normalized name + municipality/city.
+ */
+function find_beneficiary_by_location(PDO $pdo, string $barangay, string $municipality, ?int $excludeId = null): ?array
+{
+  $barangayKey = normalize_location_label($barangay);
+  $muniKey = normalize_location_label($municipality);
+  if ($barangayKey === '') {
+    return null;
+  }
+
+  $sql = 'SELECT * FROM beneficiaries';
+  $params = [];
+  if ($excludeId !== null && $excludeId > 0) {
+    $sql .= ' WHERE id <> ?';
+    $params[] = $excludeId;
+  }
+  $stmt = $pdo->prepare($sql);
+  $stmt->execute($params);
+  foreach ($stmt->fetchAll() as $row) {
+    $existingBarangay = normalize_location_label((string) ($row['barangay'] ?? $row['full_name'] ?? ''));
+    $existingMuni = normalize_location_label((string) ($row['municipality'] ?? ''));
+    if ($existingBarangay === $barangayKey && $existingMuni === $muniKey) {
+      return $row;
+    }
+  }
+  return null;
+}
+
+function assert_unique_barangay_location(PDO $pdo, string $barangay, string $municipality, ?int $excludeId = null): void
+{
+  $barangay = trim($barangay);
+  $municipality = trim($municipality);
+  if ($barangay === '') {
+    json_response(['ok' => false, 'error' => 'Barangay name is required.'], 400);
+  }
+  if ($municipality === '') {
+    json_response(['ok' => false, 'error' => 'Municipality / city is required.'], 400);
+  }
+  if (beneficiary_location_taken($pdo, $barangay, $municipality, $excludeId)) {
+    json_response([
+      'ok' => false,
+      'error' => "Barangay \"{$barangay}\" in {$municipality} is already registered. Choose a different barangay or municipality/city.",
+    ], 409);
+  }
+}
+
 // ── Unauthenticated Public Actions ──
 
 if ($method === 'GET' && $action === 'validate_token') {
@@ -19,13 +86,33 @@ if ($method === 'GET' && $action === 'validate_token') {
   if ($token === '') {
     json_response(['ok' => false, 'error' => 'Token is required'], 400);
   }
-  $stmt = $pdo->prepare('SELECT id, full_name, representative_email, invitation_expires, invitation_status FROM beneficiaries WHERE invitation_token = ? LIMIT 1');
+  $stmt = $pdo->prepare('SELECT * FROM beneficiaries WHERE invitation_token = ? LIMIT 1');
   $stmt->execute([$token]);
   $ben = $stmt->fetch();
   if (!$ben) {
     json_response(['ok' => false, 'valid' => false, 'error' => 'Invalid invitation link.'], 404);
   }
   $expired = !empty($ben['invitation_expires']) && strtotime($ben['invitation_expires']) < time();
+  $inviteStatus = (string) ($ben['invitation_status'] ?? 'none');
+  if ($inviteStatus === 'applied') {
+    json_response([
+      'ok' => true,
+      'valid' => false,
+      'alreadyApplied' => true,
+      'barangayName' => $ben['full_name'],
+      'email' => $ben['representative_email'],
+      'error' => 'This invitation was already submitted and is awaiting admin approval.',
+    ]);
+  }
+  if ($inviteStatus === 'accepted') {
+    json_response([
+      'ok' => true,
+      'valid' => false,
+      'alreadyAccepted' => true,
+      'barangayName' => $ben['full_name'],
+      'error' => 'This invitation was already approved. Please sign in to your barangay portal.',
+    ]);
+  }
   if ($expired) {
     json_response([
       'ok' => true,
@@ -40,22 +127,33 @@ if ($method === 'GET' && $action === 'validate_token') {
     'ok' => true,
     'valid' => true,
     'expired' => false,
-    'barangayName' => $ben['full_name'],
-    'email' => $ben['representative_email'],
+    'barangayName' => $ben['barangay'] ?? $ben['full_name'],
+    'municipality' => $ben['municipality'] ?? '',
+    'email' => $ben['representative_email'] ?? '',
+    'representativeName' => $ben['representative_name'] ?? '',
+    'representativeFirstName' => $ben['representative_first_name'] ?? '',
+    'representativeLastName' => $ben['representative_last_name'] ?? '',
+    'representativeMiddleInitial' => $ben['representative_middle_initial'] ?? '',
+    'representativePosition' => $ben['representative_position'] ?? '',
+    'representativePhone' => $ben['representative_phone'] ?? '',
+    'notes' => $ben['notes'] ?? '',
   ]);
 }
 
-if ($method === 'POST' && $action === 'accept_invite') {
+/**
+ * Passwordless application: barangay confirms partnership details for admin review.
+ * Does NOT create a user account — that happens on admin approval.
+ */
+if ($method === 'POST' && ($action === 'accept_invite' || $action === 'apply_invite')) {
   $token = trim((string) ($body['token'] ?? ''));
-  $password = (string) ($body['password'] ?? '');
-  if ($token === '' || $password === '') {
-    json_response(['ok' => false, 'error' => 'Token and password are required.'], 400);
+  if ($token === '') {
+    json_response(['ok' => false, 'error' => 'Invitation token is required.'], 400);
   }
-  if (strlen($password) < 6) {
-    json_response(['ok' => false, 'error' => 'Password must be at least 6 characters.'], 400);
+  if (empty($body['acceptTerms']) && empty($body['termsAccepted'])) {
+    json_response(['ok' => false, 'error' => 'You must agree to the Data Privacy Policy and Terms & Conditions.'], 400);
   }
 
-  $stmt = $pdo->prepare('SELECT b.*, u.id as user_account_id FROM beneficiaries b LEFT JOIN users u ON u.id = b.user_id WHERE b.invitation_token = ? LIMIT 1');
+  $stmt = $pdo->prepare('SELECT * FROM beneficiaries WHERE invitation_token = ? LIMIT 1');
   $stmt->execute([$token]);
   $ben = $stmt->fetch();
   if (!$ben) {
@@ -64,6 +162,44 @@ if ($method === 'POST' && $action === 'accept_invite') {
   if (!empty($ben['invitation_expires']) && strtotime($ben['invitation_expires']) < time()) {
     json_response(['ok' => false, 'error' => 'This invitation has expired. Please contact Rise Above Foundation for a new invite.'], 400);
   }
+  $inviteStatus = (string) ($ben['invitation_status'] ?? '');
+  if ($inviteStatus === 'applied') {
+    json_response(['ok' => false, 'error' => 'This application was already submitted and is awaiting admin approval.'], 400);
+  }
+  if ($inviteStatus === 'accepted' || !empty($ben['user_id'])) {
+    json_response(['ok' => false, 'error' => 'This invitation was already approved. Please sign in.'], 400);
+  }
+
+  $barangay = trim((string) ($body['barangay'] ?? $body['barangayName'] ?? $ben['barangay'] ?? $ben['full_name'] ?? ''));
+  $municipality = trim((string) ($body['municipality'] ?? $ben['municipality'] ?? ''));
+  $email = strtolower(trim((string) ($body['email'] ?? $body['representativeEmail'] ?? $ben['representative_email'] ?? '')));
+  $notes = trim((string) ($body['notes'] ?? ''));
+  $phone = trim((string) ($body['contactNumber'] ?? $body['representativePhone'] ?? ''));
+  $position = trim((string) ($body['representativePosition'] ?? $body['position'] ?? ''));
+
+  if ($barangay === '') {
+    json_response(['ok' => false, 'error' => 'Barangay name is required.'], 400);
+  }
+  if ($municipality === '') {
+    json_response(['ok' => false, 'error' => 'Municipality / city is required.'], 400);
+  }
+  if ($email === '' || !filter_var($email, FILTER_VALIDATE_EMAIL)) {
+    json_response(['ok' => false, 'error' => 'A valid email address is required.'], 400);
+  }
+  if ($position === '') {
+    json_response(['ok' => false, 'error' => 'Position / role is required.'], 400);
+  }
+  if ($phone === '') {
+    json_response(['ok' => false, 'error' => 'Contact number is required.'], 400);
+  }
+
+  // Allow same location for this invite record; block colliding with a different barangay.
+  if (beneficiary_location_taken($pdo, $barangay, $municipality, (int) $ben['id'])) {
+    json_response([
+      'ok' => false,
+      'error' => "Barangay \"{$barangay}\" in {$municipality} is already registered.",
+    ], 409);
+  }
 
   [$repLast, $repFirst, $repMi, $repName] = read_name_parts([
     'lastName' => $body['representativeLastName'] ?? $body['lastName'] ?? '',
@@ -71,62 +207,52 @@ if ($method === 'POST' && $action === 'accept_invite') {
     'middleInitial' => $body['representativeMiddleInitial'] ?? $body['middleInitial'] ?? '',
     'name' => $body['representativeName'] ?? '',
   ]);
+  if ($repFirst === '' || $repLast === '') {
+    json_response(['ok' => false, 'error' => 'Representative first and last name are required.'], 400);
+  }
   $repMiDb = $repMi !== '' ? strtoupper(substr(preg_replace('/[^a-zA-Z]/', '', $repMi) ?: '', 0, 1)) : null;
 
   try {
-    $pdo->beginTransaction();
-
-    $email = strtolower(trim((string) ($ben['representative_email'] ?? '')));
-    $userId = (int) ($ben['user_id'] ?? 0);
-
-    if ($userId > 0) {
-      // Update existing user record password and status
-      $hash = password_hash($password, PASSWORD_DEFAULT);
-      $pdo->prepare('UPDATE users SET password_hash = ?, status = "ACTIVE", email_verified_at = NOW(), must_change_password = 0 WHERE id = ?')
-        ->execute([$hash, $userId]);
-    } else {
-      // Create user record
-      $userId = create_user_account($pdo, 'Beneficiary', $repName !== '' ? $repName : $ben['full_name'], $email, $password, 'ACTIVE', true, [
-        'lastName' => $repLast,
-        'firstName' => $repFirst,
-        'middleInitial' => $repMi,
-      ]);
-    }
-
-    // Update beneficiary record
     $pdo->prepare('
-      UPDATE beneficiaries
-      SET user_id = ?, status = "Active", invitation_status = "accepted", invitation_token = NULL,
-          representative_name = COALESCE(NULLIF(?, ""), representative_name),
-          representative_first_name = COALESCE(NULLIF(?, ""), representative_first_name),
-          representative_last_name = COALESCE(NULLIF(?, ""), representative_last_name),
-          representative_middle_initial = COALESCE(NULLIF(?, ""), representative_middle_initial),
-          representative_position = COALESCE(NULLIF(?, ""), representative_position),
-          representative_phone = COALESCE(NULLIF(?, ""), representative_phone)
+      UPDATE beneficiaries SET
+        full_name = ?, barangay = ?, municipality = ?,
+        representative_name = ?, representative_first_name = ?, representative_last_name = ?,
+        representative_middle_initial = ?, representative_position = ?, representative_phone = ?,
+        representative_email = ?, notes = ?,
+        status = "Pending Approval", invitation_status = "applied"
       WHERE id = ?
     ')->execute([
-      $userId,
+      $barangay,
+      $barangay,
+      $municipality,
       $repName,
       $repFirst,
       $repLast,
       $repMiDb,
-      $body['representativePosition'] ?? null,
-      $body['contactNumber'] ?? $body['representativePhone'] ?? null,
+      $position,
+      $phone,
+      $email,
+      $notes !== '' ? $notes : null,
       $ben['id'],
     ]);
-
-    $pdo->commit();
   } catch (Throwable $e) {
-    if ($pdo->inTransaction()) {
-      $pdo->rollBack();
-    }
-    json_response(['ok' => false, 'error' => 'Could not accept invitation: ' . $e->getMessage()], 500);
+    json_response(['ok' => false, 'error' => 'Could not submit application: ' . $e->getMessage()], 500);
   }
 
-  notify_admins($pdo, 'beneficiary', 'Barangay invite accepted', "{$ben['full_name']} accepted partnership invitation", '/admin/beneficiaries');
-  audit_log($pdo, 'accept_invite', 'beneficiary', $ben['code'], "Accepted invitation for {$ben['full_name']}");
+  notify_admins(
+    $pdo,
+    'beneficiary_registration',
+    'Barangay registration received',
+    'An invited Barangay has accepted the invitation and completed registration. A new Barangay has been registered and is awaiting approval.',
+    '/admin/beneficiaries'
+  );
+  audit_log($pdo, 'apply_invite', 'beneficiary', $ben['code'], "Application submitted for {$barangay}");
 
-  json_response(['ok' => true, 'message' => 'Invitation accepted successfully! You can now log in.']);
+  json_response([
+    'ok' => true,
+    'pendingApproval' => true,
+    'message' => 'Your application has been sent for admin review. You will receive login credentials by email once approved.',
+  ]);
 }
 
 // ── Authenticated Actions ──
@@ -178,6 +304,7 @@ function map_beneficiary(PDO $pdo, array $row): array
     'invitationStatus' => $row['invitation_status'] ?? 'none',
     'invitationExpires' => format_date($row['invitation_expires'] ?? null),
     'invitationToken' => $row['invitation_token'] ?? null,
+    'userId' => !empty($row['user_id']) ? (int) $row['user_id'] : null,
     'derivedPriority' => $derivedPriority,
     'notes' => $row['notes'] ?? '',
     'requests' => $requestCount,
@@ -225,6 +352,8 @@ if ($user['role'] === 'Beneficiary') {
 // ── Invite / Reinvite Actions (Admin / Staff) ──
 
 if ($method === 'POST' && ($action === 'invite' || $action === 'reinvite')) {
+  require_auth(['Admin', 'Staff']); // SuperAdmin inherits Admin via require_auth
+
   $email = strtolower(trim((string) ($body['email'] ?? $body['representativeEmail'] ?? '')));
   $barangay = trim((string) ($body['barangayName'] ?? $body['barangay'] ?? $body['name'] ?? ''));
   $municipality = trim((string) ($body['municipality'] ?? ''));
@@ -235,52 +364,225 @@ if ($method === 'POST' && ($action === 'invite' || $action === 'reinvite')) {
   if ($action === 'invite' && $barangay === '') {
     json_response(['ok' => false, 'error' => 'Barangay name is required.'], 400);
   }
+  if ($action === 'invite' && $municipality === '') {
+    json_response(['ok' => false, 'error' => 'Municipality / city is required.'], 400);
+  }
 
   $token = bin2hex(random_bytes(16)); // 32 hex chars
   $expires = date('Y-m-d H:i:s', time() + (7 * 86400)); // 7 days
+  $targetId = 0;
 
+  // Prefer explicit id (reinvite from details/table).
   if ($action === 'reinvite' || ($id && $id > 0)) {
-    $stmt = $pdo->prepare('SELECT * FROM beneficiaries WHERE id = ? OR LOWER(representative_email) = ? LIMIT 1');
-    $stmt->execute([$id ?: 0, $email]);
+    $stmt = $pdo->prepare('SELECT * FROM beneficiaries WHERE id = ? LIMIT 1');
+    $stmt->execute([(int) ($id ?: 0)]);
     $existing = $stmt->fetch();
+    if (!$existing && $email !== '') {
+      $stmt = $pdo->prepare('SELECT * FROM beneficiaries WHERE LOWER(representative_email) = ? LIMIT 1');
+      $stmt->execute([$email]);
+      $existing = $stmt->fetch();
+    }
     if ($existing) {
-      $pdo->prepare('UPDATE beneficiaries SET invitation_token = ?, invitation_expires = ?, invitation_status = "invited" WHERE id = ?')
-        ->execute([$token, $expires, $existing['id']]);
-      $barangay = $existing['full_name'];
+      $inviteStatus = (string) ($existing['invitation_status'] ?? 'none');
+      $hasAccount = !empty($existing['user_id'])
+        || in_array((string) ($existing['status'] ?? ''), ['Active', 'Approved'], true)
+        || $inviteStatus === 'accepted';
+      if ($hasAccount) {
+        json_response([
+          'ok' => false,
+          'error' => 'This barangay is already registered. Invitation is only for newly invited barangays.',
+        ], 409);
+      }
+      if ($inviteStatus === 'applied') {
+        json_response([
+          'ok' => false,
+          'error' => 'This barangay already submitted registration and is awaiting approval. Use Approve instead of Invite.',
+        ], 409);
+      }
+      $pdo->prepare('
+        UPDATE beneficiaries
+        SET invitation_token = ?, invitation_expires = ?, invitation_status = "invited",
+            representative_email = ?, status = "Pending Approval"
+        WHERE id = ?
+      ')->execute([$token, $expires, $email, $existing['id']]);
+      $barangay = (string) ($existing['full_name'] ?: $existing['barangay'] ?: $barangay);
+      $municipality = (string) ($existing['municipality'] ?? $municipality);
       $targetId = (int) $existing['id'];
+    } elseif ($action === 'reinvite') {
+      json_response(['ok' => false, 'error' => 'Barangay not found for reinvite.'], 404);
     }
   }
 
-  if (empty($targetId)) {
-    $code = generate_code('BEN');
-    $stmt = $pdo->prepare('
-      INSERT INTO beneficiaries (code, full_name, barangay, municipality, representative_email, invitation_token, invitation_expires, invitation_status, status)
-      VALUES (?, ?, ?, ?, ?, ?, ?, "invited", "Pending Approval")
-    ');
-    $stmt->execute([$code, $barangay, $barangay, $municipality, $email, $token, $expires]);
-    $targetId = (int) $pdo->lastInsertId();
+  // New invite — if this barangay+municipality already exists, refresh only when still an open invite.
+  if ($targetId <= 0) {
+    $existingLoc = find_beneficiary_by_location($pdo, $barangay, $municipality);
+    if ($existingLoc) {
+      $inviteStatus = (string) ($existingLoc['invitation_status'] ?? 'none');
+      $hasAccount = !empty($existingLoc['user_id'])
+        || in_array((string) ($existingLoc['status'] ?? ''), ['Active', 'Approved'], true)
+        || $inviteStatus === 'accepted';
+      if ($hasAccount) {
+        json_response([
+          'ok' => false,
+          'error' => "Barangay \"{$barangay}\" in {$municipality} is already registered. Invite is only for new barangays.",
+        ], 409);
+      }
+      if ($inviteStatus === 'applied') {
+        json_response([
+          'ok' => false,
+          'error' => "Barangay \"{$barangay}\" already submitted registration and is awaiting approval.",
+        ], 409);
+      }
+      // Only refresh open invites / rejected / pending without application.
+      if (!in_array($inviteStatus, ['invited', 'expired', 'rejected', 'none'], true)) {
+        json_response([
+          'ok' => false,
+          'error' => "Barangay \"{$barangay}\" in {$municipality} already exists.",
+        ], 409);
+      }
+      $pdo->prepare('
+        UPDATE beneficiaries
+        SET invitation_token = ?, invitation_expires = ?, invitation_status = "invited",
+            representative_email = ?, municipality = COALESCE(NULLIF(municipality, ""), ?),
+            status = "Pending Approval"
+        WHERE id = ?
+      ')->execute([$token, $expires, $email, $municipality, $existingLoc['id']]);
+      $barangay = (string) ($existingLoc['full_name'] ?: $existingLoc['barangay'] ?: $barangay);
+      $targetId = (int) $existingLoc['id'];
+    }
+  }
+
+  if ($targetId <= 0) {
+    try {
+      $code = generate_code('BEN');
+      $stmt = $pdo->prepare('
+        INSERT INTO beneficiaries (code, full_name, barangay, municipality, representative_email, invitation_token, invitation_expires, invitation_status, status)
+        VALUES (?, ?, ?, ?, ?, ?, ?, "invited", "Pending Approval")
+      ');
+      $stmt->execute([$code, $barangay, $barangay, $municipality, $email, $token, $expires]);
+      $targetId = (int) $pdo->lastInsertId();
+    } catch (Throwable $e) {
+      json_response([
+        'ok' => false,
+        'error' => 'Could not create barangay invitation: ' . $e->getMessage(),
+      ], 500);
+    }
   }
 
   // Send invitation email
+  $mail = ['sent' => false, 'transport' => '', 'error' => '', 'inviteUrl' => ''];
   try {
-    send_invitation_email($email, $barangay, $token);
+    $mail = send_invitation_email($email, $barangay, $token, 7);
   } catch (Throwable $e) {
-    // best-effort email dispatch
+    $mail['error'] = $e->getMessage();
   }
+
+  $inviteUrl = (string) ($mail['inviteUrl'] ?? frontend_url('/accept-invite/' . rawurlencode($token)));
+  $emailSent = !empty($mail['sent']);
 
   notify_admins($pdo, 'beneficiary', 'Barangay invited', "Invitation sent to {$email} for {$barangay}", '/admin/beneficiaries');
   audit_log($pdo, 'invite', 'beneficiary', (string) $targetId, "Sent invitation to {$email} for {$barangay}");
 
   $stmt = $pdo->prepare('SELECT * FROM beneficiaries WHERE id = ?');
   $stmt->execute([$targetId]);
-  json_response(['ok' => true, 'data' => map_beneficiary($pdo, $stmt->fetch())], 201);
+  json_response([
+    'ok' => true,
+    'data' => map_beneficiary($pdo, $stmt->fetch()),
+    'invitationSent' => $emailSent,
+    'mailTransport' => (string) ($mail['transport'] ?? ''),
+    'mailError' => $emailSent ? '' : (string) ($mail['error'] ?? 'Invitation email was not delivered'),
+    'inviteUrl' => $inviteUrl,
+    'message' => $emailSent
+      ? "Invitation emailed to {$email}."
+      : "Invitation saved for {$barangay}, but the email could not be sent. Share this invite link manually: {$inviteUrl}",
+  ], 201);
+}
+
+// ── Approve / Reject barangay applications ──
+
+if ($method === 'POST' && ($action === 'approve' || $action === 'reject')) {
+  require_auth(['Admin', 'Staff']);
+  if (!$id) {
+    json_response(['ok' => false, 'error' => 'Barangay id is required'], 400);
+  }
+  $stmt = $pdo->prepare('SELECT * FROM beneficiaries WHERE id = ? LIMIT 1');
+  $stmt->execute([$id]);
+  $ben = $stmt->fetch();
+  if (!$ben) {
+    json_response(['ok' => false, 'error' => 'Barangay not found'], 404);
+  }
+
+  if ($action === 'reject') {
+    $inviteStatus = (string) ($ben['invitation_status'] ?? '');
+    if ($inviteStatus !== 'applied' && (string) ($ben['status'] ?? '') !== 'Pending Approval') {
+      json_response(['ok' => false, 'error' => 'Only pending applications can be rejected.'], 400);
+    }
+    $reason = trim((string) ($body['reason'] ?? $body['notes'] ?? ''));
+    $notes = trim((string) ($ben['notes'] ?? ''));
+    if ($reason !== '') {
+      $notes = trim($notes . ($notes !== '' ? "\n" : '') . 'Rejection reason: ' . $reason);
+    }
+    $pdo->prepare('
+      UPDATE beneficiaries
+      SET status = "Rejected", invitation_status = "rejected", invitation_token = NULL, notes = ?
+      WHERE id = ?
+    ')->execute([$notes !== '' ? $notes : null, $id]);
+    notify_admins($pdo, 'beneficiary', 'Barangay application rejected', "{$ben['full_name']} was rejected", '/admin/beneficiaries');
+    audit_log($pdo, 'reject', 'beneficiary', $ben['code'], "Rejected barangay application for {$ben['full_name']}");
+    $stmt = $pdo->prepare('SELECT * FROM beneficiaries WHERE id = ?');
+    $stmt->execute([$id]);
+    json_response(['ok' => true, 'data' => map_beneficiary($pdo, $stmt->fetch()), 'message' => 'Application rejected.']);
+  }
+
+  // approve — only for submitted applications; prevent duplicate provisioning
+  $inviteStatus = (string) ($ben['invitation_status'] ?? '');
+  if (!empty($ben['user_id']) || $inviteStatus === 'accepted' || in_array((string) ($ben['status'] ?? ''), ['Active', 'Approved'], true)) {
+    json_response(['ok' => false, 'error' => 'This barangay is already registered and approved.'], 409);
+  }
+  if ($inviteStatus !== 'applied' && (string) ($ben['status'] ?? '') !== 'Pending Approval') {
+    json_response(['ok' => false, 'error' => 'Only pending barangay applications can be approved.'], 400);
+  }
+
+  $provision = provision_beneficiary_account($pdo, $ben);
+  if (!empty($provision['error']) && empty($provision['userId']) && empty($provision['created'])) {
+    json_response(['ok' => false, 'error' => $provision['error']], 400);
+  }
+  $mail = $provision['mail'] ?? null;
+  $sent = !empty($mail['sent']);
+  $barangayLabel = (string) ($ben['full_name'] ?: $ben['barangay'] ?: 'Barangay');
+  $repEmail = strtolower(trim((string) ($ben['representative_email'] ?? '')));
+  notify_admins(
+    $pdo,
+    'beneficiary_credentials',
+    'Login credentials sent',
+    $sent
+      ? "Login credentials have been successfully sent to the approved Barangay ({$barangayLabel}" . ($repEmail !== '' ? ", {$repEmail}" : '') . ').'
+      : "Barangay {$barangayLabel} was approved, but the credential email could not be delivered" . ($repEmail !== '' ? " to {$repEmail}" : '') . '.',
+    '/admin/beneficiaries'
+  );
+  audit_log($pdo, 'approve', 'beneficiary', $ben['code'], "Approved barangay {$ben['full_name']}");
+
+  $stmt = $pdo->prepare('SELECT * FROM beneficiaries WHERE id = ?');
+  $stmt->execute([$id]);
+  json_response([
+    'ok' => true,
+    'data' => map_beneficiary($pdo, $stmt->fetch()),
+    'accountCreated' => !empty($provision['created']),
+    'credentialsSent' => $sent,
+    'mailError' => $sent ? '' : (string) ($mail['error'] ?? $provision['error'] ?? ''),
+    'temporaryPassword' => $provision['temporaryPassword'] ?? null,
+    'message' => $sent
+      ? 'Login credentials have been successfully sent to the approved Barangay.'
+      : 'Barangay approved.' . (!empty($provision['temporaryPassword'])
+        ? ' Email failed — temporary password: ' . $provision['temporaryPassword']
+        : (string) ($provision['error'] ?? ' Account linked or credentials may need manual delivery.')),
+  ]);
 }
 
 if ($method === 'POST') {
   $barangay = trim((string) ($body['barangay'] ?? $body['name'] ?? ''));
-  if ($barangay === '') {
-    json_response(['ok' => false, 'error' => 'Barangay name is required'], 400);
-  }
+  $municipality = trim((string) ($body['municipality'] ?? ''));
+  assert_unique_barangay_location($pdo, $barangay, $municipality);
   $code = generate_code('BEN');
   $needsArr = is_array($body['needs'] ?? null) ? array_values(array_map('strval', $body['needs'])) : [];
   $category = count($needsArr) > 0 ? implode(', ', $needsArr) : ($body['category'] ?? null);
@@ -303,7 +605,7 @@ if ($method === 'POST') {
     $category,
     $body['barangayType'] ?? null,
     $barangay,
-    $body['municipality'] ?? null,
+    $municipality,
     $body['address'] ?? null,
     (int) ($body['affectedFamilies'] ?? 0),
     $repName !== '' ? $repName : null,
@@ -339,7 +641,9 @@ if ($method === 'PUT') {
   }
 
   $barangay = trim((string) ($body['barangay'] ?? $body['name'] ?? $existing['full_name']));
+  $municipality = trim((string) ($body['municipality'] ?? $existing['municipality'] ?? ''));
   $newStatus = $body['status'] ?? $existing['status'];
+  assert_unique_barangay_location($pdo, $barangay, $municipality, (int) $id);
 
   $needsValue = array_key_exists('needs', $body) ? encode_needs($body['needs']) : $existing['needs'];
   if (array_key_exists('needs', $body) && is_array($body['needs']) && count($body['needs']) > 0) {
@@ -379,7 +683,7 @@ if ($method === 'PUT') {
     $category,
     $body['barangayType'] ?? $existing['barangay_type'],
     $barangay,
-    $body['municipality'] ?? $existing['municipality'],
+    $municipality,
     $body['address'] ?? $existing['address'],
     (int) ($body['affectedFamilies'] ?? $existing['affected_families']),
     $repName !== '' ? $repName : ($existing['representative_name'] ?? null),

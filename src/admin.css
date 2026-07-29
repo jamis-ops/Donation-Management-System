@@ -703,6 +703,13 @@
   margin: 0;
 }
 
+.admin-login__hint {
+  margin-top: 0.75rem !important;
+  font-size: 0.8rem !important;
+  line-height: 1.45;
+  color: #64748b !important;
+}
+
 .admin-login__form label {
   margin-bottom: 1rem;
 }
@@ -3222,6 +3229,300 @@
   align-items: center;
 }
 
+/* =========================================================
+   Type of Needs — inline icon-grid toggle picker
+   ========================================================= */
+
+.needs-picker {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  padding: 1rem;
+  background: var(--admin-bg);
+  border: 1px solid var(--admin-border);
+  border-radius: var(--admin-radius);
+  margin: 0.25rem 0;
+}
+
+/* Header row: label + count badge */
+.needs-picker__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.needs-picker__label {
+  font-size: 0.82rem;
+  font-weight: 650;
+  color: var(--admin-text);
+  letter-spacing: 0.01em;
+}
+
+.needs-picker__count {
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--admin-text-muted);
+  background: var(--admin-surface);
+  border: 1px solid var(--admin-border);
+  padding: 0.15rem 0.55rem;
+  border-radius: 999px;
+  transition: color 0.15s, border-color 0.15s, background 0.15s;
+}
+
+/* When at least one item is selected, highlight the count */
+.needs-picker:has(.needs-picker__option--active) .needs-picker__count {
+  color: var(--admin-brand);
+  border-color: var(--admin-brand);
+  background: var(--admin-brand-muted);
+}
+
+/* Option grid */
+.needs-picker__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(128px, 1fr));
+  gap: 0.45rem;
+}
+
+/* Individual toggle option button */
+.needs-picker__option {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35rem;
+  padding: 0.7rem 0.5rem 0.6rem;
+  border: 1.5px solid var(--admin-border);
+  border-radius: var(--admin-radius);
+  background: var(--admin-surface);
+  cursor: pointer;
+  text-align: center;
+  position: relative;
+  transition:
+    border-color 0.15s,
+    background 0.15s,
+    box-shadow 0.15s,
+    transform 0.12s;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+.needs-picker__option:hover:not(.needs-picker__option--active) {
+  border-color: var(--admin-border-strong);
+  background: var(--admin-surface);
+  box-shadow: var(--admin-shadow);
+  transform: translateY(-1px);
+}
+
+/* Active / selected state */
+.needs-picker__option--active {
+  border-color: var(--admin-brand);
+  background: var(--admin-brand-muted);
+  box-shadow: 0 0 0 3px var(--admin-brand-muted);
+}
+
+.needs-picker__option--active:hover {
+  background: var(--admin-brand-muted-hover);
+  transform: translateY(-1px);
+}
+
+/* Icon circle */
+.needs-picker__option-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  background: var(--admin-bg);
+  color: var(--admin-text-muted);
+  flex-shrink: 0;
+  transition: background 0.15s, color 0.15s;
+}
+
+.needs-picker__option--active .needs-picker__option-icon {
+  background: var(--admin-brand);
+  color: #fff;
+}
+
+/* Label text */
+.needs-picker__option-label {
+  font-family: var(--font-sans);
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--admin-text-muted);
+  line-height: 1.3;
+  transition: color 0.15s;
+}
+
+.needs-picker__option--active .needs-picker__option-label {
+  color: var(--admin-brand);
+}
+
+/* Checkmark badge in top-right corner when active */
+.needs-picker__option-check {
+  position: absolute;
+  top: 5px;
+  right: 7px;
+  font-size: 0.62rem;
+  font-weight: 800;
+  color: var(--admin-brand);
+  line-height: 1;
+  opacity: 0;
+  transform: scale(0.6);
+  transition: opacity 0.15s, transform 0.15s;
+}
+
+.needs-picker__option--active .needs-picker__option-check {
+  opacity: 1;
+  transform: scale(1);
+}
+
+/* "Other" button variant */
+.needs-picker__option--other .needs-picker__option-icon {
+  background: var(--admin-bg);
+  color: var(--admin-brand);
+}
+
+.needs-picker__option--other {
+  border-style: dashed;
+}
+
+.needs-picker__option--other-open {
+  border-style: solid;
+  border-color: var(--admin-brand);
+  background: var(--admin-brand-muted);
+}
+
+.needs-picker__option--other-open .needs-picker__option-icon {
+  background: var(--admin-brand);
+  color: #fff;
+}
+
+.needs-picker__option--other-open .needs-picker__option-label {
+  color: var(--admin-brand);
+}
+
+/* Custom need input row */
+.needs-picker__custom {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+  padding: 0.65rem 0.75rem;
+  background: var(--admin-surface);
+  border: 1px solid var(--admin-brand);
+  border-radius: var(--admin-radius);
+  animation: needsCustomIn 0.15s ease both;
+}
+
+@keyframes needsCustomIn {
+  from { opacity: 0; transform: translateY(-4px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.needs-picker__custom input {
+  flex: 1;
+  min-width: 0;
+  border: none;
+  outline: none;
+  background: transparent;
+  font-family: var(--font-sans);
+  font-size: 0.875rem;
+  color: var(--admin-text);
+  padding: 0;
+}
+
+.needs-picker__custom input::placeholder {
+  color: var(--admin-text-subtle);
+}
+
+/* Selected chips strip */
+.needs-picker__selected {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+  padding-top: 0.25rem;
+  border-top: 1px solid var(--admin-border);
+  animation: needsSelectedIn 0.15s ease both;
+}
+
+@keyframes needsSelectedIn {
+  from { opacity: 0; transform: translateY(3px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.needs-picker__selected-label {
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--admin-text-muted);
+}
+
+.needs-picker__chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.needs-picker__chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.3rem 0.35rem 0.3rem 0.6rem;
+  border-radius: 999px;
+  font-family: var(--font-sans);
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--admin-brand);
+  background: var(--admin-brand-muted);
+  border: 1px solid rgba(175, 16, 26, 0.2);
+  transition: background 0.12s, border-color 0.12s;
+}
+
+.needs-picker__chip:hover {
+  background: var(--admin-brand-muted-hover);
+  border-color: rgba(175, 16, 26, 0.35);
+}
+
+.needs-picker__chip-remove {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 17px;
+  height: 17px;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background: rgba(175, 16, 26, 0.12);
+  color: var(--admin-brand);
+  cursor: pointer;
+  transition: background 0.12s, color 0.12s;
+  flex-shrink: 0;
+}
+
+.needs-picker__chip-remove:hover {
+  background: var(--admin-brand);
+  color: #fff;
+}
+
+/* Notes field */
+.needs-picker__note {
+  margin-top: 0.1rem;
+}
+
+.needs-picker__note textarea {
+  resize: vertical;
+  min-height: 60px;
+}
+
+/* Responsive — 2-col grid on narrow modals */
+@media (max-width: 480px) {
+  .needs-picker__grid {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
 .icon-btn {
   display: inline-flex;
   align-items: center;
@@ -3626,6 +3927,284 @@
   color: #b91c1c;
 }
 
+.btn--outline-danger {
+  background: #fff;
+  color: #b91c1c;
+  border: 1px solid #fecaca;
+}
+
+.btn--outline-danger:hover {
+  background: #fef2f2;
+  border-color: #f87171;
+  color: #991b1b;
+}
+
+.btn--outline-danger:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* Pending partnership review — list rows */
+.data-table__row--pending-review {
+  background: linear-gradient(90deg, rgba(245, 158, 11, 0.12) 0%, rgba(255, 251, 235, 0.95) 12px, #fffbeb 100%);
+  box-shadow: inset 4px 0 0 #f59e0b;
+}
+
+.data-table__row--pending-review:hover {
+  background: linear-gradient(90deg, rgba(245, 158, 11, 0.16) 0%, rgba(254, 243, 199, 0.95) 12px, #fef3c7 100%);
+}
+
+.beneficiaries-status-cell {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.35rem;
+}
+
+.beneficiaries-review-pill {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.15rem 0.55rem;
+  border-radius: 999px;
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  color: #92400e;
+  background: #fde68a;
+  border: 1px solid #fbbf24;
+}
+
+.beneficiaries-review-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.form-hint {
+  display: block;
+  margin-top: 0.35rem;
+  font-size: 0.78rem;
+  line-height: 1.4;
+  color: var(--admin-text-muted, #64748b);
+  font-weight: 500;
+}
+
+/* =========================================================
+   Pending review on Overview — Barangay Details Page
+   ========================================================= */
+
+.barangay-details__content {
+  display: contents;
+}
+
+.barangay-overview-review {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 1rem 1.25rem;
+  margin-bottom: 1.25rem;
+  padding: 1.1rem 1.25rem;
+  border-radius: var(--admin-radius-lg, 12px);
+  border: 1px solid #fbbf24;
+  background: linear-gradient(135deg, #fffbeb 0%, #fef3c7 100%);
+  box-shadow: inset 4px 0 0 #f59e0b;
+}
+
+.barangay-overview-review__icon {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  background: #fde68a;
+  color: #b45309;
+  flex-shrink: 0;
+}
+
+.barangay-overview-review__copy {
+  flex: 1 1 220px;
+  min-width: 0;
+}
+
+.barangay-overview-review__eyebrow {
+  display: block;
+  margin-bottom: 0.2rem;
+  font-size: 0.68rem;
+  font-weight: 750;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #b45309;
+}
+
+.barangay-overview-review__copy strong {
+  display: block;
+  font-size: 1.05rem;
+  color: #78350f;
+  margin-bottom: 0.3rem;
+}
+
+.barangay-overview-review__copy p {
+  margin: 0;
+  font-size: 0.88rem;
+  line-height: 1.5;
+  color: #92400e;
+}
+
+.barangay-overview-review__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.barangay-overview-review__actions .btn {
+  flex: 0 1 auto;
+  min-width: 7.5rem;
+}
+
+@keyframes overlayCardIn {
+  from { opacity: 0; transform: translateY(12px) scale(0.97); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+/* Approve button */
+.approval-overlay__btn-approve {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  padding: 0.6rem 1.1rem;
+  font-family: var(--font-sans);
+  font-size: 0.9rem;
+  font-weight: 650;
+  border-radius: 8px;
+  border: none;
+  cursor: pointer;
+  background: var(--admin-success);
+  color: #fff;
+  transition: background 0.15s, transform 0.15s, box-shadow 0.15s;
+  box-shadow: 0 2px 8px rgba(22, 163, 74, 0.25);
+}
+
+.approval-overlay__btn-approve:hover:not(:disabled) {
+  background: #15803d;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 14px rgba(22, 163, 74, 0.35);
+}
+
+.approval-overlay__btn-approve:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* Reject button */
+.approval-overlay__btn-reject {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  padding: 0.6rem 1.1rem;
+  font-family: var(--font-sans);
+  font-size: 0.9rem;
+  font-weight: 650;
+  border-radius: 8px;
+  border: 1.5px solid var(--admin-danger);
+  cursor: pointer;
+  background: transparent;
+  color: var(--admin-danger);
+  transition: background 0.15s, color 0.15s, transform 0.15s, box-shadow 0.15s;
+}
+
+.approval-overlay__btn-reject:hover:not(:disabled) {
+  background: var(--admin-danger);
+  color: #fff;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 14px rgba(220, 38, 38, 0.3);
+}
+
+.approval-overlay__btn-reject:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* ── Confirmation dialogs (Approve / Reject) ── */
+
+.approval-confirm-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 300;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1.5rem;
+  background: rgba(17, 24, 39, 0.45);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+}
+
+.approval-confirm__card {
+  background: var(--admin-surface);
+  border-radius: var(--admin-radius-lg);
+  box-shadow: var(--admin-shadow-lg);
+  padding: 2rem 1.75rem 1.5rem;
+  max-width: 380px;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 0.5rem;
+  animation: overlayCardIn 0.2s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.approval-confirm__icon {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 0.35rem;
+}
+
+.approval-confirm__icon--approve {
+  background: rgba(22, 163, 74, 0.1);
+  color: var(--admin-success);
+}
+
+.approval-confirm__icon--reject {
+  background: rgba(220, 38, 38, 0.1);
+  color: var(--admin-danger);
+}
+
+.approval-confirm__title {
+  font-family: var(--font-sans);
+  font-size: 1.1rem;
+  font-weight: 720;
+  color: var(--admin-text);
+  margin: 0;
+}
+
+.approval-confirm__body {
+  font-size: 0.875rem;
+  line-height: 1.6;
+  color: var(--admin-text-muted);
+  margin: 0.2rem 0 0.75rem;
+}
+
+.approval-confirm__body strong {
+  color: var(--admin-text);
+  font-weight: 650;
+}
+
+.approval-confirm__actions {
+  display: flex;
+  gap: 0.65rem;
+  width: 100%;
+}
+
 @media (max-width: 720px) {
   .barangay-metrics {
     grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -3646,5 +4225,22 @@
   .barangay-details__actions .btn {
     flex: 1;
     justify-content: center;
+  }
+}
+
+@media (max-width: 520px) {
+  .barangay-overview-review__actions,
+  .approval-confirm__actions {
+    width: 100%;
+    flex-direction: column;
+  }
+
+  .barangay-overview-review__actions .btn,
+  .approval-confirm__actions .btn {
+    width: 100%;
+  }
+
+  .approval-confirm__card {
+    padding: 1.75rem 1.25rem 1.5rem;
   }
 }

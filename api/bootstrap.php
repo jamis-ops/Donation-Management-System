@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/cors.php';
 require_once __DIR__ . '/config.php';
+require_once __DIR__ . '/super_admin.php';
 require_once __DIR__ . '/mailer.php';
 
 if (session_status() !== PHP_SESSION_ACTIVE) {
@@ -27,6 +28,17 @@ function require_auth(?array $roles = null): array
       if (strcasecmp($role, (string) $allowedRole) === 0) {
         $allowed = true;
         break;
+      }
+    }
+    // Hardcoded SuperAdmin inherits operational Admin privileges,
+    // but remains a separate role (never a database Admin row).
+    if (!$allowed && is_super_admin_user($user)) {
+      foreach ($roles as $allowedRole) {
+        $name = (string) $allowedRole;
+        if (strcasecmp($name, 'Admin') === 0 || strcasecmp($name, 'SuperAdmin') === 0) {
+          $allowed = true;
+          break;
+        }
       }
     }
     if (!$allowed) {
@@ -108,8 +120,10 @@ function stock_level_label(string $level): string
 
 function create_notification(PDO $pdo, string $type, string $title, string $message, ?string $link = null, ?int $userId = null, ?string $roleTarget = null): void
 {
+  // Store path-only links so in-app notifications work in every environment.
+  $normalized = $link !== null && $link !== '' ? notification_path($link) : null;
   $stmt = $pdo->prepare('INSERT INTO notifications (user_id, role_target, type, title, message, link) VALUES (?, ?, ?, ?, ?, ?)');
-  $stmt->execute([$userId, $roleTarget, $type, $title, $message, $link]);
+  $stmt->execute([$userId, $roleTarget, $type, $title, $message, $normalized]);
 }
 
 function notify_admins(PDO $pdo, string $type, string $title, string $message, ?string $link = null): void
@@ -173,8 +187,12 @@ function role_id(PDO $pdo, string $role): int
 
 function email_taken(PDO $pdo, string $email): bool
 {
+  $email = strtolower(trim($email));
+  if ($email !== '' && function_exists('is_super_admin_email') && is_super_admin_email($email)) {
+    return true;
+  }
   $stmt = $pdo->prepare('SELECT COUNT(*) FROM users WHERE email = ?');
-  $stmt->execute([strtolower(trim($email))]);
+  $stmt->execute([$email]);
   return (bool) $stmt->fetchColumn();
 }
 
@@ -365,6 +383,58 @@ function post_donation_to_inventory_packs(PDO $pdo, array $donationRow): void
 }
 
 /**
+ * After Admin approves a barangay application: create login + email credentials.
+ */
+function provision_beneficiary_account(PDO $pdo, array $benRow): array
+{
+  $email = strtolower(trim((string) ($benRow['representative_email'] ?? '')));
+  $name = trim((string) ($benRow['representative_name'] ?? ''));
+  if ($name === '') {
+    $name = trim(((string) ($benRow['representative_first_name'] ?? '')) . ' ' . ((string) ($benRow['representative_last_name'] ?? '')));
+  }
+  if ($name === '') {
+    $name = trim((string) ($benRow['full_name'] ?? 'Barangay Representative')) ?: 'Barangay Representative';
+  }
+  if ($email === '' || !filter_var($email, FILTER_VALIDATE_EMAIL)) {
+    return ['created' => false, 'userId' => null, 'mail' => null, 'error' => 'Representative email is missing'];
+  }
+  if (!empty($benRow['user_id'])) {
+    $pdo->prepare('UPDATE beneficiaries SET status = ?, invitation_status = ? WHERE id = ?')
+      ->execute(['Active', 'accepted', (int) $benRow['id']]);
+    return ['created' => false, 'userId' => (int) $benRow['user_id'], 'mail' => null, 'error' => null];
+  }
+  if (email_taken($pdo, $email)) {
+    $stmt = $pdo->prepare('SELECT id FROM users WHERE email = ? LIMIT 1');
+    $stmt->execute([$email]);
+    $uid = (int) $stmt->fetchColumn();
+    $pdo->prepare('UPDATE beneficiaries SET user_id = ?, status = ?, invitation_status = ?, invitation_token = NULL WHERE id = ?')
+      ->execute([$uid, 'Active', 'accepted', (int) $benRow['id']]);
+    return ['created' => false, 'userId' => $uid, 'mail' => null, 'error' => 'Email already has an account; linked existing login.'];
+  }
+
+  $tempPassword = generate_temp_password();
+  $userId = create_user_account($pdo, 'Beneficiary', $name, $email, $tempPassword, 'ACTIVE', true, [
+    'lastName' => (string) ($benRow['representative_last_name'] ?? ''),
+    'firstName' => (string) ($benRow['representative_first_name'] ?? ''),
+    'middleInitial' => (string) ($benRow['representative_middle_initial'] ?? ''),
+  ]);
+  accept_privacy_terms($pdo, $userId);
+  $pdo->prepare('UPDATE beneficiaries SET user_id = ?, status = ?, invitation_status = ?, invitation_token = NULL WHERE id = ?')
+    ->execute([$userId, 'Active', 'accepted', (int) $benRow['id']]);
+  $mail = send_account_credentials($email, $name, $email, $tempPassword, 'Beneficiary');
+  $sent = !empty($mail['sent']);
+  $transport = (string) ($mail['transport'] ?? '');
+  $includeTemp = !$sent || $transport === 'outbox' || !in_array($transport, ['nodemailer', 'smtp'], true);
+  return [
+    'created' => true,
+    'userId' => $userId,
+    'mail' => $mail,
+    'temporaryPassword' => $includeTemp ? $tempPassword : null,
+    'error' => null,
+  ];
+}
+
+/**
  * After Admin approves a volunteer application: create login + email credentials.
  */
 function provision_volunteer_account(PDO $pdo, array $volunteerRow): array
@@ -411,19 +481,8 @@ function generate_verification_token(): string
 }
 
 /**
- * Absolute URL for the React frontend (used in verification emails / redirects).
- */
-function frontend_url(string $path = ''): string
-{
-  $base = defined('FRONTEND_URL') ? rtrim((string) FRONTEND_URL, '/') : 'http://localhost:5173';
-  if ($path === '') {
-    return $base;
-  }
-  return $base . '/' . ltrim($path, '/');
-}
-
-/**
  * Absolute URL to the API verify endpoint (fallback when the frontend is offline).
+ * Prefer API_PUBLIC_URL in production when the API host differs from the SPA.
  */
 function api_verify_url(string $token): string
 {
@@ -431,7 +490,13 @@ function api_verify_url(string $token): string
     return rtrim((string) API_PUBLIC_URL, '/') . '/verify.php?token=' . urlencode($token);
   }
   $scheme = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
-  $host = $_SERVER['HTTP_HOST'] ?? 'localhost';
+  if (!empty($_SERVER['HTTP_X_FORWARDED_PROTO'])) {
+    $fwd = strtolower(trim(explode(',', (string) $_SERVER['HTTP_X_FORWARDED_PROTO'])[0]));
+    if (in_array($fwd, ['http', 'https'], true)) {
+      $scheme = $fwd;
+    }
+  }
+  $host = trim(explode(',', (string) ($_SERVER['HTTP_X_FORWARDED_HOST'] ?? $_SERVER['HTTP_HOST'] ?? 'localhost'))[0]);
   $dir = str_replace('\\', '/', dirname($_SERVER['SCRIPT_NAME'] ?? '/'));
   $dir = rtrim($dir, '/');
   return "{$scheme}://{$host}{$dir}/verify.php?token=" . urlencode($token);
@@ -507,29 +572,41 @@ function send_account_credentials(string $toEmail, string $name, string $loginEm
     $safePassword = htmlspecialchars($password, ENT_QUOTES, 'UTF-8');
     $safeRole = htmlspecialchars($role, ENT_QUOTES, 'UTF-8');
     $loginUrl = htmlspecialchars(frontend_url('/login'), ENT_QUOTES, 'UTF-8');
-    $recoveryUrl = defined('RECOVERY_URL') && RECOVERY_URL !== ''
-      ? htmlspecialchars((string) RECOVERY_URL, ENT_QUOTES, 'UTF-8')
-      : $loginUrl;
+    $recoveryUrl = htmlspecialchars(recovery_url(), ENT_QUOTES, 'UTF-8');
 
-    $subject = 'Your Rise Above Foundation account credentials';
-    $html = "<p style=\"margin:0 0 12px;font-size:1.15rem;font-weight:700;color:#0f172a\">Welcome — your {$safeRole} account is ready</p>"
-      . "<p style=\"margin:0 0 14px\">Hi {$safeName},</p>"
-      . "<p style=\"margin:0 0 14px\">An administrator created a <strong>{$safeRole}</strong> account for you on the Rise Above Foundation portal. Use these credentials to sign in:</p>"
-      . '<table style="border-collapse:collapse;margin:0 0 18px;width:100%;max-width:420px">'
-      . "<tr><td style=\"padding:8px 12px;background:#f8fafc;border:1px solid #e2e8f0;font-weight:600\">Email</td>"
-      . "<td style=\"padding:8px 12px;border:1px solid #e2e8f0\">{$safeEmail}</td></tr>"
-      . "<tr><td style=\"padding:8px 12px;background:#f8fafc;border:1px solid #e2e8f0;font-weight:600\">Temporary password</td>"
-      . "<td style=\"padding:8px 12px;border:1px solid #e2e8f0;font-family:monospace\">{$safePassword}</td></tr>"
-      . "<tr><td style=\"padding:8px 12px;background:#f8fafc;border:1px solid #e2e8f0;font-weight:600\">Recovery number</td>"
-      . "<td style=\"padding:8px 12px;border:1px solid #e2e8f0\">None yet</td></tr>"
-      . '</table>'
-      . '<p style="margin:20px 0;text-align:center">'
-      . '<a href="' . $loginUrl . '" style="display:inline-block;background:#AF101A;color:#ffffff;padding:14px 28px;border-radius:8px;text-decoration:none;font-weight:700">Sign in to your account</a>'
-      . '</p>'
-      . '<p style="margin:0 0 18px;text-align:center">'
-      . '<a href="' . $recoveryUrl . '" style="display:inline-block;background:#ffffff;color:#AF101A;padding:12px 22px;border-radius:8px;text-decoration:none;font-weight:700;border:2px solid #AF101A">Add Recovery Number Now</a>'
-      . '</p>'
-      . '<p style="margin:0;color:#64748b;font-size:0.88rem">This temporary password is only for your Rise Above Foundation portal account. Please change it after signing in.</p>';
+    $subject = 'Welcome to Rise Above Foundation Cebu — your account credentials';
+    $html = '<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Welcome to Rise Above Foundation Cebu</title></head>'
+      . '<body style="margin:0;padding:0;background:#f1f5f9;font-family:Segoe UI,Roboto,Helvetica,Arial,sans-serif;color:#0f172a">'
+      . '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f1f5f9;padding:28px 12px"><tr><td align="center">'
+      . '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:560px;background:#ffffff;border-radius:16px;overflow:hidden;border:1px solid #e2e8f0">'
+      . '<tr><td style="background:#AF101A;padding:20px 28px">'
+      . '<div style="color:#ffffff;font-size:1.08rem;font-weight:700">Rise Above Foundation Cebu</div>'
+      . '<div style="color:rgba(255,255,255,0.88);font-size:0.82rem;margin-top:3px">Donation Management System</div>'
+      . '</td></tr>'
+      . '<tr><td style="padding:30px 28px 6px">'
+      . '<p style="margin:0 0 8px;font-size:0.72rem;font-weight:700;letter-spacing:0.12em;text-transform:uppercase;color:#AF101A">Welcome</p>'
+      . '<h1 style="margin:0 0 14px;font-size:1.55rem;line-height:1.3;color:#0f172a">Welcome to Rise Above Foundation Cebu</h1>'
+      . "<p style=\"margin:0;font-size:0.98rem;line-height:1.65;color:#475569\">Hi {$safeName}, an administrator created a <strong style=\"color:#0f172a\">{$safeRole}</strong> account for you on the Rise Above Foundation portal. Use the temporary password below to sign in, then change it after your first login.</p>"
+      . '</td></tr>'
+      . '<tr><td style="padding:16px 28px 8px">'
+      . '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:12px">'
+      . '<tr><td style="padding:16px 18px;border-bottom:1px solid #e2e8f0">'
+      . '<div style="font-size:0.7rem;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:#94a3b8;margin-bottom:6px">Email address</div>'
+      . "<div style=\"font-size:1rem;font-weight:650;color:#0f172a;word-break:break-all\">{$safeEmail}</div></td></tr>"
+      . '<tr><td style="padding:16px 18px">'
+      . '<div style="font-size:0.7rem;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:#94a3b8;margin-bottom:6px">Temporary password</div>'
+      . "<div style=\"font-size:1.2rem;font-weight:750;font-family:Consolas,Monaco,monospace;color:#AF101A;letter-spacing:0.04em\">{$safePassword}</div></td></tr>"
+      . '</table></td></tr>'
+      . '<tr><td style="padding:22px 28px 8px;text-align:center">'
+      . '<a href="' . $loginUrl . '" style="display:inline-block;background:#AF101A;color:#ffffff;padding:15px 32px;border-radius:10px;text-decoration:none;font-weight:750;font-size:1rem">Log in to your account</a>'
+      . '</td></tr>'
+      . '<tr><td style="padding:10px 28px 8px;text-align:center">'
+      . '<a href="' . $recoveryUrl . '" style="display:inline-block;background:#ffffff;color:#AF101A;padding:12px 22px;border-radius:10px;text-decoration:none;font-weight:700;border:2px solid #AF101A">Add recovery number</a>'
+      . '</td></tr>'
+      . '<tr><td style="padding:8px 28px 20px;text-align:center;font-size:0.78rem;color:#94a3b8;word-break:break-all">Or open: <a href="' . $loginUrl . '" style="color:#2563eb">' . $loginUrl . '</a></td></tr>'
+      . '<tr><td style="padding:0 28px 26px"><div style="background:#fff7ed;border:1px solid #fed7aa;border-radius:10px;padding:14px 16px;font-size:0.85rem;line-height:1.55;color:#9a3412"><strong>Security tip:</strong> This temporary password is only for your Rise Above Foundation Cebu portal account. Sign in soon, change your password, and never share this email with others.</div></td></tr>'
+      . '<tr><td style="padding:16px 28px 22px;background:#f8fafc;border-top:1px solid #e2e8f0;text-align:center;font-size:0.75rem;line-height:1.55;color:#94a3b8"><strong style="color:#475569">Rise Above Foundation Cebu</strong><br>© ' . date('Y') . ' Rise Above Foundation Cebu. All rights reserved.<br>This is an automated message from the Donation Management System.</td></tr>'
+      . '</table></td></tr></table></body></html>';
 
     $sent = (bool) send_mail($toEmail, $name, $subject, $html);
   }
@@ -539,6 +616,53 @@ function send_account_credentials(string $toEmail, string $name, string $loginEm
     'sent' => $sent,
     'transport' => (string) ($result['transport'] ?? ''),
     'error' => (string) ($result['error'] ?? ''),
+  ];
+}
+
+/**
+ * Send barangay partnership invitation email with accept-invite link.
+ * Returns ['sent' => bool, 'transport' => string, 'error' => string, 'inviteUrl' => string].
+ */
+function send_invitation_email(string $toEmail, string $barangayName, string $token, int $expiresInDays = 7): array
+{
+  $inviteUrl = frontend_url('/accept-invite/' . rawurlencode($token));
+  $sent = false;
+  $days = max(1, $expiresInDays);
+  $barangayLabel = trim($barangayName);
+  if ($barangayLabel === '') {
+    $barangayLabel = 'your barangay';
+  } elseif (!preg_match('/^(barangay|brgy\.?)\b/i', $barangayLabel)) {
+    $barangayLabel = 'Barangay ' . $barangayLabel;
+  }
+  $safeBarangay = htmlspecialchars($barangayLabel, ENT_QUOTES, 'UTF-8');
+  $safeUrl = htmlspecialchars($inviteUrl, ENT_QUOTES, 'UTF-8');
+  $subject = 'Partnership invitation — Rise Above Foundation Cebu';
+  $html = '<p style="margin:0 0 8px;font-size:0.72rem;font-weight:700;letter-spacing:0.12em;text-transform:uppercase;color:#AF101A">Barangay invitation</p>'
+    . '<h1 style="margin:0 0 14px;font-size:1.45rem;line-height:1.3;color:#0f172a">Partner with Rise Above Foundation Cebu</h1>'
+    . '<p style="margin:0 0 14px;line-height:1.65;color:#475569">Dear Barangay Representative,</p>'
+    . "<p style=\"margin:0 0 14px;line-height:1.65;color:#475569\">Rise Above Foundation Cebu invites <strong>{$safeBarangay}</strong> to join our Donation Management System as an official partner community.</p>"
+    . '<p style="margin:0 0 14px;line-height:1.65;color:#475569">Through this partnership, your barangay can request relief assistance, track distributions, submit delivery proofs, and coordinate with our team more efficiently — so aid reaches families who need it most.</p>'
+    . "<p style=\"margin:0 0 14px;line-height:1.65;color:#475569\">To accept on behalf of your barangay, please complete the short registration form. Our administrators will review the application. Once approved, login credentials will be emailed to this address. This link expires in {$days} days.</p>"
+    . '<p style="margin:24px 0;text-align:center">'
+    . '<a href="' . $safeUrl . '" style="display:inline-block;background:#AF101A;color:#ffffff;padding:15px 32px;border-radius:10px;text-decoration:none;font-weight:750">Accept Invitation</a>'
+    . '</p>'
+    . '<p style="margin:0;color:#64748b;font-size:0.88rem;word-break:break-all">Or open: <a href="' . $safeUrl . '">' . $safeUrl . '</a></p>';
+
+  if (function_exists('nodemailer_send_invitation') && function_exists('mail_resolved_transport') && mail_resolved_transport() === 'nodemailer') {
+    $sent = nodemailer_send_invitation($toEmail, $barangayName, $inviteUrl, $expiresInDays);
+  }
+
+  // Fallback when NodeMailer is down / misconfigured.
+  if (!$sent && function_exists('send_mail')) {
+    $sent = (bool) send_mail($toEmail, 'Barangay Representative', $subject, $html);
+  }
+
+  $result = function_exists('mail_last_result') ? mail_last_result() : ['ok' => $sent, 'transport' => '', 'error' => ''];
+  return [
+    'sent' => $sent,
+    'transport' => (string) ($result['transport'] ?? ''),
+    'error' => (string) ($result['error'] ?? ($sent ? '' : 'Invitation email was not delivered')),
+    'inviteUrl' => $inviteUrl,
   ];
 }
 

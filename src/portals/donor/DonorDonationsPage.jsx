@@ -1,12 +1,13 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
-import { Search, X, Download, TrendingUp, DollarSign, Package, Calendar, Users, MapPin } from 'lucide-react'
+import { Search, Download, TrendingUp, DollarSign, Package, Calendar, Users, MapPin } from 'lucide-react'
 import StatusBadge from '../../components/admin/shared/StatusBadge'
 import ApiState from '../../components/admin/shared/ApiState'
 import { donationsApi, certificatesApi } from '../../api/resources'
 import { useApiList } from '../../hooks/useApiList'
 import ModalHeader from '../../components/admin/shared/ModalHeader'
 import DonationUpdatesTimeline from '../../components/shared/DonationUpdatesTimeline'
+import { notify } from '../../utils/toast'
 
 export default function DonorDonationsPage() {
   const { data, loading, error, reload } = useApiList(() => donationsApi.list())
@@ -15,7 +16,6 @@ export default function DonorDonationsPage() {
   const [typeFilter, setTypeFilter] = useState('All')
   const [statusFilter, setStatusFilter] = useState('All')
   const [busy, setBusy] = useState(false)
-  const [notice, setNotice] = useState('')
 
   // Calculate statistics
   const totalMonetary = data
@@ -59,10 +59,10 @@ export default function DonorDonationsPage() {
     try {
       await donationsApi.remove(row.dbId)
       setSelected(null)
-      setNotice(`Donation ${row.trackingCode} was cancelled.`)
+      notify.success(`Donation ${row.trackingCode} was cancelled.`)
       reload()
     } catch (err) {
-      alert(err.message)
+      notify.error(err.message)
     } finally {
       setBusy(false)
     }
@@ -73,9 +73,9 @@ export default function DonorDonationsPage() {
     try {
       await certificatesApi.create({ type: 'Certificate of Donation', reference: row.trackingCode })
       setSelected(null)
-      setNotice(`Certificate requested for ${row.trackingCode}. You will be notified once it is ready.`)
+      notify.success(`Certificate requested for ${row.trackingCode}. You will be notified once it is ready.`)
     } catch (err) {
-      alert(err.message)
+      notify.error(err.message)
     } finally {
       setBusy(false)
     }
@@ -107,13 +107,6 @@ export default function DonorDonationsPage() {
 
   return (
     <ApiState loading={loading} error={error} onRetry={reload}>
-      {notice && (
-        <div className="portal-notice">
-          <span>{notice}</span>
-          <button type="button" onClick={() => setNotice('')} aria-label="Dismiss"><X size={14} /></button>
-        </div>
-      )}
-
       {/* Analytics Cards */}
       <div className="donor-analytics-cards">
         <div className="donor-analytics-card">

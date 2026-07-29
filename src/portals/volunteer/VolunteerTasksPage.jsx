@@ -4,6 +4,7 @@ import StatusBadge from '../../components/admin/shared/StatusBadge'
 import ApiState from '../../components/admin/shared/ApiState'
 import { tasksApi } from '../../api/resources'
 import { useApiList } from '../../hooks/useApiList'
+import { notify } from '../../utils/toast'
 
 const STATUS_FILTERS = ['All', 'To Do', 'In Progress', 'In Review', 'Done']
 
@@ -43,10 +44,11 @@ export default function VolunteerTasksPage() {
     setSaving(true)
     try {
       await tasksApi.update(task.dbId, { boardColumn: 'done' })
+      notify.success('Task marked as done.')
       setSelectedTask(null)
       reload()
     } catch (err) {
-      alert(err.message || 'Failed to update task')
+      notify.error(err.message || 'Failed to update task')
     } finally {
       setSaving(false)
     }

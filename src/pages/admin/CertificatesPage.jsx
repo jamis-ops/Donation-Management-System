@@ -11,6 +11,7 @@ import FilterBar from '../../components/admin/shared/FilterBar'
 import CertificateView from '../../components/shared/CertificateView'
 import { printCertificate } from '../../components/shared/printCertificate'
 import ModalHeader from '../../components/admin/shared/ModalHeader'
+import { notify } from '../../utils/toast'
 
 const CERT_TYPES = [
   'Certificate of Donation',
@@ -119,7 +120,7 @@ export default function CertificatesPage() {
   const handleSave = async (e) => {
     e.preventDefault()
     if (!form.recipient.trim()) {
-      alert('Please select or enter a recipient.')
+      notify.warning('Please select or enter a recipient.')
       return
     }
     setSaving(true)
@@ -137,13 +138,15 @@ export default function CertificatesPage() {
       }
       if (editRow) {
         await certificatesApi.update(editRow.dbId, payload)
+        notify.success('Certificate updated.')
       } else {
         await certificatesApi.create(payload)
+        notify.success('Certificate created.')
       }
       setShowForm(false)
       reload()
     } catch (err) {
-      alert(err.message)
+      notify.error(err.message)
     } finally {
       setSaving(false)
     }
@@ -153,9 +156,10 @@ export default function CertificatesPage() {
     if (!window.confirm(`Delete certificate ${row.id} for ${row.recipient}?`)) return
     try {
       await certificatesApi.remove(row.dbId)
+      notify.success('Certificate deleted.')
       reload()
     } catch (err) {
-      alert(err.message)
+      notify.error(err.message)
     }
   }
 

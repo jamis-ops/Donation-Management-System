@@ -2,12 +2,24 @@
 declare(strict_types=1);
 require __DIR__ . '/cors.php';
 require __DIR__ . '/config.php';
+require_once __DIR__ . '/super_admin.php';
 
 session_start();
 
 $user = $_SESSION['user'] ?? null;
 if (!$user) {
   json_response(['ok' => false, 'user' => null], 200);
+}
+
+// Super Admin is not a database user — return session as-is.
+if (is_super_admin_user($user)) {
+  $user = array_merge(make_super_admin_session_user(), [
+    // Preserve any session-only display tweaks if present.
+    'name' => $user['name'] ?? SUPER_ADMIN_NAME,
+  ]);
+  $user['isSuperAdmin'] = true;
+  $_SESSION['user'] = $user;
+  json_response(['ok' => true, 'user' => $user], 200);
 }
 
 // Refresh must_change_password / photo from DB when possible
@@ -24,6 +36,7 @@ try {
     $user['profilePhoto'] = !empty($row['profile_photo'])
       ? ('/api/uploads/profiles/' . basename((string) $row['profile_photo']))
       : null;
+    $user['isSuperAdmin'] = false;
     $_SESSION['user'] = $user;
   }
 } catch (Throwable $e) {

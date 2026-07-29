@@ -20,6 +20,7 @@ import Req from '../../components/shared/Req'
 import { useAuth } from '../../context/AuthContext'
 import { useSeeMore } from '../../hooks/useSeeMore'
 import { SeeMoreToggle } from '../../components/admin/shared/SeeMoreList'
+import { notify } from '../../utils/toast'
 
 const TYPES = [
   { key: 'programs', label: 'Programs' },
@@ -80,7 +81,7 @@ function formFromItem(item) {
 
 export default function ContentPage() {
   const { user } = useAuth()
-  const canEdit = user?.role === 'Admin'
+  const canEdit = user?.role === 'Admin' || user?.role === 'SuperAdmin' || !!user?.isSuperAdmin
 
   const [type, setType] = useState('programs')
   const [statusFilter, setStatusFilter] = useState('')
@@ -166,9 +167,10 @@ export default function ContentPage() {
       setShowForm(false)
       setEditRow(null)
       setForm(emptyForm)
+      notify.success(editRow ? 'Content updated.' : 'Content created.')
       await load()
     } catch (err) {
-      alert(err.message)
+      notify.error(err.message)
     } finally {
       setSaving(false)
     }
@@ -178,9 +180,17 @@ export default function ContentPage() {
     if (!canEdit) return
     try {
       await contentApi.action(row.id, action, extra)
+      const actionMessages = {
+        publish: 'Content published.',
+        unpublish: 'Content unpublished.',
+        archive: 'Content archived.',
+        restore: 'Content restored.',
+        reorder: extra.direction === 'up' ? 'Item moved up.' : 'Item moved down.',
+      }
+      notify.success(actionMessages[action] || 'Action completed.')
       await load()
     } catch (err) {
-      alert(err.message)
+      notify.error(err.message)
     }
   }
 
@@ -189,9 +199,10 @@ export default function ContentPage() {
     if (!window.confirm(`Delete “${row.title}”? This cannot be undone.`)) return
     try {
       await contentApi.remove(row.id)
+      notify.success('Content deleted.')
       await load()
     } catch (err) {
-      alert(err.message)
+      notify.error(err.message)
     }
   }
 

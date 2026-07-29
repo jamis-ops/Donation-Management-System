@@ -13,6 +13,7 @@ import ModalHeader from '../../components/admin/shared/ModalHeader'
 import RowActionsMenu from '../../components/admin/shared/RowActionsMenu'
 import { useSeeMore } from '../../hooks/useSeeMore'
 import { SeeMoreToggle } from '../../components/admin/shared/SeeMoreList'
+import { notify } from '../../utils/toast'
 
 const STATUS_OPTIONS = ['Pending', 'Reserved', 'Allocated', 'Delivered', 'Cancelled']
 const PRIORITY_OPTIONS = ['Low', 'Medium', 'High', 'Critical']
@@ -298,12 +299,12 @@ export default function AllocationPage() {
     const list = Array.isArray(rows) ? rows : [rows]
     const ready = list.filter((r) => ['Reserved', 'Allocated'].includes(r.status) && !r.distributionId)
     if (!ready.length) {
-      alert('Select Reserved/Allocated items that are not yet linked to a distribution.')
+      notify.warning('Select Reserved/Allocated items that are not yet linked to a distribution.')
       return
     }
     const benIds = [...new Set(ready.map((r) => r.beneficiaryId).filter(Boolean))]
     if (benIds.length !== 1) {
-      alert('Plan distribution for one barangay at a time. Select allocations for the same barangay.')
+      notify.warning('Plan distribution for one barangay at a time. Select allocations for the same barangay.')
       return
     }
     navigate('/admin/distributions', {
@@ -327,12 +328,12 @@ export default function AllocationPage() {
 
     const lines = (form.lines || []).filter((l) => String(l.resource || '').trim())
     if (!lines.length) {
-      alert('Add at least one resource pack (e.g. rice, water) with a name.')
+      notify.warning('Add at least one resource pack (e.g. rice, water) with a name.')
       return
     }
     for (const line of lines) {
       if (!line.quantity || Number(line.quantity) < 1) {
-        alert(`Enter a valid quantity for "${line.resource}".`)
+        notify.warning(`Enter a valid quantity for "${line.resource}".`)
         return
       }
     }
@@ -393,8 +394,9 @@ export default function AllocationPage() {
       }
 
       reload()
+      notify.success(editRow ? 'Allocation updated.' : 'Allocation saved.')
     } catch (err) {
-      alert(err.message)
+      notify.error(err.message)
     } finally {
       setSaving(false)
     }
@@ -416,8 +418,9 @@ export default function AllocationPage() {
       setStatusRow(null)
       setDetailRow(null)
       reload()
+      notify.success('Allocation status updated.')
     } catch (err) {
-      alert(err.message)
+      notify.error(err.message)
     } finally {
       setSaving(false)
     }
@@ -430,8 +433,9 @@ export default function AllocationPage() {
       setDetailRow(null)
       setEditRow(null)
       reload()
+      notify.success('Allocation deleted.')
     } catch (err) {
-      alert(err.message || 'Failed to delete allocation')
+      notify.error(err.message || 'Failed to delete allocation')
     }
   }
 

@@ -4,6 +4,7 @@ import StatusBadge from '../../components/admin/shared/StatusBadge'
 import ApiState from '../../components/admin/shared/ApiState'
 import { getPortalData } from '../../api/resources'
 import { useApiObject } from '../../hooks/useApiList'
+import { notify } from '../../utils/toast'
 
 const ACTIVITY_TYPE_COLORS = {
   Distribution: 'crimson',
@@ -53,7 +54,7 @@ export default function VolunteerHoursPage() {
 
   const handleExportCSV = () => {
     if (!activityLog.length) {
-      alert('No activity to export yet.')
+      notify.warning('No activity to export yet.')
       return
     }
 
@@ -74,6 +75,7 @@ export default function VolunteerHoursPage() {
     a.download = `volunteer-hours-${selectedYear}.csv`
     a.click()
     window.URL.revokeObjectURL(url)
+    notify.success('Hours exported to CSV.')
   }
 
   return (

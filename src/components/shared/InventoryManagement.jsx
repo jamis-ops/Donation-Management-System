@@ -1,5 +1,5 @@
 import { useCallback, useState } from 'react'
-import { Package, PackagePlus, Pencil, Play, CheckCircle2, XCircle, Trash2, X } from 'lucide-react'
+import { Package, PackagePlus, Pencil, Play, CheckCircle2, XCircle, Trash2 } from 'lucide-react'
 import { inventoryApi, repackingApi } from '../../api/resources'
 import { useApiList } from '../../hooks/useApiList'
 import { DONATION_CATEGORIES } from '../../constants/options'
@@ -10,6 +10,7 @@ import StockLevelBar from '../admin/shared/StockLevelBar'
 import ApiState from '../admin/shared/ApiState'
 import FilterBar from '../admin/shared/FilterBar'
 import ModalHeader from '../admin/shared/ModalHeader'
+import { notify } from '../../utils/toast'
 
 const inventoryFilterConfig = {
   searchKeys: ['item', 'category'],
@@ -39,7 +40,6 @@ export default function InventoryManagement() {
   const [tab, setTab] = useState('inventory')
   const [invSummary, setInvSummary] = useState(null)
   const [rpkSummary, setRpkSummary] = useState(null)
-  const [notice, setNotice] = useState('')
 
   const [itemModal, setItemModal] = useState(null)   // null | 'create' | row
   const [itemForm, setItemForm] = useState(emptyItemForm)
@@ -105,15 +105,15 @@ export default function InventoryManagement() {
       }
       if (itemModal === 'create') {
         await inventoryApi.create(payload)
-        setNotice(`${payload.item} added to inventory.`)
+        notify.success(`${payload.item} added to inventory.`)
       } else {
         await inventoryApi.update(itemModal.dbId, payload)
-        setNotice(`${payload.item} updated.`)
+        notify.success(`${payload.item} updated.`)
       }
       setItemModal(null)
       reload()
     } catch (err) {
-      alert(err.message)
+      notify.error(err.message)
     } finally {
       setSaving(false)
     }
@@ -123,10 +123,10 @@ export default function InventoryManagement() {
     if (!window.confirm(`Delete "${row.item}" from inventory?`)) return
     try {
       await inventoryApi.remove(row.dbId)
-      setNotice(`${row.item} removed from inventory.`)
+      notify.success(`${row.item} removed from inventory.`)
       reload()
     } catch (err) {
-      alert(err.message)
+      notify.error(err.message)
     }
   }
 
@@ -166,7 +166,7 @@ export default function InventoryManagement() {
           dueDate: batchForm.dueDate || null,
           notes: batchForm.notes,
         })
-        setNotice('Repacking batch created — source stock has been deducted from inventory.')
+        notify.success('Repacking batch created — source stock has been deducted from inventory.')
       } else {
         await repackingApi.update(batchModal.dbId, {
           output: batchForm.output.trim(),
@@ -176,12 +176,12 @@ export default function InventoryManagement() {
           dueDate: batchForm.dueDate || null,
           notes: batchForm.notes,
         })
-        setNotice('Repacking batch updated.')
+        notify.success('Repacking batch updated.')
       }
       setBatchModal(null)
       reloadAll()
     } catch (err) {
-      alert(err.message)
+      notify.error(err.message)
     } finally {
       setSaving(false)
     }
@@ -196,7 +196,7 @@ export default function InventoryManagement() {
     if (confirmMsg && !window.confirm(confirmMsg)) return
     try {
       await repackingApi.update(row.dbId, { status })
-      setNotice(
+      notify.success(
         status === 'Completed'
           ? `Batch ${row.id} completed — ${row.quantity} ${row.outputUnit} of ${row.output} added to inventory.`
           : status === 'Cancelled'
@@ -205,7 +205,7 @@ export default function InventoryManagement() {
       )
       reloadAll()
     } catch (err) {
-      alert(err.message)
+      notify.error(err.message)
     }
   }
 
@@ -213,10 +213,10 @@ export default function InventoryManagement() {
     if (!window.confirm(`Delete batch ${row.id}?${row.status === 'Scheduled' || row.status === 'In Progress' ? ' Source stock will be returned to inventory.' : ''}`)) return
     try {
       await repackingApi.remove(row.dbId)
-      setNotice(`Batch ${row.id} deleted.`)
+      notify.success(`Batch ${row.id} deleted.`)
       reloadAll()
     } catch (err) {
-      alert(err.message)
+      notify.error(err.message)
     }
   }
 
@@ -310,13 +310,6 @@ export default function InventoryManagement() {
 
   return (
     <>
-      {notice && (
-        <div className="portal-notice">
-          <span>{notice}</span>
-          <button type="button" onClick={() => setNotice('')} aria-label="Dismiss"><X size={14} /></button>
-        </div>
-      )}
-
       <div className="admin-tabs">
         <button type="button" className={`admin-tab${tab === 'inventory' ? ' admin-tab--active' : ''}`} onClick={() => setTab('inventory')}>
           <Package size={14} /> Inventory

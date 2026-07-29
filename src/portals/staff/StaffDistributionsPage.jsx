@@ -3,6 +3,7 @@ import { Truck, MapPin, Calendar, Users, Package, Clock, CheckCircle, Search, Fi
 import ApiState from '../../components/admin/shared/ApiState'
 import { getPortalData, distributionsApi } from '../../api/resources'
 import { useApiObject } from '../../hooks/useApiList'
+import { notify } from '../../utils/toast'
 
 export default function StaffDistributionsPage() {
   const { data: portalData, loading, error, reload } = useApiObject(() => getPortalData())
@@ -60,10 +61,11 @@ export default function StaffDistributionsPage() {
     if (!window.confirm(`Start distribution at ${dist.location}?`)) return
     try {
       await distributionsApi.update(dist.dbId, { status: 'In Progress' })
+      notify.success('Distribution started.')
       setSelectedDistribution(null)
       reload()
     } catch (err) {
-      alert(err.message || 'Failed to start distribution')
+      notify.error(err.message || 'Failed to start distribution')
     }
   }
 
@@ -72,10 +74,11 @@ export default function StaffDistributionsPage() {
     if (!window.confirm(`Mark distribution at ${dist.location} as completed?`)) return
     try {
       await distributionsApi.update(dist.dbId, { status: 'Completed' })
+      notify.success('Distribution completed.')
       setSelectedDistribution(null)
       reload()
     } catch (err) {
-      alert(err.message || 'Failed to complete distribution')
+      notify.error(err.message || 'Failed to complete distribution')
     }
   }
 

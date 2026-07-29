@@ -2,6 +2,7 @@ import { Link } from 'react-router-dom'
 import { Globe, Mail, Share2 } from 'lucide-react'
 import { foundation } from '../../data/mockData'
 import Logo from '../shared/Logo'
+import PolicyLinks from '../shared/PolicyLinks'
 
 const footerLinks = [
   {
@@ -78,8 +79,11 @@ export default function Footer() {
         </div>
       </div>
       <div className="site-footer__bottom">
-        <div className="container">
+        <div className="container site-footer__bottom-inner">
           <p>&copy; {new Date().getFullYear()} {foundation.name}. All rights reserved.</p>
+          <p className="site-footer__legal">
+            <PolicyLinks connector=" · " />
+          </p>
         </div>
       </div>
     </footer>

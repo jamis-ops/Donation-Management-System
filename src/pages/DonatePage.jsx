@@ -1,9 +1,9 @@
 import { useState } from 'react'
-import { Link } from 'react-router-dom'
 import { submitPublicDonation } from '../api/resources'
 import { DONOR_TYPES } from '../constants/options'
 import Req from '../components/shared/Req'
 import NameFields from '../components/shared/NameFields'
+import PolicyLinks from '../components/shared/PolicyLinks'
 import { emptyNameParts, formatFullName } from '../utils/personName'
 
 const donationTypes = [
@@ -315,9 +315,7 @@ export default function DonatePage() {
                 />
                 <span>
                   I accept the{' '}
-                  <Link to="/privacy" target="_blank" rel="noreferrer">Data Privacy Policy</Link>
-                  {' '}and{' '}
-                  <Link to="/terms" target="_blank" rel="noreferrer">Terms &amp; Conditions</Link>
+                  <PolicyLinks />
                   <Req required />
                 </span>
               </label>

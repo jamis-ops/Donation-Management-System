@@ -1,9 +1,10 @@
 import { useState } from 'react'
-import { Link } from 'react-router-dom'
 import { ListTodo, Mail, UserCog } from 'lucide-react'
 import { createStaffAccount, getStaff, updateStaff, tasksApi } from '../../api/resources'
 import { useApiList } from '../../hooks/useApiList'
 import { useFilters } from '../../hooks/useFilters'
+import { useAuth } from '../../context/AuthContext'
+import { isSuperAdminRole } from '../../utils/roleRoutes'
 import PageHeader from '../../components/admin/shared/PageHeader'
 import DataTable from '../../components/admin/shared/DataTable'
 import StatusBadge from '../../components/admin/shared/StatusBadge'
@@ -11,10 +12,12 @@ import ApiState from '../../components/admin/shared/ApiState'
 import FilterBar from '../../components/admin/shared/FilterBar'
 import ModalHeader from '../../components/admin/shared/ModalHeader'
 import Req from '../../components/shared/Req'
+import PolicyLinks from '../../components/shared/PolicyLinks'
 import { useSeeMore } from '../../hooks/useSeeMore'
 import { SeeMoreToggle } from '../../components/admin/shared/SeeMoreList'
 import NameFields from '../../components/shared/NameFields'
 import { emptyNameParts, formatFullName } from '../../utils/personName'
+import { notify } from '../../utils/toast'
 
 const filterConfig = {
   searchKeys: ['id', 'name', 'email', 'firstName', 'lastName'],
@@ -41,6 +44,8 @@ const emptyTaskForm = {
 }
 
 export default function StaffPage() {
+  const { user } = useAuth()
+  const isSuperAdmin = isSuperAdminRole(user?.role, user)
   const { data, loading, error, reload } = useApiList(() => getStaff())
   const filters = useFilters(data, filterConfig)
   const [showForm, setShowForm] = useState(false)
@@ -72,6 +77,10 @@ export default function StaffPage() {
   }
 
   const openStaff = (row) => {
+    if (row.role === 'Admin' && !isSuperAdmin) {
+      notify.warning('Only the Super Admin can manage Admin accounts.')
+      return
+    }
     setSelected(row)
     setEditForm({
       lastName: row.lastName || '',
@@ -88,7 +97,7 @@ export default function StaffPage() {
     e.preventDefault()
     setSuccessMsg('')
     if (!form.lastName.trim() || !form.firstName.trim()) {
-      alert('Last Name and First Name are required.')
+      notify.warning('Last Name and First Name are required.')
       return
     }
     setSaving(true)
@@ -103,22 +112,38 @@ export default function StaffPage() {
         role: form.role,
         acceptedPolicies: form.acceptedPolicies,
       })
-      if (!res?.credentialsSent) {
-        throw new Error(
+      if (!res?.ok && !res?.data) {
+        throw new Error(res?.error || 'Failed to create staff account.')
+      }
+      if (res?.credentialsSent) {
+        const msg = res.message || 'Staff account created and credentials emailed successfully.'
+        setSuccessMsg(msg)
+        notify.success(msg)
+      } else {
+        const temp = res?.temporaryPassword
+          ? `\n\nTemporary password (share securely): ${res.temporaryPassword}`
+          : ''
+        const mailHint = res?.mailError ? `\nMail note: ${res.mailError}` : ''
+        setSuccessMsg(
+          (res?.message || 'Staff account created.')
+          + temp
+          + mailHint
+          + '\n\nTip: run `npm run mail` with a valid Gmail App Password to email credentials automatically.',
+        )
+        notify.warning(
           [
-            res?.error || 'Credential email was not sent.',
-            res?.mailError ? `Mail: ${res.mailError}` : '',
-            res?.temporaryPassword ? `Temporary password (share securely): ${res.temporaryPassword}` : '',
-            'Ensure npm run mail is running with a valid Gmail App Password.',
-          ].filter(Boolean).join('\n\n'),
+            res?.message || 'Staff account was created.',
+            res?.temporaryPassword ? `Temporary password: ${res.temporaryPassword}` : '',
+            res?.mailError ? `Email issue: ${res.mailError}` : 'Credential email was not delivered.',
+            'Share the temporary password securely, or fix mail settings and recreate/resend later.',
+          ].filter(Boolean).join('. '),
         )
       }
-      setSuccessMsg(res.message || 'Staff account created and credentials emailed successfully.')
       setShowForm(false)
       setForm(emptyForm)
       reload()
     } catch (err) {
-      alert(err.message)
+      notify.error(err.message)
     } finally {
       setSaving(false)
     }
@@ -138,10 +163,11 @@ export default function StaffPage() {
         status: editForm.status,
       })
       setSuccessMsg('Staff profile updated.')
+      notify.success('Staff profile updated.')
       reload()
       setSelected(null)
     } catch (err) {
-      alert(err.message)
+      notify.error(err.message)
     } finally {
       setSaving(false)
     }
@@ -152,13 +178,14 @@ export default function StaffPage() {
     if (!window.confirm(`Set ${row.name} to ${next}?`)) return
     try {
       await updateStaff(row.dbId, { status: next })
+      notify.success(`${row.name} is now ${next}.`)
       reload()
       if (selected?.dbId === row.dbId) {
         setSelected({ ...row, status: next })
         setEditForm((f) => (f ? { ...f, status: next } : f))
       }
     } catch (err) {
-      alert(err.message)
+      notify.error(err.message)
     }
   }
 
@@ -179,8 +206,9 @@ export default function StaffPage() {
       setShowTaskForm(false)
       setTaskForm(emptyTaskForm)
       loadTasks(selected)
+      notify.success('Task assigned successfully.')
     } catch (err) {
-      alert(err.message)
+      notify.error(err.message)
     } finally {
       setSaving(false)
     }
@@ -210,9 +238,25 @@ export default function StaffPage() {
   return (
     <>
       <PageHeader
-        title="Staff Management"
-        description="Create Staff/Admin accounts, email temporary credentials, and manage Active/Inactive status."
-        actions={<button type="button" className="btn btn--primary" onClick={() => { setShowForm(true); setSuccessMsg('') }}>+ Add Staff</button>}
+        title="Staff & Admin Accounts"
+        description={
+          isSuperAdmin
+            ? 'Super Admin only: create and manage database Admin accounts, email their credentials, and manage Staff.'
+            : 'Create Staff accounts and email temporary credentials. Only the Super Admin can create Admin accounts.'
+        }
+        actions={(
+          <button
+            type="button"
+            className="btn btn--primary"
+            onClick={() => {
+              setForm({ ...emptyForm, role: 'Staff' })
+              setShowForm(true)
+              setSuccessMsg('')
+            }}
+          >
+            {isSuperAdmin ? '+ Add Account' : '+ Add Staff'}
+          </button>
+        )}
       />
 
       {successMsg ? (
@@ -368,7 +412,10 @@ export default function StaffPage() {
       {showForm && (
         <div className="admin-modal-overlay" onClick={() => setShowForm(false)}>
           <div className="admin-modal admin-modal--wide" onClick={(e) => e.stopPropagation()}>
-            <ModalHeader title="Create Staff Account" onClose={() => setShowForm(false)} />
+            <ModalHeader
+              title={isSuperAdmin ? 'Create Account' : 'Create Staff Account'}
+              onClose={() => setShowForm(false)}
+            />
             <form onSubmit={handleSave}>
               <NameFields
                 value={form}
@@ -388,9 +435,16 @@ export default function StaffPage() {
                 <Req required>Role</Req>
                 <select required value={form.role} onChange={(e) => setForm({ ...form, role: e.target.value })}>
                   <option value="Staff">Staff</option>
-                  <option value="Admin">Admin</option>
+                  {isSuperAdmin ? <option value="Admin">Admin</option> : null}
                 </select>
               </label>
+              {!isSuperAdmin ? (
+                <p className="field-hint">Admin accounts can only be created by the Super Admin.</p>
+              ) : (
+                <p className="field-hint">
+                  Choose <strong>Admin</strong> to create a database Admin (separate from the hardcoded Super Admin). Credentials are emailed after creation.
+                </p>
+              )}
               <label className="need-check">
                 <input
                   type="checkbox"
@@ -400,14 +454,12 @@ export default function StaffPage() {
                 />
                 <span>
                   User accepts the{' '}
-                  <Link to="/privacy" target="_blank" rel="noreferrer">Data Privacy Policy</Link>
-                  {' '}and{' '}
-                  <Link to="/terms" target="_blank" rel="noreferrer">Terms &amp; Conditions</Link>
+                  <PolicyLinks />
                   <Req required />
                 </span>
               </label>
               <p className="field-hint">
-                Temporary login credentials are emailed via NodeMailer. The staff member must change the password on first login. Success is confirmed only after the email is delivered.
+                Temporary login credentials are emailed when the mail service is running. If email delivery fails, the account is still created and the temporary password is shown so you can share it securely.
               </p>
               <div className="admin-modal__actions">
                 <button type="submit" className="btn btn--primary" disabled={saving}>

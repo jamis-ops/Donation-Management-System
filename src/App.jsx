@@ -1,6 +1,7 @@
 import { createBrowserRouter, RouterProvider, Navigate, useSearchParams } from 'react-router-dom'
 import { useEffect } from 'react'
 import { AuthProvider } from './context/AuthContext'
+import { ToastProvider } from './context/ToastContext'
 import PublicLayout from './components/layout/PublicLayout'
 import AdminLayout from './components/admin/layout/AdminLayout'
 import ProtectedRoute from './components/admin/ProtectedRoute'
@@ -201,7 +202,9 @@ const router = createBrowserRouter([
 export default function App() {
   return (
     <AuthProvider>
-      <RouterProvider router={router} />
+      <ToastProvider>
+        <RouterProvider router={router} />
+      </ToastProvider>
     </AuthProvider>
   )
 }

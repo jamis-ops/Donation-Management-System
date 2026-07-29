@@ -5,6 +5,7 @@ import ApiState from '../../components/admin/shared/ApiState'
 import { distributionsApi } from '../../api/resources'
 import { useApiList } from '../../hooks/useApiList'
 import ModalHeader from '../../components/admin/shared/ModalHeader'
+import { notify } from '../../utils/toast'
 
 export default function BeneficiaryDistributionsPage() {
   const { data, loading, error, reload } = useApiList(() => distributionsApi.list())
@@ -28,13 +29,15 @@ export default function BeneficiaryDistributionsPage() {
           receivedQuantity: Number(qty) || 0,
           notes,
         })
+        notify.success('Receipt confirmed.')
       } else {
         await distributionsApi.update(modal.row.dbId, { action: 'report-missing', notes })
+        notify.success('Issue reported.')
       }
       setModal(null)
       reload()
     } catch (err) {
-      alert(err.message)
+      notify.error(err.message)
     } finally {
       setSaving(false)
     }

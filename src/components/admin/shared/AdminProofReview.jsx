@@ -7,6 +7,7 @@ import ModalHeader from './ModalHeader'
 import { reviewProof } from '../../../api/resources'
 import { useSeeMore } from '../../../hooks/useSeeMore'
 import { SeeMoreToggle } from './SeeMoreList'
+import { notify } from '../../../utils/toast'
 
 function isPending(status) {
   return status === 'Pending' || status === 'Pending Review'
@@ -25,7 +26,6 @@ export default function AdminProofReview({
   const [busyId, setBusyId] = useState(null)
   const [filter, setFilter] = useState('all')
   const [barangayFilter, setBarangayFilter] = useState(lockedBarangay || '')
-  const [toast, setToast] = useState('')
 
   const scoped = useMemo(() => {
     if (lockedBeneficiaryId) {
@@ -57,20 +57,15 @@ export default function AdminProofReview({
     rejected: scoped.filter((p) => p.status === 'Rejected').length,
   }
 
-  const flash = (msg) => {
-    setToast(msg)
-    setTimeout(() => setToast(''), 2800)
-  }
-
   const approve = async (proof) => {
     if (!window.confirm(`Approve proof from ${proof.barangay} for "${proof.eventName || proof.distributionCode}"?`)) return
     setBusyId(proof.id)
     try {
       await reviewProof(proof.id, 'Approved')
-      flash('Proof approved successfully.')
+      notify.success('Proof approved successfully.')
       onChanged?.()
     } catch (err) {
-      alert(err.message)
+      notify.error(err.message)
     } finally {
       setBusyId(null)
     }
@@ -80,7 +75,7 @@ export default function AdminProofReview({
     e.preventDefault()
     if (!rejecting) return
     if (!remarks.trim()) {
-      alert('Please provide a rejection reason for the barangay.')
+      notify.warning('Please provide a rejection reason for the barangay.')
       return
     }
     setBusyId(rejecting.id)
@@ -88,10 +83,10 @@ export default function AdminProofReview({
       await reviewProof(rejecting.id, 'Rejected', remarks.trim())
       setRejecting(null)
       setRemarks('')
-      flash('Proof rejected. The barangay has been notified.')
+      notify.success('Proof rejected. The barangay has been notified.')
       onChanged?.()
     } catch (err) {
-      alert(err.message)
+      notify.error(err.message)
     } finally {
       setBusyId(null)
     }
@@ -99,8 +94,6 @@ export default function AdminProofReview({
 
   return (
     <div className="proof-review">
-      {toast && <div className="proof-review__toast" role="status">{toast}</div>}
-
       <div className="proof-review__toolbar">
         <div className="proof-review__chips">
           <button type="button" className={`proof-chip${filter === 'all' ? ' proof-chip--active' : ''}`} onClick={() => setFilter('all')}>

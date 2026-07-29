@@ -3,6 +3,7 @@ import { useAuth } from '../context/AuthContext'
 import { apiFetch, uploadProfilePhoto } from '../api/resources'
 import PageHeader from '../components/admin/shared/PageHeader'
 import Req from '../components/shared/Req'
+import { notify } from '../utils/toast'
 
 export default function AccountSettingsPage() {
   const { user, updateAccount, changePassword, refreshUser } = useAuth()
@@ -18,8 +19,6 @@ export default function AccountSettingsPage() {
   const [savingProfile, setSavingProfile] = useState(false)
   const [savingPassword, setSavingPassword] = useState(false)
   const [uploadingPhoto, setUploadingPhoto] = useState(false)
-  const [message, setMessage] = useState('')
-  const [error, setError] = useState('')
 
   useEffect(() => {
     let cancelled = false
@@ -44,21 +43,15 @@ export default function AccountSettingsPage() {
     return () => { cancelled = true }
   }, [user])
 
-  const clearAlerts = () => {
-    setMessage('')
-    setError('')
-  }
-
   const handleSaveProfile = async (e) => {
     e.preventDefault()
-    clearAlerts()
     setSavingProfile(true)
     try {
       await updateAccount({ name, phone, recoveryPhone })
-      setMessage('Profile updated.')
+      notify.success('Profile updated.')
       await refreshUser()
     } catch (err) {
-      setError(err.message || 'Failed to update profile')
+      notify.error(err.message || 'Failed to update profile')
     } finally {
       setSavingProfile(false)
     }
@@ -66,13 +59,12 @@ export default function AccountSettingsPage() {
 
   const handleChangePassword = async (e) => {
     e.preventDefault()
-    clearAlerts()
     if (newPassword.length < 6) {
-      setError('New password must be at least 6 characters.')
+      notify.warning('New password must be at least 6 characters.')
       return
     }
     if (newPassword !== confirmPassword) {
-      setError('New password and confirmation do not match.')
+      notify.warning('New password and confirmation do not match.')
       return
     }
     setSavingPassword(true)
@@ -81,9 +73,9 @@ export default function AccountSettingsPage() {
       setCurrentPassword('')
       setNewPassword('')
       setConfirmPassword('')
-      setMessage('Password changed successfully.')
+      notify.success('Password changed successfully.')
     } catch (err) {
-      setError(err.message || 'Failed to change password')
+      notify.error(err.message || 'Failed to change password')
     } finally {
       setSavingPassword(false)
     }
@@ -98,9 +90,8 @@ export default function AccountSettingsPage() {
 
   const handleUploadPhoto = async (e) => {
     e.preventDefault()
-    clearAlerts()
     if (!photoFile) {
-      setError('Choose a photo to upload.')
+      notify.warning('Choose a photo to upload.')
       return
     }
     setUploadingPhoto(true)
@@ -112,10 +103,10 @@ export default function AccountSettingsPage() {
         setPhotoPreview(res.data.profilePhoto || photoPreview)
       }
       setPhotoFile(null)
-      setMessage('Profile photo updated.')
+      notify.success('Profile photo updated.')
       await refreshUser()
     } catch (err) {
-      setError(err.message || 'Photo upload failed')
+      notify.error(err.message || 'Photo upload failed')
     } finally {
       setUploadingPhoto(false)
     }
@@ -128,12 +119,6 @@ export default function AccountSettingsPage() {
         description="Update your profile details, recovery phone, password, and photo."
       />
 
-      {message && <div className="portal-notice settings-notice">{message}</div>}
-      {error && (
-        <div className="portal-notice settings-notice settings-notice--error" role="alert">
-          {error}
-        </div>
-      )}
 
       <div className="settings-grid">
         <section className="portal-panel settings-panel">

@@ -73,7 +73,8 @@ if ($notifyTo !== '' && function_exists('send_mail')) {
   $html = "<p><strong>New contact form message</strong> ({$safeCode})</p>"
     . "<p><strong>From:</strong> {$safeName} &lt;{$safeEmail}&gt;</p>"
     . "<p><strong>Subject:</strong> {$safeSubject}</p>"
-    . "<p>{$safeMessage}</p>";
+    . "<p>{$safeMessage}</p>"
+    . email_link_html('/admin', 'Open admin portal');
   $emailNotified = (bool) send_mail($notifyTo, 'Rise Above Admin', "[Contact] {$subject} ({$code})", $html);
 }
 

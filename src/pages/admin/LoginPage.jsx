@@ -27,8 +27,9 @@ export default function LoginPage() {
     setLoading(true)
     try {
       const result = await login(email, password)
-      if (result?.user?.role !== 'Admin') {
-        setError('This login is for Admin accounts only. Use the main login for other roles.')
+      const role = result?.user?.role
+      if (role !== 'Admin' && role !== 'SuperAdmin') {
+        setError('This login is for Super Admin and Admin accounts only. Use the main login for other roles.')
         return
       }
       if (result.user?.mustChangePassword) {
@@ -56,6 +57,10 @@ export default function LoginPage() {
             <Logo className="admin-login__logo" />
             <h1>Admin Login</h1>
             <p>Rise Above Foundation Management System</p>
+            <p className="admin-login__hint">
+              Super Admin is hardcoded in server config (not in the database) and always remains after a DB wipe.
+              Regular Admin accounts are stored in MySQL and can only be created by the Super Admin.
+            </p>
           </div>
 
           <form onSubmit={handleSubmit} className="admin-login__form">
@@ -91,8 +96,8 @@ export default function LoginPage() {
 
           <div className="admin-login__demo">
             <p><strong>Demo credentials</strong></p>
-            <p>Email: <code>admin@riseabovefoundation.org</code></p>
-            <p>Password: <code>admin123</code></p>
+            <p>Super Admin (hardcoded): <code>superadmin@riseabovefoundation.org</code> / <code>SuperAdmin@RAFC2026!</code></p>
+            <p>Admin (database): <code>admin@riseabovefoundation.org</code> / <code>admin123</code></p>
           </div>
 
           <Link to="/" className="admin-login__back">Back to public site</Link>

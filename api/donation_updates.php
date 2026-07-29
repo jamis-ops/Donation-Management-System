@@ -126,6 +126,58 @@ if ($method === 'POST') {
     $pdo->prepare('UPDATE donations SET status = ? WHERE id = ?')->execute([$statusMap[$stage], $donationId]);
   }
 
+  $donationStmt = $pdo->prepare('SELECT tracking_code, donor_name, donor_email, donor_id FROM donations WHERE id = ? LIMIT 1');
+  $donationStmt->execute([$donationId]);
+  $donation = $donationStmt->fetch() ?: [];
+  $tracking = (string) ($donation['tracking_code'] ?? '');
+  $donorName = (string) ($donation['donor_name'] ?? 'Donor');
+  $donorEmail = trim((string) ($donation['donor_email'] ?? ''));
+
+  notify_admins(
+    $pdo,
+    'donation',
+    'Donation progress update',
+    ($tracking !== '' ? "{$tracking}: " : '') . $stage,
+    '/admin/donations'
+  );
+
+  $donorUserId = null;
+  if (!empty($donation['donor_id'])) {
+    $uidStmt = $pdo->prepare('SELECT user_id FROM donors WHERE id = ? LIMIT 1');
+    $uidStmt->execute([(int) $donation['donor_id']]);
+    $donorUserId = (int) ($uidStmt->fetchColumn() ?: 0) ?: null;
+  }
+  if (!$donorUserId && $donorEmail !== '') {
+    $uidStmt = $pdo->prepare('SELECT id FROM users WHERE email = ? AND role = ? LIMIT 1');
+    $uidStmt->execute([strtolower($donorEmail), 'Donor']);
+    $donorUserId = (int) ($uidStmt->fetchColumn() ?: 0) ?: null;
+  }
+  if ($donorUserId) {
+    create_notification(
+      $pdo,
+      'donation',
+      'Donation progress update',
+      ($tracking !== '' ? "{$tracking}: " : '') . $stage . ($note !== '' ? " — {$note}" : ''),
+      '/donor/donations',
+      $donorUserId
+    );
+  }
+  if ($donorEmail !== '' && filter_var($donorEmail, FILTER_VALIDATE_EMAIL)) {
+    $safeName = htmlspecialchars($donorName, ENT_QUOTES, 'UTF-8');
+    $safeTracking = htmlspecialchars($tracking !== '' ? $tracking : 'your donation', ENT_QUOTES, 'UTF-8');
+    $safeStage = htmlspecialchars($stage, ENT_QUOTES, 'UTF-8');
+    $safeNote = $note !== '' ? '<p>' . htmlspecialchars($note, ENT_QUOTES, 'UTF-8') . '</p>' : '';
+    send_mail(
+      $donorEmail,
+      $donorName,
+      "Donation update" . ($tracking !== '' ? ": {$tracking}" : ''),
+      "<p>Hello {$safeName},</p>"
+        . "<p>Your donation <strong>{$safeTracking}</strong> was updated to <strong>{$safeStage}</strong>.</p>"
+        . $safeNote
+        . email_link_html('/donor/donations', 'Track in donor portal')
+    );
+  }
+
   $stmt = $pdo->prepare('SELECT * FROM donation_updates WHERE id = ?');
   $stmt->execute([$newId]);
   json_response(['ok' => true, 'data' => map_donation_update($stmt->fetch())], 201);

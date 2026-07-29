@@ -18,6 +18,7 @@ import SkillTagPicker from '../../components/shared/SkillTagPicker'
 import RowActionsMenu from '../../components/admin/shared/RowActionsMenu'
 import { useSeeMore } from '../../hooks/useSeeMore'
 import { SeeMoreToggle } from '../../components/admin/shared/SeeMoreList'
+import { notify } from '../../utils/toast'
 
 const WORKFLOW = ['Planning', 'Preparing', 'In Transit', 'Delivered', 'Awaiting Proof', 'Completed']
 const PROOF_STATUS = ['Not Required', 'Awaiting Proof', 'Proof Submitted', 'Proof Verified', 'Proof Rejected']
@@ -87,7 +88,7 @@ export default function DistributionsPage() {
 
   const handleGroupDrafts = async () => {
     if (selectedDraftIds.length < 2) {
-      alert('Select at least 2 draft distributions for the same barangay to group.')
+      notify.warning('Select at least 2 draft distributions for the same barangay to group.')
       return
     }
     setGrouping(true)
@@ -102,11 +103,12 @@ export default function DistributionsPage() {
       if (res?.ok) {
         setSelectedDraftIds([])
         reload()
+        notify.success('Draft distributions grouped.')
       } else {
-        alert(res?.error || 'Failed to group distributions')
+        notify.error(res?.error || 'Failed to group distributions')
       }
     } catch (err) {
-      alert(err.message)
+      notify.error(err.message)
     } finally {
       setGrouping(false)
     }
@@ -176,7 +178,7 @@ export default function DistributionsPage() {
   const handleSave = async (e) => {
     e.preventDefault()
     if (!form.beneficiaryId) {
-      alert('Please select a barangay for this delivery.')
+      notify.warning('Please select a barangay for this delivery.')
       return
     }
     setSaving(true)
@@ -212,8 +214,9 @@ export default function DistributionsPage() {
       }
       setShowVolunteerHelp(false)
       reload()
+      notify.success(editRow ? 'Delivery updated.' : 'Delivery created.')
     } catch (err) {
-      alert(err.message)
+      notify.error(err.message)
     } finally {
       setSaving(false)
     }
@@ -228,8 +231,9 @@ export default function DistributionsPage() {
       setStatusRow(null)
       setDetailRow(null)
       reload()
+      notify.success('Delivery status updated.')
     } catch (err) {
-      alert(err.message)
+      notify.error(err.message)
     } finally {
       setSaving(false)
     }
@@ -242,8 +246,9 @@ export default function DistributionsPage() {
       setDetailRow(null)
       setEditRow(null)
       reload()
+      notify.success('Delivery deleted.')
     } catch (err) {
-      alert(err.message || 'Failed to delete distribution')
+      notify.error(err.message || 'Failed to delete distribution')
     }
   }
 

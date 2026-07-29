@@ -6,6 +6,7 @@ import CertificateView from '../../components/shared/CertificateView'
 import { printCertificate } from '../../components/shared/printCertificate'
 import { certificatesApi, donationsApi } from '../../api/resources'
 import { useApiList } from '../../hooks/useApiList'
+import { notify } from '../../utils/toast'
 
 const CERT_TYPE_CONFIG = {
   'Certificate of Appreciation': { color: 'gold', icon: Award },
@@ -69,7 +70,7 @@ export default function DonorCertificatesPage() {
       setNotice('Your certificate request has been sent. You will be notified once it is ready.')
       reload()
     } catch (err) {
-      alert(err.message)
+      notify.error(err.message)
     } finally {
       setBusy(false)
     }
@@ -82,7 +83,7 @@ export default function DonorCertificatesPage() {
   const handleCopyLink = (cert) => {
     const link = `${window.location.origin}/certificates/verify/${cert.reference}`
     navigator.clipboard.writeText(link)
-    alert('Certificate verification link copied to clipboard!')
+    notify.success('Certificate verification link copied to clipboard!')
   }
 
   const ready = (c) => c.status === 'Generated'

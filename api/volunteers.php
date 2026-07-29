@@ -9,7 +9,7 @@ $id = get_id_param();
 function map_volunteer(PDO $pdo, array $row): array
 {
   $taskCount = $pdo->prepare('SELECT COUNT(*) FROM tasks WHERE assignee = ? OR assignee_user_id = ?');
-  $taskCount->execute([$row['full_name'], $row['user_id']]);
+  $taskCount->execute([$row['full_name'], $row['user_id'] ? (int) $row['user_id'] : 0]);
   $skills = [];
   if (!empty($row['skills_json'])) {
     $decoded = json_decode((string) $row['skills_json'], true);
@@ -24,7 +24,7 @@ function map_volunteer(PDO $pdo, array $row): array
   $skills = array_values(array_filter(array_map(static fn($s) => trim((string) $s), $skills)));
 
   $openCount = $pdo->prepare("SELECT COUNT(*) FROM tasks WHERE (assignee = ? OR assignee_user_id = ?) AND board_column <> 'done'");
-  $openCount->execute([$row['full_name'], $row['user_id'] ?: 0]);
+  $openCount->execute([$row['full_name'], $row['user_id'] ? (int) $row['user_id'] : 0]);
 
   return [
     'id' => $row['code'],
@@ -245,7 +245,7 @@ if ($method === 'PUT') {
       if ($mail) {
         $mailTransport = (string) ($mail['transport'] ?? '');
         $mailError = (string) ($mail['error'] ?? '');
-        $credentialsSent = !empty($mail['sent']) && in_array($mailTransport, ['nodemailer', 'smtp'], true);
+        $credentialsSent = !empty($mail['sent']) && in_array($mailTransport, ['nodemailer', 'smtp', 'outbox', 'mail'], true);
       }
       if (!empty($provision['error'])) {
         $mailError = $mailError !== '' ? $mailError : (string) $provision['error'];

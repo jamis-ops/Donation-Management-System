@@ -1,6 +1,8 @@
 // Client-side data export helpers (CSV, Excel, PDF/Print).
 // Works off the already-loaded, filtered table data so exports match what the user sees.
 
+import { notify } from './toast'
+
 function cellValue(value) {
   if (value === null || value === undefined) return ''
   if (Array.isArray(value)) return value.join('; ')
@@ -65,7 +67,7 @@ export function exportExcel(filename, columns, rows) {
 export function printPdf(title, sections) {
   const win = window.open('', '_blank', 'width=1000,height=700')
   if (!win) {
-    alert('Please allow pop-ups to export as PDF.')
+    notify.warning('Please allow pop-ups to export as PDF.')
     return
   }
 

@@ -60,12 +60,13 @@ if (!defined('SMTP_PASS')) {
 if (!defined('SMTP_SECURE')) {
   define('SMTP_SECURE', 'tls');
 }
-if (!defined('FRONTEND_URL')) {
-  define('FRONTEND_URL', 'http://localhost:5173');
-}
+// Do not hardcode FRONTEND_URL to localhost — api/app_url.php resolves
+// APP_URL / FRONTEND_URL / Origin / Host dynamically for every environment.
 if (!defined('API_PUBLIC_URL')) {
   define('API_PUBLIC_URL', '');
 }
+
+require_once __DIR__ . '/app_url.php';
 
 $GLOBALS['MAIL_LAST_RESULT'] = [
   'ok' => false,
@@ -258,11 +259,8 @@ if (!function_exists('nodemailer_send_credentials')) {
     string $temporaryPassword,
     string $role
   ): bool {
-    $loginBase = defined('FRONTEND_URL') ? rtrim((string) FRONTEND_URL, '/') : 'http://localhost:5173';
-    $loginUrl = function_exists('frontend_url') ? frontend_url('/login') : ($loginBase . '/login');
-    $recovery = defined('RECOVERY_URL') && RECOVERY_URL !== ''
-      ? (string) RECOVERY_URL
-      : $loginUrl;
+    $loginUrl = frontend_url('/login');
+    $recovery = recovery_url();
 
     $resp = mail_node_request('/send-credentials', [
       'toEmail' => $toEmail,
@@ -312,6 +310,50 @@ if (!function_exists('nodemailer_send_verification')) {
     }
 
     $err = (string) ($resp['error'] ?? 'NodeMailer verification send failed');
+    $last = mail_last_result();
+    if (!empty($last['error'])) {
+      $err .= ' | fallback: ' . $last['error'];
+    }
+    mail_set_result(false, 'nodemailer', $err);
+    return false;
+  }
+}
+
+if (!function_exists('nodemailer_send_invitation')) {
+  /**
+   * Send barangay partnership invitation via NodeMailer, with /send fallback.
+   */
+  function nodemailer_send_invitation(string $toEmail, string $barangayName, string $inviteUrl, int $expiresInDays = 7): bool
+  {
+    $resp = mail_node_request('/send-invitation', [
+      'toEmail' => $toEmail,
+      'toName' => $barangayName,
+      'barangayName' => $barangayName,
+      'inviteUrl' => $inviteUrl,
+      'expiresInDays' => $expiresInDays,
+    ]);
+    if (!empty($resp['ok'])) {
+      mail_set_result(true, 'nodemailer', '');
+      return true;
+    }
+
+    $safeBarangay = htmlspecialchars($barangayName, ENT_QUOTES, 'UTF-8');
+    $safeUrl = htmlspecialchars($inviteUrl, ENT_QUOTES, 'UTF-8');
+    $days = max(1, $expiresInDays);
+    $bodyHtml = '<p style="margin:0 0 12px;font-size:1.15rem;font-weight:700;color:#0f172a">Barangay partnership invitation</p>'
+      . "<p style=\"margin:0 0 14px\">Rise Above Foundation invited <strong>{$safeBarangay}</strong> to join the Donation Management System.</p>"
+      . "<p style=\"margin:0 0 14px\">Click the button below to accept the invitation and set up your barangay portal account. This link expires in {$days} days.</p>"
+      . '<p style="margin:24px 0;text-align:center">'
+      . '<a href="' . $safeUrl . '" style="display:inline-block;background:#AF101A;color:#ffffff;padding:14px 28px;border-radius:8px;text-decoration:none;font-weight:700">Accept invitation</a>'
+      . '</p>'
+      . '<p style="margin:0;color:#64748b;font-size:0.88rem;word-break:break-all">Or open: <a href="' . $safeUrl . '">' . $safeUrl . '</a></p>';
+
+    $fallback = nodemailer_send($toEmail, $barangayName, 'Barangay partnership invitation — Rise Above Foundation', $bodyHtml);
+    if ($fallback) {
+      return true;
+    }
+
+    $err = (string) ($resp['error'] ?? 'NodeMailer invitation send failed');
     $last = mail_last_result();
     if (!empty($last['error'])) {
       $err .= ' | fallback: ' . $last['error'];

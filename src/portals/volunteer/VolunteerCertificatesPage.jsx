@@ -7,6 +7,7 @@ import { printCertificate } from '../../components/shared/printCertificate'
 import { certificatesApi } from '../../api/resources'
 import { useApiList } from '../../hooks/useApiList'
 import ModalHeader from '../../components/admin/shared/ModalHeader'
+import { notify } from '../../utils/toast'
 
 const CERTIFICATE_TYPE_CONFIG = {
   'Volunteer Certificate': { color: 'crimson', icon: 'award' },
@@ -50,7 +51,7 @@ export default function VolunteerCertificatesPage() {
   const handleCopyLink = (cert) => {
     const link = `${window.location.origin}/certificates/verify/${cert.reference}`
     navigator.clipboard.writeText(link)
-    alert('Certificate link copied to clipboard!')
+    notify.success('Certificate link copied to clipboard!')
   }
 
   const handleSocialShare = (platform, cert) => {

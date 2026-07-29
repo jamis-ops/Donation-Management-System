@@ -1,6 +1,6 @@
 import { Navigate, useLocation } from 'react-router-dom'
 import { useAuth } from '../../context/AuthContext'
-import { getHomeForRole } from '../../utils/roleRoutes'
+import { getHomeForRole, isAdminPortalRole } from '../../utils/roleRoutes'
 
 export default function ProtectedRoute({ children }) {
   const { user, isAuthenticated, loading } = useAuth()
@@ -23,7 +23,7 @@ export default function ProtectedRoute({ children }) {
     return <Navigate to="/change-password" replace />
   }
 
-  if (user?.role !== 'Admin') {
+  if (!isAdminPortalRole(user?.role)) {
     return <Navigate to={getHomeForRole(user?.role)} replace />
   }
 

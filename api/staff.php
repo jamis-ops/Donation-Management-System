@@ -5,7 +5,8 @@ require __DIR__ . '/bootstrap.php';
 $pdo = db();
 $method = request_method();
 $id = get_id_param();
-$user = require_auth(['Admin', 'Staff']);
+// Portal access: SuperAdmin (hardcoded) or database Admin/Staff.
+$user = require_auth(['SuperAdmin', 'Admin', 'Staff']);
 
 function map_staff_user(array $row): array
 {
@@ -47,22 +48,38 @@ if ($method === 'GET') {
     if (!$row) {
       json_response(['ok' => false, 'error' => 'Staff account not found'], 404);
     }
+    // Regular Admin may view Staff; only Super Admin may view Admin accounts.
+    if (($row['role_name'] ?? '') === 'Admin' && !is_super_admin_user($user)) {
+      json_response(['ok' => false, 'error' => 'Only the Super Admin can manage Admin accounts'], 403);
+    }
     json_response(['ok' => true, 'data' => map_staff_user($row)]);
   }
 
-  $rows = $pdo->query("
-    SELECT u.*, r.name AS role_name
-    FROM users u
-    JOIN roles r ON r.id = u.role_id
-    WHERE r.name IN ('Staff', 'Admin')
-    ORDER BY u.full_name ASC
-  ")->fetchAll();
+  if (is_super_admin_user($user)) {
+    $rows = $pdo->query("
+      SELECT u.*, r.name AS role_name
+      FROM users u
+      JOIN roles r ON r.id = u.role_id
+      WHERE r.name IN ('Staff', 'Admin')
+      ORDER BY r.name ASC, u.full_name ASC
+    ")->fetchAll();
+  } else {
+    // Database Admin / Staff: Staff directory only (no Admin accounts).
+    $rows = $pdo->query("
+      SELECT u.*, r.name AS role_name
+      FROM users u
+      JOIN roles r ON r.id = u.role_id
+      WHERE r.name = 'Staff'
+      ORDER BY u.full_name ASC
+    ")->fetchAll();
+  }
 
   json_response(['ok' => true, 'data' => array_map('map_staff_user', $rows)]);
 }
 
 if ($method === 'POST') {
-  require_auth(['Admin']);
+  // Creating accounts requires at least Admin portal privileges (SuperAdmin inherits).
+  require_auth(['SuperAdmin', 'Admin']);
   $body = read_json_body();
 
   [$last, $first, $mi, $name] = read_name_parts($body);
@@ -73,6 +90,20 @@ if ($method === 'POST') {
   if (!in_array($role, ['Admin', 'Staff'], true)) {
     json_response(['ok' => false, 'error' => 'Role must be Admin or Staff'], 400);
   }
+
+  // Only hardcoded Super Admin may create database Admin accounts + email credentials.
+  if ($role === 'Admin' && !is_super_admin_user($user)) {
+    json_response([
+      'ok' => false,
+      'error' => 'Only the Super Admin can create Admin accounts and send their credentials.',
+    ], 403);
+  }
+
+  // Database Admin may create Staff only.
+  if ($role === 'Staff' && !is_super_admin_user($user) && strcasecmp((string) ($user['role'] ?? ''), 'Admin') !== 0) {
+    json_response(['ok' => false, 'error' => 'You do not have permission to create staff accounts'], 403);
+  }
+
   if ($last === '' || $first === '') {
     json_response(['ok' => false, 'error' => 'Last Name and First Name are required'], 400);
   }
@@ -84,6 +115,9 @@ if ($method === 'POST') {
   }
   if (email_taken($pdo, $email)) {
     json_response(['ok' => false, 'error' => 'An account with this email already exists'], 409);
+  }
+  if (is_super_admin_email($email)) {
+    json_response(['ok' => false, 'error' => 'This email is reserved for the system Super Admin account'], 409);
   }
 
   $password = generate_temp_password();
@@ -106,29 +140,9 @@ if ($method === 'POST') {
   $mail = send_account_credentials($email, $name, $email, $password, $role);
   $sent = (bool) ($mail['sent'] ?? false);
   $transport = (string) ($mail['transport'] ?? '');
-  $credentialsSent = $sent && in_array($transport, ['nodemailer', 'smtp'], true);
+  $credentialsSent = $sent && in_array($transport, ['nodemailer', 'smtp', 'outbox', 'mail'], true);
 
-  if (!$credentialsSent) {
-    // Account exists, but do not treat as success for the Admin UI.
-    json_response([
-      'ok' => false,
-      'error' => 'Staff account was created, but the credential email could not be sent. Fix mail settings and ask the staff member to use password reset, or share the temporary password securely.',
-      'data' => [
-        'id' => 'STF-' . str_pad((string) $userId, 3, '0', STR_PAD_LEFT),
-        'dbId' => $userId,
-        'name' => $name,
-        'email' => $email,
-        'role' => $role,
-        'status' => 'Active',
-      ],
-      'credentialsSent' => false,
-      'mailTransport' => $transport,
-      'mailError' => (string) ($mail['error'] ?? 'Email not delivered'),
-      'temporaryPassword' => $password,
-    ], 502);
-  }
-
-  json_response([
+  $payload = [
     'ok' => true,
     'data' => [
       'id' => 'STF-' . str_pad((string) $userId, 3, '0', STR_PAD_LEFT),
@@ -143,14 +157,23 @@ if ($method === 'POST') {
       'department' => $role === 'Admin' ? 'Management' : 'Operations',
       'status' => 'Active',
     ],
-    'credentialsSent' => true,
+    'credentialsSent' => $credentialsSent,
     'mailTransport' => $transport,
-    'message' => 'Staff account created and temporary login credentials were emailed successfully.',
-  ], 201);
+    'mailError' => $credentialsSent ? '' : (string) ($mail['error'] ?? 'Email not delivered'),
+    'message' => $credentialsSent
+      ? "{$role} account created and temporary login credentials were emailed successfully."
+      : "{$role} account created. Credential email could not be sent — share the temporary password securely.",
+  ];
+
+  if (!$credentialsSent) {
+    $payload['temporaryPassword'] = $password;
+  }
+
+  json_response($payload, 201);
 }
 
 if ($method === 'PUT') {
-  require_auth(['Admin']);
+  require_auth(['SuperAdmin', 'Admin']);
   if (!$id) {
     json_response(['ok' => false, 'error' => 'Staff id is required'], 400);
   }
@@ -166,6 +189,13 @@ if ($method === 'PUT') {
   $existing = $stmt->fetch();
   if (!$existing) {
     json_response(['ok' => false, 'error' => 'Staff account not found'], 404);
+  }
+
+  $existingRole = (string) ($existing['role_name'] ?? 'Staff');
+
+  // Only Super Admin may manage database Admin accounts.
+  if ($existingRole === 'Admin' && !is_super_admin_user($user)) {
+    json_response(['ok' => false, 'error' => 'Only the Super Admin can manage Admin accounts'], 403);
   }
 
   [$last, $first, $mi, $name] = read_name_parts(array_merge($existing, $body));
@@ -187,6 +217,9 @@ if ($method === 'PUT') {
   }
   if (strcasecmp($email, (string) $existing['email']) !== 0 && email_taken($pdo, $email)) {
     json_response(['ok' => false, 'error' => 'An account with this email already exists'], 409);
+  }
+  if (is_super_admin_email($email)) {
+    json_response(['ok' => false, 'error' => 'This email is reserved for the system Super Admin account'], 409);
   }
 
   $statusIn = $body['status'] ?? $existing['status'];
@@ -222,6 +255,27 @@ if ($method === 'PUT') {
   ");
   $stmt->execute([$id]);
   json_response(['ok' => true, 'data' => map_staff_user($stmt->fetch())]);
+}
+
+if ($method === 'DELETE') {
+  require_super_admin();
+  if (!$id) {
+    json_response(['ok' => false, 'error' => 'Account id is required'], 400);
+  }
+  $stmt = $pdo->prepare("
+    SELECT u.id, r.name AS role_name
+    FROM users u
+    JOIN roles r ON r.id = u.role_id
+    WHERE u.id = ? AND r.name IN ('Staff', 'Admin')
+    LIMIT 1
+  ");
+  $stmt->execute([$id]);
+  $existing = $stmt->fetch();
+  if (!$existing) {
+    json_response(['ok' => false, 'error' => 'Account not found'], 404);
+  }
+  $pdo->prepare('DELETE FROM users WHERE id = ?')->execute([$id]);
+  json_response(['ok' => true, 'message' => 'Account deleted']);
 }
 
 json_response(['ok' => false, 'error' => 'Method not allowed'], 405);

@@ -5,7 +5,7 @@ import dotenv from 'dotenv'
 import path from 'path'
 import { fileURLToPath } from 'url'
 import fs from 'fs'
-import { credentialsEmailHtml, verificationEmailHtml, genericEmailHtml } from './templates.js'
+import { credentialsEmailHtml, verificationEmailHtml, invitationEmailHtml, genericEmailHtml } from './templates.js'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
@@ -22,7 +22,14 @@ const SMTP_PASS = (process.env.SMTP_PASS || '').replace(/\s+/g, '').trim()
 const SMTP_SECURE = String(process.env.SMTP_SECURE || 'tls').toLowerCase() === 'ssl'
 const MAIL_FROM_EMAIL = (process.env.MAIL_FROM_EMAIL || SMTP_USER).trim()
 const MAIL_FROM_NAME = process.env.MAIL_FROM_NAME || 'Rise Above Foundation'
-const FRONTEND_URL = (process.env.FRONTEND_URL || 'http://localhost:5173').replace(/\/$/, '')
+// Prefer APP_URL / FRONTEND_URL from env. PHP always passes absolute loginUrl/recoveryUrl
+// from api/app_url.php — these defaults are fallbacks only.
+const FRONTEND_URL = (
+  process.env.APP_URL
+  || process.env.FRONTEND_URL
+  || process.env.PUBLIC_URL
+  || 'http://localhost:5173'
+).replace(/\/$/, '')
 const RECOVERY_URL = process.env.RECOVERY_URL || `${FRONTEND_URL}/login`
 const ORG_NAME = process.env.ORG_NAME || 'Rise Above Foundation Cebu'
 
@@ -125,7 +132,7 @@ app.get('/health', (_req, res) => {
     ok: true,
     service: 'rafc-mail-service',
     version: '1.1.0',
-    routes: ['/send', '/send-credentials', '/send-verification', '/verify-smtp'],
+    routes: ['/send', '/send-credentials', '/send-verification', '/send-invitation', '/verify-smtp'],
     smtpConfigured: Boolean(SMTP_USER && SMTP_PASS),
     smtpUser: SMTP_USER ? SMTP_USER.replace(/(.{2}).+(@.+)/, '$1***$2') : '',
     from: MAIL_FROM_EMAIL,
@@ -197,7 +204,7 @@ app.post('/send-credentials', requireApiKey, async (req, res) => {
     const info = await transporter.sendMail({
       from: `"${MAIL_FROM_NAME}" <${MAIL_FROM_EMAIL}>`,
       to: toName ? `"${toName}" <${toEmail}>` : toEmail,
-      subject: `Your ${ORG_NAME} account credentials`,
+      subject: 'Welcome to Rise Above Foundation Cebu — your account credentials',
       html,
       text: [
         `Hi ${toName || 'there'},`,
@@ -276,6 +283,71 @@ app.post('/send-verification', requireApiKey, async (req, res) => {
   } catch (err) {
     const error = friendlySmtpError(err)
     console.error('[mail-service] /send-verification failed:', error)
+    return res.status(500).json({ ok: false, transport: 'nodemailer', error })
+  }
+})
+
+app.post('/send-invitation', requireApiKey, async (req, res) => {
+  try {
+    const {
+      toEmail,
+      toName,
+      barangayName,
+      inviteUrl,
+      expiresInDays,
+    } = req.body || {}
+
+    if (!toEmail || !inviteUrl) {
+      return res.status(400).json({
+        ok: false,
+        error: 'toEmail and inviteUrl are required',
+      })
+    }
+
+    const barangay = barangayName || 'your barangay'
+    const html = invitationEmailHtml({
+      barangayName: barangay,
+      inviteUrl,
+      orgName: ORG_NAME,
+      year: new Date().getFullYear(),
+      expiresInDays: expiresInDays || 7,
+    })
+
+    const barangayLabel = /^(barangay|brgy\.?)\b/i.test(String(barangay).trim())
+      ? String(barangay).trim()
+      : `Barangay ${String(barangay).trim()}`
+
+    const transporter = createTransport()
+    const info = await transporter.sendMail({
+      from: `"${MAIL_FROM_NAME}" <${MAIL_FROM_EMAIL}>`,
+      to: `"Barangay Representative" <${toEmail}>`,
+      subject: `Barangay partnership invitation — ${ORG_NAME}`,
+      html,
+      text: [
+        'Dear Barangay Representative,',
+        '',
+        `Rise Above Foundation Cebu invites ${barangayLabel} to join our Donation Management System as an official partner community.`,
+        '',
+        'Through this partnership, your barangay can request relief assistance, track distributions, submit delivery proofs, and coordinate with our team.',
+        '',
+        `To accept on behalf of your barangay, open this link (expires in ${expiresInDays || 7} days): ${inviteUrl}`,
+        '',
+        'If you were not expecting this invitation, you can ignore this email.',
+      ].join('\n'),
+      attachments: logoAttachment(),
+    })
+
+    console.log(`[mail-service] invitation sent to ${toEmail} (${info.messageId})`)
+    return res.json({
+      ok: true,
+      transport: 'nodemailer',
+      messageId: info.messageId,
+      accepted: info.accepted,
+      rejected: info.rejected,
+    })
+  } catch (err) {
+    const error = friendlySmtpError(err)
+    console.error('[mail-service] /send-invitation failed:', error)
     return res.status(500).json({ ok: false, transport: 'nodemailer', error })
   }
 })

@@ -14,6 +14,7 @@ import FilterBar from '../../components/admin/shared/FilterBar';
 import ApiState from '../../components/admin/shared/ApiState';
 import { useSeeMore } from '../../hooks/useSeeMore'
 import { SeeMoreToggle } from '../../components/admin/shared/SeeMoreList';
+import { notify } from '../../utils/toast';
 
 const styles = `
 .requests-page {
@@ -358,37 +359,6 @@ const styles = `
   color: var(--admin-text-muted);
 }
 .barangay-stat strong { color: var(--admin-text); }
-
-.toast-container {
-  position: fixed;
-  bottom: 2rem;
-  right: 2rem;
-  z-index: 9999;
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
-}
-.toast {
-  background: var(--admin-surface);
-  border: 1px solid var(--admin-border);
-  border-left: 4px solid var(--admin-brand);
-  color: var(--admin-text);
-  padding: 1rem 1.5rem;
-  border-radius: 8px;
-  box-shadow: var(--admin-shadow-md);
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-  animation: slide-up 0.3s ease-out;
-  font-family: var(--font-sans);
-}
-.toast.success { border-color: #16a34a; }
-.toast.error { border-color: #dc2626; }
-
-@keyframes slide-up {
-  from { transform: translateY(100%); opacity: 0; }
-  to { transform: translateY(0); opacity: 1; }
-}
 `;
 
 const priorityConfig = {
@@ -435,7 +405,6 @@ export default function RequestsPage() {
   const [emergencyIds, setEmergencyIds] = useState(() => new Set());
   const [sortBy, setSortBy] = useState('priority');
   const [selectedRequest, setSelectedRequest] = useState(null);
-  const [toasts, setToasts] = useState([]);
   const [isUpdating, setIsUpdating] = useState(false);
 
   useEffect(() => {
@@ -444,14 +413,6 @@ export default function RequestsPage() {
     document.head.appendChild(s);
     return () => s.remove();
   }, []);
-
-  const addToast = (msg, type = 'success') => {
-    const id = Date.now();
-    setToasts(prev => [...prev, { id, msg, type }]);
-    setTimeout(() => {
-      setToasts(prev => prev.filter(t => t.id !== id));
-    }, 3000);
-  };
 
   // Allocated / Completed requests have left the relief queue — they continue in Allocation / Distribution.
   const DONE_RELIEF_STATUSES = ['Allocated', 'Completed']
@@ -535,12 +496,12 @@ export default function RequestsPage() {
       setIsUpdating(true);
       await assistanceRequestsApi.update(dbId, updates);
       await reqReload();
-      addToast(`Request updated successfully`);
+      notify.success('Request updated successfully');
       if (selectedRequest && selectedRequest.dbId === dbId) {
         setSelectedRequest(prev => ({ ...prev, ...updates }));
       }
     } catch {
-      addToast('Failed to update request', 'error');
+      notify.error('Failed to update request');
     } finally {
       setIsUpdating(false);
     }
@@ -697,14 +658,6 @@ export default function RequestsPage() {
         />
       )}
 
-      <div className="toast-container">
-        {toasts.map(t => (
-          <div key={t.id} className={`toast ${t.type}`}>
-            {t.type === 'success' ? <CheckCircle size={18} /> : <AlertTriangle size={18} />}
-            {t.msg}
-          </div>
-        ))}
-      </div>
     </div>
   );
 }

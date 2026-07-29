@@ -1,10 +1,10 @@
 import { useState } from 'react'
-import { Link } from 'react-router-dom'
 import { volunteerPrograms } from '../data/mockData'
 import { submitPublicVolunteer } from '../api/resources'
 import Req from '../components/shared/Req'
 import NameFields from '../components/shared/NameFields'
 import SkillTagPicker from '../components/shared/SkillTagPicker'
+import PolicyLinks from '../components/shared/PolicyLinks'
 import { emptyNameParts, formatFullName } from '../utils/personName'
 
 const statusExamples = [
@@ -207,9 +207,7 @@ export default function VolunteerPage() {
                 />
                 <span>
                   I accept the{' '}
-                  <Link to="/privacy" target="_blank" rel="noreferrer">Data Privacy Policy</Link>
-                  {' '}and{' '}
-                  <Link to="/terms" target="_blank" rel="noreferrer">Terms &amp; Conditions</Link>
+                  <PolicyLinks />
                   <Req required />
                 </span>
               </label>
