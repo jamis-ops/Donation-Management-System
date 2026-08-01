@@ -19,7 +19,7 @@ const pageTitles = {
   '/admin/reports': 'Reports & Analytics',
   '/admin/certificates': 'Certificates',
   '/admin/content': 'Content Management',
-  '/admin/settings': 'Account Settings',
+  '/admin/settings': 'Settings',
 }
 
 const SECONDARY_COLLAPSE_KEY = 'admin.secondarySidebar.collapsed'

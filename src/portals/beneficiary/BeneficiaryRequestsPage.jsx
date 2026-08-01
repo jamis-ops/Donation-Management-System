@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Search, AlertCircle, CheckCircle, Clock, XCircle, Plus, X } from 'lucide-react'
+import { Search, AlertCircle, CheckCircle, Clock, XCircle } from 'lucide-react'
 import StatusBadge from '../../components/admin/shared/StatusBadge'
 import ApiState from '../../components/admin/shared/ApiState'
 import ModalHeader from '../../components/admin/shared/ModalHeader'
@@ -7,6 +7,7 @@ import { assistanceRequestsApi } from '../../api/resources'
 import { useApiList } from '../../hooks/useApiList'
 import { programs } from '../../data/mockData'
 import Req from '../../components/shared/Req'
+import NeedsPicker from '../../components/shared/NeedsPicker'
 import { notify } from '../../utils/toast'
 
 // Calamity/Event types
@@ -31,44 +32,13 @@ const MISSION_TYPES = [
   'Disaster Prevention',
 ]
 
-// Assistance types
-const ASSISTANCE_TYPES = [
-  'Food Supplies',
-  'Medical Supplies',
-  'Shelter/Housing',
-  'Financial Assistance',
-  'Educational Materials',
-  'Livelihood Support',
-  'Infrastructure Repair',
-  'Emergency Relief',
-  'Other',
-]
-
-// Goods that might be required
-const GOODS_OPTIONS = [
-  { id: 'food', label: 'Food Packs' },
-  { id: 'water', label: 'Water/Drinking Supplies' },
-  { id: 'relief-pack', label: 'Relief Packs' },
-  { id: 'rice', label: 'Sacks of Rice' },
-  { id: 'medicine', label: 'Medicines' },
-  { id: 'clothing', label: 'Clothing' },
-  { id: 'hygiene-kits', label: 'Hygiene Kits' },
-  { id: 'blankets', label: 'Blankets/Mats' },
-  { id: 'construction', label: 'Construction Materials' },
-  { id: 'educational', label: 'School Supplies' },
-]
-
 const emptyForm = {
   calamityType: '',
   customCalamity: '',
-  assistanceType: '',
-  customAssistance: '',
+  selectedNeeds: [],
   familiesAffected: '',
-  selectedGoods: [],
-  customGoods: [],
   priority: 'Medium',
   notes: '',
-  newGoodInput: '',
 }
 
 const CLOSED_STATUSES = ['Completed', 'Rejected', 'Cancelled', 'Done']
@@ -126,13 +96,8 @@ export default function BeneficiaryRequestsPage() {
       return
     }
     
-    if (!form.assistanceType.trim()) {
-      setSubmitError('Please select the type of assistance needed.')
-      return
-    }
-    
-    if (form.assistanceType === 'Other' && !form.customAssistance.trim()) {
-      setSubmitError('Please specify the assistance type.')
+    if (!form.selectedNeeds.length) {
+      setSubmitError('Please select at least one Type of Need from the Admin catalog.')
       return
     }
     
@@ -143,23 +108,14 @@ export default function BeneficiaryRequestsPage() {
     
     // Build request
     const calamityType = form.calamityType === 'Other' ? form.customCalamity : form.calamityType
-    const assistanceType = form.assistanceType === 'Other' ? form.customAssistance : form.assistanceType
-    
-    // Collect all goods
-    const allGoods = [
-      ...form.selectedGoods.map(id => {
-        const option = GOODS_OPTIONS.find(g => g.id === id)
-        return option ? option.label : id
-      }),
-      ...form.customGoods
-    ]
+    const needs = form.selectedNeeds
+    const assistanceType = needs.join(', ')
     
     // Build notes with structured information
     const structuredNotes = [
       `Calamity/Program: ${calamityType}`,
-      `Assistance Type: ${assistanceType}`,
+      `Type of Needs: ${needs.join(', ')}`,
       `Families Affected: ${form.familiesAffected}`,
-      allGoods.length > 0 ? `Goods Required: ${allGoods.join(', ')}` : '',
       form.notes ? `Additional Notes: ${form.notes}` : '',
     ].filter(Boolean).join('\n\n')
     
@@ -172,6 +128,7 @@ export default function BeneficiaryRequestsPage() {
           priority: form.priority,
           notes: structuredNotes,
           calamityTags: [calamityType],
+          needs,
         })
         setEditingRequest(null)
         notify.success('Request updated.')
@@ -182,6 +139,7 @@ export default function BeneficiaryRequestsPage() {
           priority: form.priority,
           notes: structuredNotes,
           calamityTags: [calamityType],
+          needs,
         })
         notify.success('Request submitted.')
       }
@@ -210,74 +168,32 @@ export default function BeneficiaryRequestsPage() {
     const familiesMatch = notes.match(/Families Affected: (\d+)/i)
     const familiesAffected = familiesMatch ? familiesMatch[1] : ''
     
-    // Extract goods
-    const goodsMatch = notes.match(/Goods Required: (.+?)(?:\n|$)/i)
-    const goodsString = goodsMatch ? goodsMatch[1].trim() : ''
-    const goodsList = goodsString ? goodsString.split(',').map(g => g.trim()) : []
-    
-    // Match goods to predefined options
-    const selectedGoods = []
-    const customGoods = []
-    
-    goodsList.forEach(good => {
-      const matchingOption = GOODS_OPTIONS.find(opt => opt.label === good)
-      if (matchingOption) {
-        selectedGoods.push(matchingOption.id)
-      } else if (good) {
-        customGoods.push(good)
-      }
-    })
+    // Prefer structured needs from API; fall back to notes parsing
+    let selectedNeeds = Array.isArray(request.needs) ? request.needs.filter(Boolean) : []
+    if (selectedNeeds.length === 0) {
+      const needsMatch = notes.match(/Type of Needs: (.+?)(?:\n|$)/i)
+        || notes.match(/Goods Required: (.+?)(?:\n|$)/i)
+        || notes.match(/Assistance Type: (.+?)(?:\n|$)/i)
+      const needsString = needsMatch ? needsMatch[1].trim() : (request.type || '')
+      selectedNeeds = needsString ? needsString.split(',').map((n) => n.trim()).filter(Boolean) : []
+    }
     
     // Extract additional notes
     const notesMatch = notes.match(/Additional Notes: (.+)/is)
     const additionalNotes = notesMatch ? notesMatch[1].trim() : ''
     
-    // Check if assistance type is predefined
-    const isPresetAssistance = ASSISTANCE_TYPES.includes(request.type)
-    
     setForm({
-      calamityType: isPresetCalamity ? calamityType : 'Other',
+      calamityType: isPresetCalamity ? calamityType : (calamityType ? 'Other' : ''),
       customCalamity: isPresetCalamity ? '' : calamityType,
-      assistanceType: isPresetAssistance ? request.type : 'Other',
-      customAssistance: isPresetAssistance ? '' : request.type,
+      selectedNeeds,
       familiesAffected: familiesAffected,
-      selectedGoods: selectedGoods,
-      customGoods: customGoods,
       priority: request.priority || 'Medium',
       notes: additionalNotes,
-      newGoodInput: '',
     })
     
     setEditingRequest(request)
     setShowForm(true)
     setSelectedRequest(null)
-  }
-
-  const handleAddCustomGood = () => {
-    if (!form.newGoodInput.trim()) return
-    if (form.customGoods.includes(form.newGoodInput.trim())) return
-    
-    setForm({
-      ...form,
-      customGoods: [...form.customGoods, form.newGoodInput.trim()],
-      newGoodInput: '',
-    })
-  }
-
-  const handleRemoveCustomGood = (index) => {
-    setForm({
-      ...form,
-      customGoods: form.customGoods.filter((_, i) => i !== index),
-    })
-  }
-
-  const toggleGood = (goodId) => {
-    setForm({
-      ...form,
-      selectedGoods: form.selectedGoods.includes(goodId)
-        ? form.selectedGoods.filter(id => id !== goodId)
-        : [...form.selectedGoods, goodId],
-    })
   }
 
   const handleCancel = async (requestId) => {
@@ -512,40 +428,24 @@ export default function BeneficiaryRequestsPage() {
                 )}
               </fieldset>
 
-              {/* Step 2: Type of Assistance */}
+              {/* Step 2: Type of Needs (shared Admin catalog) */}
               <fieldset className="beneficiary-form-section">
-                <legend>2. Type of Assistance Needed</legend>
-                <label>
-                  <Req required>Assistance Type</Req>
-                  <select
-                    required
-                    value={form.assistanceType}
-                    onChange={(e) => setForm({ ...form, assistanceType: e.target.value, customAssistance: '' })}
-                  >
-                    <option value="">Select assistance type...</option>
-                    {ASSISTANCE_TYPES.map((type) => (
-                      <option key={type} value={type}>{type}</option>
-                    ))}
-                  </select>
-                </label>
-                
-                {form.assistanceType === 'Other' && (
-                  <label>
-                    <Req required>Specify Assistance Type</Req>
-                    <input
-                      type="text"
-                      required
-                      placeholder="e.g., Temporary Shelter Setup"
-                      value={form.customAssistance}
-                      onChange={(e) => setForm({ ...form, customAssistance: e.target.value })}
-                    />
-                  </label>
-                )}
+                <legend>2. Type of Needs</legend>
+                <p className="beneficiary-form-hint">
+                  Select the types of needs for this request.
+                </p>
+                <NeedsPicker
+                  value={form.selectedNeeds}
+                  onChange={(selectedNeeds) => setForm({ ...form, selectedNeeds })}
+                  showNote={false}
+                  label="Type of Needs"
+                  initialVisible={8}
+                />
               </fieldset>
 
-              {/* Step 2b: Families Affected */}
+              {/* Step 3: Families Affected */}
               <fieldset className="beneficiary-form-section">
-                <legend>2b. Impact Assessment</legend>
+                <legend>3. Impact Assessment</legend>
                 <p className="beneficiary-form-hint">
                   Help us understand the scale of assistance needed.
                 </p>
@@ -562,72 +462,6 @@ export default function BeneficiaryRequestsPage() {
                   />
                   <span className="field-hint">Enter the approximate number of families in need of assistance</span>
                 </label>
-              </fieldset>
-
-              {/* Step 3: Goods Required */}
-              <fieldset className="beneficiary-form-section">
-                <legend>3. Goods That Might Be Required</legend>
-                <p className="beneficiary-form-hint">
-                  Select all goods that are needed for this request.
-                </p>
-                <div className="beneficiary-goods-grid">
-                  {GOODS_OPTIONS.map((good) => (
-                    <label key={good.id} className="beneficiary-checkbox-card">
-                      <input
-                        type="checkbox"
-                        checked={form.selectedGoods.includes(good.id)}
-                        onChange={() => toggleGood(good.id)}
-                      />
-                      <span className="beneficiary-checkbox-card__label">{good.label}</span>
-                    </label>
-                  ))}
-                </div>
-                
-                {/* Custom Goods */}
-                <div className="beneficiary-custom-goods">
-                  <label>
-                    Additional/Specific Goods
-                    <div className="beneficiary-custom-goods__input">
-                      <input
-                        type="text"
-                        placeholder="e.g., Baby formula, Generators"
-                        value={form.newGoodInput}
-                        onChange={(e) => setForm({ ...form, newGoodInput: e.target.value })}
-                        onKeyDown={(e) => {
-                          if (e.key === 'Enter') {
-                            e.preventDefault()
-                            handleAddCustomGood()
-                          }
-                        }}
-                      />
-                      <button
-                        type="button"
-                        className="btn btn--sm btn--primary"
-                        onClick={handleAddCustomGood}
-                        disabled={!form.newGoodInput.trim()}
-                      >
-                        <Plus size={16} /> Add
-                      </button>
-                    </div>
-                  </label>
-                  
-                  {form.customGoods.length > 0 && (
-                    <div className="beneficiary-custom-goods__list">
-                      {form.customGoods.map((good, index) => (
-                        <div key={index} className="beneficiary-custom-good-tag">
-                          <span>{good}</span>
-                          <button
-                            type="button"
-                            onClick={() => handleRemoveCustomGood(index)}
-                            aria-label="Remove"
-                          >
-                            <X size={14} />
-                          </button>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
               </fieldset>
 
               {/* Step 4: Priority & Notes */}

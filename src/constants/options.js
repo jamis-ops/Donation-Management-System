@@ -1,6 +1,5 @@
-// Central master-data option lists.
-// These replace the removed "CMS & Master Data" admin module. Edit here to
-// change the choices offered across the app (needs, categories, task types...).
+// Fallback option lists when Settings catalogs are unavailable.
+// Live values are managed in Admin → Settings (need_types, barangay_types, task_types).
 
 export const NEEDS = [
   'Food',

@@ -125,6 +125,8 @@ function map_distribution(PDO $pdo, array $row): array
     'receiptNotes' => $row['receipt_notes'] ?? '',
     'type' => $row['distribution_type'],
     'itemsSummary' => $row['items_summary'] ?? '',
+    'items' => $row['items_summary'] ?? '',
+    'quantity' => isset($row['beneficiaries_count']) ? (int) $row['beneficiaries_count'] : null,
     'coordinator' => $row['coordinator'] ?? '',
     'notes' => $row['notes'] ?? '',
     'allocations' => $linkedAllocs,
@@ -156,17 +158,18 @@ function distributions_for_beneficiary(PDO $pdo, array $ben, bool $forProof = fa
     $rows = array_values(array_filter($rows, static function (array $row) {
       $proof = $row['proof_status'] ?? 'Not Required';
       $status = $row['status'] ?? '';
+      $receipt = $row['receipt_status'] ?? 'Awaiting Confirmation';
       if ($proof === 'Proof Verified') {
         return false;
       }
-      if ($status === 'Completed' && $proof === 'Proof Verified') {
-        return false;
+      // After Confirm Received, barangay should submit proof
+      if ($receipt === 'Received') {
+        return true;
       }
-      // Only deliveries that can reasonably need receipt proof
-      $eligible = ['Delivered', 'Awaiting Proof', 'In Transit', 'Preparing', 'Completed'];
       if ($proof === 'Proof Rejected' || $proof === 'Proof Submitted' || $proof === 'Awaiting Proof') {
         return true;
       }
+      $eligible = ['Delivered', 'Awaiting Proof', 'In Transit', 'Preparing', 'Completed'];
       return in_array($status, $eligible, true);
     }));
   }
@@ -297,24 +300,45 @@ if ($user['role'] === 'Beneficiary') {
 
   if ($action === 'confirm-receipt') {
     $qty = isset($body['receivedQuantity']) ? (int) $body['receivedQuantity'] : null;
-    $upd = $pdo->prepare('UPDATE distributions SET receipt_status = ?, received_quantity = ?, received_at = NOW(), receipt_notes = ? WHERE id = ?');
-    $upd->execute(['Received', $qty, $body['notes'] ?? null, $id]);
+    $notes = trim((string) ($body['notes'] ?? ''));
+    $proofStatus = (string) ($dist['proof_status'] ?? 'Not Required');
+    $newProof = in_array($proofStatus, ['Proof Verified', 'Proof Submitted'], true)
+      ? $proofStatus
+      : 'Awaiting Proof';
+    $status = (string) ($dist['status'] ?? '');
+    $newStatus = in_array($status, ['Completed'], true)
+      ? $status
+      : (in_array($newProof, ['Awaiting Proof', 'Proof Submitted'], true) ? 'Awaiting Proof' : $status);
+    if (in_array($status, ['Scheduled', 'Planning', 'Preparing', 'In Transit', 'Delivered'], true)) {
+      $newStatus = 'Awaiting Proof';
+    }
+    $upd = $pdo->prepare('
+      UPDATE distributions
+      SET receipt_status = ?, received_quantity = ?, received_at = NOW(), receipt_notes = ?,
+          proof_status = ?, status = ?
+      WHERE id = ?
+    ');
+    $upd->execute(['Received', $qty, $notes !== '' ? $notes : null, $newProof, $newStatus, $id]);
     notify_admins(
       $pdo,
       'receipt',
       'Donation receipt confirmed',
-      "{$benRow['full_name']} confirmed receipt for {$dist['code']}" . ($qty !== null ? " ({$qty} items)" : ''),
-      '/admin/distributions'
+      "{$benRow['full_name']} confirmed receipt for {$dist['code']}" . ($qty !== null ? " ({$qty} items)" : '') . '. Awaiting proof submission.',
+      '/admin/distributions?id=' . $id . '#distributions-table'
     );
   } elseif ($action === 'report-missing') {
+    $notes = trim((string) ($body['notes'] ?? ''));
+    if ($notes === '') {
+      json_response(['ok' => false, 'error' => 'Please describe the issue so Admin/Staff can follow up.'], 400);
+    }
     $upd = $pdo->prepare('UPDATE distributions SET receipt_status = ?, receipt_notes = ? WHERE id = ?');
-    $upd->execute(['Not Received', $body['notes'] ?? null, $id]);
+    $upd->execute(['Not Received', $notes, $id]);
     notify_admins(
       $pdo,
       'alert',
-      'Donation not yet received',
-      "{$benRow['full_name']} reports distribution {$dist['code']} has not been received. " . (($body['notes'] ?? '') !== '' ? "Note: {$body['notes']}" : ''),
-      '/admin/distributions'
+      'Barangay reported a distribution issue',
+      "{$benRow['full_name']} reports distribution {$dist['code']} has not been received. Message: {$notes}",
+      '/admin/distributions?id=' . $id . '#distributions-table'
     );
   } else {
     json_response(['ok' => false, 'error' => 'Unknown action'], 400);
@@ -324,7 +348,11 @@ if ($user['role'] === 'Beneficiary') {
 
   $stmt = $pdo->prepare('SELECT * FROM distributions WHERE id = ?');
   $stmt->execute([$id]);
-  json_response(['ok' => true, 'data' => map_distribution($pdo, $stmt->fetch())]);
+  json_response([
+    'ok' => true,
+    'data' => map_distribution($pdo, $stmt->fetch()),
+    'nextStep' => $action === 'confirm-receipt' ? 'submit-proof' : null,
+  ]);
 }
 
 require_auth(['Admin', 'Staff']);
@@ -560,7 +588,7 @@ if ($method === 'POST') {
     }
   }
 
-  notify_admins($pdo, 'distribution', 'New distribution planned', "Distribution {$code} scheduled for {$location}", '/admin/distributions');
+  notify_admins($pdo, 'distribution', 'New distribution planned', "Distribution {$code} scheduled for {$location}", '/admin/distributions?focus=drafts#distributions-drafts');
   audit_log($pdo, 'create', 'distribution', $code, "Planned distribution for {$location}" . ($allocationIds ? ' from allocations' : ''));
   $stmt = $pdo->prepare('SELECT * FROM distributions WHERE id = ?');
   $stmt->execute([$newId]);
@@ -627,7 +655,7 @@ if ($method === 'PUT') {
   ]);
 
   if ($newStatus !== $existing['status']) {
-    notify_admins($pdo, 'status_update', 'Distribution status updated', "Distribution {$existing['code']} is now {$newStatus}", '/admin/distributions');
+    notify_admins($pdo, 'status_update', 'Distribution status updated', "Distribution {$existing['code']} is now {$newStatus}", '/admin/distributions?id=' . (int) $id . '#distributions-table');
     if (in_array($newStatus, ['Delivered', 'Completed'], true)) {
       try {
         $pdo->prepare("UPDATE allocations SET status = 'Delivered' WHERE distribution_id = ? AND status IN ('Reserved','Allocated')")

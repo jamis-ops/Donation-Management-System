@@ -74,6 +74,14 @@ function map_proof(PDO $pdo, array $row): array
 
   $status = normalize_proof_status($row['status'] ?? 'Pending');
 
+  $category = (string) ($row['proof_category'] ?? 'other');
+  $categoryLabel = match ($category) {
+    'received_goods' => 'Received donations',
+    'distribution' => 'Distribution photos',
+    'acknowledgment' => 'Signed acknowledgment',
+    default => 'Supporting file',
+  };
+
   return [
     'id' => (int) $row['id'],
     'distributionId' => (int) $row['distribution_id'],
@@ -92,6 +100,8 @@ function map_proof(PDO $pdo, array $row): array
     'isImage' => $isImage,
     'fileUrl' => '/api/uploads/proofs/' . basename((string) $row['file_path']),
     'notes' => $row['notes'],
+    'category' => $category,
+    'categoryLabel' => $categoryLabel,
     'status' => $status,
     'reviewRemarks' => $row['review_remarks'] ?? '',
     'reviewedByUserId' => isset($row['reviewed_by_user_id']) && $row['reviewed_by_user_id'] !== null
@@ -165,64 +175,145 @@ if ($method === 'POST') {
     $distribution['beneficiary_id'] = $beneficiary['id'];
   }
 
-  if (!isset($_FILES['proof']) || $_FILES['proof']['error'] !== UPLOAD_ERR_OK) {
-    json_response(['ok' => false, 'error' => 'Please upload a photo or document'], 400);
-  }
-
-  $file = $_FILES['proof'];
   $allowed = ['image/jpeg', 'image/png', 'image/webp', 'image/gif', 'application/pdf'];
-  $mime = mime_content_type($file['tmp_name']) ?: $file['type'];
-  if (!in_array($mime, $allowed, true)) {
-    json_response(['ok' => false, 'error' => 'Allowed files: JPG, PNG, WEBP, GIF, PDF'], 400);
-  }
-
-  if ($file['size'] > 5 * 1024 * 1024) {
-    json_response(['ok' => false, 'error' => 'File must be under 5MB'], 400);
-  }
-
   $uploadDir = __DIR__ . '/uploads/proofs';
   if (!is_dir($uploadDir)) {
     mkdir($uploadDir, 0755, true);
   }
 
-  $ext = pathinfo($file['name'], PATHINFO_EXTENSION) ?: 'bin';
-  $safeName = 'proof_' . time() . '_' . bin2hex(random_bytes(4)) . '.' . $ext;
-  $destPath = $uploadDir . '/' . $safeName;
+  // Collect categorized files: received_goods, distribution, acknowledgment (+ legacy "proof")
+  $slots = [
+    'received_goods' => 'received_goods',
+    'distribution' => 'distribution',
+    'acknowledgment' => 'acknowledgment',
+  ];
+  $legacyCategory = trim((string) ($_POST['category'] ?? $_POST['proofCategory'] ?? 'other'));
+  if (!in_array($legacyCategory, ['received_goods', 'distribution', 'acknowledgment', 'other'], true)) {
+    $legacyCategory = 'other';
+  }
+  $slots['proof'] = $legacyCategory;
 
-  if (!move_uploaded_file($file['tmp_name'], $destPath)) {
-    json_response(['ok' => false, 'error' => 'Failed to save file'], 500);
+  $uploads = [];
+  foreach ($slots as $field => $category) {
+    if (!isset($_FILES[$field])) {
+      continue;
+    }
+    $entry = $_FILES[$field];
+    // Support multi-file arrays under the same field name
+    if (is_array($entry['name'] ?? null)) {
+      $count = count($entry['name']);
+      for ($i = 0; $i < $count; $i++) {
+        if (($entry['error'][$i] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_OK) {
+          continue;
+        }
+        $uploads[] = [
+          'category' => $category,
+          'name' => (string) $entry['name'][$i],
+          'type' => (string) ($entry['type'][$i] ?? ''),
+          'tmp' => (string) $entry['tmp_name'][$i],
+          'size' => (int) ($entry['size'][$i] ?? 0),
+          'error' => (int) $entry['error'][$i],
+        ];
+      }
+    } elseif (($entry['error'] ?? UPLOAD_ERR_NO_FILE) === UPLOAD_ERR_OK) {
+      $uploads[] = [
+        'category' => $category,
+        'name' => (string) $entry['name'],
+        'type' => (string) ($entry['type'] ?? ''),
+        'tmp' => (string) $entry['tmp_name'],
+        'size' => (int) ($entry['size'] ?? 0),
+        'error' => (int) $entry['error'],
+      ];
+    }
   }
 
-  $stmt = $pdo->prepare('
-    INSERT INTO distribution_proofs
-      (distribution_id, beneficiary_id, submitted_by_user_id, file_path, file_name, file_type, notes, status, review_remarks, reviewed_at, reviewed_by_user_id)
-    VALUES (?, ?, ?, ?, ?, ?, ?, \'Pending\', NULL, NULL, NULL)
-  ');
-  $stmt->execute([
-    $distributionId,
-    $beneficiary['id'],
-    $user['id'],
-    $safeName,
-    $file['name'],
-    $mime,
-    $notes ?: null,
-  ]);
+  if (count($uploads) === 0) {
+    json_response(['ok' => false, 'error' => 'Please upload at least one photo or document as proof.'], 400);
+  }
+  if (count($uploads) > 8) {
+    json_response(['ok' => false, 'error' => 'You can upload up to 8 files at a time.'], 400);
+  }
 
-  $pdo->prepare("UPDATE distributions SET proof_status = 'Proof Submitted', status = 'Awaiting Proof' WHERE id = ?")
+  $hasCategoryCol = false;
+  try {
+    $col = $pdo->query("SHOW COLUMNS FROM distribution_proofs LIKE 'proof_category'");
+    $hasCategoryCol = (bool) $col->fetch();
+  } catch (Throwable $e) {
+    $hasCategoryCol = false;
+  }
+
+  $saved = [];
+  foreach ($uploads as $file) {
+    $mime = mime_content_type($file['tmp']) ?: $file['type'];
+    if (!in_array($mime, $allowed, true)) {
+      json_response(['ok' => false, 'error' => 'Allowed files: JPG, PNG, WEBP, GIF, PDF'], 400);
+    }
+    if ($file['size'] > 5 * 1024 * 1024) {
+      json_response(['ok' => false, 'error' => 'Each file must be under 5MB'], 400);
+    }
+
+    $ext = pathinfo($file['name'], PATHINFO_EXTENSION) ?: 'bin';
+    $safeName = 'proof_' . time() . '_' . bin2hex(random_bytes(4)) . '.' . $ext;
+    $destPath = $uploadDir . '/' . $safeName;
+    if (!move_uploaded_file($file['tmp'], $destPath)) {
+      json_response(['ok' => false, 'error' => 'Failed to save file'], 500);
+    }
+
+    if ($hasCategoryCol) {
+      $stmt = $pdo->prepare('
+        INSERT INTO distribution_proofs
+          (distribution_id, beneficiary_id, submitted_by_user_id, file_path, file_name, file_type, notes, proof_category, status, review_remarks, reviewed_at, reviewed_by_user_id)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, \'Pending\', NULL, NULL, NULL)
+      ');
+      $stmt->execute([
+        $distributionId,
+        $beneficiary['id'],
+        $user['id'],
+        $safeName,
+        $file['name'],
+        $mime,
+        $notes !== '' ? $notes : null,
+        $file['category'],
+      ]);
+    } else {
+      $stmt = $pdo->prepare('
+        INSERT INTO distribution_proofs
+          (distribution_id, beneficiary_id, submitted_by_user_id, file_path, file_name, file_type, notes, status, review_remarks, reviewed_at, reviewed_by_user_id)
+        VALUES (?, ?, ?, ?, ?, ?, ?, \'Pending\', NULL, NULL, NULL)
+      ');
+      $stmt->execute([
+        $distributionId,
+        $beneficiary['id'],
+        $user['id'],
+        $safeName,
+        $file['name'],
+        $mime,
+        $notes !== '' ? $notes : null,
+      ]);
+    }
+    $saved[] = (int) $pdo->lastInsertId();
+  }
+
+  $pdo->prepare("UPDATE distributions SET proof_status = 'Proof Submitted', status = 'Awaiting Proof', receipt_status = CASE WHEN receipt_status = 'Awaiting Confirmation' THEN 'Received' ELSE receipt_status END WHERE id = ?")
     ->execute([$distributionId]);
 
   notify_admins(
     $pdo,
     'proof_submitted',
     'Distribution proof submitted',
-    ($beneficiary['full_name'] ?? 'Barangay') . ' uploaded proof for ' . ($distribution['code'] ?? '') . '. Review it under Beneficiaries → Proofs.',
-    '/admin/beneficiaries'
+    ($beneficiary['full_name'] ?? 'Barangay') . ' uploaded ' . count($saved) . ' proof file(s) for ' . ($distribution['code'] ?? '') . '. Open the delivery to review proof.',
+    '/admin/distributions?id=' . $distributionId . '#distributions-table'
   );
 
-  $proofId = (int) $pdo->lastInsertId();
-  $stmt = $pdo->prepare('SELECT * FROM distribution_proofs WHERE id = ?');
-  $stmt->execute([$proofId]);
-  json_response(['ok' => true, 'data' => map_proof($pdo, $stmt->fetch())], 201);
+  $placeholders = implode(',', array_fill(0, count($saved), '?'));
+  $stmt = $pdo->prepare("SELECT * FROM distribution_proofs WHERE id IN ({$placeholders}) ORDER BY id ASC");
+  $stmt->execute($saved);
+  $rows = $stmt->fetchAll();
+  json_response([
+    'ok' => true,
+    'count' => count($rows),
+    'data' => array_map(fn($r) => map_proof($pdo, $r), $rows),
+  ], 201);
 }
 
 if ($method === 'PUT') {
@@ -278,7 +369,7 @@ if ($method === 'PUT') {
         'proof_approved',
         'Proof approved',
         'Your distribution proof was approved. Thank you for submitting documentation.',
-        '/beneficiary/proofs',
+        '/beneficiary/proofs?focus=history#proof-history',
         (int) $benRow['user_id']
       );
     } elseif ($status === 'Rejected') {
@@ -287,7 +378,7 @@ if ($method === 'PUT') {
         'proof_rejected',
         'Proof needs revision',
         'Your proof was rejected. Reason: ' . $remarks . ' Please resubmit a corrected file.',
-        '/beneficiary/proofs',
+        '/beneficiary/proofs?distributionId=' . (int) $proof['distribution_id'] . '#proof-submit-form',
         (int) $benRow['user_id']
       );
     }

@@ -1,11 +1,11 @@
 import { useEffect, useMemo, useState } from 'react'
-import { useLocation, useNavigate } from 'react-router-dom'
+import { useLocation, useNavigate, useSearchParams } from 'react-router-dom'
 import { Mail, Plus, Users, Activity, Clock, AlertCircle, Eye, Pencil, Trash2, Send, CheckCircle2, XCircle } from 'lucide-react'
 import { beneficiariesApi, assistanceRequestsApi } from '../../api/resources'
 import { useApiList } from '../../hooks/useApiList'
 import { useFilters } from '../../hooks/useFilters'
 import { MUNICIPALITIES, barangaysForMunicipality } from '../../constants/locations'
-import { BARANGAY_TYPES, REPRESENTATIVE_POSITIONS } from '../../constants/options'
+import { BARANGAY_TYPES as FALLBACK_BARANGAY_TYPES, REPRESENTATIVE_POSITIONS } from '../../constants/options'
 import PageHeader from '../../components/admin/shared/PageHeader'
 import DataTable from '../../components/admin/shared/DataTable'
 import StatusBadge from '../../components/admin/shared/StatusBadge'
@@ -14,11 +14,15 @@ import ModalHeader from '../../components/admin/shared/ModalHeader'
 import Req from '../../components/shared/Req'
 import NameFields from '../../components/shared/NameFields'
 import NeedsPicker from '../../components/shared/NeedsPicker'
+import { useCatalogOptions } from '../../hooks/useCatalogOptions'
+import { CatalogFieldLabel } from '../../components/admin/shared/CatalogQuickAdd'
+import { NEEDS as FALLBACK_NEEDS } from '../../constants/options'
 import ApiState from '../../components/admin/shared/ApiState'
 import { emptyNameParts, formatFullName, parseFullName } from '../../utils/personName'
 import { BENEFICIARIES_CHANGED, notifyBeneficiariesChanged } from '../../utils/beneficiariesSync'
 import { canInviteBarangay, canStartOrRefreshInvite, isAwaitingBarangayApproval } from '../../utils/barangayInvite'
 import { notify, suppressNotificationToast } from '../../utils/toast'
+import { useHashScroll, useQueryFocus } from '../../hooks/useDeepLinkFocus'
 
 const STATUS_OPTIONS = ['Active', 'Approved', 'Pending Approval', 'Suspended', 'Rejected']
 /** Create-only statuses — Edit never changes partnership status. */
@@ -133,8 +137,23 @@ function priorityClass(priority) {
 export default function BeneficiariesPage() {
   const navigate = useNavigate()
   const location = useLocation()
+  const [searchParams, setSearchParams] = useSearchParams()
+  const [deepLink, setDeepLink] = useState(() => ({
+    id: searchParams.get('id') || searchParams.get('beneficiaryId') || '',
+    status: searchParams.get('status') || '',
+    focus: searchParams.get('focus') || '',
+  }))
   const { data: beneficiaries, loading, error, reload, setData } = useApiList(() => beneficiariesApi.list())
   const { data: requests } = useApiList(() => assistanceRequestsApi.list())
+
+  useEffect(() => {
+    const id = searchParams.get('id') || searchParams.get('beneficiaryId') || ''
+    const status = searchParams.get('status') || ''
+    const focus = searchParams.get('focus') || ''
+    if (id || status || focus) {
+      setDeepLink({ id, status, focus })
+    }
+  }, [searchParams])
 
   useEffect(() => {
     if (location.state?.beneficiariesRefresh) {
@@ -157,12 +176,55 @@ export default function BeneficiariesPage() {
 
   const filters = useFilters(beneficiaries, filterConfig)
 
+  const contentReady = !loading && Array.isArray(beneficiaries)
+  const shouldScrollTable = Boolean(
+    deepLink.focus === 'pending' || deepLink.status,
+  ) && !deepLink.id
+  useHashScroll({ enabled: contentReady, deps: [beneficiaries?.length] })
+  useQueryFocus(contentReady && shouldScrollTable, 'barangays-table')
+
+  useEffect(() => {
+    if (!contentReady || !deepLink) return
+    const { id: focusId, status: focusStatus, focus } = deepLink
+    if (!focusId && !focusStatus && !focus) return
+
+    if (focusStatus) {
+      filters.setValue('status', focusStatus)
+    } else if (focus === 'pending') {
+      filters.setValue('status', 'Pending Approval')
+    }
+    if (focusId) {
+      const row = beneficiaries.find((b) => String(b.dbId) === String(focusId))
+      if (row) {
+        const review = isAwaitingBarangayApproval(row)
+          ? '?tab=overview&focus=review#barangay-overview-review'
+          : ''
+        navigate(`/admin/beneficiaries/${row.dbId}${review}`, { replace: false })
+        setDeepLink({ id: '', status: '', focus: '' })
+        return
+      }
+    }
+
+    const next = new URLSearchParams(searchParams)
+    next.delete('status')
+    next.delete('focus')
+    next.delete('id')
+    next.delete('beneficiaryId')
+    setSearchParams(next, { replace: true })
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [contentReady, deepLink.id, deepLink.status, deepLink.focus])
+
   const [modalMode, setModalMode] = useState(null)
   const [activeId, setActiveId] = useState(null)
   const [createForm, setCreateForm] = useState(emptyCreateForm)
   const [inviteForm, setInviteForm] = useState(emptyInviteForm)
   const [saving, setSaving] = useState(false)
   const [actionBusyId, setActionBusyId] = useState(null)
+  const { options: barangayTypeOptions, applyList: applyBarangayTypes } = useCatalogOptions(
+    'barangay_types',
+    FALLBACK_BARANGAY_TYPES,
+  )
+  const { options: needOptions, applyList: applyNeeds } = useCatalogOptions('needs', FALLBACK_NEEDS)
 
   const totalBeneficiaries = beneficiaries.length
   const activeBeneficiaries = beneficiaries.filter((b) => b.status === 'Active' || b.status === 'Approved').length
@@ -562,15 +624,17 @@ export default function BeneficiariesPage() {
         searchPlaceholder="Search by barangay, municipality, or representative…"
       />
 
-      <ApiState loading={loading} error={error} onRetry={reload}>
-        <DataTable
-          columns={columns}
-          data={filters.filtered}
-          onRowClick={handleRowClick}
-          rowClassName={(row) => (isAwaitingBarangayApproval(row) ? 'data-table__row--pending-review' : '')}
-          initialVisible={5}
-        />
-      </ApiState>
+      <div id="barangays-table">
+        <ApiState loading={loading} error={error} onRetry={reload}>
+          <DataTable
+            columns={columns}
+            data={filters.filtered}
+            onRowClick={handleRowClick}
+            rowClassName={(row) => (isAwaitingBarangayApproval(row) ? 'data-table__row--pending-review' : '')}
+            initialVisible={5}
+          />
+        </ApiState>
+      </div>
 
       {modalMode === 'invite' && (
         <div className="admin-modal-overlay" onClick={() => setModalMode(null)}>
@@ -680,11 +744,13 @@ export default function BeneficiariesPage() {
 
               <div className="form-row">
                 <label>
-                  Barangay Type
+                  <CatalogFieldLabel catalog="barangay_types" onUpdated={applyBarangayTypes}>
+                    Barangay Type
+                  </CatalogFieldLabel>
                   <select value={createForm.barangayType} onChange={(e) => setCreateForm({ ...createForm, barangayType: e.target.value })}>
                     <option value="">Select type…</option>
-                    {BARANGAY_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
-                    {createForm.barangayType && !BARANGAY_TYPES.includes(createForm.barangayType) && (
+                    {barangayTypeOptions.map((t) => <option key={t} value={t}>{t}</option>)}
+                    {createForm.barangayType && !barangayTypeOptions.includes(createForm.barangayType) && (
                       <option value={createForm.barangayType}>{createForm.barangayType}</option>
                     )}
                   </select>
@@ -716,6 +782,10 @@ export default function BeneficiariesPage() {
                 onChange={(needs) => setCreateForm({ ...createForm, needs })}
                 note={createForm.notes}
                 onNoteChange={(notes) => setCreateForm({ ...createForm, notes })}
+                options={needOptions}
+                showQuickAdd
+                onCatalogUpdated={applyNeeds}
+                initialVisible={6}
               />
 
               <p className="form-section-title" style={{ marginTop: '1.25rem', marginBottom: '0.85rem', fontWeight: 650, color: 'var(--admin-text)' }}>

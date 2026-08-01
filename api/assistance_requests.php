@@ -12,6 +12,29 @@ if ($method === 'GET' && !empty($_GET['action'])) {
   $action = $_GET['action'];
 }
 
+function ensure_request_needs_column(PDO $pdo): void
+{
+  static $done = false;
+  if ($done) {
+    return;
+  }
+  try {
+    $pdo->exec('ALTER TABLE assistance_requests ADD COLUMN needs_json TEXT NULL AFTER notes');
+  } catch (Throwable $e) {
+    // column already exists
+  }
+  $done = true;
+}
+
+function encode_request_needs($needs): ?string
+{
+  if (!is_array($needs) || count($needs) === 0) {
+    return null;
+  }
+  $clean = array_values(array_filter(array_map('strval', $needs), fn($n) => trim($n) !== ''));
+  return count($clean) > 0 ? json_encode($clean) : null;
+}
+
 function map_request(array $row, string $beneficiaryName, ?array $extra = null): array
 {
   $mapped = [
@@ -25,6 +48,7 @@ function map_request(array $row, string $beneficiaryName, ?array $extra = null):
     'requestDate' => $row['request_date'],
     'priority' => $row['priority'],
     'notes' => $row['notes'],
+    'needs' => [],
     'isEmergency' => !empty($row['is_emergency']),
     'calamityTags' => [],
     'assignedTo' => $row['assigned_to'] ?? null,
@@ -36,6 +60,12 @@ function map_request(array $row, string $beneficiaryName, ?array $extra = null):
     $decoded = json_decode((string) $row['calamity_tags'], true);
     if (is_array($decoded)) {
       $mapped['calamityTags'] = $decoded;
+    }
+  }
+  if (!empty($row['needs_json'])) {
+    $decodedNeeds = json_decode((string) $row['needs_json'], true);
+    if (is_array($decodedNeeds)) {
+      $mapped['needs'] = array_values(array_filter(array_map('strval', $decodedNeeds)));
     }
   }
   // SLA status computation
@@ -379,7 +409,10 @@ if ($method === 'POST') {
     $calamityTags = json_encode(array_values(array_map('strval', $body['calamityTags'])));
   }
 
-  $stmt = $pdo->prepare('INSERT INTO assistance_requests (reference_code, beneficiary_id, assistance_type, status, priority, request_date, notes, calamity_tags, sla_deadline, is_emergency, assigned_to) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)');
+  ensure_request_needs_column($pdo);
+  $needsJson = array_key_exists('needs', $body) ? encode_request_needs($body['needs']) : null;
+
+  $stmt = $pdo->prepare('INSERT INTO assistance_requests (reference_code, beneficiary_id, assistance_type, status, priority, request_date, notes, needs_json, calamity_tags, sla_deadline, is_emergency, assigned_to) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)');
   $stmt->execute([
     $ref,
     $beneficiaryId,
@@ -388,6 +421,7 @@ if ($method === 'POST') {
     $priority,
     $body['requestDate'] ?? date('Y-m-d'),
     $notes,
+    $needsJson,
     $calamityTags,
     $slaDeadline,
     !empty($body['isEmergency']) ? 1 : 0,
@@ -525,12 +559,18 @@ if ($method === 'PUT') {
     ? ($existing['assigned_to'] ?? null)
     : ($body['assignedTo'] ?? ($existing['assigned_to'] ?? null));
 
-  $update = $pdo->prepare('UPDATE assistance_requests SET assistance_type = ?, status = ?, priority = ?, notes = ?, calamity_tags = ?, sla_deadline = ?, is_emergency = ?, assigned_to = ? WHERE id = ?');
+  ensure_request_needs_column($pdo);
+  $needsJson = array_key_exists('needs', $body)
+    ? encode_request_needs($body['needs'])
+    : ($existing['needs_json'] ?? null);
+
+  $update = $pdo->prepare('UPDATE assistance_requests SET assistance_type = ?, status = ?, priority = ?, notes = ?, needs_json = ?, calamity_tags = ?, sla_deadline = ?, is_emergency = ?, assigned_to = ? WHERE id = ?');
   $update->execute([
     $body['type'] ?? $existing['assistance_type'],
     $newStatus,
     $newPriority,
     $body['notes'] ?? $existing['notes'],
+    $needsJson,
     $calamityTags,
     $slaDeadline,
     $newEmergency,

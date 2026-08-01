@@ -126,10 +126,49 @@ function create_notification(PDO $pdo, string $type, string $title, string $mess
   $stmt->execute([$userId, $roleTarget, $type, $title, $message, $normalized]);
 }
 
+/**
+ * Map an admin deep-link to the Staff portal equivalent when one exists.
+ * Staff must never receive raw /admin/... View links.
+ */
+function staff_notification_link(?string $link): ?string
+{
+  if ($link === null || $link === '') {
+    return null;
+  }
+  $path = function_exists('notification_path') ? notification_path($link) : $link;
+  if (!str_starts_with($path, '/admin')) {
+    return $path;
+  }
+  $rest = substr($path, strlen('/admin')); // includes leading / or empty
+  if ($rest === '' || $rest === '/') {
+    return '/staff';
+  }
+  $base = parse_url($rest, PHP_URL_PATH) ?: $rest;
+  $allowed = [
+    '/donations',
+    '/inventory',
+    '/distributions',
+    '/tasks',
+    '/verification',
+    '/settings',
+  ];
+  foreach ($allowed as $prefix) {
+    if ($base === $prefix || str_starts_with($base, $prefix . '/')) {
+      return '/staff' . $rest;
+    }
+  }
+  // No staff page for this admin module — land on staff dashboard.
+  return '/staff';
+}
+
+/**
+ * Notify Admin + Staff inboxes only. Never Donor / Volunteer / Beneficiary.
+ * Each role gets a portal-appropriate link.
+ */
 function notify_admins(PDO $pdo, string $type, string $title, string $message, ?string $link = null): void
 {
   create_notification($pdo, $type, $title, $message, $link, null, 'Admin');
-  create_notification($pdo, $type, $title, $message, $link, null, 'Staff');
+  create_notification($pdo, $type, $title, $message, staff_notification_link($link), null, 'Staff');
 }
 
 /**

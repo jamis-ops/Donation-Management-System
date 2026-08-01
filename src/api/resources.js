@@ -83,6 +83,37 @@ export const needsStockApi = {
   get: () => apiFetch('/api/needs_stock.php'),
 }
 
+/** Settings-managed catalogs: needs | barangay_types | task_types */
+export const catalogItemsApi = {
+  list: (catalog, all = false) =>
+    apiFetch(`/api/catalog_items.php?catalog=${encodeURIComponent(catalog)}${all ? '&all=1' : ''}`),
+  get: (catalog, id) =>
+    apiFetch(`/api/catalog_items.php?catalog=${encodeURIComponent(catalog)}&id=${id}`),
+  create: (catalog, body) =>
+    apiFetch(`/api/catalog_items.php?catalog=${encodeURIComponent(catalog)}`, {
+      method: 'POST',
+      body: JSON.stringify(body),
+    }),
+  update: (catalog, id, body) =>
+    apiFetch(`/api/catalog_items.php?catalog=${encodeURIComponent(catalog)}&id=${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(body),
+    }),
+  remove: (catalog, id) =>
+    apiFetch(`/api/catalog_items.php?catalog=${encodeURIComponent(catalog)}&id=${id}`, {
+      method: 'DELETE',
+      body: '{}',
+    }),
+}
+
+/** @deprecated Prefer catalogItemsApi with catalog "needs" */
+export const needTypesApi = {
+  list: (all = false) => catalogItemsApi.list('needs', all),
+  create: (body) => catalogItemsApi.create('needs', body),
+  update: (id, body) => catalogItemsApi.update('needs', id, body),
+  remove: (id) => catalogItemsApi.remove('needs', id),
+}
+
 export function getDashboard() {
   return apiFetch('/api/dashboard.php')
 }

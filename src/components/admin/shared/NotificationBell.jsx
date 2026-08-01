@@ -4,8 +4,8 @@ import { Bell } from 'lucide-react'
 import { getNotifications, markNotificationRead, markAllNotificationsRead } from '../../../api/resources'
 import { notify, isNotificationToastSuppressed } from '../../../utils/toast'
 import { notifyBeneficiariesChanged } from '../../../utils/beneficiariesSync'
+import { useAuth } from '../../../context/AuthContext'
 
-const SEEN_KEY = 'raf_notif_seen_ids'
 const POLL_MS = 8000
 
 /** Normalize stored links (absolute localhost or relative) into an in-app path. */
@@ -13,20 +13,69 @@ function toAppPath(link, linkPrefix = '/admin') {
   if (!link) return null
   const raw = String(link).trim()
   if (!raw) return null
+  let path = raw
   try {
     if (/^https?:\/\//i.test(raw)) {
       const u = new URL(raw)
-      return `${u.pathname}${u.search}${u.hash}` || '/'
+      path = `${u.pathname}${u.search}${u.hash}` || '/'
     }
   } catch {
     /* fall through */
   }
-  return raw.startsWith('/') ? raw : `${linkPrefix}${raw.startsWith('/') ? '' : '/'}${raw}`
+  if (!path.startsWith('/')) {
+    path = `${linkPrefix}${path.startsWith('/') ? '' : '/'}${path}`
+  }
+  return rewritePathForPortal(path, linkPrefix)
 }
 
-function loadSeenIds() {
+/** Keep each portal on its own routes — never send users into another role’s UI. */
+function rewritePathForPortal(path, linkPrefix) {
+  if (!path) return path
+
+  if (linkPrefix === '/staff' && path.startsWith('/admin/')) {
+    const rest = path.slice('/admin'.length) // keeps leading /
+    const staffRoots = ['/donations', '/inventory', '/distributions', '/tasks', '/verification', '/settings']
+    const base = rest.split(/[?#]/)[0]
+    if (staffRoots.some((r) => base === r || base.startsWith(`${r}/`))) {
+      return `/staff${rest}`
+    }
+    return '/staff'
+  }
+
+  if (linkPrefix === '/admin') {
+    if (path.startsWith('/admin')) return path
+    return null
+  }
+  if (linkPrefix === '/staff') {
+    if (path.startsWith('/staff')) return path
+    return null
+  }
+  if (linkPrefix === '/donor') {
+    return path.startsWith('/donor') ? path : null
+  }
+  if (linkPrefix === '/volunteer-portal') {
+    return path.startsWith('/volunteer-portal') ? path : null
+  }
+  if (linkPrefix === '/beneficiary') {
+    return path.startsWith('/beneficiary') ? path : null
+  }
+  return path
+}
+
+/** Drop notifications whose links belong to another portal (client safety net). */
+function belongsToPortal(n, linkPrefix) {
+  const path = toAppPath(n.link, linkPrefix)
+  if (!n.link) return true
+  return Boolean(path)
+}
+
+function seenStorageKey(role) {
+  return `raf_notif_seen_ids_${String(role || 'guest').toLowerCase()}`
+}
+
+function loadSeenIds(role) {
   try {
-    const raw = sessionStorage.getItem(SEEN_KEY)
+    const raw = sessionStorage.getItem(seenStorageKey(role))
     const parsed = raw ? JSON.parse(raw) : []
     return new Set(Array.isArray(parsed) ? parsed.map(Number) : [])
   } catch {
@@ -34,10 +83,10 @@ function loadSeenIds() {
   }
 }
 
-function saveSeenIds(ids) {
+function saveSeenIds(role, ids) {
   try {
     const list = [...ids].slice(-200)
-    sessionStorage.setItem(SEEN_KEY, JSON.stringify(list))
+    sessionStorage.setItem(seenStorageKey(role), JSON.stringify(list))
   } catch {
     /* ignore quota */
   }
@@ -52,7 +101,10 @@ function toastTypeForNotification(n) {
   return 'info'
 }
 
-function shouldToastNotification(n) {
+function shouldToastNotification(n, role) {
+  // Barangay registration toasts are for Admin/Staff only — never other portals.
+  const r = String(role || '')
+  if (!['Admin', 'Staff', 'SuperAdmin'].includes(r)) return false
   const type = String(n.type || '')
   if (type.startsWith('beneficiary')) return true
   const title = String(n.title || '').toLowerCase()
@@ -66,12 +118,19 @@ function shouldToastNotification(n) {
 }
 
 export default function NotificationBell({ linkPrefix = '/admin' }) {
+  const { user } = useAuth()
+  const role = user?.role || ''
   const [open, setOpen] = useState(false)
   const [items, setItems] = useState([])
   const [unread, setUnread] = useState(0)
   const ref = useRef(null)
   const primedRef = useRef(false)
-  const seenRef = useRef(loadSeenIds())
+  const seenRef = useRef(null)
+
+  useEffect(() => {
+    primedRef.current = false
+    seenRef.current = loadSeenIds(role)
+  }, [role])
 
   useEffect(() => {
     let active = true
@@ -80,14 +139,15 @@ export default function NotificationBell({ linkPrefix = '/admin' }) {
       try {
         const res = await getNotifications()
         if (!active) return
-        const list = res.data || []
+        const list = (res.data || []).filter((n) => belongsToPortal(n, linkPrefix))
         setItems(list)
-        setUnread(res.unreadCount || 0)
+        setUnread(list.filter((n) => !n.isRead).length)
 
+        if (!seenRef.current) seenRef.current = loadSeenIds(role)
         const seen = seenRef.current
         if (!primedRef.current) {
           list.forEach((n) => seen.add(Number(n.id)))
-          saveSeenIds(seen)
+          saveSeenIds(role, seen)
           primedRef.current = true
           return
         }
@@ -98,13 +158,13 @@ export default function NotificationBell({ linkPrefix = '/admin' }) {
         let refreshBarangays = false
         fresh.forEach((n) => {
           seen.add(Number(n.id))
-          if (!shouldToastNotification(n)) return
+          if (!shouldToastNotification(n, role)) return
           refreshBarangays = true
           if (isNotificationToastSuppressed(String(n.type || ''))) return
           const text = n.message || n.title
           if (text) notify[toastTypeForNotification(n)](text, 7000)
         })
-        saveSeenIds(seen)
+        saveSeenIds(role, seen)
         if (refreshBarangays) notifyBeneficiariesChanged()
       } catch {
         /* silent */
@@ -117,7 +177,7 @@ export default function NotificationBell({ linkPrefix = '/admin' }) {
       active = false
       clearInterval(interval)
     }
-  }, [])
+  }, [role, linkPrefix])
 
   useEffect(() => {
     const handler = (e) => {
@@ -130,8 +190,9 @@ export default function NotificationBell({ linkPrefix = '/admin' }) {
   const refresh = async () => {
     try {
       const res = await getNotifications()
-      setItems(res.data || [])
-      setUnread(res.unreadCount || 0)
+      const list = (res.data || []).filter((n) => belongsToPortal(n, linkPrefix))
+      setItems(list)
+      setUnread(list.filter((n) => !n.isRead).length)
     } catch {
       /* silent */
     }
@@ -177,7 +238,7 @@ export default function NotificationBell({ linkPrefix = '/admin' }) {
                     </div>
                     <div className="notif-panel__actions">
                       {path && (
-                        <Link to={path} onClick={() => handleRead(n.id)}>
+                        <Link to={path} onClick={() => { handleRead(n.id); setOpen(false) }}>
                           View
                         </Link>
                       )}

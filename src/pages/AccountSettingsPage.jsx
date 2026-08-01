@@ -2,11 +2,14 @@ import { useEffect, useState } from 'react'
 import { useAuth } from '../context/AuthContext'
 import { apiFetch, uploadProfilePhoto } from '../api/resources'
 import PageHeader from '../components/admin/shared/PageHeader'
+import MasterDataSettings from '../components/admin/shared/MasterDataSettings'
 import Req from '../components/shared/Req'
 import { notify } from '../utils/toast'
+import { isSuperAdminRole } from '../utils/roleRoutes'
 
 export default function AccountSettingsPage() {
   const { user, updateAccount, changePassword, refreshUser } = useAuth()
+  const canManageLists = user?.role === 'Admin' || isSuperAdminRole(user?.role, user)
   const [name, setName] = useState('')
   const [phone, setPhone] = useState('')
   const [recoveryPhone, setRecoveryPhone] = useState('')
@@ -116,9 +119,14 @@ export default function AccountSettingsPage() {
     <>
       <PageHeader
         title="Account Settings"
-        description="Update your profile details, recovery phone, password, and photo."
+        description={
+          canManageLists
+            ? 'Update your profile and manage shared system lists (Barangay types, Needs, Tasks).'
+            : 'Update your profile details, recovery phone, password, and photo.'
+        }
       />
 
+      {canManageLists && <MasterDataSettings />}
 
       <div className="settings-grid">
         <section className="portal-panel settings-panel">

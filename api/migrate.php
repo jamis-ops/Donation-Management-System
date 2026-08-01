@@ -96,6 +96,8 @@ try {
   // v11: Proof approval workflow — remarks + Pending/Approved/Rejected statuses
   addColumn($pdo, 'distribution_proofs', 'review_remarks', 'TEXT NULL AFTER status');
   addColumn($pdo, 'distribution_proofs', 'reviewed_by_user_id', 'BIGINT UNSIGNED NULL AFTER review_remarks');
+  // Proof category for barangay multi-file submissions (received / distribution / acknowledgment)
+  addColumn($pdo, 'distribution_proofs', 'proof_category', "VARCHAR(40) NOT NULL DEFAULT 'other' AFTER notes");
 
   // Normalize legacy status labels to Pending / Approved / Rejected
   try {
@@ -369,6 +371,72 @@ try {
   // v19: Link allocations → distribution events (handoff)
   addColumn($pdo, 'allocations', 'distribution_id', 'BIGINT UNSIGNED NULL AFTER assistance_request_id');
   echo "Ensured allocations.distribution_id for distribution handoff\n";
+
+  // v21: Shared Type of Needs catalog (Admin-managed, used by Barangay + Beneficiary portals)
+  $pdo->exec("
+    CREATE TABLE IF NOT EXISTS need_types (
+      id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+      label VARCHAR(120) NOT NULL,
+      sort_order INT NOT NULL DEFAULT 0,
+      is_active TINYINT(1) NOT NULL DEFAULT 1,
+      created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+      UNIQUE KEY uq_need_types_label (label)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+  ");
+  $needCount = (int) $pdo->query('SELECT COUNT(*) FROM need_types')->fetchColumn();
+  if ($needCount === 0) {
+    $defaults = [
+      'Food', 'Water', 'Clothing', 'Medicine', 'Hygiene Kits',
+      'Shelter', 'Financial Assistance', 'Educational Support',
+    ];
+    $insNeed = $pdo->prepare('INSERT INTO need_types (label, sort_order, is_active) VALUES (?, ?, 1)');
+    foreach ($defaults as $i => $label) {
+      $insNeed->execute([$label, $i + 1]);
+    }
+    echo "Seeded need_types catalog\n";
+  } else {
+    echo "Ensured need_types table\n";
+  }
+  addColumn($pdo, 'assistance_requests', 'needs_json', 'TEXT NULL AFTER notes');
+  // Allow longer joined labels while primary type remains a short display value
+  try {
+    $pdo->exec('ALTER TABLE assistance_requests MODIFY assistance_type VARCHAR(255) NOT NULL');
+  } catch (Throwable $e) {
+    // ignore if already widened / unsupported
+  }
+
+  // v22: Settings catalogs — barangay_types + task_types (need_types already exists)
+  foreach ([
+    'barangay_types' => ['Urban', 'Rural', 'Coastal', 'Upland', 'Island', 'Lowland'],
+    'task_types' => [
+      'Distribution', 'Repacking', 'Verification', 'Fieldwork',
+      'Administrative', 'Logistics', 'Outreach', 'Operations',
+      'Donations', 'Inventory', 'Distributions',
+    ],
+  ] as $table => $defaults) {
+    $pdo->exec("
+      CREATE TABLE IF NOT EXISTS `{$table}` (
+        id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+        label VARCHAR(120) NOT NULL,
+        sort_order INT NOT NULL DEFAULT 0,
+        is_active TINYINT(1) NOT NULL DEFAULT 1,
+        created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        UNIQUE KEY uq_{$table}_label (label)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+    ");
+    $cnt = (int) $pdo->query("SELECT COUNT(*) FROM `{$table}`")->fetchColumn();
+    if ($cnt === 0) {
+      $ins = $pdo->prepare("INSERT INTO `{$table}` (label, sort_order, is_active) VALUES (?, ?, 1)");
+      foreach (array_values($defaults) as $i => $label) {
+        $ins->execute([$label, $i + 1]);
+      }
+      echo "Seeded {$table}\n";
+    } else {
+      echo "Ensured {$table} table\n";
+    }
+  }
 
   echo "\nMigration complete!\n";
 } catch (Throwable $e) {

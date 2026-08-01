@@ -1,26 +1,43 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import {
   Utensils, Droplets, Shirt, Pill, Sparkles, Home,
-  Banknote, GraduationCap, Plus, X, Tag,
+  Banknote, GraduationCap, Tag, Package, X,
 } from 'lucide-react'
-import { NEEDS } from '../../constants/options'
+import { catalogItemsApi } from '../../api/resources'
+import { NEEDS as FALLBACK_NEEDS } from '../../constants/options'
+import { useSeeMore } from '../../hooks/useSeeMore'
+import { SeeMoreToggle } from '../admin/shared/SeeMoreList'
+import CatalogQuickAdd from '../admin/shared/CatalogQuickAdd'
 
-/* Icon map — keyed to the NEEDS constant values */
 const NEED_ICONS = {
-  'Food':                 Utensils,
-  'Water':                Droplets,
-  'Clothing':             Shirt,
-  'Medicine':             Pill,
-  'Hygiene Kits':         Sparkles,
-  'Shelter':              Home,
+  Food: Utensils,
+  Water: Droplets,
+  Clothing: Shirt,
+  Medicine: Pill,
+  'Hygiene Kits': Sparkles,
+  Shelter: Home,
   'Financial Assistance': Banknote,
-  'Educational Support':  GraduationCap,
+  'Educational Support': GraduationCap,
+}
+
+function iconForNeed(label) {
+  if (NEED_ICONS[label]) return NEED_ICONS[label]
+  const key = String(label || '').toLowerCase()
+  if (key.includes('food') || key.includes('rice')) return Utensils
+  if (key.includes('water')) return Droplets
+  if (key.includes('cloth')) return Shirt
+  if (key.includes('medicine') || key.includes('medical')) return Pill
+  if (key.includes('hygiene')) return Sparkles
+  if (key.includes('shelter') || key.includes('housing')) return Home
+  if (key.includes('financial') || key.includes('cash')) return Banknote
+  if (key.includes('educat') || key.includes('school')) return GraduationCap
+  if (key.includes('relief') || key.includes('pack')) return Package
+  return Tag
 }
 
 /**
- * NeedsPicker — inline grid of toggle chips with icon + label.
- * Custom needs can be added via the "+ Other" row.
- * Selected items appear as removable chips in a strip below.
+ * Type of Needs selector — original chip-grid UI.
+ * Options come from Settings → Type of Needs catalog.
  */
 export default function NeedsPicker({
   value = [],
@@ -29,10 +46,44 @@ export default function NeedsPicker({
   onNoteChange,
   showNote = true,
   label = 'Type of Needs',
+  initialVisible = 6,
+  options: optionsProp = null,
+  showQuickAdd = false,
+  onCatalogUpdated,
 }) {
   const selected = Array.isArray(value) ? value.filter(Boolean) : []
-  const [custom, setCustom] = useState('')
-  const [showCustom, setShowCustom] = useState(false)
+  const [options, setOptions] = useState(() => (
+    Array.isArray(optionsProp) && optionsProp.length > 0
+      ? optionsProp.map((o) => (typeof o === 'string' ? o : o.label)).filter(Boolean)
+      : FALLBACK_NEEDS
+  ))
+
+  useEffect(() => {
+    if (Array.isArray(optionsProp)) {
+      setOptions(optionsProp.map((o) => (typeof o === 'string' ? o : o.label)).filter(Boolean))
+      return
+    }
+    let active = true
+    catalogItemsApi.list('needs', false)
+      .then((res) => {
+        if (!active) return
+        const list = (res?.data || []).map((n) => n.label).filter(Boolean)
+        if (list.length > 0) setOptions(list)
+      })
+      .catch(() => { /* keep fallback */ })
+    return () => { active = false }
+  }, [optionsProp])
+
+  const seeMore = useSeeMore(options, initialVisible)
+
+  const handleCatalogUpdated = (list) => {
+    const labels = (Array.isArray(list) ? list : [])
+      .filter((item) => item && item.isActive !== false)
+      .map((item) => item.label)
+      .filter(Boolean)
+    if (labels.length > 0) setOptions(labels)
+    onCatalogUpdated?.(list)
+  }
 
   const toggle = (need) => {
     if (selected.includes(need)) {
@@ -46,38 +97,23 @@ export default function NeedsPicker({
     onChange?.(selected.filter((n) => n !== need))
   }
 
-  const handleAddCustom = (e) => {
-    e.preventDefault()
-    const next = custom.trim()
-    if (!next) return
-    if (selected.some((s) => s.toLowerCase() === next.toLowerCase())) {
-      setCustom('')
-      setShowCustom(false)
-      return
-    }
-    onChange?.([...selected, next])
-    setCustom('')
-    setShowCustom(false)
-  }
-
-  /* Custom needs are ones selected that aren't in the predefined NEEDS list */
-  const customSelected = selected.filter((n) => !NEEDS.includes(n))
-
   return (
     <div className="needs-picker">
-
-      {/* Section header */}
       <div className="needs-picker__header">
-        <span className="needs-picker__label">{label}</span>
+        <span className="needs-picker__label-row">
+          <span className="needs-picker__label">{label}</span>
+          {showQuickAdd && (
+            <CatalogQuickAdd catalog="needs" onUpdated={handleCatalogUpdated} />
+          )}
+        </span>
         <span className="needs-picker__count">
           {selected.length > 0 ? `${selected.length} selected` : 'None selected'}
         </span>
       </div>
 
-      {/* Predefined needs grid */}
       <div className="needs-picker__grid" role="group" aria-label="Select types of needs">
-        {NEEDS.map((need) => {
-          const Icon = NEED_ICONS[need] ?? Tag
+        {seeMore.visible.map((need) => {
+          const Icon = iconForNeed(need)
           const isActive = selected.includes(need)
           return (
             <button
@@ -98,58 +134,24 @@ export default function NeedsPicker({
             </button>
           )
         })}
-
-        {/* Other / custom trigger */}
-        <button
-          type="button"
-          className={`needs-picker__option needs-picker__option--other${showCustom ? ' needs-picker__option--other-open' : ''}`}
-          onClick={() => setShowCustom((v) => !v)}
-          aria-expanded={showCustom}
-          aria-label="Add a custom type of need"
-        >
-          <span className="needs-picker__option-icon">
-            <Plus size={16} strokeWidth={2.5} />
-          </span>
-          <span className="needs-picker__option-label">Other</span>
-        </button>
       </div>
 
-      {/* Custom need input — inline below the grid */}
-      {showCustom && (
-        <form className="needs-picker__custom" onSubmit={handleAddCustom}>
-          <input
-            type="text"
-            value={custom}
-            onChange={(e) => setCustom(e.target.value)}
-            placeholder="Describe the need…"
-            aria-label="Custom type of need"
-            autoFocus
-            maxLength={80}
-          />
-          <button
-            type="submit"
-            className="btn btn--sm btn--primary"
-            disabled={!custom.trim()}
-          >
-            Add
-          </button>
-          <button
-            type="button"
-            className="btn btn--sm btn--ghost"
-            onClick={() => { setShowCustom(false); setCustom('') }}
-          >
-            Cancel
-          </button>
-        </form>
+      {seeMore.needsToggle && (
+        <SeeMoreToggle
+          expanded={seeMore.expanded}
+          onToggle={seeMore.toggle}
+          hiddenCount={seeMore.hiddenCount}
+          moreLabel="Show More"
+          lessLabel="Show Less"
+        />
       )}
 
-      {/* Selected strip */}
       {selected.length > 0 && (
         <div className="needs-picker__selected">
           <span className="needs-picker__selected-label">Selected</span>
           <div className="needs-picker__chips" role="list" aria-label="Selected needs">
             {selected.map((need) => {
-              const Icon = NEED_ICONS[need] ?? Tag
+              const Icon = iconForNeed(need)
               return (
                 <span key={need} className="needs-picker__chip" role="listitem">
                   <Icon size={11} strokeWidth={2.5} aria-hidden="true" />
@@ -169,7 +171,6 @@ export default function NeedsPicker({
         </div>
       )}
 
-      {/* Notes field */}
       {showNote && typeof onNoteChange === 'function' && (
         <label className="needs-picker__note">
           Notes <span style={{ fontSize: '0.75rem', color: 'var(--admin-text-muted)', fontWeight: 400 }}>(optional)</span>

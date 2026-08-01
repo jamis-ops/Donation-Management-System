@@ -138,7 +138,7 @@ function auto_create_distribution_draft(PDO $pdo, array $allocation): ?int
   $pdo->prepare('UPDATE allocations SET distribution_id = ? WHERE id = ?')->execute([$distId, (int) $allocation['id']]);
 
   // Notify
-  notify_admins($pdo, 'distribution', 'Distribution draft created', "Auto-draft {$code} created for {$barangayName} from Allocation {$allocation['code']}", '/admin/distributions');
+  notify_admins($pdo, 'distribution', 'Distribution draft created', "Auto-draft {$code} created for {$barangayName} from Allocation {$allocation['code']}", '/admin/distributions?focus=drafts#distributions-drafts');
   audit_log($pdo, 'auto-create', 'distribution', $code, "Auto-created from allocation {$allocation['code']} for {$barangayName}");
 
   return $distId;

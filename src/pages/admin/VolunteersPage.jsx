@@ -17,6 +17,11 @@ import SkillTagPicker from '../../components/shared/SkillTagPicker'
 import { useSeeMore } from '../../hooks/useSeeMore'
 import { SeeMoreToggle } from '../../components/admin/shared/SeeMoreList'
 import { notify } from '../../utils/toast'
+import { useCatalogOptions } from '../../hooks/useCatalogOptions'
+import { CatalogFieldLabel } from '../../components/admin/shared/CatalogQuickAdd'
+import { TASK_TYPES as FALLBACK_TASK_TYPES } from '../../constants/options'
+
+const VOLUNTEER_TASK_FALLBACK = ['Volunteer', ...FALLBACK_TASK_TYPES]
 
 const filterConfig = {
   searchKeys: ['id', 'name', 'email', 'skills', 'programs'],
@@ -58,6 +63,10 @@ function ChipList({ items, empty = '—' }) {
 export default function VolunteersPage() {
   const { data: volunteers, loading, error, reload } = useApiList(() => volunteersApi.list())
   const filters = useFilters(volunteers, filterConfig)
+  const { options: taskTypeOptions, applyList: applyTaskTypes } = useCatalogOptions(
+    'task_types',
+    VOLUNTEER_TASK_FALLBACK,
+  )
   const [selected, setSelected] = useState(null)
   const [tasks, setTasks] = useState([])
   const [tasksLoading, setTasksLoading] = useState(false)
@@ -569,6 +578,23 @@ export default function VolunteersPage() {
                   value={taskForm.dutyHours}
                   onChange={(e) => setTaskForm({ ...taskForm, dutyHours: e.target.value })}
                 />
+              </label>
+
+              <label>
+                <CatalogFieldLabel catalog="task_types" onUpdated={applyTaskTypes}>
+                  Task Type
+                </CatalogFieldLabel>
+                <select
+                  value={taskForm.module}
+                  onChange={(e) => setTaskForm({ ...taskForm, module: e.target.value })}
+                >
+                  {taskTypeOptions.map((t) => (
+                    <option key={t} value={t}>{t}</option>
+                  ))}
+                  {taskForm.module && !taskTypeOptions.includes(taskForm.module) && (
+                    <option value={taskForm.module}>{taskForm.module}</option>
+                  )}
+                </select>
               </label>
 
               <SkillTagPicker

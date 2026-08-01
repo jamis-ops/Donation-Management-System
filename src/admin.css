@@ -3252,6 +3252,12 @@
   gap: 0.5rem;
 }
 
+.needs-picker__label-row {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
 .needs-picker__label {
   font-size: 0.82rem;
   font-weight: 650;
@@ -3277,14 +3283,30 @@
   background: var(--admin-brand-muted);
 }
 
-/* Option grid */
+.needs-picker__required {
+  color: var(--admin-brand, #af101a);
+}
+
+.needs-picker__hint {
+  margin: 0 0 0.65rem;
+  font-size: 0.78rem;
+  color: var(--admin-text-muted, #6b6357);
+  line-height: 1.4;
+}
+
+.needs-picker__note-optional {
+  font-size: 0.75rem;
+  color: var(--admin-text-muted);
+  font-weight: 400;
+}
+
+/* Option grid — original chip tiles */
 .needs-picker__grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(128px, 1fr));
   gap: 0.45rem;
 }
 
-/* Individual toggle option button */
 .needs-picker__option {
   display: flex;
   flex-direction: column;
@@ -3519,8 +3541,120 @@
 /* Responsive — 2-col grid on narrow modals */
 @media (max-width: 480px) {
   .needs-picker__grid {
-    grid-template-columns: repeat(3, 1fr);
+    grid-template-columns: 1fr 1fr;
   }
+}
+
+/* ---------- Type of Needs catalog manager (Barangay page) ---------- */
+
+.needs-catalog {
+  margin-bottom: 1.5rem;
+  padding: 1.15rem 1.25rem;
+}
+
+.needs-catalog--compact {
+  margin: 0.85rem 0 1rem;
+  padding: 0.85rem 0.9rem;
+  border: 1px solid var(--admin-border);
+  border-radius: var(--admin-radius, 10px);
+  background: var(--admin-bg, #f8f7f5);
+}
+
+.needs-catalog--compact .needs-catalog__title {
+  font-size: 0.95rem;
+}
+
+.needs-catalog--compact .needs-catalog__sub {
+  font-size: 0.78rem;
+}
+
+.needs-catalog__header {
+  margin-bottom: 0.85rem;
+}
+
+.needs-catalog__title {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  margin: 0;
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: var(--admin-text);
+}
+
+.needs-catalog__sub {
+  margin: 0.35rem 0 0;
+  font-size: 0.82rem;
+  color: var(--admin-text-muted);
+  line-height: 1.45;
+  max-width: 52rem;
+}
+
+.needs-catalog__add {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+  margin-bottom: 0.85rem;
+}
+
+.needs-catalog__add-label {
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+}
+
+.needs-catalog__add-label input {
+  width: 100%;
+}
+
+.needs-catalog__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.needs-catalog__item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.55rem 0.7rem;
+  border: 1px solid var(--admin-border);
+  border-radius: 8px;
+  background: var(--admin-bg, #f8f7f5);
+}
+
+.needs-catalog__item-label {
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--admin-text);
+}
+
+.needs-catalog__item-actions {
+  display: flex;
+  gap: 0.15rem;
+  flex-shrink: 0;
+}
+
+.needs-catalog__edit {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  width: 100%;
+}
+
+.needs-catalog__edit input {
+  flex: 1;
+  min-width: 0;
+}
+
+.needs-catalog__empty {
+  margin: 0.25rem 0 0;
+  font-size: 0.85rem;
+  color: var(--admin-text-muted);
 }
 
 .icon-btn {

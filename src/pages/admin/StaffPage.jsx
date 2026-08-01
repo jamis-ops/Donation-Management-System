@@ -18,6 +18,9 @@ import { SeeMoreToggle } from '../../components/admin/shared/SeeMoreList'
 import NameFields from '../../components/shared/NameFields'
 import { emptyNameParts, formatFullName } from '../../utils/personName'
 import { notify } from '../../utils/toast'
+import { useCatalogOptions } from '../../hooks/useCatalogOptions'
+import { CatalogFieldLabel } from '../../components/admin/shared/CatalogQuickAdd'
+import { TASK_TYPES as FALLBACK_TASK_TYPES } from '../../constants/options'
 
 const filterConfig = {
   searchKeys: ['id', 'name', 'email', 'firstName', 'lastName'],
@@ -43,11 +46,14 @@ const emptyTaskForm = {
   module: 'Operations',
 }
 
+const FALLBACK_MODULES = ['Operations', 'Donations', 'Inventory', 'Distributions', ...FALLBACK_TASK_TYPES]
+
 export default function StaffPage() {
   const { user } = useAuth()
   const isSuperAdmin = isSuperAdminRole(user?.role, user)
   const { data, loading, error, reload } = useApiList(() => getStaff())
   const filters = useFilters(data, filterConfig)
+  const { options: taskTypeOptions, applyList: applyTaskTypes } = useCatalogOptions('task_types', FALLBACK_MODULES)
   const [showForm, setShowForm] = useState(false)
   const [form, setForm] = useState(emptyForm)
   const [saving, setSaving] = useState(false)
@@ -392,12 +398,16 @@ export default function StaffPage() {
                 </label>
               </div>
               <label>
-                Module
+                <CatalogFieldLabel catalog="task_types" onUpdated={applyTaskTypes}>
+                  Task Type / Module
+                </CatalogFieldLabel>
                 <select value={taskForm.module} onChange={(e) => setTaskForm({ ...taskForm, module: e.target.value })}>
-                  <option>Operations</option>
-                  <option>Donations</option>
-                  <option>Inventory</option>
-                  <option>Distributions</option>
+                  {taskTypeOptions.map((t) => (
+                    <option key={t} value={t}>{t}</option>
+                  ))}
+                  {taskForm.module && !taskTypeOptions.includes(taskForm.module) && (
+                    <option value={taskForm.module}>{taskForm.module}</option>
+                  )}
                 </select>
               </label>
               <div className="admin-modal__actions">

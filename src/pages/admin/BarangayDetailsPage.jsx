@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { useNavigate, useParams } from 'react-router-dom'
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import {
   ArrowLeft, Pencil, Mail, Trash2, FileText, Truck, Package,
   User, Calendar, Check, Eye, X, Shield, Plus, Upload, CheckCircle2, XCircle,
@@ -10,7 +10,10 @@ import {
   distributionsApi,
   allocationsApi,
 } from '../../api/resources'
-import { BARANGAY_TYPES } from '../../constants/options'
+import { BARANGAY_TYPES as FALLBACK_BARANGAY_TYPES } from '../../constants/options'
+import { useCatalogOptions } from '../../hooks/useCatalogOptions'
+import { CatalogFieldLabel } from '../../components/admin/shared/CatalogQuickAdd'
+import { NEEDS as FALLBACK_NEEDS } from '../../constants/options'
 import { useApiList } from '../../hooks/useApiList'
 import StatusBadge from '../../components/admin/shared/StatusBadge'
 import ApiState from '../../components/admin/shared/ApiState'
@@ -22,6 +25,7 @@ import { SeeMoreToggle } from '../../components/admin/shared/SeeMoreList'
 import { notifyBeneficiariesChanged } from '../../utils/beneficiariesSync'
 import { canInviteBarangay, isAwaitingBarangayApproval } from '../../utils/barangayInvite'
 import { notify, suppressNotificationToast } from '../../utils/toast'
+import { useHashScroll, useQueryFocus } from '../../hooks/useDeepLinkFocus'
 
 function normalizeNeeds(value) {
   if (Array.isArray(value)) return value.filter(Boolean)
@@ -77,7 +81,9 @@ export default function BarangayDetailsPage() {
     return allocations.filter((a) => Number(a.beneficiaryId) === Number(beneficiary.dbId))
   }, [allocations, beneficiary])
 
-  const [activeTab, setActiveTab] = useState('overview')
+  const [searchParams, setSearchParams] = useSearchParams()
+  const tabFromUrl = (searchParams.get('tab') || '').toLowerCase().replace(/\s+/g, '-')
+  const [activeTab, setActiveTab] = useState(tabFromUrl || 'overview')
   const [reqFilter, setReqFilter] = useState('All')
   const tabKey = (tab) => tab.toLowerCase().replace(/\s+/g, '-')
   const [isEditModalOpen, setIsEditModalOpen] = useState(false)
@@ -87,6 +93,11 @@ export default function BarangayDetailsPage() {
   const [approveConfirm, setApproveConfirm] = useState(false)
   const [rejectConfirm, setRejectConfirm] = useState(false)
   const [editForm, setEditForm] = useState({})
+  const { options: barangayTypeOptions, applyList: applyBarangayTypes } = useCatalogOptions(
+    'barangay_types',
+    FALLBACK_BARANGAY_TYPES,
+  )
+  const { options: needOptions, applyList: applyNeeds } = useCatalogOptions('needs', FALLBACK_NEEDS)
 
   useEffect(() => {
     if (!beneficiary) return
@@ -107,10 +118,27 @@ export default function BarangayDetailsPage() {
   }, [beneficiary])
 
   useEffect(() => {
-    if (beneficiary && isAwaitingBarangayApproval(beneficiary)) {
+    if (tabFromUrl) {
+      const allowed = TABS.map(tabKey)
+      if (allowed.includes(tabFromUrl)) setActiveTab(tabFromUrl)
+    } else if (beneficiary && isAwaitingBarangayApproval(beneficiary)) {
       setActiveTab('overview')
     }
-  }, [beneficiary])
+  }, [beneficiary, tabFromUrl])
+
+  const pageReady = Boolean(beneficiary) && !benLoading
+  const focusReview = searchParams.get('focus') === 'review'
+    || (!tabFromUrl && Boolean(beneficiary && isAwaitingBarangayApproval(beneficiary)))
+  useHashScroll({ enabled: pageReady })
+  useQueryFocus(pageReady && focusReview && activeTab === 'overview', 'barangay-overview-review')
+
+  const selectTab = (key) => {
+    setActiveTab(key)
+    const next = new URLSearchParams(searchParams)
+    next.set('tab', key)
+    if (key !== 'overview') next.delete('focus')
+    setSearchParams(next, { replace: true })
+  }
 
   const loading = benLoading || reqLoading || distLoading || allocLoading
 
@@ -394,7 +422,7 @@ export default function BarangayDetailsPage() {
               role="tab"
               aria-selected={activeTab === key}
               className={`barangay-tab${activeTab === key ? ' barangay-tab--active' : ''}`}
-              onClick={() => setActiveTab(key)}
+              onClick={() => selectTab(key)}
             >
               {tab}
             </button>
@@ -405,7 +433,12 @@ export default function BarangayDetailsPage() {
       {activeTab === 'overview' && (
         <div className="barangay-overview">
           {isPending && (
-            <div className="barangay-overview-review" role="region" aria-label="Partnership application review">
+            <div
+              id="barangay-overview-review"
+              className="barangay-overview-review"
+              role="region"
+              aria-label="Partnership application review"
+            >
               <div className="barangay-overview-review__icon" aria-hidden="true">
                 <Shield size={22} />
               </div>
@@ -685,11 +718,13 @@ export default function BarangayDetailsPage() {
               </div>
               <div className="form-row">
                 <label>
-                  Barangay Type
+                  <CatalogFieldLabel catalog="barangay_types" onUpdated={applyBarangayTypes}>
+                    Barangay Type
+                  </CatalogFieldLabel>
                   <select value={editForm.barangayType || ''} onChange={(e) => setEditForm({ ...editForm, barangayType: e.target.value })}>
                     <option value="">Select type…</option>
-                    {BARANGAY_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
-                    {editForm.barangayType && !BARANGAY_TYPES.includes(editForm.barangayType) && (
+                    {barangayTypeOptions.map((t) => <option key={t} value={t}>{t}</option>)}
+                    {editForm.barangayType && !barangayTypeOptions.includes(editForm.barangayType) && (
                       <option value={editForm.barangayType}>{editForm.barangayType}</option>
                     )}
                   </select>
@@ -708,6 +743,10 @@ export default function BarangayDetailsPage() {
                 onChange={(needs) => setEditForm({ ...editForm, needs })}
                 note={editForm.notes || ''}
                 onNoteChange={(notes) => setEditForm({ ...editForm, notes })}
+                options={needOptions}
+                showQuickAdd
+                onCatalogUpdated={applyNeeds}
+                initialVisible={6}
               />
               <p className="form-section-title" style={{ margin: '1.25rem 0 0.85rem', fontWeight: 650 }}>Representative</p>
               <div className="form-row">

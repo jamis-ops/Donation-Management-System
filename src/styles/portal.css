@@ -756,6 +756,96 @@
 .proof-file-label input[type="file"] { border: none; padding: 0.5rem 0; }
 .proof-file-name { display: block; margin-top: 0.5rem; font-weight: 500; color: #16a34a; }
 
+.proof-slots {
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+  margin-bottom: 1rem;
+}
+
+.proof-slots__title {
+  margin: 0;
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: #111827;
+}
+
+.proof-slots__hint {
+  margin: -0.25rem 0 0.15rem;
+  font-size: 0.78rem;
+  color: #64748b;
+}
+
+.proof-slot {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+  padding: 0.85rem 1rem;
+  border: 1.5px dashed #d1d5db;
+  border-radius: 10px;
+  background: #fafafa;
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s;
+}
+
+.proof-slot:hover,
+.proof-slot--filled {
+  border-color: #16a34a;
+  background: #f0fdf4;
+}
+
+.proof-slot__head {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.65rem;
+  color: #166534;
+}
+
+.proof-slot__head strong {
+  display: block;
+  font-size: 0.88rem;
+  color: #111827;
+}
+
+.proof-slot__head em {
+  display: block;
+  margin-top: 0.15rem;
+  font-style: normal;
+  font-size: 0.76rem;
+  font-weight: 500;
+  color: #64748b;
+  line-height: 1.35;
+}
+
+.proof-slot input[type="file"] {
+  font-size: 0.8rem;
+}
+
+.proof-slot__choose {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: #64748b;
+}
+
+.proof-list__category {
+  display: inline-flex;
+  align-self: flex-start;
+  padding: 0.12rem 0.5rem;
+  border-radius: 999px;
+  font-size: 0.7rem;
+  font-weight: 700;
+  color: #9a3412;
+  background: #ffedd5;
+  border: 1px solid #fdba74;
+}
+
+.proof-list__notes {
+  display: block;
+  margin-top: 0.25rem;
+  font-size: 0.78rem;
+  color: #64748b;
+}
+
 .proof-required {
   color: #b91c1c;
   font-weight: 700;
@@ -4275,6 +4365,84 @@
 
 .beneficiary-dist-summary-card--completed {
   border-left-color: #16a34a;
+}
+
+.beneficiary-dist-summary-card--action {
+  border-left-color: #f59e0b;
+}
+
+.beneficiary-dist-summary-card--action .beneficiary-dist-summary-card__icon {
+  background: rgba(245, 158, 11, 0.12);
+  color: #b45309;
+}
+
+.beneficiary-dist-steps {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.65rem;
+  margin: 0 0 1rem;
+}
+
+.beneficiary-dist-steps__item {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.55rem;
+  padding: 0.75rem 0.85rem;
+  border-radius: 10px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+}
+
+.beneficiary-dist-steps__item span {
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: #AF101A;
+  color: #fff;
+  font-size: 0.72rem;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+
+.beneficiary-dist-steps__item p {
+  margin: 0;
+  font-size: 0.8rem;
+  line-height: 1.35;
+  color: #475569;
+  font-weight: 550;
+}
+
+.beneficiary-dist-card--action {
+  border-color: #fbbf24;
+  box-shadow: 0 0 0 1px rgba(251, 191, 36, 0.35);
+}
+
+.beneficiary-dist-card__badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  margin-top: 0.35rem;
+}
+
+.beneficiary-dist-card__issue {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.35rem;
+  margin: 0.45rem 0 0;
+  padding: 0.45rem 0.55rem;
+  border-radius: 8px;
+  background: #fef2f2;
+  color: #b91c1c;
+  font-size: 0.78rem;
+  line-height: 1.4;
+}
+
+@media (max-width: 720px) {
+  .beneficiary-dist-steps {
+    grid-template-columns: 1fr;
+  }
 }
 
 .beneficiary-dist-summary-card__icon {

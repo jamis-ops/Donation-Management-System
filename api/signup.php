@@ -159,7 +159,7 @@ try {
   $labels = [
     'Donor' => ['New donor registered', "{$name} created a donor account.", '/admin/donors'],
     'Volunteer' => ['New volunteer application', "{$name} applied to volunteer.", '/admin/volunteers'],
-    'Beneficiary' => ['New barangay registration', "{$name} signed up and awaits approval.", '/admin/beneficiaries'],
+    'Beneficiary' => ['New barangay registration', "{$name} signed up and awaits approval.", '/admin/beneficiaries?focus=pending#barangays-table'],
   ];
   [$title, $message, $link] = $labels[$role];
   notify_admins($pdo, strtolower($role), $title, $message, $link);

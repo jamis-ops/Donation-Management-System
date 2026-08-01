@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { useLocation, useNavigate } from 'react-router-dom'
+import { useLocation, useNavigate, useSearchParams } from 'react-router-dom'
 import {
   Eye, Pencil, ArrowRightCircle, MapPin, Calendar, Package, Users,
   Truck, UserRound, FileCheck, ClipboardList, Route, Fuel, StickyNote,
@@ -19,6 +19,7 @@ import RowActionsMenu from '../../components/admin/shared/RowActionsMenu'
 import { useSeeMore } from '../../hooks/useSeeMore'
 import { SeeMoreToggle } from '../../components/admin/shared/SeeMoreList'
 import { notify } from '../../utils/toast'
+import { useHashScroll, useQueryFocus } from '../../hooks/useDeepLinkFocus'
 
 const WORKFLOW = ['Planning', 'Preparing', 'In Transit', 'Delivered', 'Awaiting Proof', 'Completed']
 const PROOF_STATUS = ['Not Required', 'Awaiting Proof', 'Proof Submitted', 'Proof Verified', 'Proof Rejected']
@@ -65,6 +66,12 @@ function formFromAllocations(allocs, barangays) {
 export default function DistributionsPage() {
   const location = useLocation()
   const navigate = useNavigate()
+  const [searchParams, setSearchParams] = useSearchParams()
+  const [deepLink, setDeepLink] = useState(() => ({
+    id: searchParams.get('id') || searchParams.get('distributionId') || '',
+    code: searchParams.get('code') || '',
+    focus: searchParams.get('focus') || '',
+  }))
   const { data, loading, error, reload } = useApiList(() => distributionsApi.list())
   const { data: barangays } = useApiList(() => beneficiariesApi.list())
   const filters = useFilters(data, filterConfig)
@@ -125,6 +132,50 @@ export default function DistributionsPage() {
       navigate(location.pathname, { replace: true, state: {} })
     }
   }, [location.state, location.pathname, barangays, navigate])
+
+  useEffect(() => {
+    const id = searchParams.get('id') || searchParams.get('distributionId') || ''
+    const code = searchParams.get('code') || ''
+    const focus = searchParams.get('focus') || ''
+    if (id || code || focus) {
+      setDeepLink({ id, code, focus })
+    }
+  }, [searchParams])
+
+  const contentReady = !loading && Array.isArray(data)
+  const deepLinkRow = useMemo(() => {
+    if (!contentReady) return null
+    if (deepLink.id) return (data || []).find((d) => String(d.dbId) === String(deepLink.id)) || null
+    if (deepLink.code) {
+      return (data || []).find((d) => String(d.id).toLowerCase() === String(deepLink.code).toLowerCase()
+        || String(d.eventName || '').toLowerCase().includes(String(deepLink.code).toLowerCase())) || null
+    }
+    return null
+  }, [contentReady, data, deepLink.id, deepLink.code])
+
+  const scrollTargetId = deepLink.focus === 'drafts'
+    ? 'distributions-drafts'
+    : (deepLinkRow || deepLink.focus === 'issues' || deepLink.id || deepLink.code
+      ? 'distributions-table'
+      : null)
+
+  useHashScroll({ enabled: contentReady, deps: [data?.length] })
+  useQueryFocus(contentReady && Boolean(scrollTargetId), scrollTargetId)
+
+  useEffect(() => {
+    if (!deepLinkRow) return
+    setDetailRow(deepLinkRow)
+    if (deepLinkRow.receiptStatus === 'Not Received' || deepLinkRow.proofStatus === 'Proof Submitted') {
+      filters.setValue?.('status', deepLinkRow.status || 'all')
+    }
+    const next = new URLSearchParams(searchParams)
+    next.delete('id')
+    next.delete('distributionId')
+    next.delete('code')
+    next.delete('focus')
+    setSearchParams(next, { replace: true })
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [deepLinkRow?.dbId])
 
   useEffect(() => {
     if (!(showCreate || editRow) || !showVolunteerHelp) return
@@ -319,7 +370,7 @@ export default function DistributionsPage() {
       />
 
       {planningDrafts.length > 0 && (
-        <section className="admin-panel" style={{ marginBottom: '24px', borderLeft: '4px solid #3b82f6' }}>
+        <section id="distributions-drafts" className="admin-panel" style={{ marginBottom: '24px', borderLeft: '4px solid #3b82f6' }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px' }}>
             <div>
               <h2 style={{ margin: 0, fontSize: '1.15rem', display: 'flex', alignItems: 'center', gap: '8px' }}>
@@ -433,9 +484,11 @@ export default function DistributionsPage() {
         exportConfig={{ filename: 'distribution-report', title: 'Distribution Report', columns, rows: filters.filtered }}
       />
 
-      <ApiState loading={loading} error={error} onRetry={reload}>
-        <DataTable columns={columns} data={filters.filtered} onRowClick={setDetailRow} initialVisible={5} />
-      </ApiState>
+      <div id="distributions-table">
+        <ApiState loading={loading} error={error} onRetry={reload}>
+          <DataTable columns={columns} data={filters.filtered} onRowClick={setDetailRow} initialVisible={5} />
+        </ApiState>
+      </div>
 
       {detailRow && (
         <div className="admin-modal-overlay" onClick={() => setDetailRow(null)}>

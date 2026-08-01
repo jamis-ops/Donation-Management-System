@@ -244,7 +244,7 @@ if ($method === 'POST' && ($action === 'accept_invite' || $action === 'apply_inv
     'beneficiary_registration',
     'Barangay registration received',
     'An invited Barangay has accepted the invitation and completed registration. A new Barangay has been registered and is awaiting approval.',
-    '/admin/beneficiaries'
+    '/admin/beneficiaries?focus=pending#barangays-table'
   );
   audit_log($pdo, 'apply_invite', 'beneficiary', $ben['code'], "Application submitted for {$barangay}");
 
@@ -558,7 +558,7 @@ if ($method === 'POST' && ($action === 'approve' || $action === 'reject')) {
     $sent
       ? "Login credentials have been successfully sent to the approved Barangay ({$barangayLabel}" . ($repEmail !== '' ? ", {$repEmail}" : '') . ').'
       : "Barangay {$barangayLabel} was approved, but the credential email could not be delivered" . ($repEmail !== '' ? " to {$repEmail}" : '') . '.',
-    '/admin/beneficiaries'
+    '/admin/beneficiaries/' . (int) $id . '?tab=overview'
   );
   audit_log($pdo, 'approve', 'beneficiary', $ben['code'], "Approved barangay {$ben['full_name']}");
 
