@@ -89,20 +89,20 @@ export const catalogItemsApi = {
     apiFetch(`/api/catalog_items.php?catalog=${encodeURIComponent(catalog)}${all ? '&all=1' : ''}`),
   get: (catalog, id) =>
     apiFetch(`/api/catalog_items.php?catalog=${encodeURIComponent(catalog)}&id=${id}`),
-  create: (catalog, body) =>
+  create: (catalog, body = {}) =>
     apiFetch(`/api/catalog_items.php?catalog=${encodeURIComponent(catalog)}`, {
       method: 'POST',
-      body: JSON.stringify(body),
+      body: JSON.stringify({ ...body, catalog }),
     }),
-  update: (catalog, id, body) =>
+  update: (catalog, id, body = {}) =>
     apiFetch(`/api/catalog_items.php?catalog=${encodeURIComponent(catalog)}&id=${id}`, {
       method: 'PUT',
-      body: JSON.stringify(body),
+      body: JSON.stringify({ ...body, catalog }),
     }),
   remove: (catalog, id) =>
     apiFetch(`/api/catalog_items.php?catalog=${encodeURIComponent(catalog)}&id=${id}`, {
       method: 'DELETE',
-      body: '{}',
+      body: JSON.stringify({ catalog }),
     }),
 }
 

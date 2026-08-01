@@ -8,6 +8,7 @@ import { NEEDS as FALLBACK_NEEDS } from '../../constants/options'
 import { useSeeMore } from '../../hooks/useSeeMore'
 import { SeeMoreToggle } from '../admin/shared/SeeMoreList'
 import CatalogQuickAdd from '../admin/shared/CatalogQuickAdd'
+import { CATALOG_CHANGED_EVENT } from '../../utils/catalogSync'
 
 const NEED_ICONS = {
   Food: Utensils,
@@ -72,6 +73,32 @@ export default function NeedsPicker({
       })
       .catch(() => { /* keep fallback */ })
     return () => { active = false }
+  }, [optionsProp])
+
+  useEffect(() => {
+    if (Array.isArray(optionsProp)) return undefined
+    const onChanged = (event) => {
+      if (event?.detail?.catalog !== 'needs') return
+      const incoming = event.detail?.list
+      if (Array.isArray(incoming) && incoming.length > 0) {
+        const labels = incoming
+          .filter((item) => item && item.isActive !== false)
+          .map((item) => item.label)
+          .filter(Boolean)
+        if (labels.length > 0) {
+          setOptions(labels)
+          return
+        }
+      }
+      catalogItemsApi.list('needs', false)
+        .then((res) => {
+          const list = (res?.data || []).map((n) => n.label).filter(Boolean)
+          if (list.length > 0) setOptions(list)
+        })
+        .catch(() => { /* ignore */ })
+    }
+    window.addEventListener(CATALOG_CHANGED_EVENT, onChanged)
+    return () => window.removeEventListener(CATALOG_CHANGED_EVENT, onChanged)
   }, [optionsProp])
 
   const seeMore = useSeeMore(options, initialVisible)

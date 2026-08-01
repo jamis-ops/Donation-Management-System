@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react'
 import { catalogItemsApi } from '../api/resources'
+import { CATALOG_CHANGED_EVENT } from '../utils/catalogSync'
 
 /**
  * Load active labels for a Settings-managed catalog.
- * Falls back to static defaults when the API is unavailable.
+ * Auto-refreshes when any catalog modal saves changes.
  */
 export function useCatalogOptions(catalog, fallback = []) {
   const [options, setOptions] = useState(() => (Array.isArray(fallback) ? fallback : []))
@@ -30,6 +31,26 @@ export function useCatalogOptions(catalog, fallback = []) {
       })
     return () => { active = false }
   }, [catalog, version])
+
+  useEffect(() => {
+    const onChanged = (event) => {
+      if (event?.detail?.catalog !== catalog) return
+      const incoming = event.detail?.list
+      if (Array.isArray(incoming) && incoming.length > 0) {
+        const labels = incoming
+          .filter((item) => item && item.isActive !== false)
+          .map((item) => (typeof item === 'string' ? item : item.label))
+          .filter(Boolean)
+        if (labels.length > 0) {
+          setOptions(labels)
+          return
+        }
+      }
+      setVersion((v) => v + 1)
+    }
+    window.addEventListener(CATALOG_CHANGED_EVENT, onChanged)
+    return () => window.removeEventListener(CATALOG_CHANGED_EVENT, onChanged)
+  }, [catalog])
 
   const applyList = (list) => {
     const labels = (Array.isArray(list) ? list : [])
