@@ -15,7 +15,7 @@ const titles = {
   '/volunteer-portal/hours': { title: 'Volunteer Hours', sub: 'Logged hours and activity record.' },
   '/volunteer-portal/certificates': { title: 'Certificates', sub: 'Service and participation certificates.' },
   '/volunteer-portal/settings': { title: 'Account Settings', sub: 'Update your profile and password.' },
-  '/beneficiary': { title: 'Beneficiary Dashboard', sub: 'Your requests and assistance status.' },
+  '/beneficiary': { title: 'Barangay Dashboard', sub: 'Your requests and assistance status.' },
   '/beneficiary/requests': { title: 'My Assistance Requests', sub: 'Submit and track requests.' },
   '/beneficiary/distributions': { title: 'Scheduled Distributions', sub: 'Upcoming pickups and deliveries.' },
   '/beneficiary/proofs': { title: 'Submit Distribution Proof', sub: 'Upload photos or documents after receiving relief goods.' },

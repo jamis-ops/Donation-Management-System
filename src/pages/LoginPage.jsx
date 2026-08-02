@@ -56,7 +56,7 @@ export default function LoginPage() {
         <div className="auth-card">
           <Logo className="auth-card__logo" />
           <h1>Welcome back</h1>
-          <p className="auth-card__subtitle">Sign in to access your donor, volunteer, or beneficiary portal.</p>
+          <p className="auth-card__subtitle">Sign in to access your donor, volunteer, or barangay portal.</p>
 
           {justVerified && (
             <div className="auth-card__success auth-card__success--verified" role="status">

@@ -16,6 +16,7 @@ const pageTitles = {
   '/admin/distributions': 'Logistics & Distribution',
   '/admin/volunteers': 'Volunteer Management',
   '/admin/staff': 'Staff Management',
+  '/admin/admins': 'Admin Management',
   '/admin/reports': 'Reports & Analytics',
   '/admin/certificates': 'Certificates',
   '/admin/content': 'Content Management',

@@ -78,7 +78,49 @@ function decode_required_skills(?string $json): array
   return array_values(array_filter(array_map(static fn($s) => trim((string) $s), $decoded)));
 }
 
-function map_task(array $row): array
+function ensure_tasks_distribution_column(PDO $pdo): void
+{
+  static $ready = false;
+  if ($ready) {
+    return;
+  }
+  try {
+    $cols = $pdo->query('SHOW COLUMNS FROM tasks LIKE \'distribution_id\'')->fetchAll();
+    if (!$cols) {
+      $pdo->exec('ALTER TABLE tasks ADD COLUMN distribution_id BIGINT UNSIGNED NULL AFTER assignee_user_id');
+    }
+  } catch (Throwable $e) {
+    // ignore — column may already exist
+  }
+  $ready = true;
+}
+
+/** Admin workflow statuses volunteers may set on a linked distribution. */
+const VOLUNTEER_DISTRIBUTION_STATUSES = ['In Transit', 'Delivered'];
+
+function can_volunteer_set_distribution_status(?string $current, string $next): bool
+{
+  if (!in_array($next, VOLUNTEER_DISTRIBUTION_STATUSES, true)) {
+    return false;
+  }
+  $current = (string) $current;
+  $terminal = ['Delivered', 'Awaiting Proof', 'Completed'];
+  if (in_array($current, $terminal, true) && $next === 'In Transit') {
+    return false;
+  }
+  if ($current === 'Completed' || $current === 'Awaiting Proof') {
+    return false;
+  }
+  if ($next === 'In Transit') {
+    return !in_array($current, ['In Transit', 'Delivered', 'Awaiting Proof', 'Completed'], true);
+  }
+  // Delivered: from In Transit (preferred) or earlier active statuses
+  return in_array($current, [
+    'Planning', 'Preparing', 'Scheduled', 'Pending', 'In Progress', 'In Transit',
+  ], true);
+}
+
+function map_task(PDO $pdo, array $row): array
 {
   $dutyStart = $row['duty_start'] ?? null;
   $dutyEnd = $row['duty_end'] ?? null;
@@ -92,12 +134,42 @@ function map_task(array $row): array
     'review' => 'In Review',
     'done' => 'Done',
   ];
+
+  $distId = !empty($row['distribution_id']) ? (int) $row['distribution_id'] : null;
+  $distCode = null;
+  $distStatus = null;
+  $distLabel = null;
+  $distLocation = null;
+  if ($distId) {
+    $dStmt = $pdo->prepare('SELECT id, code, status, event_name, location FROM distributions WHERE id = ? LIMIT 1');
+    $dStmt->execute([$distId]);
+    $dist = $dStmt->fetch();
+    if ($dist) {
+      $distCode = (string) ($dist['code'] ?? '');
+      $distStatus = (string) ($dist['status'] ?? '');
+      $event = trim((string) ($dist['event_name'] ?? ''));
+      $loc = trim((string) ($dist['location'] ?? ''));
+      $distLocation = $loc;
+      $distLabel = $event !== '' ? $event : trim($distCode . ($loc !== '' ? " — {$loc}" : ''));
+    } else {
+      $distId = null;
+    }
+  }
+
   return [
     'id' => $row['code'],
     'dbId' => (int) $row['id'],
     'title' => $row['title'],
     'assignee' => $row['assignee'],
     'assigneeUserId' => !empty($row['assignee_user_id']) ? (int) $row['assignee_user_id'] : null,
+    'distributionId' => $distId,
+    'distributionCode' => $distCode,
+    'distributionStatus' => $distStatus,
+    'distributionLabel' => $distLabel,
+    'distributionLocation' => $distLocation,
+    'isDistributionTask' => (bool) $distId,
+    'canMarkInTransit' => $distId ? can_volunteer_set_distribution_status($distStatus, 'In Transit') : false,
+    'canMarkDelivered' => $distId ? can_volunteer_set_distribution_status($distStatus, 'Delivered') : false,
     'priority' => $row['priority'],
     'due' => format_date($row['due_date']),
     'dueDate' => $row['due_date'],
@@ -133,6 +205,7 @@ function read_duty_fields(array $body): array
 }
 
 $user = require_auth(['Admin', 'Staff', 'Volunteer']);
+ensure_tasks_distribution_column($pdo);
 
 if ($method === 'GET') {
   if ($user['role'] === 'Volunteer') {
@@ -142,7 +215,7 @@ if ($method === 'GET') {
     $stmt = $pdo->prepare('SELECT * FROM tasks WHERE assignee = ? OR assignee_user_id = ? ORDER BY due_date ASC');
     $stmt->execute([$name, $user['id']]);
     $rows = $stmt->fetchAll();
-    json_response(['ok' => true, 'data' => array_map('map_task', $rows), 'list' => array_map('map_task', $rows)]);
+    json_response(['ok' => true, 'data' => array_map(fn($r) => map_task($pdo, $r), $rows), 'list' => array_map(fn($r) => map_task($pdo, $r), $rows)]);
   }
 
   // Staff: default to "my tasks" unless mine=0 (admin-style full list not needed in portal).
@@ -150,7 +223,7 @@ if ($method === 'GET') {
     $stmt = $pdo->prepare('SELECT * FROM tasks WHERE assignee_user_id = ? OR assignee = ? ORDER BY due_date ASC');
     $stmt->execute([(int) $user['id'], (string) $user['name']]);
     $rows = $stmt->fetchAll();
-    json_response(['ok' => true, 'data' => array_map('map_task', $rows), 'list' => array_map('map_task', $rows)]);
+    json_response(['ok' => true, 'data' => array_map(fn($r) => map_task($pdo, $r), $rows), 'list' => array_map(fn($r) => map_task($pdo, $r), $rows)]);
   }
 
   if ($id) {
@@ -160,7 +233,7 @@ if ($method === 'GET') {
     if (!$row) {
       json_response(['ok' => false, 'error' => 'Task not found'], 404);
     }
-    json_response(['ok' => true, 'data' => map_task($row)]);
+    json_response(['ok' => true, 'data' => map_task($pdo, $row)]);
   }
 
   // Optional filter by volunteer for Volunteers page.
@@ -172,7 +245,7 @@ if ($method === 'GET') {
       $stmt = $pdo->prepare('SELECT * FROM tasks WHERE assignee = ? OR assignee_user_id = ? ORDER BY due_date ASC');
       $stmt->execute([$volRow['full_name'], $volRow['user_id'] ?: 0]);
       $rows = $stmt->fetchAll();
-      json_response(['ok' => true, 'data' => array_map('map_task', $rows), 'list' => array_map('map_task', $rows)]);
+      json_response(['ok' => true, 'data' => array_map(fn($r) => map_task($pdo, $r), $rows), 'list' => array_map(fn($r) => map_task($pdo, $r), $rows)]);
     }
   }
 
@@ -182,7 +255,7 @@ if ($method === 'GET') {
     $stmt = $pdo->prepare('SELECT * FROM tasks WHERE assignee_user_id = ? ORDER BY due_date ASC');
     $stmt->execute([$uid]);
     $rows = $stmt->fetchAll();
-    json_response(['ok' => true, 'data' => array_map('map_task', $rows), 'list' => array_map('map_task', $rows)]);
+    json_response(['ok' => true, 'data' => array_map(fn($r) => map_task($pdo, $r), $rows), 'list' => array_map(fn($r) => map_task($pdo, $r), $rows)]);
   }
 
   $rows = $pdo->query('SELECT * FROM tasks ORDER BY due_date ASC')->fetchAll();
@@ -192,9 +265,9 @@ if ($method === 'GET') {
     if (!isset($grouped[$col])) {
       $col = 'todo';
     }
-    $grouped[$col][] = map_task($row);
+    $grouped[$col][] = map_task($pdo, $row);
   }
-  json_response(['ok' => true, 'data' => $grouped, 'list' => array_map('map_task', $rows)]);
+  json_response(['ok' => true, 'data' => $grouped, 'list' => array_map(fn($r) => map_task($pdo, $r), $rows)]);
 }
 
 $body = read_json_body();
@@ -241,18 +314,32 @@ if ($method === 'POST') {
 
   [$dutyStart, $dutyEnd, $dutyHours] = read_duty_fields($body);
   $module = trim((string) ($body['module'] ?? '')) ?: null;
-  $isVolunteerTask = !empty($body['volunteerId']) || strcasecmp((string) $module, 'Volunteer') === 0;
+  $distributionId = !empty($body['distributionId']) ? (int) $body['distributionId'] : null;
+  if ($distributionId) {
+    $dCheck = $pdo->prepare('SELECT id, code, status FROM distributions WHERE id = ? LIMIT 1');
+    $dCheck->execute([$distributionId]);
+    $distRow = $dCheck->fetch();
+    if (!$distRow) {
+      json_response(['ok' => false, 'error' => 'Linked distribution not found'], 400);
+    }
+    if ($module === null || $module === '') {
+      $module = 'Distribution';
+    }
+  }
+
+  $isVolunteerTask = !empty($body['volunteerId']) || strcasecmp((string) $module, 'Volunteer') === 0 || $distributionId;
   // Duty hours are required for volunteer assignments (hours tracking).
   if ($isVolunteerTask && ($assignee || $assigneeUserId) && !$dutyStart && ($dutyHours === null || $dutyHours <= 0)) {
     json_response(['ok' => false, 'error' => 'Duty hours are required: set a start/end time or total hours.'], 400);
   }
 
-  $stmt = $pdo->prepare('INSERT INTO tasks (code, title, assignee, assignee_user_id, priority, due_date, duty_start, duty_end, duty_hours, module, required_skills_json, board_column) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)');
+  $stmt = $pdo->prepare('INSERT INTO tasks (code, title, assignee, assignee_user_id, distribution_id, priority, due_date, duty_start, duty_end, duty_hours, module, required_skills_json, board_column) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)');
   $stmt->execute([
     $code,
     $title,
     $assignee ?: null,
     $assigneeUserId,
+    $distributionId,
     $body['priority'] ?? 'Medium',
     $body['dueDate'] ?? null,
     $dutyStart,
@@ -265,7 +352,7 @@ if ($method === 'POST') {
   $newId = (int) $pdo->lastInsertId();
   $stmt = $pdo->prepare('SELECT * FROM tasks WHERE id = ?');
   $stmt->execute([$newId]);
-  $task = map_task($stmt->fetch());
+  $task = map_task($pdo, $stmt->fetch());
 
   if ($assigneeUserId) {
     $duty = duty_label($dutyStart, $dutyEnd, $dutyHours);
@@ -273,11 +360,14 @@ if ($method === 'POST') {
     $roleStmt->execute([$assigneeUserId]);
     $assigneeRole = (string) ($roleStmt->fetchColumn() ?: '');
     $link = $assigneeRole === 'Staff' || $assigneeRole === 'Admin' ? '/staff/tasks' : '/volunteer-portal/tasks';
+    $distNote = $distributionId && !empty($task['distributionCode'])
+      ? " · Distribution {$task['distributionCode']}"
+      : '';
     create_notification(
       $pdo,
       'task_assigned',
       'New task assigned',
-      "You have been assigned: {$title}" . ($duty ? " (Duty: {$duty})" : ''),
+      "You have been assigned: {$title}" . ($duty ? " (Duty: {$duty})" : '') . $distNote,
       $link,
       $assigneeUserId
     );
@@ -323,6 +413,70 @@ if ($method === 'PUT') {
 
   // Volunteer / Staff limited to status changes on their own tasks.
   if (in_array($user['role'], ['Volunteer', 'Staff'], true)) {
+    $distributionStatus = trim((string) ($body['distributionStatus'] ?? ''));
+    $linkedDistId = !empty($existing['distribution_id']) ? (int) $existing['distribution_id'] : null;
+
+    // Volunteers (and staff assignees) can advance a linked distribution: In Transit / Delivered.
+    if ($distributionStatus !== '' && $linkedDistId) {
+      if (!in_array($distributionStatus, VOLUNTEER_DISTRIBUTION_STATUSES, true)) {
+        json_response([
+          'ok' => false,
+          'error' => 'Volunteers may only set distribution status to In Transit or Delivered.',
+        ], 400);
+      }
+      $dStmt = $pdo->prepare('SELECT * FROM distributions WHERE id = ? LIMIT 1');
+      $dStmt->execute([$linkedDistId]);
+      $dist = $dStmt->fetch();
+      if (!$dist) {
+        json_response(['ok' => false, 'error' => 'Linked distribution not found'], 404);
+      }
+      if (!can_volunteer_set_distribution_status((string) ($dist['status'] ?? ''), $distributionStatus)) {
+        json_response([
+          'ok' => false,
+          'error' => "Cannot set status to {$distributionStatus} from current status \"{$dist['status']}\".",
+        ], 400);
+      }
+
+      $pdo->prepare('UPDATE distributions SET status = ? WHERE id = ?')
+        ->execute([$distributionStatus, $linkedDistId]);
+
+      // Keep task board aligned with delivery progress.
+      if ($distributionStatus === 'In Transit') {
+        $column = 'inProgress';
+      } elseif ($distributionStatus === 'Delivered') {
+        $column = 'done';
+      }
+
+      $code = (string) ($dist['code'] ?? '');
+      $actor = (string) ($user['name'] ?? 'Volunteer');
+      notify_admins(
+        $pdo,
+        'distribution',
+        "Distribution {$distributionStatus}",
+        "{$actor} updated {$code} to {$distributionStatus} via task {$existing['code']}.",
+        '/admin/distributions'
+      );
+      // Notify barangay portal user when linked
+      if (!empty($dist['beneficiary_id'])) {
+        $benUser = $pdo->prepare('SELECT user_id FROM beneficiaries WHERE id = ? AND user_id IS NOT NULL LIMIT 1');
+        $benUser->execute([(int) $dist['beneficiary_id']]);
+        $benUid = (int) ($benUser->fetchColumn() ?: 0);
+        if ($benUid > 0) {
+          create_notification(
+            $pdo,
+            'distribution',
+            "Delivery update: {$distributionStatus}",
+            "Your distribution {$code} is now marked {$distributionStatus}.",
+            '/beneficiary/distributions',
+            $benUid
+          );
+        }
+      }
+      if (function_exists('audit_log')) {
+        audit_log($pdo, 'status-update', 'distribution', $code, "{$actor} set status to {$distributionStatus} from task {$existing['code']}");
+      }
+    }
+
     $update = $pdo->prepare('UPDATE tasks SET board_column = ?, completed_at = CASE WHEN ? = \'done\' THEN COALESCE(completed_at, NOW()) ELSE NULL END WHERE id = ?');
     $update->execute([$column, $column, $id]);
 
@@ -337,7 +491,7 @@ if ($method === 'PUT') {
 
     $stmt = $pdo->prepare('SELECT * FROM tasks WHERE id = ?');
     $stmt->execute([$id]);
-    json_response(['ok' => true, 'data' => map_task($stmt->fetch())]);
+    json_response(['ok' => true, 'data' => map_task($pdo, $stmt->fetch())]);
   }
 
   $assigneeUserId = array_key_exists('assigneeUserId', $body)
@@ -379,11 +533,23 @@ if ($method === 'PUT') {
     ? 'COALESCE(completed_at, NOW())'
     : 'NULL';
 
-  $update = $pdo->prepare("UPDATE tasks SET title = ?, assignee = ?, assignee_user_id = ?, priority = ?, due_date = ?, duty_start = ?, duty_end = ?, duty_hours = ?, module = ?, required_skills_json = ?, board_column = ?, completed_at = {$completedAtSql} WHERE id = ?");
+  $distributionId = array_key_exists('distributionId', $body)
+    ? (!empty($body['distributionId']) ? (int) $body['distributionId'] : null)
+    : (!empty($existing['distribution_id']) ? (int) $existing['distribution_id'] : null);
+  if ($distributionId) {
+    $dCheck = $pdo->prepare('SELECT id FROM distributions WHERE id = ? LIMIT 1');
+    $dCheck->execute([$distributionId]);
+    if (!$dCheck->fetch()) {
+      json_response(['ok' => false, 'error' => 'Linked distribution not found'], 400);
+    }
+  }
+
+  $update = $pdo->prepare("UPDATE tasks SET title = ?, assignee = ?, assignee_user_id = ?, distribution_id = ?, priority = ?, due_date = ?, duty_start = ?, duty_end = ?, duty_hours = ?, module = ?, required_skills_json = ?, board_column = ?, completed_at = {$completedAtSql} WHERE id = ?");
   $update->execute([
     $body['title'] ?? $existing['title'],
     $assignee ?: null,
     $assigneeUserId,
+    $distributionId,
     $body['priority'] ?? $existing['priority'],
     $body['dueDate'] ?? $existing['due_date'],
     $dutyStart,
@@ -421,7 +587,7 @@ if ($method === 'PUT') {
 
   $stmt = $pdo->prepare('SELECT * FROM tasks WHERE id = ?');
   $stmt->execute([$id]);
-  json_response(['ok' => true, 'data' => map_task($stmt->fetch())]);
+  json_response(['ok' => true, 'data' => map_task($pdo, $stmt->fetch())]);
 }
 
 if ($method === 'DELETE') {

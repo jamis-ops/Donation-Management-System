@@ -38,6 +38,7 @@ import AllocationPage from './pages/admin/AllocationPage'
 import DistributionsPage from './pages/admin/DistributionsPage'
 import VolunteersPage from './pages/admin/VolunteersPage'
 import StaffPage from './pages/admin/StaffPage'
+import AdminsPage from './pages/admin/AdminsPage'
 import ReportsPage from './pages/admin/ReportsPage'
 import CertificatesPage from './pages/admin/CertificatesPage'
 import ContentPage from './pages/admin/ContentPage'
@@ -126,6 +127,7 @@ const router = createBrowserRouter([
       { path: 'distributions', element: <DistributionsPage /> },
       { path: 'volunteers', element: <VolunteersPage /> },
       { path: 'staff', element: <StaffPage /> },
+      { path: 'admins', element: <AdminsPage /> },
       { path: 'tasks', element: <Navigate to="/admin/volunteers" replace /> },
       { path: 'reports', element: <ReportsPage /> },
       { path: 'certificates', element: <CertificatesPage /> },

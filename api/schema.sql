@@ -288,6 +288,7 @@ CREATE TABLE IF NOT EXISTS tasks (
   title VARCHAR(200) NOT NULL,
   assignee VARCHAR(120) NULL,
   assignee_user_id BIGINT UNSIGNED NULL,
+  distribution_id BIGINT UNSIGNED NULL,
   priority VARCHAR(20) NOT NULL DEFAULT 'Medium',
   due_date DATE NULL,
   duty_start VARCHAR(10) NULL,
@@ -299,7 +300,9 @@ CREATE TABLE IF NOT EXISTS tasks (
   completed_at TIMESTAMP NULL,
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-  CONSTRAINT fk_tasks_assignee_user_id FOREIGN KEY (assignee_user_id) REFERENCES users(id) ON DELETE SET NULL
+  CONSTRAINT fk_tasks_assignee_user_id FOREIGN KEY (assignee_user_id) REFERENCES users(id) ON DELETE SET NULL,
+  CONSTRAINT fk_tasks_distribution_id FOREIGN KEY (distribution_id) REFERENCES distributions(id) ON DELETE SET NULL,
+  INDEX idx_tasks_distribution (distribution_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- ---------- CERTIFICATES ----------

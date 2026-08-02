@@ -6,7 +6,7 @@ import ApiState from '../../components/admin/shared/ApiState'
 import { donationsApi, certificatesApi } from '../../api/resources'
 import { useApiList } from '../../hooks/useApiList'
 import ModalHeader from '../../components/admin/shared/ModalHeader'
-import DonationUpdatesTimeline from '../../components/shared/DonationUpdatesTimeline'
+import DonationProgressTracker from '../../components/donor/DonationProgressTracker'
 import { notify } from '../../utils/toast'
 
 export default function DonorDonationsPage() {
@@ -269,8 +269,8 @@ export default function DonorDonationsPage() {
       {/* Tracking Modal */}
       {selected && (
         <div className="admin-modal-overlay" onClick={() => setSelected(null)}>
-          <div className="admin-modal admin-modal--wide" onClick={(e) => e.stopPropagation()}>
-            <ModalHeader title={`Donation ${selected.trackingCode}`} onClose={() => setSelected(null)} />
+          <div className="admin-modal admin-modal--extra-wide" onClick={(e) => e.stopPropagation()}>
+            <ModalHeader title={`Track Donation ${selected.trackingCode}`} onClose={() => setSelected(null)} />
 
             <div className="donor-tracking-details">
               <div className="donor-tracking-header">
@@ -306,7 +306,8 @@ export default function DonorDonationsPage() {
               </div>
             </div>
 
-            <DonationUpdatesTimeline donationId={selected.dbId} />
+            {/* Live Progress Tracker */}
+            <DonationProgressTracker donation={selected} donationId={selected.dbId} />
 
             <div className="admin-modal__actions">
               {canRequestCert && (

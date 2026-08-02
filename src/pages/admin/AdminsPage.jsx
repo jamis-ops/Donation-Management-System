@@ -1,9 +1,11 @@
 import { useMemo, useState } from 'react'
-import { Navigate, useSearchParams } from 'react-router-dom'
-import { ListTodo, Mail, UserCog } from 'lucide-react'
-import { createStaffAccount, getStaff, updateStaff, tasksApi } from '../../api/resources'
+import { Navigate } from 'react-router-dom'
+import { Mail, Shield } from 'lucide-react'
+import { createStaffAccount, getStaff, updateStaff } from '../../api/resources'
 import { useApiList } from '../../hooks/useApiList'
 import { useFilters } from '../../hooks/useFilters'
+import { useAuth } from '../../context/AuthContext'
+import { isSuperAdminRole } from '../../utils/roleRoutes'
 import PageHeader from '../../components/admin/shared/PageHeader'
 import DataTable from '../../components/admin/shared/DataTable'
 import StatusBadge from '../../components/admin/shared/StatusBadge'
@@ -12,19 +14,13 @@ import FilterBar from '../../components/admin/shared/FilterBar'
 import ModalHeader from '../../components/admin/shared/ModalHeader'
 import Req from '../../components/shared/Req'
 import PolicyLinks from '../../components/shared/PolicyLinks'
-import { useSeeMore } from '../../hooks/useSeeMore'
-import { SeeMoreToggle } from '../../components/admin/shared/SeeMoreList'
 import NameFields from '../../components/shared/NameFields'
 import { emptyNameParts, formatFullName } from '../../utils/personName'
 import { notify } from '../../utils/toast'
-import { useCatalogOptions } from '../../hooks/useCatalogOptions'
-import { CatalogFieldLabel } from '../../components/admin/shared/CatalogQuickAdd'
-import { TASK_TYPES as FALLBACK_TASK_TYPES } from '../../constants/options'
 
 const filterConfig = {
   searchKeys: ['id', 'name', 'email', 'firstName', 'lastName'],
   filters: [
-    { key: 'department', label: 'Department' },
     { key: 'status', label: 'Status' },
   ],
 }
@@ -33,70 +29,34 @@ const emptyForm = {
   ...emptyNameParts(),
   email: '',
   phone: '',
-  role: 'Staff',
+  role: 'Admin',
   acceptedPolicies: false,
 }
 
-const emptyTaskForm = {
-  title: '',
-  priority: 'Medium',
-  dueDate: '',
-  module: 'Operations',
-}
-
-const FALLBACK_MODULES = ['Operations', 'Donations', 'Inventory', 'Distributions', ...FALLBACK_TASK_TYPES]
-
 /**
- * Admin portal — Staff account management & task assignment only.
- * Admin accounts are managed separately by Super Admin at /admin/admins.
+ * Super Admin only — manage database Admin accounts (separate from Staff).
  */
-export default function StaffPage() {
-  const [searchParams] = useSearchParams()
+export default function AdminsPage() {
+  const { user } = useAuth()
+  const isSuperAdmin = isSuperAdminRole(user?.role, user)
   const { data, loading, error, reload } = useApiList(() => getStaff())
-  const staffData = useMemo(
-    () => (Array.isArray(data) ? data.filter((row) => row.role === 'Staff') : []),
+  const adminData = useMemo(
+    () => (Array.isArray(data) ? data.filter((row) => row.role === 'Admin') : []),
     [data],
   )
-  const filters = useFilters(staffData, filterConfig)
-  const { options: taskTypeOptions, applyList: applyTaskTypes } = useCatalogOptions('task_types', FALLBACK_MODULES)
+  const filters = useFilters(adminData, filterConfig)
   const [showForm, setShowForm] = useState(false)
   const [form, setForm] = useState(emptyForm)
   const [saving, setSaving] = useState(false)
   const [selected, setSelected] = useState(null)
   const [editForm, setEditForm] = useState(null)
-  const [tasks, setTasks] = useState([])
-  const [tasksLoading, setTasksLoading] = useState(false)
-  const tasksSeeMore = useSeeMore(tasks, 3)
-  const [showTaskForm, setShowTaskForm] = useState(false)
-  const [taskForm, setTaskForm] = useState(emptyTaskForm)
   const [successMsg, setSuccessMsg] = useState('')
 
-  // Legacy deep-link from when Admin accounts lived under Staff
-  if (searchParams.get('role') === 'Admin') {
-    return <Navigate to="/admin/admins" replace />
+  if (!isSuperAdmin) {
+    return <Navigate to="/admin/staff" replace />
   }
 
-  const loadTasks = async (staff) => {
-    if (!staff) {
-      setTasks([])
-      return
-    }
-    setTasksLoading(true)
-    try {
-      const res = await tasksApi.list(`?assigneeUserId=${staff.dbId}&mine=0`)
-      setTasks(Array.isArray(res.data) ? res.data : (res.list || []))
-    } catch {
-      setTasks([])
-    } finally {
-      setTasksLoading(false)
-    }
-  }
-
-  const openStaff = (row) => {
-    if (row.role !== 'Staff') {
-      notify.warning('Admin accounts are managed under Admin Management.')
-      return
-    }
+  const openAdmin = (row) => {
     setSelected(row)
     setEditForm({
       lastName: row.lastName || '',
@@ -106,7 +66,6 @@ export default function StaffPage() {
       phone: row.phone || '',
       status: row.status === 'Inactive' ? 'Inactive' : 'Active',
     })
-    loadTasks(row)
   }
 
   const handleSave = async (e) => {
@@ -125,14 +84,14 @@ export default function StaffPage() {
         name: formatFullName(form),
         email: form.email,
         phone: form.phone,
-        role: 'Staff',
+        role: 'Admin',
         acceptedPolicies: form.acceptedPolicies,
       })
       if (!res?.ok && !res?.data) {
-        throw new Error(res?.error || 'Failed to create staff account.')
+        throw new Error(res?.error || 'Failed to create admin account.')
       }
       if (res?.credentialsSent) {
-        const msg = res.message || 'Staff account created and credentials emailed successfully.'
+        const msg = res.message || 'Admin account created and credentials emailed successfully.'
         setSuccessMsg(msg)
         notify.success(msg)
       } else {
@@ -141,14 +100,14 @@ export default function StaffPage() {
           : ''
         const mailHint = res?.mailError ? `\nMail note: ${res.mailError}` : ''
         setSuccessMsg(
-          (res?.message || 'Staff account created.')
+          (res?.message || 'Admin account created.')
           + temp
           + mailHint
           + '\n\nTip: run `npm run mail` with a valid Gmail App Password to email credentials automatically.',
         )
         notify.warning(
           [
-            res?.message || 'Staff account was created.',
+            res?.message || 'Admin account was created.',
             res?.temporaryPassword ? `Temporary password: ${res.temporaryPassword}` : '',
             res?.mailError ? `Email issue: ${res.mailError}` : 'Credential email was not delivered.',
             'Share the temporary password securely, or fix mail settings and recreate/resend later.',
@@ -178,8 +137,8 @@ export default function StaffPage() {
         phone: editForm.phone,
         status: editForm.status,
       })
-      setSuccessMsg('Staff profile updated.')
-      notify.success('Staff profile updated.')
+      setSuccessMsg('Admin profile updated.')
+      notify.success('Admin profile updated.')
       reload()
       setSelected(null)
     } catch (err) {
@@ -205,31 +164,6 @@ export default function StaffPage() {
     }
   }
 
-  const handleCreateTask = async (e) => {
-    e.preventDefault()
-    if (!selected) return
-    setSaving(true)
-    try {
-      await tasksApi.create({
-        title: taskForm.title,
-        priority: taskForm.priority,
-        dueDate: taskForm.dueDate || null,
-        module: taskForm.module || 'Operations',
-        assigneeUserId: selected.dbId,
-        assignee: selected.name,
-        boardColumn: 'todo',
-      })
-      setShowTaskForm(false)
-      setTaskForm(emptyTaskForm)
-      loadTasks(selected)
-      notify.success('Task assigned successfully.')
-    } catch (err) {
-      notify.error(err.message)
-    } finally {
-      setSaving(false)
-    }
-  }
-
   const columns = [
     { key: 'id', label: 'ID' },
     { key: 'name', label: 'Name' },
@@ -241,7 +175,7 @@ export default function StaffPage() {
       label: 'Actions',
       render: (row) => (
         <div className="table-actions" onClick={(e) => e.stopPropagation()}>
-          <button type="button" className="btn btn--sm btn--outline" onClick={() => openStaff(row)}>Manage</button>
+          <button type="button" className="btn btn--sm btn--outline" onClick={() => openAdmin(row)}>Manage</button>
           <button type="button" className="btn btn--sm btn--ghost" onClick={() => toggleStatus(row)}>
             {row.status === 'Active' ? 'Deactivate' : 'Activate'}
           </button>
@@ -253,8 +187,8 @@ export default function StaffPage() {
   return (
     <>
       <PageHeader
-        title="Staff Accounts"
-        description="Create Staff accounts, email temporary credentials, and assign operational tasks."
+        title="Admin Management"
+        description="Super Admin only: create and manage database Admin accounts, then email their login credentials. Separate from Staff management."
         actions={(
           <button
             type="button"
@@ -265,7 +199,7 @@ export default function StaffPage() {
               setSuccessMsg('')
             }}
           >
-            + Add Staff
+            + Add Admin
           </button>
         )}
       />
@@ -276,7 +210,7 @@ export default function StaffPage() {
 
       <FilterBar controller={filters} searchPlaceholder="Search by ID, name, or email..." />
       <ApiState loading={loading} error={error} onRetry={reload}>
-        <DataTable columns={columns} data={filters.filtered} onRowClick={openStaff} initialVisible={5} />
+        <DataTable columns={columns} data={filters.filtered} onRowClick={openAdmin} initialVisible={5} />
       </ApiState>
 
       {selected && editForm && (
@@ -284,12 +218,12 @@ export default function StaffPage() {
           <div className="admin-modal admin-modal--wide volunteer-manage-modal" onClick={(e) => e.stopPropagation()}>
             <ModalHeader
               title={selected.name}
-              subtitle={`${selected.id} · Staff · ${selected.email || 'No email'}`}
+              subtitle={`${selected.id} · Admin · ${selected.email || 'No email'}`}
               onClose={() => setSelected(null)}
             />
 
             <section className="volunteer-panel-section">
-              <h3>Staff Profile</h3>
+              <h3>Admin Profile</h3>
               <form onSubmit={handleUpdateProfile}>
                 <NameFields
                   value={editForm}
@@ -313,109 +247,20 @@ export default function StaffPage() {
                   </select>
                 </label>
                 <dl className="detail-list" style={{ marginTop: '0.75rem' }}>
-                  <dt>Role</dt><dd>Staff</dd>
-                  <dt>Department</dt><dd>{selected.department}</dd>
+                  <dt>Role</dt><dd>Admin</dd>
+                  <dt>Department</dt><dd>{selected.department || 'Management'}</dd>
                   <dt>Email</dt>
                   <dd><span className="volunteer-inline-meta"><Mail size={13} /> {selected.email || '—'}</span></dd>
-                  <dt>Assigned Tasks</dt>
-                  <dd><span className="volunteer-inline-meta"><ListTodo size={13} /> {tasks.length}</span></dd>
                 </dl>
+                <p className="volunteer-panel-hint">
+                  <Shield size={14} /> Database Admin accounts access the Admin portal. This is separate from the hardcoded Super Admin.
+                </p>
                 <div className="admin-modal__actions">
                   <button type="submit" className="btn btn--primary" disabled={saving}>{saving ? 'Saving…' : 'Save Profile'}</button>
+                  <button type="button" className="btn btn--ghost" onClick={() => setSelected(null)}>Close</button>
                 </div>
               </form>
             </section>
-
-            <section className="volunteer-panel-section">
-              <div className="volunteer-panel-section__head">
-                <h3>Assigned Tasks</h3>
-                <button type="button" className="btn btn--sm btn--primary" onClick={() => setShowTaskForm(true)}>
-                  + Assign Task
-                </button>
-              </div>
-              {tasksLoading ? (
-                <p className="beneficiary-view-empty">Loading tasks…</p>
-              ) : tasks.length === 0 ? (
-                <p className="beneficiary-view-empty">No tasks assigned yet.</p>
-              ) : (
-                <div className="see-more-wrap">
-                  <div className="volunteer-task-list">
-                    {tasksSeeMore.visible.map((t) => (
-                      <article key={t.dbId || t.id} className="volunteer-task-card">
-                        <div className="volunteer-task-card__top">
-                          <strong>{t.title}</strong>
-                          <StatusBadge status={t.status || t.boardColumn} />
-                        </div>
-                        <div className="volunteer-task-card__meta">
-                          <span>Priority: {t.priority}</span>
-                          <span>Due: {t.due || '—'}</span>
-                          {t.completedAtLabel ? <span>Completed: {t.completedAtLabel}</span> : null}
-                        </div>
-                      </article>
-                    ))}
-                  </div>
-                  {tasksSeeMore.needsToggle && (
-                    <SeeMoreToggle
-                      expanded={tasksSeeMore.expanded}
-                      onToggle={tasksSeeMore.toggle}
-                      hiddenCount={tasksSeeMore.hiddenCount}
-                    />
-                  )}
-                </div>
-              )}
-              <p className="volunteer-panel-hint">
-                <UserCog size={14} /> Staff mark tasks Done from Staff Portal → My Tasks. First login requires a password change.
-              </p>
-            </section>
-
-            <div className="admin-modal__actions">
-              <button type="button" className="btn btn--ghost" onClick={() => setSelected(null)}>Close</button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {showTaskForm && selected && (
-        <div className="admin-modal-overlay" onClick={() => setShowTaskForm(false)}>
-          <div className="admin-modal" onClick={(e) => e.stopPropagation()}>
-            <ModalHeader title={`Assign Task — ${selected.name}`} onClose={() => setShowTaskForm(false)} />
-            <form onSubmit={handleCreateTask}>
-              <label>
-                <Req required>Task Title</Req>
-                <input required value={taskForm.title} onChange={(e) => setTaskForm({ ...taskForm, title: e.target.value })} />
-              </label>
-              <div className="form-row">
-                <label>
-                  Priority
-                  <select value={taskForm.priority} onChange={(e) => setTaskForm({ ...taskForm, priority: e.target.value })}>
-                    <option>Low</option>
-                    <option>Medium</option>
-                    <option>High</option>
-                  </select>
-                </label>
-                <label>
-                  Due Date
-                  <input type="date" value={taskForm.dueDate} onChange={(e) => setTaskForm({ ...taskForm, dueDate: e.target.value })} />
-                </label>
-              </div>
-              <label>
-                <CatalogFieldLabel catalog="task_types" onUpdated={applyTaskTypes}>
-                  Task Type / Module
-                </CatalogFieldLabel>
-                <select value={taskForm.module} onChange={(e) => setTaskForm({ ...taskForm, module: e.target.value })}>
-                  {taskTypeOptions.map((t) => (
-                    <option key={t} value={t}>{t}</option>
-                  ))}
-                  {taskForm.module && !taskTypeOptions.includes(taskForm.module) && (
-                    <option value={taskForm.module}>{taskForm.module}</option>
-                  )}
-                </select>
-              </label>
-              <div className="admin-modal__actions">
-                <button type="submit" className="btn btn--primary" disabled={saving}>{saving ? 'Saving…' : 'Assign Task'}</button>
-                <button type="button" className="btn btn--ghost" onClick={() => setShowTaskForm(false)}>Cancel</button>
-              </div>
-            </form>
           </div>
         </div>
       )}
@@ -423,7 +268,7 @@ export default function StaffPage() {
       {showForm && (
         <div className="admin-modal-overlay" onClick={() => setShowForm(false)}>
           <div className="admin-modal admin-modal--wide" onClick={(e) => e.stopPropagation()}>
-            <ModalHeader title="Create Staff Account" onClose={() => setShowForm(false)} />
+            <ModalHeader title="Create Admin Account" onClose={() => setShowForm(false)} />
             <form onSubmit={handleSave}>
               <NameFields
                 value={form}
@@ -432,7 +277,7 @@ export default function StaffPage() {
               <div className="form-row">
                 <label>
                   <Req required>Email</Req>
-                  <input type="email" required value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} placeholder="staff@email.com" />
+                  <input type="email" required value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} placeholder="admin@email.com" />
                 </label>
                 <label>
                   Phone
@@ -440,7 +285,7 @@ export default function StaffPage() {
                 </label>
               </div>
               <p className="field-hint">
-                Creates a <strong>Staff</strong> account. Admin accounts are managed separately under Admin Management (Super Admin only).
+                Creates a database <strong>Admin</strong> account (separate from Super Admin and Staff). Credentials are emailed after creation.
               </p>
               <label className="need-check">
                 <input

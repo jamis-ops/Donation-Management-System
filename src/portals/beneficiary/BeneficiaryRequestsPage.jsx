@@ -3,6 +3,7 @@ import { Search, AlertCircle, CheckCircle, Clock, XCircle } from 'lucide-react'
 import StatusBadge from '../../components/admin/shared/StatusBadge'
 import ApiState from '../../components/admin/shared/ApiState'
 import ModalHeader from '../../components/admin/shared/ModalHeader'
+import RequestProgressTracker from '../../components/beneficiary/RequestProgressTracker'
 import { assistanceRequestsApi } from '../../api/resources'
 import { useApiList } from '../../hooks/useApiList'
 import { programs } from '../../data/mockData'
@@ -516,71 +517,57 @@ export default function BeneficiaryRequestsPage() {
       {/* Request Details Modal */}
       {selectedRequest && (
         <div className="admin-modal-overlay" onClick={() => setSelectedRequest(null)}>
-          <div className="admin-modal" onClick={(e) => e.stopPropagation()}>
-            <ModalHeader title="Request Details" onClose={() => setSelectedRequest(null)} />
+          <div className="admin-modal admin-modal--extra-wide" onClick={(e) => e.stopPropagation()}>
+            <ModalHeader title={`Request ${selectedRequest.id} - Details & Progress`} onClose={() => setSelectedRequest(null)} />
             
             <div className="beneficiary-request-detail">
-              <div className="beneficiary-request-detail__row">
-                <label>Request ID:</label>
-                <span className="beneficiary-request-id">{selectedRequest.id}</span>
-              </div>
-              <div className="beneficiary-request-detail__row">
-                <label>Type:</label>
-                <span>{selectedRequest.type}</span>
-              </div>
-              <div className="beneficiary-request-detail__row">
-                <label>Status:</label>
-                <StatusBadge status={selectedRequest.status} />
-              </div>
-              <div className="beneficiary-request-detail__row">
-                <label>Priority:</label>
-                <span className={`beneficiary-priority-badge beneficiary-priority-badge--${selectedRequest.priority?.toLowerCase()}`}>
-                  {selectedRequest.priority}
-                </span>
-              </div>
-              <div className="beneficiary-request-detail__row">
-                <label>Submitted:</label>
-                <span>{selectedRequest.date}</span>
-              </div>
-              {selectedRequest.approvedDate && (
+              <div className="beneficiary-request-detail-grid">
                 <div className="beneficiary-request-detail__row">
-                  <label>Approved:</label>
-                  <span>{selectedRequest.approvedDate}</span>
+                  <label>Request ID:</label>
+                  <span className="beneficiary-request-id">{selectedRequest.id}</span>
                 </div>
-              )}
-              {selectedRequest.completedDate && (
                 <div className="beneficiary-request-detail__row">
-                  <label>Completed:</label>
-                  <span>{selectedRequest.completedDate}</span>
+                  <label>Type:</label>
+                  <span>{selectedRequest.type}</span>
                 </div>
-              )}
+                <div className="beneficiary-request-detail__row">
+                  <label>Status:</label>
+                  <StatusBadge status={selectedRequest.status} />
+                </div>
+                <div className="beneficiary-request-detail__row">
+                  <label>Priority:</label>
+                  <span className={`beneficiary-priority-badge beneficiary-priority-badge--${selectedRequest.priority?.toLowerCase()}`}>
+                    {selectedRequest.priority}
+                  </span>
+                </div>
+                <div className="beneficiary-request-detail__row">
+                  <label>Submitted:</label>
+                  <span>{selectedRequest.date}</span>
+                </div>
+                {selectedRequest.approvedDate && (
+                  <div className="beneficiary-request-detail__row">
+                    <label>Approved:</label>
+                    <span>{selectedRequest.approvedDate}</span>
+                  </div>
+                )}
+                {selectedRequest.completedDate && (
+                  <div className="beneficiary-request-detail__row">
+                    <label>Completed:</label>
+                    <span>{selectedRequest.completedDate}</span>
+                  </div>
+                )}
+              </div>
+              
               {selectedRequest.notes && (
-                <div className="beneficiary-request-detail__row beneficiary-request-detail__row--full">
-                  <label>Notes:</label>
+                <div className="beneficiary-request-detail__notes">
+                  <label>Additional Notes:</label>
                   <p>{selectedRequest.notes}</p>
                 </div>
               )}
-              <div className="beneficiary-request-tracker">
-                <strong>Request tracker</strong>
-                <p>Use Request ID <span className="beneficiary-request-id">{selectedRequest.id}</span> when following up with staff about allocation or delivery.</p>
-                <ol className="beneficiary-request-tracker__steps">
-                  {[
-                    { key: 'submitted', label: 'Submitted', done: true },
-                    { key: 'review', label: 'Under Review', done: !['Pending', 'Pending Review', 'Pending Verification'].includes(selectedRequest.status) },
-                    { key: 'approved', label: 'Approved', done: ['Approved', 'Allocated', 'Completed', 'Done'].includes(selectedRequest.status) },
-                    { key: 'allocated', label: 'Allocated', done: ['Allocated', 'Completed', 'Done'].includes(selectedRequest.status) },
-                    { key: 'completed', label: 'Completed', done: ['Completed', 'Done'].includes(selectedRequest.status) },
-                  ].map((step) => (
-                    <li
-                      key={step.key}
-                      className={`beneficiary-request-tracker__step${step.done ? ' is-done' : ''}${selectedRequest.status === 'Rejected' && step.key === 'review' ? ' is-rejected' : ''}`}
-                    >
-                      {step.label}
-                    </li>
-                  ))}
-                </ol>
-              </div>
             </div>
+
+            {/* Live Progress Tracker */}
+            <RequestProgressTracker request={selectedRequest} />
 
             <div className="admin-modal__actions">
               {canEditRequest(selectedRequest) && (

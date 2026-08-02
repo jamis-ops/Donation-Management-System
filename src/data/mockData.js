@@ -579,7 +579,7 @@ export const faqCategories = [
       },
       {
         q: 'How do I track my request?',
-        a: 'After submitting, you receive a tracking code. Log in to your beneficiary portal to view status updates and scheduled distributions.',
+        a: 'After submitting, you receive a tracking code. Log in to your barangay portal to view status updates and scheduled distributions.',
       },
     ],
   },

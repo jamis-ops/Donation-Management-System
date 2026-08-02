@@ -46,7 +46,7 @@ const portalMenus = {
     ],
   },
   Beneficiary: {
-    title: 'Beneficiary Portal',
+    title: 'Barangay Portal',
     base: '/beneficiary',
     color: '#16a34a',
     items: [

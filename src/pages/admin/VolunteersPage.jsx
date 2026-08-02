@@ -3,7 +3,7 @@ import {
   Clock3, ListTodo, Mail, UserCheck, Pencil, Trash2,
   CheckCircle2, XCircle, CalendarDays, Briefcase,
 } from 'lucide-react'
-import { volunteersApi, tasksApi, volunteerMatchApi } from '../../api/resources'
+import { volunteersApi, tasksApi, volunteerMatchApi, distributionsApi } from '../../api/resources'
 import { useApiList } from '../../hooks/useApiList'
 import { useFilters } from '../../hooks/useFilters'
 import PageHeader from '../../components/admin/shared/PageHeader'
@@ -46,7 +46,10 @@ const emptyTaskForm = {
   dutyHours: '',
   module: 'Volunteer',
   requiredSkills: [],
+  distributionId: '',
 }
+
+const ACTIVE_DIST_STATUSES = ['Planning', 'Preparing', 'In Transit', 'Scheduled', 'In Progress', 'Pending']
 
 function ChipList({ items, empty = '—' }) {
   const list = (items || []).filter(Boolean)
@@ -62,6 +65,7 @@ function ChipList({ items, empty = '—' }) {
 
 export default function VolunteersPage() {
   const { data: volunteers, loading, error, reload } = useApiList(() => volunteersApi.list())
+  const { data: distributions } = useApiList(() => distributionsApi.list())
   const filters = useFilters(volunteers, filterConfig)
   const { options: taskTypeOptions, applyList: applyTaskTypes } = useCatalogOptions(
     'task_types',
@@ -77,6 +81,11 @@ export default function VolunteersPage() {
   const [hoursForm, setHoursForm] = useState({ hours: 0, requiredHours: 0 })
   const [suggestions, setSuggestions] = useState([])
   const [suggestionsLoading, setSuggestionsLoading] = useState(false)
+
+  const linkableDistributions = useMemo(
+    () => (distributions || []).filter((d) => ACTIVE_DIST_STATUSES.includes(d.status)),
+    [distributions],
+  )
 
   const pendingCount = useMemo(
     () => (volunteers || []).filter((v) => v.status === 'Pending Review').length,
@@ -237,6 +246,10 @@ export default function VolunteersPage() {
     const volunteerId = assigneeVolunteerId || selected.dbId
     setSaving(true)
     try {
+      const distId = taskForm.distributionId ? Number(taskForm.distributionId) : null
+      const module = distId
+        ? (taskForm.module && !['Volunteer'].includes(taskForm.module) ? taskForm.module : 'Distribution')
+        : (taskForm.module || 'Volunteer')
       await tasksApi.create({
         title: taskForm.title,
         priority: taskForm.priority,
@@ -244,9 +257,10 @@ export default function VolunteersPage() {
         dutyStart: taskForm.dutyStart || null,
         dutyEnd: taskForm.dutyEnd || null,
         dutyHours: taskForm.dutyHours !== '' ? Number(taskForm.dutyHours) : null,
-        module: taskForm.module || 'Volunteer',
+        module,
         requiredSkills: taskForm.requiredSkills || [],
         volunteerId,
+        distributionId: distId || undefined,
         boardColumn: 'todo',
       })
       setShowTaskForm(false)
@@ -494,6 +508,12 @@ export default function VolunteersPage() {
                               <span>Priority: {t.priority}</span>
                               <span>Due: {t.due || '—'}</span>
                               {t.dutyLabel ? <span>Duty: {t.dutyLabel}</span> : null}
+                              {t.distributionCode ? (
+                                <span>
+                                  Distribution: {t.distributionCode}
+                                  {t.distributionStatus ? ` · ${t.distributionStatus}` : ''}
+                                </span>
+                              ) : null}
                               {(t.requiredSkills || []).length ? (
                                 <span>Skills: {(t.requiredSkills || []).join(', ')}</span>
                               ) : null}
@@ -596,6 +616,39 @@ export default function VolunteersPage() {
                   )}
                 </select>
               </label>
+
+              <label>
+                Link to Distribution <span className="field-hint-inline">(for delivery status updates)</span>
+                <select
+                  value={taskForm.distributionId}
+                  onChange={(e) => {
+                    const distributionId = e.target.value
+                    const dist = linkableDistributions.find((d) => String(d.dbId) === distributionId)
+                    setTaskForm((prev) => ({
+                      ...prev,
+                      distributionId,
+                      module: distributionId
+                        ? (prev.module === 'Volunteer' || !prev.module ? 'Distribution' : prev.module)
+                        : prev.module,
+                      title: prev.title || (dist
+                        ? `Delivery — ${dist.id || dist.eventName || dist.location || 'Distribution'}`
+                        : prev.title),
+                    }))
+                  }}
+                >
+                  <option value="">No distribution link</option>
+                  {linkableDistributions.map((d) => (
+                    <option key={d.dbId} value={d.dbId}>
+                      {d.id} · {d.status} · {d.eventName || d.location || 'Distribution'}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              {taskForm.distributionId ? (
+                <p className="field-hint">
+                  Volunteer can mark this distribution <strong>In Transit</strong> then <strong>Delivered</strong>. Status syncs to Admin, Staff, and Barangay.
+                </p>
+              ) : null}
 
               <SkillTagPicker
                 label="Required skills for this task"

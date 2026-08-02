@@ -372,7 +372,7 @@ try {
   addColumn($pdo, 'allocations', 'distribution_id', 'BIGINT UNSIGNED NULL AFTER assistance_request_id');
   echo "Ensured allocations.distribution_id for distribution handoff\n";
 
-  // v21: Shared Type of Needs catalog (Admin-managed, used by Barangay + Beneficiary portals)
+  // v21: Shared Type of Needs catalog (Admin-managed, used by Barangay portal + admin barangay forms)
   $pdo->exec("
     CREATE TABLE IF NOT EXISTS need_types (
       id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
@@ -437,6 +437,15 @@ try {
       echo "Ensured {$table} table\n";
     }
   }
+
+  // v23: Link volunteer/staff tasks to distributions (In Transit / Delivered sync)
+  addColumn($pdo, 'tasks', 'distribution_id', 'BIGINT UNSIGNED NULL AFTER assignee_user_id');
+  try {
+    $pdo->exec('CREATE INDEX idx_tasks_distribution ON tasks (distribution_id)');
+  } catch (Throwable $e) {
+    // index may already exist
+  }
+  echo "Ensured tasks.distribution_id\n";
 
   echo "\nMigration complete!\n";
 } catch (Throwable $e) {
