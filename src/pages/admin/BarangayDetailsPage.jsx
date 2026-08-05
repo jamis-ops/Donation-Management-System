@@ -20,12 +20,14 @@ import ApiState from '../../components/admin/shared/ApiState'
 import ModalHeader from '../../components/admin/shared/ModalHeader'
 import Req from '../../components/shared/Req'
 import NeedsPicker from '../../components/shared/NeedsPicker'
-import { useSeeMore } from '../../hooks/useSeeMore'
-import { SeeMoreToggle } from '../../components/admin/shared/SeeMoreList'
+import { usePagination, DEFAULT_PAGE_SIZE } from '../../hooks/usePagination'
+import Pagination from '../../components/admin/shared/Pagination'
 import { notifyBeneficiariesChanged } from '../../utils/beneficiariesSync'
 import { canInviteBarangay, isAwaitingBarangayApproval } from '../../utils/barangayInvite'
 import { notify, suppressNotificationToast } from '../../utils/toast'
 import { useHashScroll, useQueryFocus } from '../../hooks/useDeepLinkFocus'
+import PhoneInput from '../../components/shared/PhoneInput'
+import { phoneError } from '../../utils/validation'
 
 function normalizeNeeds(value) {
   if (Array.isArray(value)) return value.filter(Boolean)
@@ -151,8 +153,8 @@ export default function BarangayDetailsPage() {
       return r.status === reqFilter
     })
 
-  const requestsSeeMore = useSeeMore(filteredRequests, 3)
-  const distributionsSeeMore = useSeeMore(bDistributions, 3)
+  const requestsPaging = usePagination(filteredRequests, DEFAULT_PAGE_SIZE, `req|${reqFilter}`)
+  const distributionsPaging = usePagination(bDistributions, DEFAULT_PAGE_SIZE, 'dist')
 
   if (loading && !beneficiary) {
     return <ApiState loading />
@@ -173,6 +175,11 @@ export default function BarangayDetailsPage() {
     e.preventDefault()
     if (!editForm.barangay?.trim() || !editForm.municipality?.trim()) {
       notify.warning('Barangay name and municipality/city are required.')
+      return
+    }
+    const phoneMsg = phoneError(editForm.representativePhone, { required: true })
+    if (phoneMsg) {
+      notify.warning(phoneMsg)
       return
     }
     setSaving(true)
@@ -536,41 +543,44 @@ export default function BarangayDetailsPage() {
           {filteredRequests.length === 0 ? (
             <p className="barangay-empty">No requests found for this beneficiary.</p>
           ) : (
-            <div className="see-more-wrap">
-            <div className="barangay-card-list">
-              {requestsSeeMore.visible.map((req) => (
-                <div
-                  key={req.dbId || req.id}
-                  className="barangay-item-card"
-                  onClick={() => navigate('/admin/requests')}
-                  onKeyDown={(e) => { if (e.key === 'Enter') navigate('/admin/requests') }}
-                  role="button"
-                  tabIndex={0}
-                >
-                  <div className="barangay-item-card__header">
-                    <div>
-                      <h4 className="barangay-item-card__title">{req.id} — {req.type}</h4>
-                      <div className="barangay-item-card__meta">
-                        <span><Calendar size={12} /> {req.date || '—'}</span>
+            <>
+              <div className="barangay-card-list">
+                {requestsPaging.pageItems.map((req) => (
+                  <div
+                    key={req.dbId || req.id}
+                    className="barangay-item-card"
+                    onClick={() => navigate('/admin/requests')}
+                    onKeyDown={(e) => { if (e.key === 'Enter') navigate('/admin/requests') }}
+                    role="button"
+                    tabIndex={0}
+                  >
+                    <div className="barangay-item-card__header">
+                      <div>
+                        <h4 className="barangay-item-card__title">{req.id} — {req.type}</h4>
+                        <div className="barangay-item-card__meta">
+                          <span><Calendar size={12} /> {req.date || '—'}</span>
+                        </div>
+                      </div>
+                      <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap' }}>
+                        {req.priority && <StatusBadge status={req.priority} />}
+                        <StatusBadge status={req.status} />
                       </div>
                     </div>
-                    <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap' }}>
-                      {req.priority && <StatusBadge status={req.priority} />}
-                      <StatusBadge status={req.status} />
-                    </div>
+                    {req.notes && <p className="barangay-item-card__notes">{req.notes}</p>}
                   </div>
-                  {req.notes && <p className="barangay-item-card__notes">{req.notes}</p>}
-                </div>
-              ))}
-            </div>
-            {requestsSeeMore.needsToggle && (
-              <SeeMoreToggle
-                expanded={requestsSeeMore.expanded}
-                onToggle={requestsSeeMore.toggle}
-                hiddenCount={requestsSeeMore.hiddenCount}
+                ))}
+              </div>
+              <Pagination
+                page={requestsPaging.page}
+                totalPages={requestsPaging.totalPages}
+                total={requestsPaging.total}
+                startIndex={requestsPaging.startIndex}
+                endIndex={requestsPaging.endIndex}
+                onPageChange={requestsPaging.setPage}
+                className="pagination--portal"
+                noun="requests"
               />
-            )}
-            </div>
+            </>
           )}
         </div>
       )}
@@ -580,42 +590,45 @@ export default function BarangayDetailsPage() {
           {bDistributions.length === 0 ? (
             <p className="barangay-empty">No distributions found for this beneficiary.</p>
           ) : (
-            <div className="see-more-wrap">
-            <div className="barangay-card-list">
-              {distributionsSeeMore.visible.map((dist) => (
-                <div
-                  key={dist.dbId || dist.id}
-                  className="barangay-item-card"
-                  onClick={() => navigate('/admin/distributions')}
-                  onKeyDown={(e) => { if (e.key === 'Enter') navigate('/admin/distributions') }}
-                  role="button"
-                  tabIndex={0}
-                >
-                  <div className="barangay-item-card__header">
-                    <div>
-                      <h4 className="barangay-item-card__title">{dist.eventName || dist.id}</h4>
-                      <div className="barangay-item-card__meta">
-                        <span><Calendar size={12} /> {dist.date || dist.distributionDate || '—'}</span>
-                        <span><Package size={12} /> {dist.program || 'General'}</span>
+            <>
+              <div className="barangay-card-list">
+                {distributionsPaging.pageItems.map((dist) => (
+                  <div
+                    key={dist.dbId || dist.id}
+                    className="barangay-item-card"
+                    onClick={() => navigate('/admin/distributions')}
+                    onKeyDown={(e) => { if (e.key === 'Enter') navigate('/admin/distributions') }}
+                    role="button"
+                    tabIndex={0}
+                  >
+                    <div className="barangay-item-card__header">
+                      <div>
+                        <h4 className="barangay-item-card__title">{dist.eventName || dist.id}</h4>
+                        <div className="barangay-item-card__meta">
+                          <span><Calendar size={12} /> {dist.date || dist.distributionDate || '—'}</span>
+                          <span><Package size={12} /> {dist.program || 'General'}</span>
+                        </div>
+                      </div>
+                      <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap' }}>
+                        <StatusBadge status={dist.status} />
+                        {dist.proofStatus && <StatusBadge status={dist.proofStatus} />}
                       </div>
                     </div>
-                    <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap' }}>
-                      <StatusBadge status={dist.status} />
-                      {dist.proofStatus && <StatusBadge status={dist.proofStatus} />}
-                    </div>
+                    {dist.itemsSummary && <p className="barangay-item-card__notes">{dist.itemsSummary}</p>}
                   </div>
-                  {dist.itemsSummary && <p className="barangay-item-card__notes">{dist.itemsSummary}</p>}
-                </div>
-              ))}
-            </div>
-            {distributionsSeeMore.needsToggle && (
-              <SeeMoreToggle
-                expanded={distributionsSeeMore.expanded}
-                onToggle={distributionsSeeMore.toggle}
-                hiddenCount={distributionsSeeMore.hiddenCount}
+                ))}
+              </div>
+              <Pagination
+                page={distributionsPaging.page}
+                totalPages={distributionsPaging.totalPages}
+                total={distributionsPaging.total}
+                startIndex={distributionsPaging.startIndex}
+                endIndex={distributionsPaging.endIndex}
+                onPageChange={distributionsPaging.setPage}
+                className="pagination--portal"
+                noun="distributions"
               />
-            )}
-            </div>
+            </>
           )}
         </div>
       )}
@@ -761,8 +774,12 @@ export default function BarangayDetailsPage() {
               </div>
               <div className="form-row">
                 <label>
-                  Phone
-                  <input value={editForm.representativePhone} onChange={(e) => setEditForm({ ...editForm, representativePhone: e.target.value })} />
+                  <Req required>Phone</Req>
+                  <PhoneInput
+                    required
+                    value={editForm.representativePhone}
+                    onChange={(representativePhone) => setEditForm({ ...editForm, representativePhone })}
+                  />
                 </label>
                 <label>
                   Email

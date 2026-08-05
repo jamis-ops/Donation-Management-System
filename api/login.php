@@ -4,19 +4,31 @@ require __DIR__ . '/cors.php';
 require __DIR__ . '/config.php';
 require_once __DIR__ . '/super_admin.php';
 
-session_start();
+$body = read_json_body();
+$email = strtolower(trim((string) ($body['email'] ?? '')));
+$password = (string) ($body['password'] ?? '');
+$remember = !empty($body['remember']);
 
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
   json_response(['ok' => false, 'error' => 'Method not allowed'], 405);
 }
 
-$body = read_json_body();
-$email = strtolower(trim((string) ($body['email'] ?? '')));
-$password = (string) ($body['password'] ?? '');
-
 if ($email === '' || $password === '') {
   json_response(['ok' => false, 'error' => 'Email and password are required'], 400);
 }
+
+// Cookie lifetime before session_start (Remember me = 30 days, else browser session).
+$lifetime = $remember ? (60 * 60 * 24 * 30) : 0;
+session_set_cookie_params([
+  'lifetime' => $lifetime,
+  'path' => '/',
+  'httponly' => true,
+  'samesite' => 'Lax',
+]);
+if ($lifetime > 0) {
+  ini_set('session.gc_maxlifetime', (string) $lifetime);
+}
+session_start();
 
 // ── Super Admin (config / env — never looked up in MySQL) ──
 if (is_super_admin_email($email)) {

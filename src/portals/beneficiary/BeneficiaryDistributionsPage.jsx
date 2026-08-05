@@ -8,11 +8,13 @@ import StatusBadge from '../../components/admin/shared/StatusBadge'
 import ApiState from '../../components/admin/shared/ApiState'
 import { distributionsApi } from '../../api/resources'
 import { useApiList } from '../../hooks/useApiList'
+import { usePagination, DEFAULT_PAGE_SIZE } from '../../hooks/usePagination'
 import { useHashScroll, useQueryFocus } from '../../hooks/useDeepLinkFocus'
 import ModalHeader from '../../components/admin/shared/ModalHeader'
+import Pagination from '../../components/admin/shared/Pagination'
 import { notify } from '../../utils/toast'
 
-const ACTIVE_STATUSES = ['Scheduled', 'Planning', 'Preparing', 'In Transit', 'Delivered', 'Awaiting Proof']
+const ACTIVE_STATUSES = ['Planning', 'Preparing', 'In Transit', 'Delivered', 'Awaiting Proof']
 
 function itemsLabel(d) {
   return d.itemsSummary || d.items || 'Relief goods'
@@ -25,8 +27,11 @@ function qtyLabel(d) {
   return '—'
 }
 
+/** Confirm receipt only after volunteers/staff mark the delivery Delivered. */
 function canConfirm(d) {
-  return Boolean(d.beneficiaryId) && d.receiptStatus !== 'Received'
+  return Boolean(d.beneficiaryId)
+    && d.status === 'Delivered'
+    && d.receiptStatus !== 'Received'
 }
 
 function needsProof(d) {
@@ -103,6 +108,11 @@ export default function BeneficiaryDistributionsPage() {
     return { upcoming: upcomingList, completed: completedList, actionNeeded: action }
   }, [data])
 
+  const upcomingPaging = usePagination(upcoming, DEFAULT_PAGE_SIZE, `upcoming|${viewMode}|${upcoming.length}`)
+  const completedPaging = usePagination(completed, DEFAULT_PAGE_SIZE, `completed|${completed.length}`)
+  const calendarList = Array.isArray(data) ? data : []
+  const calendarPaging = usePagination(calendarList, DEFAULT_PAGE_SIZE, `calendar|${calendarList.length}`)
+
   useEffect(() => {
     const distributionId = searchParams.get('distributionId') || searchParams.get('id') || ''
     const focus = searchParams.get('focus') || ''
@@ -135,7 +145,7 @@ export default function BeneficiaryDistributionsPage() {
           </div>
           <div className="beneficiary-dist-summary-card__content">
             <span className="beneficiary-dist-summary-card__value">{upcoming.length}</span>
-            <span className="beneficiary-dist-summary-card__label">Active / Scheduled</span>
+            <span className="beneficiary-dist-summary-card__label">Active Deliveries</span>
           </div>
         </div>
         <div className="beneficiary-dist-summary-card beneficiary-dist-summary-card--action">
@@ -205,7 +215,7 @@ export default function BeneficiaryDistributionsPage() {
               <>
                 <h3 className="beneficiary-section-title" id="dist-action-needed">Active Distributions</h3>
                 <div className="beneficiary-dist-grid">
-                  {upcoming.map((d) => (
+                  {upcomingPaging.pageItems.map((d) => (
                     <div
                       key={d.id || d.dbId}
                       id={d.dbId ? `dist-card-${d.dbId}` : undefined}
@@ -274,6 +284,16 @@ export default function BeneficiaryDistributionsPage() {
                     </div>
                   ))}
                 </div>
+                <Pagination
+                  page={upcomingPaging.page}
+                  totalPages={upcomingPaging.totalPages}
+                  total={upcomingPaging.total}
+                  startIndex={upcomingPaging.startIndex}
+                  endIndex={upcomingPaging.endIndex}
+                  onPageChange={upcomingPaging.setPage}
+                  className="pagination--portal"
+                  noun="distributions"
+                />
               </>
             )}
 
@@ -281,7 +301,7 @@ export default function BeneficiaryDistributionsPage() {
               <>
                 <h3 className="beneficiary-section-title">Completed Distributions</h3>
                 <div className="beneficiary-dist-list">
-                  {completed.map((d) => (
+                  {completedPaging.pageItems.map((d) => (
                     <div key={d.id || d.dbId} className="beneficiary-dist-list-item">
                       <div className="beneficiary-dist-list-item__date">
                         <span>
@@ -306,6 +326,16 @@ export default function BeneficiaryDistributionsPage() {
                     </div>
                   ))}
                 </div>
+                <Pagination
+                  page={completedPaging.page}
+                  totalPages={completedPaging.totalPages}
+                  total={completedPaging.total}
+                  startIndex={completedPaging.startIndex}
+                  endIndex={completedPaging.endIndex}
+                  onPageChange={completedPaging.setPage}
+                  className="pagination--portal"
+                  noun="distributions"
+                />
               </>
             )}
 
@@ -319,7 +349,7 @@ export default function BeneficiaryDistributionsPage() {
         ) : (
           <div className="beneficiary-calendar-view">
             <p className="portal-note">Calendar view: scheduled pickups and deliveries</p>
-            {(data || []).map((d) => (
+            {calendarPaging.pageItems.map((d) => (
               <div key={d.id || d.dbId} className="beneficiary-calendar-item">
                 <div className="beneficiary-calendar-item__date">
                   {d.date
@@ -333,6 +363,16 @@ export default function BeneficiaryDistributionsPage() {
                 <StatusBadge status={d.status} />
               </div>
             ))}
+            <Pagination
+              page={calendarPaging.page}
+              totalPages={calendarPaging.totalPages}
+              total={calendarPaging.total}
+              startIndex={calendarPaging.startIndex}
+              endIndex={calendarPaging.endIndex}
+              onPageChange={calendarPaging.setPage}
+              className="pagination--portal"
+              noun="distributions"
+            />
           </div>
         )}
       </section>

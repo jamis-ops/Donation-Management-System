@@ -6,6 +6,8 @@ import ModalHeader from '../../components/admin/shared/ModalHeader'
 import DonationUpdatesTimeline from '../../components/shared/DonationUpdatesTimeline'
 import { donationsApi } from '../../api/resources'
 import { useApiList } from '../../hooks/useApiList'
+import { usePagination, DEFAULT_PAGE_SIZE } from '../../hooks/usePagination'
+import Pagination from '../../components/admin/shared/Pagination'
 import { notify } from '../../utils/toast'
 
 function verifyResultMessage(res) {
@@ -22,6 +24,7 @@ export default function StaffDonationsPage() {
   const { data, loading, error, reload } = useApiList(() => donationsApi.list())
   const [selected, setSelected] = useState(null)
   const [busy, setBusy] = useState(false)
+  const paging = usePagination(data, DEFAULT_PAGE_SIZE, String(data.length))
 
   const handleVerify = async (row) => {
     if (!row.hasProof) {
@@ -88,7 +91,7 @@ export default function StaffDonationsPage() {
                   </td>
                 </tr>
               ) : (
-                data.map((d) => (
+                paging.pageItems.map((d) => (
                   <tr key={d.id}>
                     <td><strong>{d.trackingCode}</strong></td>
                     <td>{d.donor}</td>
@@ -146,6 +149,18 @@ export default function StaffDonationsPage() {
             </tbody>
           </table>
         </div>
+        {data.length > 0 && (
+          <Pagination
+            page={paging.page}
+            totalPages={paging.totalPages}
+            total={paging.total}
+            startIndex={paging.startIndex}
+            endIndex={paging.endIndex}
+            onPageChange={paging.setPage}
+            className="pagination--portal"
+            noun="donations"
+          />
+        )}
       </section>
 
       {selected && (

@@ -578,8 +578,15 @@ if ($method === 'PUT') {
     $id,
   ]);
 
-  if (!$isBeneficiary && $newStatus === 'Approved' && $newStatus !== $existing['status']) {
-    notify_admins($pdo, 'status_update', 'Assistance request approved', "Request {$existing['reference_code']} has been approved", '/admin/requests');
+  if (!$isBeneficiary && $newStatus !== $existing['status']) {
+    if ($newStatus === 'Approved') {
+      notify_admins($pdo, 'status_update', 'Assistance request approved', "Request {$existing['reference_code']} has been approved", '/admin/requests');
+    } elseif ($newStatus === 'Rejected') {
+      notify_admins($pdo, 'status_update', 'Assistance request rejected', "Request {$existing['reference_code']} was rejected", '/admin/requests');
+    } elseif ($newStatus === 'Completed') {
+      notify_admins($pdo, 'status_update', 'Assistance request completed', "Request {$existing['reference_code']} is complete", '/admin/requests');
+    }
+    notify_request_lifecycle($pdo, (int) $id, (string) $newStatus, (string) ($existing['status'] ?? ''));
   }
 
   if ($isBeneficiary) {

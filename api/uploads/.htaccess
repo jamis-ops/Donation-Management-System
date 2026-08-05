@@ -1,0 +1,2 @@
+# Block directory listing. Sensitive proofs should be fetched via /api/file.php when possible.
+Options -Indexes

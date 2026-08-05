@@ -1,9 +1,11 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { ChevronLeft, ChevronRight, Calendar as CalendarIcon, MapPin, Clock, Users } from 'lucide-react'
 import StatusBadge from '../../components/admin/shared/StatusBadge'
 import ApiState from '../../components/admin/shared/ApiState'
+import Pagination from '../../components/admin/shared/Pagination'
 import { getPortalData } from '../../api/resources'
 import { useApiObject } from '../../hooks/useApiList'
+import { usePagination, DEFAULT_PAGE_SIZE } from '../../hooks/usePagination'
 
 const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
 const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December']
@@ -42,6 +44,11 @@ export default function VolunteerSchedulePage() {
   const [didJump, setDidJump] = useState(false)
   const todayKey = dateKey(new Date())
   const schedule = data?.schedule || []
+  const sortedEvents = useMemo(
+    () => [...schedule].sort((a, b) => dateKey(a.date).localeCompare(dateKey(b.date))),
+    [schedule],
+  )
+  const listPaging = usePagination(sortedEvents, DEFAULT_PAGE_SIZE, `${viewMode}|${sortedEvents.length}`)
 
   useEffect(() => {
     if (didJump || !schedule.length) return
@@ -128,8 +135,6 @@ export default function VolunteerSchedulePage() {
   }
 
   const renderListView = () => {
-    const sortedEvents = [...schedule].sort((a, b) => dateKey(a.date).localeCompare(dateKey(b.date)))
-
     if (!sortedEvents.length) {
       return (
         <div className="portal-empty">
@@ -140,55 +145,67 @@ export default function VolunteerSchedulePage() {
     }
 
     return (
-      <div className="portal-event-list">
-        {sortedEvents.map((event) => {
-          const d = parseLocalDate(event.date)
-          const typeColor = EVENT_TYPE_COLORS[event.type] || 'crimson'
-          return (
-            <div key={event.id || `${event.event}-${event.date}`} className="portal-event-list-item">
-              <div className="portal-event-list-item__date">
-                <span className="portal-event-list-item__day">{d ? d.getDate() : '—'}</span>
-                <span className="portal-event-list-item__month">
-                  {d ? d.toLocaleDateString('en-US', { month: 'short' }) : '—'}
-                </span>
-                <span className="portal-event-list-item__weekday">
-                  {d ? d.toLocaleDateString('en-US', { weekday: 'short' }) : ''}
-                </span>
-              </div>
-              <div className="portal-event-list-item__content">
-                <div className="portal-event-list-item__header">
-                  <h3>{event.event}</h3>
-                  {event.type && (
-                    <span className={`portal-event-type-badge portal-event-type-badge--${typeColor}`}>
-                      {event.type}
-                    </span>
+      <>
+        <div className="portal-event-list">
+          {listPaging.pageItems.map((event) => {
+            const d = parseLocalDate(event.date)
+            const typeColor = EVENT_TYPE_COLORS[event.type] || 'crimson'
+            return (
+              <div key={event.id || `${event.event}-${event.date}`} className="portal-event-list-item">
+                <div className="portal-event-list-item__date">
+                  <span className="portal-event-list-item__day">{d ? d.getDate() : '—'}</span>
+                  <span className="portal-event-list-item__month">
+                    {d ? d.toLocaleDateString('en-US', { month: 'short' }) : '—'}
+                  </span>
+                  <span className="portal-event-list-item__weekday">
+                    {d ? d.toLocaleDateString('en-US', { weekday: 'short' }) : ''}
+                  </span>
+                </div>
+                <div className="portal-event-list-item__content">
+                  <div className="portal-event-list-item__header">
+                    <h3>{event.event}</h3>
+                    {event.type && (
+                      <span className={`portal-event-type-badge portal-event-type-badge--${typeColor}`}>
+                        {event.type}
+                      </span>
+                    )}
+                  </div>
+                  <div className="portal-event-list-item__details">
+                    <span><Clock size={14} /> {event.time || 'TBD'}</span>
+                    {event.location && <span><MapPin size={14} /> {event.location}</span>}
+                    {typeof event.attendees === 'number' && event.attendees > 0 && (
+                      <span><Users size={14} /> {event.attendees} attending</span>
+                    )}
+                  </div>
+                  {event.description && (
+                    <p className="portal-event-list-item__description">{event.description}</p>
                   )}
                 </div>
-                <div className="portal-event-list-item__details">
-                  <span><Clock size={14} /> {event.time || 'TBD'}</span>
-                  {event.location && <span><MapPin size={14} /> {event.location}</span>}
-                  {typeof event.attendees === 'number' && event.attendees > 0 && (
-                    <span><Users size={14} /> {event.attendees} attending</span>
-                  )}
+                <div className="portal-event-list-item__actions">
+                  <StatusBadge status={event.status || 'Scheduled'} />
+                  <button
+                    type="button"
+                    className="btn btn--sm btn--outline"
+                    onClick={() => setSelectedEvent(event)}
+                  >
+                    View Details
+                  </button>
                 </div>
-                {event.description && (
-                  <p className="portal-event-list-item__description">{event.description}</p>
-                )}
               </div>
-              <div className="portal-event-list-item__actions">
-                <StatusBadge status={event.status || 'Scheduled'} />
-                <button
-                  type="button"
-                  className="btn btn--sm btn--outline"
-                  onClick={() => setSelectedEvent(event)}
-                >
-                  View Details
-                </button>
-              </div>
-            </div>
-          )
-        })}
-      </div>
+            )
+          })}
+        </div>
+        <Pagination
+          page={listPaging.page}
+          totalPages={listPaging.totalPages}
+          total={listPaging.total}
+          startIndex={listPaging.startIndex}
+          endIndex={listPaging.endIndex}
+          onPageChange={listPaging.setPage}
+          className="pagination--portal"
+          noun="events"
+        />
+      </>
     )
   }
 

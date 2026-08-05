@@ -6,9 +6,11 @@ import {
 } from 'lucide-react'
 import { distributionsApi, getDistributionProofs, uploadDistributionProof } from '../../api/resources'
 import { useApiList } from '../../hooks/useApiList'
+import { usePagination, DEFAULT_PAGE_SIZE } from '../../hooks/usePagination'
 import { useHashScroll, useQueryFocus } from '../../hooks/useDeepLinkFocus'
 import ApiState from '../../components/admin/shared/ApiState'
 import StatusBadge from '../../components/admin/shared/StatusBadge'
+import Pagination from '../../components/admin/shared/Pagination'
 import { notify } from '../../utils/toast'
 
 const PROOF_SLOTS = [
@@ -109,6 +111,7 @@ export default function BeneficiaryProofsPage() {
   const selectedCount = Object.values(form.files).filter(Boolean).length
   const focusHistory = deepLink.focus === 'history'
   const contentReady = !distLoading && !proofLoading
+  const proofsPaging = usePagination(proofs, DEFAULT_PAGE_SIZE, String(proofs.length))
 
   useHashScroll({ enabled: contentReady, deps: [form.distributionId, events.length] })
   useQueryFocus(
@@ -294,56 +297,68 @@ export default function BeneficiaryProofsPage() {
           {proofs.length === 0 ? (
             <p className="proof-empty">No proofs submitted yet.</p>
           ) : (
-            <ul className="proof-list proof-list--rich">
-              {proofs.map((p) => (
-                <li key={p.id} className={`proof-list__item proof-list__item--${(p.status || 'Pending').toLowerCase()}`}>
-                  <div className="proof-list__preview">
-                    {p.isImage ? (
-                      <a href={p.fileUrl} target="_blank" rel="noreferrer">
-                        <img src={p.fileUrl} alt={p.fileName} />
-                      </a>
-                    ) : (
-                      <div className="proof-list__doc"><FileCheck size={22} /></div>
-                    )}
-                  </div>
-                  <div className="proof-list__info">
-                    <strong>{proofTitle(p)}</strong>
-                    {p.categoryLabel && (
-                      <span className="proof-list__category">{p.categoryLabel}</span>
-                    )}
-                    <span>
-                      {p.request?.date ? `Requested ${p.request.date}` : null}
-                      {p.request?.date && (p.distributionLocation || p.distributionDate) ? ' · ' : ''}
-                      {p.distributionLocation || ''}
-                      {p.distributionDate && p.distributionDate !== '—' ? ` · ${p.distributionDate}` : ''}
-                    </span>
-                    <span className="proof-list__date">Submitted {p.submittedAt}</span>
-                    {p.notes && <span className="proof-list__notes">{p.notes}</span>}
-                    {p.status === 'Rejected' && p.reviewRemarks && (
-                      <div className="proof-list__reject">
-                        <AlertTriangle size={14} />
-                        <div>
-                          <strong>Rejected — please resubmit</strong>
-                          <p>{p.reviewRemarks}</p>
+            <>
+              <ul className="proof-list proof-list--rich">
+                {proofsPaging.pageItems.map((p) => (
+                  <li key={p.id} className={`proof-list__item proof-list__item--${(p.status || 'Pending').toLowerCase()}`}>
+                    <div className="proof-list__preview">
+                      {p.isImage ? (
+                        <a href={p.fileUrl} target="_blank" rel="noreferrer">
+                          <img src={p.fileUrl} alt={p.fileName} />
+                        </a>
+                      ) : (
+                        <div className="proof-list__doc"><FileCheck size={22} /></div>
+                      )}
+                    </div>
+                    <div className="proof-list__info">
+                      <strong>{proofTitle(p)}</strong>
+                      {p.categoryLabel && (
+                        <span className="proof-list__category">{p.categoryLabel}</span>
+                      )}
+                      <span>
+                        {p.request?.date ? `Requested ${p.request.date}` : null}
+                        {p.request?.date && (p.distributionLocation || p.distributionDate) ? ' · ' : ''}
+                        {p.distributionLocation || ''}
+                        {p.distributionDate && p.distributionDate !== '—' ? ` · ${p.distributionDate}` : ''}
+                      </span>
+                      <span className="proof-list__date">Submitted {p.submittedAt}</span>
+                      {p.notes && <span className="proof-list__notes">{p.notes}</span>}
+                      {p.status === 'Rejected' && p.reviewRemarks && (
+                        <div className="proof-list__reject">
+                          <AlertTriangle size={14} />
+                          <div>
+                            <strong>Rejected — please resubmit</strong>
+                            <p>{p.reviewRemarks}</p>
+                          </div>
                         </div>
-                      </div>
-                    )}
-                    {p.status === 'Approved' && (
-                      <span className="proof-list__ok">Approved{p.reviewedAt ? ` · ${p.reviewedAt}` : ''}</span>
-                    )}
-                  </div>
-                  <div className="proof-list__actions">
-                    <span className="proof-status-pill">
-                      {statusIcon(p.status)}
-                      <StatusBadge status={p.status} />
-                    </span>
-                    <a href={p.fileUrl} target="_blank" rel="noreferrer" className="btn btn--sm btn--outline">
-                      <Download size={13} /> View
-                    </a>
-                  </div>
-                </li>
-              ))}
-            </ul>
+                      )}
+                      {p.status === 'Approved' && (
+                        <span className="proof-list__ok">Approved{p.reviewedAt ? ` · ${p.reviewedAt}` : ''}</span>
+                      )}
+                    </div>
+                    <div className="proof-list__actions">
+                      <span className="proof-status-pill">
+                        {statusIcon(p.status)}
+                        <StatusBadge status={p.status} />
+                      </span>
+                      <a href={p.fileUrl} target="_blank" rel="noreferrer" className="btn btn--sm btn--outline">
+                        <Download size={13} /> View
+                      </a>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+              <Pagination
+                page={proofsPaging.page}
+                totalPages={proofsPaging.totalPages}
+                total={proofsPaging.total}
+                startIndex={proofsPaging.startIndex}
+                endIndex={proofsPaging.endIndex}
+                onPageChange={proofsPaging.setPage}
+                className="pagination--portal"
+                noun="proofs"
+              />
+            </>
           )}
         </ApiState>
       </div>

@@ -630,7 +630,7 @@ switch ($user['role']) {
       ], $req->fetchAll());
     }
 
-    $dist = $pdo->query("SELECT * FROM distributions WHERE status IN ('Scheduled','Planning','Preparing','In Transit','Delivered','Awaiting Proof') ORDER BY distribution_date ASC");
+    $dist = $pdo->query("SELECT * FROM distributions WHERE status IN ('Planning','Preparing','In Transit','Delivered','Awaiting Proof') ORDER BY distribution_date ASC");
     $distributions = array_map(static fn($d) => [
       'date' => format_date($d['distribution_date']),
       'location' => $d['location'],
@@ -644,7 +644,7 @@ switch ($user['role']) {
         'stats' => [
           ['label' => 'Active Requests', 'value' => (string) count(array_filter($requests, static fn($r) => !in_array($r['status'], ['Approved', 'Completed'], true)))],
           ['label' => 'Approved Assistance', 'value' => (string) count(array_filter($requests, static fn($r) => $r['status'] === 'Approved'))],
-          ['label' => 'Scheduled Pickups', 'value' => (string) count($distributions)],
+          ['label' => 'Active Deliveries', 'value' => (string) count($distributions)],
           ['label' => 'Total Received', 'value' => (string) count($requests)],
         ],
         'requests' => $requests,
@@ -656,10 +656,10 @@ switch ($user['role']) {
   case 'Staff':
   case 'Admin':
     $statusLabels = [
-      'todo' => 'Assigned',
+      'todo' => 'To Do',
       'inProgress' => 'In Progress',
-      'review' => 'Pending',
-      'done' => 'Completed',
+      'review' => 'In Review',
+      'done' => 'Done',
     ];
 
     $pendingDonations = (int) $pdo->query("SELECT COUNT(*) FROM donations WHERE status = 'Pending Verification'")->fetchColumn();
@@ -678,7 +678,7 @@ switch ($user['role']) {
     $mappedTasks = [];
     foreach ($taskRows as $t) {
       $column = $t['board_column'] ?? 'todo';
-      $status = $statusLabels[$column] ?? 'Assigned';
+      $status = $statusLabels[$column] ?? 'To Do';
       $completion = $column === 'done' ? 100 : ($column === 'inProgress' ? 50 : ($column === 'review' ? 80 : 0));
       $hours = isset($t['duty_hours']) && $t['duty_hours'] !== null ? (float) $t['duty_hours'] : null;
       $mappedTasks[] = [
@@ -819,7 +819,7 @@ switch ($user['role']) {
         'time' => '',
       ];
     }
-    foreach (array_slice(array_filter($mappedTasks, static fn($t) => $t['status'] === 'Completed'), 0, 3) as $t) {
+    foreach (array_slice(array_filter($mappedTasks, static fn($t) => $t['status'] === 'Done'), 0, 3) as $t) {
       $recentActivity[] = [
         'type' => 'task_completed',
         'title' => "Completed: {$t['title']}",

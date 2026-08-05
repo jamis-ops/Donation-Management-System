@@ -528,6 +528,25 @@ if ($method === 'POST' && ($action === 'approve' || $action === 'reject')) {
       WHERE id = ?
     ')->execute([$notes !== '' ? $notes : null, $id]);
     notify_admins($pdo, 'beneficiary', 'Barangay application rejected', "{$ben['full_name']} was rejected", '/admin/beneficiaries');
+    if (lifecycle_mail_allowed('application', 'Rejected')) {
+      $repEmail = strtolower(trim((string) ($ben['representative_email'] ?? '')));
+      $repName = trim((string) ($ben['representative_name'] ?? $ben['full_name'] ?? 'Applicant'));
+      $barangay = htmlspecialchars((string) ($ben['full_name'] ?: $ben['barangay'] ?: 'your barangay'), ENT_QUOTES, 'UTF-8');
+      $reasonHtml = $reason !== ''
+        ? '<p style="margin:0 0 12px;line-height:1.6;color:#475569"><strong>Reason:</strong> ' . htmlspecialchars($reason, ENT_QUOTES, 'UTF-8') . '</p>'
+        : '';
+      send_lifecycle_email(
+        $repEmail,
+        $repName,
+        'Update on your barangay partnership application',
+        'Application update',
+        "<p style=\"margin:0 0 12px;line-height:1.6;color:#475569\">The partnership application for <strong>{$barangay}</strong> was not approved at this time.</p>"
+          . $reasonHtml
+          . '<p style="margin:0 0 12px;line-height:1.6;color:#475569">You may contact Rise Above Foundation Cebu if you have questions.</p>',
+        '/login',
+        'Open portal'
+      );
+    }
     audit_log($pdo, 'reject', 'beneficiary', $ben['code'], "Rejected barangay application for {$ben['full_name']}");
     $stmt = $pdo->prepare('SELECT * FROM beneficiaries WHERE id = ?');
     $stmt->execute([$id]);
@@ -640,9 +659,26 @@ if ($method === 'PUT') {
     json_response(['ok' => false, 'error' => 'Barangay not found'], 404);
   }
 
+  $existingStatus = (string) ($existing['status'] ?? '');
+  $newStatus = (string) ($body['status'] ?? $existingStatus);
+  // After approval, only status/notes changes are allowed (prevents rewriting partnership identity).
+  if (in_array($existingStatus, ['Active', 'Approved'], true)) {
+    if (!in_array($newStatus, ['Active', 'Approved', 'Suspended', 'Rejected'], true)) {
+      json_response(['ok' => false, 'error' => 'Invalid status for an approved barangay.'], 400);
+    }
+    $notesOnly = trim((string) ($body['notes'] ?? $existing['notes'] ?? ''));
+    $pdo->prepare('UPDATE beneficiaries SET status = ?, notes = ? WHERE id = ?')
+      ->execute([$newStatus, $notesOnly, $id]);
+    if ($newStatus !== $existingStatus) {
+      notify_admins($pdo, 'status_update', 'Barangay status updated', "{$existing['full_name']} status changed to {$newStatus}", '/admin/beneficiaries');
+    }
+    $stmt = $pdo->prepare('SELECT * FROM beneficiaries WHERE id = ?');
+    $stmt->execute([$id]);
+    json_response(['ok' => true, 'data' => map_beneficiary($pdo, $stmt->fetch())]);
+  }
+
   $barangay = trim((string) ($body['barangay'] ?? $body['name'] ?? $existing['full_name']));
   $municipality = trim((string) ($body['municipality'] ?? $existing['municipality'] ?? ''));
-  $newStatus = $body['status'] ?? $existing['status'];
   assert_unique_barangay_location($pdo, $barangay, $municipality, (int) $id);
 
   $needsValue = array_key_exists('needs', $body) ? encode_needs($body['needs']) : $existing['needs'];
@@ -672,6 +708,16 @@ if ($method === 'PUT') {
     ? strtoupper(substr(preg_replace('/[^a-zA-Z]/', '', $repMi) ?: '', 0, 1))
     : null;
 
+  $repPhone = require_valid_ph_mobile(
+    $body['representativePhone'] ?? $existing['representative_phone'] ?? '',
+    true,
+    'Representative phone'
+  );
+  $repEmail = require_valid_email(
+    (string) ($body['representativeEmail'] ?? $existing['representative_email'] ?? ''),
+    'Representative email'
+  );
+
   $update = $pdo->prepare('
     UPDATE beneficiaries SET full_name = ?, category = ?, barangay_type = ?, barangay = ?, municipality = ?, address = ?, affected_families = ?,
     representative_name = ?, representative_first_name = ?, representative_last_name = ?, representative_middle_initial = ?,
@@ -691,8 +737,8 @@ if ($method === 'PUT') {
     $repLast !== '' ? $repLast : null,
     $repMiDb,
     $body['representativePosition'] ?? ($existing['representative_position'] ?? null),
-    $body['representativePhone'] ?? $existing['representative_phone'],
-    $body['representativeEmail'] ?? $existing['representative_email'],
+    $repPhone,
+    $repEmail,
     $needsValue,
     $body['notes'] ?? $existing['notes'],
     $newStatus,

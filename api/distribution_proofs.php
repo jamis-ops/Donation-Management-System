@@ -98,7 +98,7 @@ function map_proof(PDO $pdo, array $row): array
     'fileName' => $fileName,
     'fileType' => $fileType,
     'isImage' => $isImage,
-    'fileUrl' => '/api/uploads/proofs/' . basename((string) $row['file_path']),
+    'fileUrl' => '/api/file.php?kind=proofs&name=' . rawurlencode(basename((string) $row['file_path'])),
     'notes' => $row['notes'],
     'category' => $category,
     'categoryLabel' => $categoryLabel,
@@ -358,10 +358,16 @@ if ($method === 'PUT') {
       ->execute([$proof['distribution_id']]);
   }
 
-  // Notify the barangay portal user if linked.
-  $benUser = $pdo->prepare('SELECT user_id, full_name FROM beneficiaries WHERE id = ?');
+  // Notify the barangay portal user if linked (in-app + email on high-value proof outcomes).
+  $benUser = $pdo->prepare('SELECT user_id, full_name, representative_email, representative_name FROM beneficiaries WHERE id = ?');
   $benUser->execute([$proof['beneficiary_id']]);
   $benRow = $benUser->fetch();
+  $distCodeStmt = $pdo->prepare('SELECT code, beneficiary_id FROM distributions WHERE id = ? LIMIT 1');
+  $distCodeStmt->execute([(int) $proof['distribution_id']]);
+  $distRow = $distCodeStmt->fetch() ?: [];
+  $distCode = (string) ($distRow['code'] ?? 'distribution');
+  $safeCode = htmlspecialchars($distCode, ENT_QUOTES, 'UTF-8');
+
   if ($benRow && !empty($benRow['user_id'])) {
     if ($status === 'Approved') {
       create_notification(
@@ -380,6 +386,47 @@ if ($method === 'PUT') {
         'Your proof was rejected. Reason: ' . $remarks . ' Please resubmit a corrected file.',
         '/beneficiary/proofs?distributionId=' . (int) $proof['distribution_id'] . '#proof-submit-form',
         (int) $benRow['user_id']
+      );
+    }
+  }
+
+  if ($benRow && lifecycle_mail_allowed('proof', $status)) {
+    $toEmail = strtolower(trim((string) ($benRow['representative_email'] ?? '')));
+    if ($toEmail === '' && !empty($benRow['user_id'])) {
+      $u = $pdo->prepare('SELECT email FROM users WHERE id = ? LIMIT 1');
+      $u->execute([(int) $benRow['user_id']]);
+      $toEmail = strtolower(trim((string) ($u->fetchColumn() ?: '')));
+    }
+    $toName = trim((string) ($benRow['representative_name'] ?? $benRow['full_name'] ?? 'Barangay Representative'));
+    if ($status === 'Approved') {
+      send_lifecycle_email(
+        $toEmail,
+        $toName,
+        "Proof approved — {$distCode}",
+        'Your delivery proof was approved',
+        "<p style=\"margin:0 0 12px;line-height:1.6;color:#475569\">Proof for distribution <strong>{$safeCode}</strong> was approved. The delivery is now marked complete.</p>",
+        '/beneficiary/proofs?focus=history#proof-history',
+        'View proof history'
+      );
+      // Mirror distribution Completed email without a second in-app row (already notified above).
+      if (function_exists('try_close_linked_request')) {
+        try {
+          try_close_linked_request($pdo, (int) $proof['distribution_id']);
+        } catch (Throwable $e) {
+          // best-effort
+        }
+      }
+    } elseif ($status === 'Rejected') {
+      $safeRemarks = htmlspecialchars($remarks, ENT_QUOTES, 'UTF-8');
+      send_lifecycle_email(
+        $toEmail,
+        $toName,
+        "Proof needs revision — {$distCode}",
+        'Please resubmit your delivery proof',
+        "<p style=\"margin:0 0 12px;line-height:1.6;color:#475569\">Proof for distribution <strong>{$safeCode}</strong> needs revision.</p>"
+          . "<p style=\"margin:0 0 12px;line-height:1.6;color:#475569\"><strong>Reason:</strong> {$safeRemarks}</p>",
+        '/beneficiary/proofs?distributionId=' . (int) $proof['distribution_id'] . '#proof-submit-form',
+        'Resubmit proof'
       );
     }
   }

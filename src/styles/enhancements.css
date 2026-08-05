@@ -2124,28 +2124,151 @@ select {
   margin: 0;
   padding: 0;
   display: grid;
-  gap: 0.45rem;
+  gap: 0.55rem;
+}
+
+.needs-vs-stock-list__hint {
+  margin: -0.15rem 0 0.65rem;
+  font-size: 0.78rem;
+  line-height: 1.4;
+  color: #64748b;
+}
+
+.needs-vs-stock-summary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem;
+  margin-bottom: 0.65rem;
+}
+
+.needs-vs-stock-summary__meta {
+  margin-left: 0.15rem;
+  font-size: 0.75rem;
+  color: #64748b;
 }
 
 .needs-vs-stock-list__item {
-  padding: 0.55rem 0.65rem;
-  border-radius: 8px;
+  padding: 0.65rem 0.7rem;
+  border-radius: 10px;
   border: 1px solid #e2e8f0;
   font-size: 0.8rem;
   color: #64748b;
+  background: #fff;
 }
 
 .needs-vs-stock-list__head {
   display: flex;
   justify-content: space-between;
+  align-items: center;
   gap: 0.5rem;
-  margin-bottom: 0.15rem;
+  margin-bottom: 0.45rem;
   color: #0f172a;
+}
+
+.needs-vs-stock-list__head strong {
+  font-size: 0.88rem;
+  font-weight: 650;
+}
+
+.needs-vs-stock-list__badge {
+  flex-shrink: 0;
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  padding: 0.15rem 0.45rem;
+  border-radius: 999px;
+  border: 1px solid transparent;
+}
+
+.needs-vs-stock-list__badge--shortage {
+  color: #b91c1c;
+  background: #fee2e2;
+  border-color: #fecaca;
+}
+
+.needs-vs-stock-list__badge--sufficient {
+  color: #15803d;
+  background: #dcfce7;
+  border-color: #bbf7d0;
+}
+
+.needs-vs-stock-list__badge--excess {
+  color: #1d4ed8;
+  background: #dbeafe;
+  border-color: #bfdbfe;
 }
 
 .needs-vs-stock-list__item--shortage { border-color: #fecaca; background: #fff1f2; }
 .needs-vs-stock-list__item--sufficient { border-color: #bbf7d0; background: #f0fdf4; }
 .needs-vs-stock-list__item--excess { border-color: #bfdbfe; background: #eff6ff; }
+
+.needs-vs-stock-list__bars {
+  display: grid;
+  gap: 0.3rem;
+}
+
+.needs-vs-stock-list__bar-row {
+  display: grid;
+  grid-template-columns: 2.6rem minmax(0, 1fr) 2.6rem;
+  gap: 0.4rem;
+  align-items: center;
+}
+
+.needs-vs-stock-list__bar-label {
+  font-size: 0.68rem;
+  font-weight: 650;
+  color: #64748b;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.needs-vs-stock-list__track {
+  height: 0.45rem;
+  border-radius: 999px;
+  background: rgba(15, 23, 42, 0.08);
+  overflow: hidden;
+}
+
+.needs-vs-stock-list__fill {
+  height: 100%;
+  border-radius: inherit;
+  transform-origin: left center;
+  animation: chartBarGrow 0.55s cubic-bezier(0.16, 1, 0.3, 1) backwards;
+}
+
+.needs-vs-stock-list__fill--need {
+  background: #AF101A;
+}
+
+.needs-vs-stock-list__fill--stock {
+  background: #0f766e;
+}
+
+.needs-vs-stock-list__bar-value {
+  text-align: right;
+  font-size: 0.75rem;
+  font-weight: 650;
+  color: #0f172a;
+  font-variant-numeric: tabular-nums;
+}
+
+.needs-vs-stock-list__meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem 0.75rem;
+  margin-top: 0.45rem;
+  font-size: 0.72rem;
+  color: #64748b;
+}
+
+.needs-vs-stock-list__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+  margin-top: 0.75rem;
+}
 
 .form-row--names {
   display: grid;
@@ -3509,4 +3632,31 @@ select {
   100% {
     box-shadow: 0 0 0 6px rgba(175, 16, 26, 0.12);
   }
+}
+
+/* ---------- Phone input (11-digit PH mobile) ---------- */
+
+.phone-input {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  width: 100%;
+}
+
+.phone-input input {
+  width: 100%;
+  letter-spacing: 0.02em;
+  font-variant-numeric: tabular-nums;
+}
+
+.phone-input--invalid input {
+  border-color: #dc2626 !important;
+  box-shadow: 0 0 0 1px rgba(220, 38, 38, 0.2);
+}
+
+.phone-input__error {
+  color: #dc2626;
+  font-size: 0.82rem;
+  font-weight: 600;
+  line-height: 1.35;
 }

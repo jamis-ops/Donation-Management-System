@@ -4,6 +4,8 @@ import StatusBadge from '../../components/admin/shared/StatusBadge'
 import ApiState from '../../components/admin/shared/ApiState'
 import { tasksApi } from '../../api/resources'
 import { useApiList } from '../../hooks/useApiList'
+import { usePagination, DEFAULT_PAGE_SIZE } from '../../hooks/usePagination'
+import Pagination from '../../components/admin/shared/Pagination'
 import { notify } from '../../utils/toast'
 
 const STATUS_FILTERS = ['All', 'To Do', 'In Progress', 'In Review', 'Done']
@@ -32,6 +34,8 @@ export default function VolunteerTasksPage() {
       task.distributionLabel?.toLowerCase().includes(q)
     return matchesStatus && matchesSearch
   })
+
+  const paging = usePagination(filteredTasks, DEFAULT_PAGE_SIZE, `${searchQuery}|${statusFilter}`)
 
   const statusCounts = STATUS_FILTERS.reduce((acc, status) => {
     acc[status] = status === 'All'
@@ -136,87 +140,99 @@ export default function VolunteerTasksPage() {
             </p>
           </div>
         ) : (
-          <ul className="portal-task-list portal-task-list--enhanced">
-            {filteredTasks.map((t) => (
-              <li key={t.dbId || t.id} className={`portal-task-item portal-task-item--enhanced${t.isDistributionTask ? ' portal-task-item--distribution' : ''}`}>
-                <div className="portal-task-item__main">
-                  <div className="portal-task-item__header">
-                    <strong>{t.title}</strong>
-                    <div className="portal-task-item__badges">
-                      <StatusBadge status={t.status} />
-                      {t.isDistributionTask && t.distributionStatus && (
-                        <StatusBadge status={t.distributionStatus} />
-                      )}
-                      {t.priority && (
-                        <span className={`portal-priority-badge portal-priority-badge--${String(t.priority).toLowerCase()}`}>
-                          {t.priority}
-                        </span>
-                      )}
+          <>
+            <ul className="portal-task-list portal-task-list--enhanced">
+              {paging.pageItems.map((t) => (
+                <li key={t.dbId || t.id} className={`portal-task-item portal-task-item--enhanced${t.isDistributionTask ? ' portal-task-item--distribution' : ''}`}>
+                  <div className="portal-task-item__main">
+                    <div className="portal-task-item__header">
+                      <strong>{t.title}</strong>
+                      <div className="portal-task-item__badges">
+                        <StatusBadge status={t.status} />
+                        {t.isDistributionTask && t.distributionStatus && (
+                          <StatusBadge status={t.distributionStatus} />
+                        )}
+                        {t.priority && (
+                          <span className={`portal-priority-badge portal-priority-badge--${String(t.priority).toLowerCase()}`}>
+                            {t.priority}
+                          </span>
+                        )}
+                      </div>
                     </div>
-                  </div>
-                  <div className="portal-task-item__meta">
-                    <span>
-                      <Clock size={14} /> Due: {t.due || '—'}
-                    </span>
-                    <span className="portal-task-item__category">{t.module || t.category || 'General'}</span>
-                    {(t.dutyHours || t.hours) && (
-                      <span className="portal-task-item__hours">{t.dutyHours || t.hours}h estimated</span>
-                    )}
-                    {t.dutyLabel && <span>{t.dutyLabel}</span>}
-                  </div>
-                  {t.isDistributionTask && (
-                    <div className="portal-task-dist">
-                      <MapPin size={14} />
+                    <div className="portal-task-item__meta">
                       <span>
-                        <strong>{t.distributionCode}</strong>
-                        {t.distributionLabel ? ` · ${t.distributionLabel}` : ''}
-                        {t.distributionLocation ? ` · ${t.distributionLocation}` : ''}
+                        <Clock size={14} /> Due: {t.due || '—'}
                       </span>
+                      <span className="portal-task-item__category">{t.module || t.category || 'General'}</span>
+                      {(t.dutyHours || t.hours) && (
+                        <span className="portal-task-item__hours">{t.dutyHours || t.hours}h estimated</span>
+                      )}
+                      {t.dutyLabel && <span>{t.dutyLabel}</span>}
                     </div>
-                  )}
-                </div>
-                <div className="portal-task-item__actions">
-                  {t.isDistributionTask && t.canMarkInTransit && (
+                    {t.isDistributionTask && (
+                      <div className="portal-task-dist">
+                        <MapPin size={14} />
+                        <span>
+                          <strong>{t.distributionCode}</strong>
+                          {t.distributionLabel ? ` · ${t.distributionLabel}` : ''}
+                          {t.distributionLocation ? ` · ${t.distributionLocation}` : ''}
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                  <div className="portal-task-item__actions">
+                    {t.isDistributionTask && t.canMarkInTransit && (
+                      <button
+                        type="button"
+                        className="btn btn--sm btn--outline"
+                        disabled={saving}
+                        onClick={() => handleDistributionStatus(t, 'In Transit')}
+                      >
+                        <Truck size={14} /> In Transit
+                      </button>
+                    )}
+                    {t.isDistributionTask && t.canMarkDelivered && (
+                      <button
+                        type="button"
+                        className="btn btn--sm btn--primary"
+                        disabled={saving}
+                        onClick={() => handleDistributionStatus(t, 'Delivered')}
+                      >
+                        <PackageCheck size={14} /> Delivered
+                      </button>
+                    )}
+                    {!t.isDistributionTask && !t.isDone && t.status !== 'Done' && (
+                      <button
+                        type="button"
+                        className="btn btn--sm btn--primary"
+                        disabled={saving}
+                        onClick={() => handleMarkComplete(t)}
+                      >
+                        <CheckCircle size={14} /> Complete
+                      </button>
+                    )}
                     <button
                       type="button"
                       className="btn btn--sm btn--outline"
-                      disabled={saving}
-                      onClick={() => handleDistributionStatus(t, 'In Transit')}
+                      onClick={() => setSelectedTask(t)}
                     >
-                      <Truck size={14} /> In Transit
+                      <Eye size={14} /> Details
                     </button>
-                  )}
-                  {t.isDistributionTask && t.canMarkDelivered && (
-                    <button
-                      type="button"
-                      className="btn btn--sm btn--primary"
-                      disabled={saving}
-                      onClick={() => handleDistributionStatus(t, 'Delivered')}
-                    >
-                      <PackageCheck size={14} /> Delivered
-                    </button>
-                  )}
-                  {!t.isDistributionTask && !t.isDone && t.status !== 'Done' && (
-                    <button
-                      type="button"
-                      className="btn btn--sm btn--primary"
-                      disabled={saving}
-                      onClick={() => handleMarkComplete(t)}
-                    >
-                      <CheckCircle size={14} /> Complete
-                    </button>
-                  )}
-                  <button
-                    type="button"
-                    className="btn btn--sm btn--outline"
-                    onClick={() => setSelectedTask(t)}
-                  >
-                    <Eye size={14} /> Details
-                  </button>
-                </div>
-              </li>
-            ))}
-          </ul>
+                  </div>
+                </li>
+              ))}
+            </ul>
+            <Pagination
+              page={paging.page}
+              totalPages={paging.totalPages}
+              total={paging.total}
+              startIndex={paging.startIndex}
+              endIndex={paging.endIndex}
+              onPageChange={paging.setPage}
+              className="pagination--portal"
+              noun="tasks"
+            />
+          </>
         )}
       </section>
 

@@ -5,6 +5,8 @@ import Req from '../components/shared/Req'
 import NameFields from '../components/shared/NameFields'
 import PolicyLinks from '../components/shared/PolicyLinks'
 import { emptyNameParts, formatFullName } from '../utils/personName'
+import { emailError, phoneError, fileSizeError, MAX_UPLOAD_BYTES } from '../utils/validation'
+import PhoneInput from '../components/shared/PhoneInput'
 
 const donationTypes = [
   { id: 'monetary', label: 'Monetary Donation' },
@@ -57,8 +59,31 @@ export default function DonatePage() {
       setSubmitError('Company / Organization Name is required.')
       return
     }
+    const emailMsg = emailError(form.email)
+    if (emailMsg) {
+      setSubmitError(emailMsg)
+      return
+    }
+    const phoneMsg = phoneError(form.phone, { required: true })
+    if (phoneMsg) {
+      setSubmitError(phoneMsg)
+      return
+    }
+    if (form.type === 'monetary' && !(Number(form.amount) > 0)) {
+      setSubmitError('Monetary amount must be greater than 0.')
+      return
+    }
+    if (form.type === 'in-kind' && !String(form.items || '').trim()) {
+      setSubmitError('In-kind item description is required.')
+      return
+    }
     if (!form.proof) {
       setSubmitError('Proof of donation is required.')
+      return
+    }
+    const sizeMsg = fileSizeError(form.proof, MAX_UPLOAD_BYTES.donation, 'Proof file')
+    if (sizeMsg) {
+      setSubmitError(sizeMsg)
       return
     }
     if (!form.acceptedPolicies) {
@@ -79,7 +104,7 @@ export default function DonatePage() {
       fd.append('donorName', fullName)
       fd.append('contactPerson', fullName)
       fd.append('email', form.email)
-      if (form.phone) fd.append('phone', form.phone)
+      fd.append('phone', form.phone)
       if (form.country) fd.append('country', form.country)
       if (form.address) fd.append('address', form.address)
       fd.append('acceptedPolicies', '1')
@@ -217,12 +242,12 @@ export default function DonatePage() {
 
               <div className="form-row">
                 <label>
-                  Contact Number
-                  <input
-                    type="text"
-                    placeholder="+63 9xx xxx xxxx"
+                  <Req required>Contact Number</Req>
+                  <PhoneInput
+                    required
                     value={form.phone}
-                    onChange={(e) => setForm({ ...form, phone: e.target.value })}
+                    onChange={(phone) => setForm({ ...form, phone })}
+                    showError={Boolean(submitError)}
                   />
                 </label>
                 <label>

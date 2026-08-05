@@ -6,6 +6,8 @@ import NameFields from '../components/shared/NameFields'
 import SkillTagPicker from '../components/shared/SkillTagPicker'
 import PolicyLinks from '../components/shared/PolicyLinks'
 import { emptyNameParts, formatFullName } from '../utils/personName'
+import { emailError, phoneError } from '../utils/validation'
+import PhoneInput from '../components/shared/PhoneInput'
 
 const statusExamples = [
   'Pending Review',
@@ -49,6 +51,16 @@ export default function VolunteerPage() {
 
     if (!form.acceptedPolicies) {
       setSubmitError('Please accept the Data Privacy Policy and Terms & Conditions.')
+      return
+    }
+    const emailMsg = emailError(form.email)
+    if (emailMsg) {
+      setSubmitError(emailMsg)
+      return
+    }
+    const phoneMsg = phoneError(form.phone, { required: true })
+    if (phoneMsg) {
+      setSubmitError(phoneMsg)
       return
     }
     if (!form.skills.length && !form.skillsOther.trim()) {
@@ -145,11 +157,12 @@ export default function VolunteerPage() {
                 />
               </label>
               <label>
-                Phone Number
-                <input
-                  type="tel"
+                <Req required>Phone Number</Req>
+                <PhoneInput
+                  required
                   value={form.phone}
-                  onChange={(e) => setForm({ ...form, phone: e.target.value })}
+                  onChange={(phone) => setForm({ ...form, phone })}
+                  showError={Boolean(submitError)}
                 />
               </label>
 

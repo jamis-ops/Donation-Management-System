@@ -1,13 +1,14 @@
 import { useEffect, useState } from 'react'
 import { catalogItemsApi } from '../api/resources'
 import { CATALOG_CHANGED_EVENT } from '../utils/catalogSync'
+import { sortLabelsAz } from '../utils/sortLabels'
 
 /**
- * Load active labels for a Settings-managed catalog.
+ * Load active labels for a Settings-managed catalog (always A–Z).
  * Auto-refreshes when any catalog modal saves changes.
  */
 export function useCatalogOptions(catalog, fallback = []) {
-  const [options, setOptions] = useState(() => (Array.isArray(fallback) ? fallback : []))
+  const [options, setOptions] = useState(() => sortLabelsAz(Array.isArray(fallback) ? fallback : []))
   const [loading, setLoading] = useState(true)
   const [version, setVersion] = useState(0)
 
@@ -18,12 +19,12 @@ export function useCatalogOptions(catalog, fallback = []) {
       .then((res) => {
         if (!active) return
         const list = (res?.data || []).map((n) => n.label).filter(Boolean)
-        if (list.length > 0) setOptions(list)
-        else if (Array.isArray(fallback) && fallback.length > 0) setOptions(fallback)
+        if (list.length > 0) setOptions(sortLabelsAz(list))
+        else if (Array.isArray(fallback) && fallback.length > 0) setOptions(sortLabelsAz(fallback))
       })
       .catch(() => {
         if (active && Array.isArray(fallback) && fallback.length > 0) {
-          setOptions(fallback)
+          setOptions(sortLabelsAz(fallback))
         }
       })
       .finally(() => {
@@ -42,7 +43,7 @@ export function useCatalogOptions(catalog, fallback = []) {
           .map((item) => (typeof item === 'string' ? item : item.label))
           .filter(Boolean)
         if (labels.length > 0) {
-          setOptions(labels)
+          setOptions(sortLabelsAz(labels))
           return
         }
       }
@@ -58,7 +59,7 @@ export function useCatalogOptions(catalog, fallback = []) {
       .map((item) => (typeof item === 'string' ? item : item.label))
       .filter(Boolean)
     if (labels.length > 0) {
-      setOptions(labels)
+      setOptions(sortLabelsAz(labels))
       return
     }
     setVersion((v) => v + 1)

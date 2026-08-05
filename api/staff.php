@@ -83,9 +83,9 @@ if ($method === 'POST') {
   $body = read_json_body();
 
   [$last, $first, $mi, $name] = read_name_parts($body);
-  $email = strtolower(trim((string) ($body['email'] ?? '')));
+  $email = require_valid_email((string) ($body['email'] ?? ''), 'Email');
   $role = ucfirst(strtolower(trim((string) ($body['role'] ?? 'Staff'))));
-  $phone = trim((string) ($body['phone'] ?? ''));
+  $phone = require_valid_ph_mobile($body['phone'] ?? '', false, 'Phone');
 
   if (!in_array($role, ['Admin', 'Staff'], true)) {
     json_response(['ok' => false, 'error' => 'Role must be Admin or Staff'], 400);
@@ -107,8 +107,8 @@ if ($method === 'POST') {
   if ($last === '' || $first === '') {
     json_response(['ok' => false, 'error' => 'Last Name and First Name are required'], 400);
   }
-  if ($name === '' || $email === '' || !filter_var($email, FILTER_VALIDATE_EMAIL)) {
-    json_response(['ok' => false, 'error' => 'A valid email is required'], 400);
+  if ($name === '') {
+    json_response(['ok' => false, 'error' => 'Name is required'], 400);
   }
   if (empty($body['acceptedPolicies']) && empty($body['termsAccepted'])) {
     json_response(['ok' => false, 'error' => 'User must accept the Data Privacy Policy and Terms & Conditions'], 400);
@@ -211,10 +211,7 @@ if ($method === 'PUT') {
     $name = $body['name'] ?? $existing['full_name'];
   }
 
-  $email = strtolower(trim((string) ($body['email'] ?? $existing['email'])));
-  if ($email === '' || !filter_var($email, FILTER_VALIDATE_EMAIL)) {
-    json_response(['ok' => false, 'error' => 'A valid email is required'], 400);
-  }
+  $email = require_valid_email((string) ($body['email'] ?? $existing['email'] ?? ''), 'Email');
   if (strcasecmp($email, (string) $existing['email']) !== 0 && email_taken($pdo, $email)) {
     json_response(['ok' => false, 'error' => 'An account with this email already exists'], 409);
   }
@@ -233,7 +230,9 @@ if ($method === 'PUT') {
   ];
   $status = $statusMap[$statusIn] ?? $existing['status'];
 
-  $phone = array_key_exists('phone', $body) ? (trim((string) $body['phone']) ?: null) : ($existing['phone'] ?? null);
+  $phone = array_key_exists('phone', $body)
+    ? (require_valid_ph_mobile($body['phone'] ?? '', false, 'Phone') ?: null)
+    : ($existing['phone'] ?? null);
 
   $pdo->prepare('UPDATE users SET full_name = ?, first_name = ?, last_name = ?, middle_initial = ?, email = ?, phone = ?, status = ? WHERE id = ?')
     ->execute([

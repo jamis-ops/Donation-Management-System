@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Search, AlertCircle, CheckCircle, Clock, XCircle } from 'lucide-react'
 import StatusBadge from '../../components/admin/shared/StatusBadge'
 import ApiState from '../../components/admin/shared/ApiState'
@@ -6,7 +6,8 @@ import ModalHeader from '../../components/admin/shared/ModalHeader'
 import RequestProgressTracker from '../../components/beneficiary/RequestProgressTracker'
 import { assistanceRequestsApi } from '../../api/resources'
 import { useApiList } from '../../hooks/useApiList'
-import { programs } from '../../data/mockData'
+import { usePagination, DEFAULT_PAGE_SIZE } from '../../hooks/usePagination'
+import Pagination from '../../components/admin/shared/Pagination'
 import Req from '../../components/shared/Req'
 import NeedsPicker from '../../components/shared/NeedsPicker'
 import { notify } from '../../utils/toast'
@@ -48,6 +49,32 @@ function canEditRequest(request) {
   return Boolean(request) && !CLOSED_STATUSES.includes(request.status)
 }
 
+/** Structured fields from request notes / needs for cards & detail modal. */
+function getRequestPreview(request) {
+  const notes = String(request?.notes || '')
+  const calamityMatch = notes.match(/Calamity\/Program:\s*(.+?)(?:\n|$)/i)
+  const familiesMatch = notes.match(/Families Affected:\s*(\d+)/i)
+  let needs = Array.isArray(request?.needs) ? request.needs.filter(Boolean) : []
+  if (needs.length === 0) {
+    const needsMatch = notes.match(/Type of Needs:\s*(.+?)(?:\n|$)/i)
+      || notes.match(/Goods Required:\s*(.+?)(?:\n|$)/i)
+    if (needsMatch) {
+      needs = needsMatch[1].split(',').map((n) => n.trim()).filter(Boolean)
+    } else if (request?.type) {
+      needs = String(request.type).split(',').map((n) => n.trim()).filter(Boolean)
+    }
+  }
+  const notesMatch = notes.match(/Additional Notes:\s*([\s\S]+)/i)
+  const extraNotes = notesMatch ? notesMatch[1].trim() : ''
+  return {
+    calamity: calamityMatch ? calamityMatch[1].trim() : '',
+    families: familiesMatch ? familiesMatch[1] : '',
+    needs,
+    extraNotes,
+    hasStructured: Boolean(calamityMatch || familiesMatch || needs.length || extraNotes),
+  }
+}
+
 function canCancelRequest(request) {
   return Boolean(request) && ['Pending Review', 'Under Review'].includes(request.status)
 }
@@ -63,6 +90,25 @@ export default function BeneficiaryRequestsPage() {
   const [searchQuery, setSearchQuery] = useState('')
   const [statusFilter, setStatusFilter] = useState('All')
 
+  // Keep progress tracker in sync when list reloads or status changes server-side.
+  useEffect(() => {
+    if (!selectedRequest?.dbId) return
+    const fresh = (data || []).find((r) => Number(r.dbId) === Number(selectedRequest.dbId))
+    if (fresh && (
+      fresh.status !== selectedRequest.status
+      || fresh.notes !== selectedRequest.notes
+      || fresh.priority !== selectedRequest.priority
+    )) {
+      setSelectedRequest(fresh)
+    }
+  }, [data, selectedRequest])
+
+  useEffect(() => {
+    if (!selectedRequest?.dbId) return undefined
+    const id = window.setInterval(() => { reload() }, 30000)
+    return () => window.clearInterval(id)
+  }, [selectedRequest?.dbId, reload])
+
   // Filter requests
   const filteredData = data.filter((r) => {
     const matchesSearch = !searchQuery ||
@@ -73,6 +119,8 @@ export default function BeneficiaryRequestsPage() {
     
     return matchesSearch && matchesStatus
   })
+
+  const paging = usePagination(filteredData, DEFAULT_PAGE_SIZE, `${searchQuery}|${statusFilter}`)
 
   const statusCounts = {
     All: data.length,
@@ -300,69 +348,113 @@ export default function BeneficiaryRequestsPage() {
             </p>
           </div>
         ) : (
-          <div className="beneficiary-requests-grid">
-            {filteredData.map((r) => (
-              <div key={r.id} className="beneficiary-request-card">
-                <div className="beneficiary-request-card__header">
-                  <div className="beneficiary-request-card__ref">
-                    <span className="beneficiary-request-card__id" title="Request ID">{r.id}</span>
-                    <strong>{r.type}</strong>
-                    <span className={`beneficiary-priority-badge beneficiary-priority-badge--${r.priority?.toLowerCase()}`}>
-                      {r.priority}
-                    </span>
+          <>
+            <div className="beneficiary-requests-grid">
+              {paging.pageItems.map((r) => {
+                const preview = getRequestPreview(r)
+                return (
+                <div key={r.id} className="beneficiary-request-card">
+                  <div className="beneficiary-request-card__header">
+                    <div className="beneficiary-request-card__ref">
+                      <span className="beneficiary-request-card__id" title="Request ID">{r.id}</span>
+                      <strong title={r.type}>{r.type}</strong>
+                      <span className={`beneficiary-priority-badge beneficiary-priority-badge--${r.priority?.toLowerCase()}`}>
+                        {r.priority}
+                      </span>
+                    </div>
+                    <StatusBadge status={r.status} />
                   </div>
-                  <StatusBadge status={r.status} />
-                </div>
-                
-                <div className="beneficiary-request-card__body">
-                  <p className="beneficiary-request-card__date">
-                    Submitted: {r.date}
-                  </p>
-                  {r.notes && (
-                    <p className="beneficiary-request-card__notes">{r.notes}</p>
-                  )}
-                  {r.approvedDate && (
-                    <p className="beneficiary-request-card__approved">
-                      <CheckCircle size={14} /> Approved on {r.approvedDate}
+                  
+                  <div className="beneficiary-request-card__body">
+                    <p className="beneficiary-request-card__date">
+                      Submitted: {r.date}
                     </p>
-                  )}
-                  {r.completedDate && (
-                    <p className="beneficiary-request-card__completed">
-                      <CheckCircle size={14} /> Completed on {r.completedDate}
-                    </p>
-                  )}
-                </div>
+                    {preview.hasStructured ? (
+                      <dl className="beneficiary-request-card__meta">
+                        {preview.calamity && (
+                          <div className="beneficiary-request-card__meta-row">
+                            <dt>Calamity</dt>
+                            <dd>{preview.calamity}</dd>
+                          </div>
+                        )}
+                        {preview.families && (
+                          <div className="beneficiary-request-card__meta-row">
+                            <dt>Families</dt>
+                            <dd>{preview.families}</dd>
+                          </div>
+                        )}
+                        {preview.needs.length > 0 && (
+                          <div className="beneficiary-request-card__meta-row">
+                            <dt>Needs</dt>
+                            <dd>{preview.needs.join(', ')}</dd>
+                          </div>
+                        )}
+                        {preview.extraNotes && (
+                          <div className="beneficiary-request-card__meta-row">
+                            <dt>Notes</dt>
+                            <dd className="beneficiary-request-card__notes-preview">{preview.extraNotes}</dd>
+                          </div>
+                        )}
+                      </dl>
+                    ) : r.notes ? (
+                      <p className="beneficiary-request-card__notes">{r.notes}</p>
+                    ) : (
+                      <p className="beneficiary-request-card__empty">No additional details provided.</p>
+                    )}
+                    {r.approvedDate && (
+                      <p className="beneficiary-request-card__approved">
+                        <CheckCircle size={14} /> Approved on {r.approvedDate}
+                      </p>
+                    )}
+                    {r.completedDate && (
+                      <p className="beneficiary-request-card__completed">
+                        <CheckCircle size={14} /> Completed on {r.completedDate}
+                      </p>
+                    )}
+                  </div>
 
-                <div className="beneficiary-request-card__actions">
-                  <button
-                    type="button"
-                    className="btn btn--sm btn--outline"
-                    onClick={() => setSelectedRequest(r)}
-                  >
-                    View Details
-                  </button>
-                  {canEditRequest(r) && (
+                  <div className="beneficiary-request-card__actions">
                     <button
                       type="button"
-                      className="btn btn--sm btn--primary"
-                      onClick={() => handleEdit(r)}
+                      className="btn btn--sm btn--outline"
+                      onClick={() => setSelectedRequest(r)}
                     >
-                      Edit
+                      View Details
                     </button>
-                  )}
-                  {canCancelRequest(r) && (
-                    <button
-                      type="button"
-                      className="btn btn--sm btn--ghost"
-                      onClick={() => handleCancel(r.dbId)}
-                    >
-                      <XCircle size={14} /> Cancel
-                    </button>
-                  )}
+                    {canEditRequest(r) && (
+                      <button
+                        type="button"
+                        className="btn btn--sm btn--primary"
+                        onClick={() => handleEdit(r)}
+                      >
+                        Edit
+                      </button>
+                    )}
+                    {canCancelRequest(r) && (
+                      <button
+                        type="button"
+                        className="btn btn--sm btn--ghost"
+                        onClick={() => handleCancel(r.dbId)}
+                      >
+                        <XCircle size={14} /> Cancel
+                      </button>
+                    )}
+                  </div>
                 </div>
-              </div>
-            ))}
-          </div>
+                )
+              })}
+            </div>
+            <Pagination
+              page={paging.page}
+              totalPages={paging.totalPages}
+              total={paging.total}
+              startIndex={paging.startIndex}
+              endIndex={paging.endIndex}
+              onPageChange={paging.setPage}
+              className="pagination--portal"
+              noun="requests"
+            />
+          </>
         )}
       </section>
 
@@ -436,8 +528,10 @@ export default function BeneficiaryRequestsPage() {
                   Select the types of needs for this request.
                 </p>
                 <NeedsPicker
+                  required
                   value={form.selectedNeeds}
                   onChange={(selectedNeeds) => setForm({ ...form, selectedNeeds })}
+                  error={!form.selectedNeeds.length ? 'Select at least one type of need.' : ''}
                   showNote={false}
                   label="Type of Needs"
                   initialVisible={8}
@@ -515,58 +609,77 @@ export default function BeneficiaryRequestsPage() {
       )}
 
       {/* Request Details Modal */}
-      {selectedRequest && (
+      {selectedRequest && (() => {
+        const preview = getRequestPreview(selectedRequest)
+        return (
         <div className="admin-modal-overlay" onClick={() => setSelectedRequest(null)}>
-          <div className="admin-modal admin-modal--extra-wide" onClick={(e) => e.stopPropagation()}>
-            <ModalHeader title={`Request ${selectedRequest.id} - Details & Progress`} onClose={() => setSelectedRequest(null)} />
+          <div className="admin-modal admin-modal--wide beneficiary-request-modal" onClick={(e) => e.stopPropagation()}>
+            <ModalHeader title={`Request ${selectedRequest.id}`} onClose={() => setSelectedRequest(null)} />
             
             <div className="beneficiary-request-detail">
               <div className="beneficiary-request-detail-grid">
                 <div className="beneficiary-request-detail__row">
-                  <label>Request ID:</label>
+                  <label>Request ID</label>
                   <span className="beneficiary-request-id">{selectedRequest.id}</span>
                 </div>
                 <div className="beneficiary-request-detail__row">
-                  <label>Type:</label>
+                  <label>Type</label>
                   <span>{selectedRequest.type}</span>
                 </div>
                 <div className="beneficiary-request-detail__row">
-                  <label>Status:</label>
+                  <label>Status</label>
                   <StatusBadge status={selectedRequest.status} />
                 </div>
                 <div className="beneficiary-request-detail__row">
-                  <label>Priority:</label>
+                  <label>Priority</label>
                   <span className={`beneficiary-priority-badge beneficiary-priority-badge--${selectedRequest.priority?.toLowerCase()}`}>
                     {selectedRequest.priority}
                   </span>
                 </div>
                 <div className="beneficiary-request-detail__row">
-                  <label>Submitted:</label>
+                  <label>Submitted</label>
                   <span>{selectedRequest.date}</span>
                 </div>
+                {preview.calamity && (
+                  <div className="beneficiary-request-detail__row">
+                    <label>Calamity</label>
+                    <span>{preview.calamity}</span>
+                  </div>
+                )}
+                {preview.families && (
+                  <div className="beneficiary-request-detail__row">
+                    <label>Families</label>
+                    <span>{preview.families}</span>
+                  </div>
+                )}
+                {preview.needs.length > 0 && (
+                  <div className="beneficiary-request-detail__row">
+                    <label>Needs</label>
+                    <span>{preview.needs.join(', ')}</span>
+                  </div>
+                )}
                 {selectedRequest.approvedDate && (
                   <div className="beneficiary-request-detail__row">
-                    <label>Approved:</label>
+                    <label>Approved</label>
                     <span>{selectedRequest.approvedDate}</span>
                   </div>
                 )}
                 {selectedRequest.completedDate && (
                   <div className="beneficiary-request-detail__row">
-                    <label>Completed:</label>
+                    <label>Completed</label>
                     <span>{selectedRequest.completedDate}</span>
                   </div>
                 )}
               </div>
               
-              {selectedRequest.notes && (
+              {(preview.extraNotes || (!preview.hasStructured && selectedRequest.notes)) && (
                 <div className="beneficiary-request-detail__notes">
-                  <label>Additional Notes:</label>
-                  <p>{selectedRequest.notes}</p>
+                  <label>Additional Notes</label>
+                  <p>{preview.extraNotes || selectedRequest.notes}</p>
                 </div>
               )}
             </div>
 
-            {/* Live Progress Tracker */}
             <RequestProgressTracker request={selectedRequest} />
 
             <div className="admin-modal__actions">
@@ -597,7 +710,8 @@ export default function BeneficiaryRequestsPage() {
             </div>
           </div>
         </div>
-      )}
+        )
+      })()}
     </ApiState>
   )
 }

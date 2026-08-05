@@ -23,6 +23,8 @@ import { BENEFICIARIES_CHANGED, notifyBeneficiariesChanged } from '../../utils/b
 import { canInviteBarangay, canStartOrRefreshInvite, isAwaitingBarangayApproval } from '../../utils/barangayInvite'
 import { notify, suppressNotificationToast } from '../../utils/toast'
 import { useHashScroll, useQueryFocus } from '../../hooks/useDeepLinkFocus'
+import PhoneInput from '../../components/shared/PhoneInput'
+import { phoneError, emailError } from '../../utils/validation'
 
 const STATUS_OPTIONS = ['Active', 'Approved', 'Pending Approval', 'Suspended', 'Rejected']
 /** Create-only statuses — Edit never changes partnership status. */
@@ -273,6 +275,11 @@ export default function BeneficiariesPage() {
   }
 
   const openEdit = (row) => {
+    if (['Active', 'Approved'].includes(row.status)) {
+      notify.warning('Approved barangays are locked from full edit. Open the barangay profile to review details, or suspend the partnership first.')
+      navigate(`/admin/beneficiaries/${row.dbId}`)
+      return
+    }
     setActiveId(row.dbId)
     setCreateForm(formFromRow(row))
     setModalMode('edit')
@@ -419,6 +426,16 @@ export default function BeneficiariesPage() {
       notify.warning('Barangay name and municipality/city are required.')
       return
     }
+    const phoneMsg = phoneError(createForm.representativePhone, { required: true })
+    if (phoneMsg) {
+      notify.warning(phoneMsg)
+      return
+    }
+    const emailMsg = emailError(createForm.representativeEmail)
+    if (emailMsg) {
+      notify.warning(emailMsg)
+      return
+    }
     const excludeId = modalMode === 'edit' ? activeId : null
     if (isDuplicateBarangay(beneficiaries, createForm.barangay, createForm.municipality, excludeId)) {
       notify.warning(`Barangay "${createForm.barangay}" in ${createForm.municipality} is already registered.`)
@@ -546,9 +563,11 @@ export default function BeneficiariesPage() {
                 <button type="button" className="icon-btn" title="View details" onClick={() => handleRowClick(row)}>
                   <Eye size={16} />
                 </button>
-                <button type="button" className="icon-btn" title="Edit" onClick={() => openEdit(row)}>
-                  <Pencil size={16} />
-                </button>
+                {!['Active', 'Approved'].includes(row.status) && (
+                  <button type="button" className="icon-btn" title="Edit" onClick={() => openEdit(row)}>
+                    <Pencil size={16} />
+                  </button>
+                )}
                 {showInvite && (
                   <button
                     type="button"
@@ -631,7 +650,8 @@ export default function BeneficiariesPage() {
             data={filters.filtered}
             onRowClick={handleRowClick}
             rowClassName={(row) => (isAwaitingBarangayApproval(row) ? 'data-table__row--pending-review' : '')}
-            initialVisible={5}
+            pageSize={10}
+            resetKey={`${filters.search}|${JSON.stringify(filters.values)}`}
           />
         </ApiState>
       </div>
@@ -815,11 +835,10 @@ export default function BeneficiariesPage() {
               <div className="form-row">
                 <label>
                   <Req required>Contact Number</Req>
-                  <input
+                  <PhoneInput
                     required
                     value={createForm.representativePhone}
-                    onChange={(e) => setCreateForm({ ...createForm, representativePhone: e.target.value })}
-                    placeholder="+63 9xx xxx xxxx"
+                    onChange={(representativePhone) => setCreateForm({ ...createForm, representativePhone })}
                   />
                 </label>
                 <label>

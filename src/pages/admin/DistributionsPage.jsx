@@ -486,7 +486,13 @@ export default function DistributionsPage() {
 
       <div id="distributions-table">
         <ApiState loading={loading} error={error} onRetry={reload}>
-          <DataTable columns={columns} data={filters.filtered} onRowClick={setDetailRow} initialVisible={5} />
+          <DataTable
+            columns={columns}
+            data={filters.filtered}
+            onRowClick={setDetailRow}
+            pageSize={10}
+            resetKey={`${filters.search}|${JSON.stringify(filters.values)}`}
+          />
         </ApiState>
       </div>
 
@@ -688,6 +694,32 @@ export default function DistributionsPage() {
                     <p className="dist-detail__notes-inline">{detailRow.receiptNotes}</p>
                   ) : null}
                 </section>
+
+                {(detailRow.statusActivity || []).length > 0 ? (
+                  <section className="dist-detail__card dist-detail__card--wide">
+                    <h4>
+                      <ClipboardList size={15} aria-hidden />
+                      Status activity
+                    </h4>
+                    <ul className="dist-detail__activity" style={{ listStyle: 'none', margin: 0, padding: 0 }}>
+                      {detailRow.statusActivity.map((evt, idx) => (
+                        <li
+                          key={`${evt.atRaw || evt.at}-${idx}`}
+                          style={{
+                            padding: '0.55rem 0',
+                            borderBottom: idx < detailRow.statusActivity.length - 1 ? '1px solid #e2e8f0' : 'none',
+                          }}
+                        >
+                          <strong style={{ display: 'block', fontSize: '0.9rem' }}>{evt.title}</strong>
+                          <span style={{ color: '#64748b', fontSize: '0.85rem' }}>{evt.message}</span>
+                          {evt.at ? (
+                            <small style={{ display: 'block', color: '#94a3b8', marginTop: '0.15rem' }}>{evt.at}</small>
+                          ) : null}
+                        </li>
+                      ))}
+                    </ul>
+                  </section>
+                ) : null}
 
                 {detailRow.notes ? (
                   <section className="dist-detail__card dist-detail__card--wide dist-detail__card--notes">

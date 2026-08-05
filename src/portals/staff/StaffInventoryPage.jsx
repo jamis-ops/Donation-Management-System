@@ -3,6 +3,8 @@ import { Package, AlertTriangle, TrendingUp, TrendingDown, Search, Filter, Plus,
 import ApiState from '../../components/admin/shared/ApiState'
 import { getPortalData, inventoryApi } from '../../api/resources'
 import { useApiObject } from '../../hooks/useApiList'
+import { usePagination, DEFAULT_PAGE_SIZE } from '../../hooks/usePagination'
+import Pagination from '../../components/admin/shared/Pagination'
 import { notify } from '../../utils/toast'
 
 export default function StaffInventoryPage() {
@@ -27,6 +29,12 @@ export default function StaffInventoryPage() {
       return true
     })
   }, [inventory, filterCategory, filterStatus, searchQuery])
+
+  const paging = usePagination(
+    filteredInventory,
+    DEFAULT_PAGE_SIZE,
+    `${searchQuery}|${filterCategory}|${filterStatus}`,
+  )
 
   const categories = [...new Set(inventory.map(i => i.category))]
   const statuses = ['Critical', 'Low Stock', 'Adequate']
@@ -74,6 +82,11 @@ export default function StaffInventoryPage() {
     }
     if (!selectedItem.dbId) {
       notify.warning('Missing inventory item id')
+      return
+    }
+
+    const actionLabel = stockAction === 'add' ? 'Add' : 'Remove'
+    if (!window.confirm(`${actionLabel} ${amount} unit(s) for "${selectedItem.name || selectedItem.item}"?`)) {
       return
     }
 
@@ -257,117 +270,129 @@ export default function StaffInventoryPage() {
                 <p>No inventory items match your filters.</p>
               </div>
             ) : (
-              <div className="staff-inventory-items-grid">
-                {filteredInventory.map((item) => {
-                  const stockPercentage = (item.currentStock / item.maxStock) * 100
-                  const needsReorder = item.currentStock <= item.minStock
+              <>
+                <div className="staff-inventory-items-grid">
+                  {paging.pageItems.map((item) => {
+                    const stockPercentage = (item.currentStock / item.maxStock) * 100
+                    const needsReorder = item.currentStock <= item.minStock
 
-                  return (
-                    <div key={item.id} className="staff-inventory-item-card">
-                      <div className="staff-inventory-item-card__header">
-                        <span 
-                          className="staff-inventory-item-card__category"
-                          style={{ 
-                            backgroundColor: `${getCategoryColor(item.category)}15`,
-                            color: getCategoryColor(item.category)
-                          }}
-                        >
-                          {item.category}
-                        </span>
-                        <span 
-                          className="staff-inventory-item-card__status"
-                          style={{ 
-                            backgroundColor: `${getStatusColor(item.status)}15`,
-                            color: getStatusColor(item.status)
-                          }}
-                        >
-                          {item.status}
-                        </span>
-                      </div>
-
-                      <h3>{item.item}</h3>
-
-                      <div className="staff-inventory-item-card__stock">
-                        <div className="staff-inventory-item-card__stock-info">
-                          <span className="staff-inventory-item-card__stock-current">
-                            {item.currentStock} {item.unit}
-                          </span>
-                          <span className="staff-inventory-item-card__stock-range">
-                            Min: {item.minStock} • Max: {item.maxStock}
-                          </span>
-                        </div>
-                        <div className="staff-inventory-item-card__stock-bar">
-                          <div 
-                            className="staff-inventory-item-card__stock-fill"
+                    return (
+                      <div key={item.id} className="staff-inventory-item-card">
+                        <div className="staff-inventory-item-card__header">
+                          <span 
+                            className="staff-inventory-item-card__category"
                             style={{ 
-                              width: `${Math.min(stockPercentage, 100)}%`,
-                              backgroundColor: getStatusColor(item.status)
+                              backgroundColor: `${getCategoryColor(item.category)}15`,
+                              color: getCategoryColor(item.category)
                             }}
-                          ></div>
+                          >
+                            {item.category}
+                          </span>
+                          <span 
+                            className="staff-inventory-item-card__status"
+                            style={{ 
+                              backgroundColor: `${getStatusColor(item.status)}15`,
+                              color: getStatusColor(item.status)
+                            }}
+                          >
+                            {item.status}
+                          </span>
+                        </div>
+
+                        <h3>{item.item}</h3>
+
+                        <div className="staff-inventory-item-card__stock">
+                          <div className="staff-inventory-item-card__stock-info">
+                            <span className="staff-inventory-item-card__stock-current">
+                              {item.currentStock} {item.unit}
+                            </span>
+                            <span className="staff-inventory-item-card__stock-range">
+                              Min: {item.minStock} • Max: {item.maxStock}
+                            </span>
+                          </div>
+                          <div className="staff-inventory-item-card__stock-bar">
+                            <div 
+                              className="staff-inventory-item-card__stock-fill"
+                              style={{ 
+                                width: `${Math.min(stockPercentage, 100)}%`,
+                                backgroundColor: getStatusColor(item.status)
+                              }}
+                            ></div>
+                          </div>
+                        </div>
+
+                        <div className="staff-inventory-item-card__details">
+                          <div className="staff-inventory-item-card__detail">
+                            <strong>Location:</strong>
+                            <span>{item.location}</span>
+                          </div>
+                          <div className="staff-inventory-item-card__detail">
+                            <strong>Cost/Unit:</strong>
+                            <span>₱{item.costPerUnit}</span>
+                          </div>
+                          <div className="staff-inventory-item-card__detail">
+                            <strong>Total Value:</strong>
+                            <span>₱{(item.currentStock * item.costPerUnit).toLocaleString()}</span>
+                          </div>
+                          <div className="staff-inventory-item-card__detail">
+                            <strong>Last Updated:</strong>
+                            <span>{item.lastUpdated}</span>
+                          </div>
+                        </div>
+
+                        {needsReorder && (
+                          <div className="staff-inventory-item-card__reorder">
+                            <AlertTriangle size={14} />
+                            <span>Reorder: {item.reorderAmount} {item.unit}</span>
+                          </div>
+                        )}
+
+                        <div className="staff-inventory-item-card__actions">
+                          <button 
+                            className="btn btn--sm btn--secondary"
+                            onClick={() => setSelectedItem(item)}
+                          >
+                            <Eye size={14} />
+                            View
+                          </button>
+                          <button 
+                            className="btn btn--sm btn--success"
+                            onClick={() => {
+                              setSelectedItem(item)
+                              setStockAction('add')
+                              setShowStockModal(true)
+                            }}
+                          >
+                            <Plus size={14} />
+                            Add
+                          </button>
+                          <button 
+                            className="btn btn--sm btn--danger"
+                            onClick={() => {
+                              setSelectedItem(item)
+                              setStockAction('remove')
+                              setShowStockModal(true)
+                            }}
+                          >
+                            <Minus size={14} />
+                            Remove
+                          </button>
                         </div>
                       </div>
-
-                      <div className="staff-inventory-item-card__details">
-                        <div className="staff-inventory-item-card__detail">
-                          <strong>Location:</strong>
-                          <span>{item.location}</span>
-                        </div>
-                        <div className="staff-inventory-item-card__detail">
-                          <strong>Cost/Unit:</strong>
-                          <span>₱{item.costPerUnit}</span>
-                        </div>
-                        <div className="staff-inventory-item-card__detail">
-                          <strong>Total Value:</strong>
-                          <span>₱{(item.currentStock * item.costPerUnit).toLocaleString()}</span>
-                        </div>
-                        <div className="staff-inventory-item-card__detail">
-                          <strong>Last Updated:</strong>
-                          <span>{item.lastUpdated}</span>
-                        </div>
-                      </div>
-
-                      {needsReorder && (
-                        <div className="staff-inventory-item-card__reorder">
-                          <AlertTriangle size={14} />
-                          <span>Reorder: {item.reorderAmount} {item.unit}</span>
-                        </div>
-                      )}
-
-                      <div className="staff-inventory-item-card__actions">
-                        <button 
-                          className="btn btn--sm btn--secondary"
-                          onClick={() => setSelectedItem(item)}
-                        >
-                          <Eye size={14} />
-                          View
-                        </button>
-                        <button 
-                          className="btn btn--sm btn--success"
-                          onClick={() => {
-                            setSelectedItem(item)
-                            setStockAction('add')
-                            setShowStockModal(true)
-                          }}
-                        >
-                          <Plus size={14} />
-                          Add
-                        </button>
-                        <button 
-                          className="btn btn--sm btn--danger"
-                          onClick={() => {
-                            setSelectedItem(item)
-                            setStockAction('remove')
-                            setShowStockModal(true)
-                          }}
-                        >
-                          <Minus size={14} />
-                          Remove
-                        </button>
-                      </div>
-                    </div>
-                  )
-                })}
-              </div>
+                    )
+                  })}
+                </div>
+                <Pagination
+                  page={paging.page}
+                  totalPages={paging.totalPages}
+                  total={paging.total}
+                  startIndex={paging.startIndex}
+                  endIndex={paging.endIndex}
+                  onPageChange={paging.setPage}
+                  className="pagination--portal"
+                  noun="items"
+                />
+              </>
             )}
           </section>
 

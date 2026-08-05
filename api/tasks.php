@@ -456,22 +456,12 @@ if ($method === 'PUT') {
         "{$actor} updated {$code} to {$distributionStatus} via task {$existing['code']}.",
         '/admin/distributions'
       );
-      // Notify barangay portal user when linked
-      if (!empty($dist['beneficiary_id'])) {
-        $benUser = $pdo->prepare('SELECT user_id FROM beneficiaries WHERE id = ? AND user_id IS NOT NULL LIMIT 1');
-        $benUser->execute([(int) $dist['beneficiary_id']]);
-        $benUid = (int) ($benUser->fetchColumn() ?: 0);
-        if ($benUid > 0) {
-          create_notification(
-            $pdo,
-            'distribution',
-            "Delivery update: {$distributionStatus}",
-            "Your distribution {$code} is now marked {$distributionStatus}.",
-            '/beneficiary/distributions',
-            $benUid
-          );
-        }
-      }
+      notify_distribution_lifecycle(
+        $pdo,
+        $dist,
+        $distributionStatus,
+        (string) ($dist['status'] ?? '')
+      );
       if (function_exists('audit_log')) {
         audit_log($pdo, 'status-update', 'distribution', $code, "{$actor} set status to {$distributionStatus} from task {$existing['code']}");
       }

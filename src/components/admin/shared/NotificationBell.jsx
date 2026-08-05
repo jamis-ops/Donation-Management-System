@@ -238,7 +238,16 @@ export default function NotificationBell({ linkPrefix = '/admin' }) {
                     </div>
                     <div className="notif-panel__actions">
                       {path && (
-                        <Link to={path} onClick={() => { handleRead(n.id); setOpen(false) }}>
+                        <Link
+                          to={path}
+                          onClick={() => {
+                            handleRead(n.id)
+                            setOpen(false)
+                            window.dispatchEvent(new CustomEvent('raf:notification-navigate', {
+                              detail: { path, type: n.type, id: n.id },
+                            }))
+                          }}
+                        >
                           View
                         </Link>
                       )}

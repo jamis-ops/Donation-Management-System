@@ -6,6 +6,8 @@ import CertificateView from '../../components/shared/CertificateView'
 import { printCertificate } from '../../components/shared/printCertificate'
 import { certificatesApi, donationsApi } from '../../api/resources'
 import { useApiList } from '../../hooks/useApiList'
+import { usePagination, DEFAULT_PAGE_SIZE } from '../../hooks/usePagination'
+import Pagination from '../../components/admin/shared/Pagination'
 import { notify } from '../../utils/toast'
 
 const CERT_TYPE_CONFIG = {
@@ -48,6 +50,8 @@ export default function DonorCertificatesPage() {
     return normalizedType(cert.type) === typeFilter
   })
 
+  const paging = usePagination(filteredCerts, DEFAULT_PAGE_SIZE, typeFilter)
+
   const typeCounts = {
     All: data.length,
     'Certificate of Appreciation': data.filter((c) => normalizedType(c.type) === 'Certificate of Appreciation').length,
@@ -56,8 +60,8 @@ export default function DonorCertificatesPage() {
   }
 
   const statusCounts = {
-    Generated: data.filter((c) => c.status === 'Generated').length,
-    Processing: data.filter((c) => c.status === 'Processing').length,
+    Generated: data.filter((c) => c.status === 'Generated' || c.status === 'Released').length,
+    Processing: data.filter((c) => c.status === 'Requested' || c.status === 'Pending' || c.status === 'Processing').length,
   }
 
   const handleRequest = async (e) => {
@@ -86,7 +90,7 @@ export default function DonorCertificatesPage() {
     notify.success('Certificate verification link copied to clipboard!')
   }
 
-  const ready = (c) => c.status === 'Generated'
+  const ready = (c) => c.status === 'Generated' || c.status === 'Released'
 
   return (
     <ApiState loading={loading} error={error} onRetry={reload}>
@@ -160,65 +164,77 @@ export default function DonorCertificatesPage() {
             </p>
           </div>
         ) : (
-          <div className="cert-grid cert-grid--enhanced">
-            {filteredCerts.map((c) => {
-              const config = CERT_TYPE_CONFIG[c.type] || { color: 'gray', icon: FileText }
-              const Icon = config.icon
-              return (
-                <div key={c.id} className={`cert-card cert-card--${config.color}`}>
-                  <div className={`cert-card__icon cert-card__icon--${config.color}`}>
-                    <Icon size={22} />
+          <>
+            <div className="cert-grid cert-grid--enhanced">
+              {paging.pageItems.map((c) => {
+                const config = CERT_TYPE_CONFIG[c.type] || { color: 'gray', icon: FileText }
+                const Icon = config.icon
+                return (
+                  <div key={c.id} className={`cert-card cert-card--${config.color}`}>
+                    <div className={`cert-card__icon cert-card__icon--${config.color}`}>
+                      <Icon size={22} />
+                    </div>
+                    <div className="cert-card__body">
+                      <strong>{displayCertType(c.type)}</strong>
+                      <span className="cert-card__period">{c.period}</span>
+                      {c.amount && (
+                        <span className="cert-card__amount">{c.amount}</span>
+                      )}
+                      {c.reference && (
+                        <span className="cert-card__reference">Ref: {c.reference}</span>
+                      )}
+                      <span className="cert-card__date">
+                        {c.date ? `Issued: ${c.date}` : 'Date pending'}
+                      </span>
+                    </div>
+                    <div className="cert-card__side">
+                      <StatusBadge status={c.status} />
+                      {ready(c) ? (
+                        <div className="cert-card__actions">
+                          <button
+                            type="button"
+                            className="btn btn--sm btn--outline"
+                            onClick={() => setPreview(c)}
+                            title="Preview certificate"
+                          >
+                            <Eye size={14} /> View
+                          </button>
+                          <button
+                            type="button"
+                            className="btn btn--sm btn--outline"
+                            onClick={() => handleShare(c)}
+                            title="Share certificate"
+                          >
+                            <Share2 size={14} /> Share
+                          </button>
+                          <button
+                            type="button"
+                            className="btn btn--sm btn--primary"
+                            onClick={() => printCertificate(c)}
+                            title="Download PDF"
+                          >
+                            <Download size={14} /> PDF
+                          </button>
+                        </div>
+                      ) : (
+                        <span className="cert-card__pending">Being processed</span>
+                      )}
+                    </div>
                   </div>
-                  <div className="cert-card__body">
-                    <strong>{displayCertType(c.type)}</strong>
-                    <span className="cert-card__period">{c.period}</span>
-                    {c.amount && (
-                      <span className="cert-card__amount">{c.amount}</span>
-                    )}
-                    {c.reference && (
-                      <span className="cert-card__reference">Ref: {c.reference}</span>
-                    )}
-                    <span className="cert-card__date">
-                      {c.date ? `Issued: ${c.date}` : 'Date pending'}
-                    </span>
-                  </div>
-                  <div className="cert-card__side">
-                    <StatusBadge status={c.status} />
-                    {ready(c) ? (
-                      <div className="cert-card__actions">
-                        <button
-                          type="button"
-                          className="btn btn--sm btn--outline"
-                          onClick={() => setPreview(c)}
-                          title="Preview certificate"
-                        >
-                          <Eye size={14} /> View
-                        </button>
-                        <button
-                          type="button"
-                          className="btn btn--sm btn--outline"
-                          onClick={() => handleShare(c)}
-                          title="Share certificate"
-                        >
-                          <Share2 size={14} /> Share
-                        </button>
-                        <button
-                          type="button"
-                          className="btn btn--sm btn--primary"
-                          onClick={() => printCertificate(c)}
-                          title="Download PDF"
-                        >
-                          <Download size={14} /> PDF
-                        </button>
-                      </div>
-                    ) : (
-                      <span className="cert-card__pending">Being processed</span>
-                    )}
-                  </div>
-                </div>
-              )
-            })}
-          </div>
+                )
+              })}
+            </div>
+            <Pagination
+              page={paging.page}
+              totalPages={paging.totalPages}
+              total={paging.total}
+              startIndex={paging.startIndex}
+              endIndex={paging.endIndex}
+              onPageChange={paging.setPage}
+              className="pagination--portal"
+              noun="certificates"
+            />
+          </>
         )}
       </section>
 

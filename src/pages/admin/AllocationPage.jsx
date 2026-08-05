@@ -919,7 +919,13 @@ export default function AllocationPage() {
       />
 
       <ApiState loading={loading} error={error} onRetry={reload}>
-        <DataTable columns={columns} data={filters.filtered} onRowClick={setDetailRow} initialVisible={5} />
+        <DataTable
+          columns={columns}
+          data={filters.filtered}
+          onRowClick={setDetailRow}
+          pageSize={10}
+          resetKey={`${filters.search}|${JSON.stringify(filters.values)}`}
+        />
       </ApiState>
 
       {detailRow && (

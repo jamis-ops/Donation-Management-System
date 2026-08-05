@@ -143,10 +143,11 @@ try {
       json_response(['ok' => true, 'data' => map_catalog_item($row), 'catalog' => $catalog]);
     }
 
+    // Always return catalogs A–Z by label so dropdowns and Settings stay alphabetical.
     if ($wantAll && $isOps) {
-      $rows = $pdo->query("SELECT * FROM `{$table}` ORDER BY sort_order ASC, label ASC")->fetchAll();
+      $rows = $pdo->query("SELECT * FROM `{$table}` ORDER BY label ASC")->fetchAll();
     } else {
-      $rows = $pdo->query("SELECT * FROM `{$table}` WHERE is_active = 1 ORDER BY sort_order ASC, label ASC")->fetchAll();
+      $rows = $pdo->query("SELECT * FROM `{$table}` WHERE is_active = 1 ORDER BY label ASC")->fetchAll();
     }
 
     json_response([

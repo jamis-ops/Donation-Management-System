@@ -6,6 +6,8 @@ import ModalHeader from '../../components/admin/shared/ModalHeader'
 import DonationUpdatesTimeline from '../../components/shared/DonationUpdatesTimeline'
 import { donationsApi } from '../../api/resources'
 import { useApiList } from '../../hooks/useApiList'
+import { usePagination, DEFAULT_PAGE_SIZE } from '../../hooks/usePagination'
+import Pagination from '../../components/admin/shared/Pagination'
 import { notify } from '../../utils/toast'
 
 function verifyResultMessage(res) {
@@ -46,6 +48,8 @@ export default function StaffVerificationPage() {
     const matchesPriority = priorityFilter === 'All' || d.priority === priorityFilter
     return matchesSearch && matchesPriority
   })
+
+  const paging = usePagination(filtered, DEFAULT_PAGE_SIZE, `${searchQuery}|${priorityFilter}`)
 
   const priorityCounts = {
     All: pending.length,
@@ -129,48 +133,60 @@ export default function StaffVerificationPage() {
             <p>No donations match your filters.</p>
           </div>
         ) : (
-          <div className="portal-table-wrap">
-            <table className="portal-table">
-              <thead>
-                <tr>
-                  <th>Code</th>
-                  <th>Donor</th>
-                  <th>Amount</th>
-                  <th>Program</th>
-                  <th>Priority</th>
-                  <th>Proof</th>
-                  <th>Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filtered.map((d) => (
-                  <tr key={d.dbId || d.id}>
-                    <td><strong>{d.trackingCode}</strong></td>
-                    <td>{d.donor}</td>
-                    <td>{d.amount}</td>
-                    <td>{d.program}</td>
-                    <td><StatusBadge status={d.priority} /></td>
-                    <td>{d.hasProof ? 'Yes' : 'Missing'}</td>
-                    <td>
-                      <div className="table-actions" style={{ display: 'flex', gap: '0.35rem' }}>
-                        <button type="button" className="btn btn--sm btn--outline" onClick={() => setSelected(d)}>
-                          <Eye size={14} /> View
-                        </button>
-                        <button
-                          type="button"
-                          className="btn btn--sm btn--primary"
-                          disabled={busy || !d.hasProof}
-                          onClick={() => handleVerify(d)}
-                        >
-                          <CheckCircle size={14} /> Verify
-                        </button>
-                      </div>
-                    </td>
+          <>
+            <div className="portal-table-wrap">
+              <table className="portal-table">
+                <thead>
+                  <tr>
+                    <th>Code</th>
+                    <th>Donor</th>
+                    <th>Amount</th>
+                    <th>Program</th>
+                    <th>Priority</th>
+                    <th>Proof</th>
+                    <th>Actions</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                </thead>
+                <tbody>
+                  {paging.pageItems.map((d) => (
+                    <tr key={d.dbId || d.id}>
+                      <td><strong>{d.trackingCode}</strong></td>
+                      <td>{d.donor}</td>
+                      <td>{d.amount}</td>
+                      <td>{d.program}</td>
+                      <td><StatusBadge status={d.priority} /></td>
+                      <td>{d.hasProof ? 'Yes' : 'Missing'}</td>
+                      <td>
+                        <div className="table-actions" style={{ display: 'flex', gap: '0.35rem' }}>
+                          <button type="button" className="btn btn--sm btn--outline" onClick={() => setSelected(d)}>
+                            <Eye size={14} /> View
+                          </button>
+                          <button
+                            type="button"
+                            className="btn btn--sm btn--primary"
+                            disabled={busy || !d.hasProof}
+                            onClick={() => handleVerify(d)}
+                          >
+                            <CheckCircle size={14} /> Verify
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <Pagination
+              page={paging.page}
+              totalPages={paging.totalPages}
+              total={paging.total}
+              startIndex={paging.startIndex}
+              endIndex={paging.endIndex}
+              onPageChange={paging.setPage}
+              className="pagination--portal"
+              noun="donations"
+            />
+          </>
         )}
       </section>
 

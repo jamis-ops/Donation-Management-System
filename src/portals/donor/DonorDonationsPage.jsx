@@ -5,9 +5,12 @@ import StatusBadge from '../../components/admin/shared/StatusBadge'
 import ApiState from '../../components/admin/shared/ApiState'
 import { donationsApi, certificatesApi } from '../../api/resources'
 import { useApiList } from '../../hooks/useApiList'
+import { usePagination, DEFAULT_PAGE_SIZE } from '../../hooks/usePagination'
+import Pagination from '../../components/admin/shared/Pagination'
 import ModalHeader from '../../components/admin/shared/ModalHeader'
 import DonationProgressTracker from '../../components/donor/DonationProgressTracker'
 import { notify } from '../../utils/toast'
+import { DONATION_STATUSES } from '../../constants/options'
 
 export default function DonorDonationsPage() {
   const { data, loading, error, reload } = useApiList(() => donationsApi.list())
@@ -39,6 +42,8 @@ export default function DonorDonationsPage() {
     return matchesSearch && matchesType && matchesStatus
   })
 
+  const paging = usePagination(filtered, DEFAULT_PAGE_SIZE, `${search}|${typeFilter}|${statusFilter}`)
+
   const typeCounts = {
     All: data.length,
     Monetary: data.filter(d => d.type === 'Monetary').length,
@@ -47,10 +52,12 @@ export default function DonorDonationsPage() {
 
   const statusCounts = {
     All: data.length,
-    'Pending Verification': data.filter(d => d.status === 'Pending Verification').length,
-    'Verified': data.filter(d => d.status === 'Verified').length,
-    'In Transit': data.filter(d => d.status === 'In Transit').length,
-    'Distributed': data.filter(d => d.status === 'Distributed').length,
+    ...Object.fromEntries(
+      DONATION_STATUSES.filter((s) => !['Rejected', 'Cancelled'].includes(s)).map((s) => [
+        s,
+        data.filter((d) => d.status === s).length,
+      ])
+    ),
   }
 
   const handleCancel = async (row) => {
@@ -219,50 +226,62 @@ export default function DonorDonationsPage() {
             </p>
           </div>
         ) : (
-          <div className="donor-donations-grid">
-            {filtered.map((d) => (
-              <div key={d.id} className="donor-donation-card">
-                <div className="donor-donation-card__header">
-                  <div className="donor-donation-card__tracking">
-                    <strong>{d.trackingCode}</strong>
-                    <span className={`donor-donation-type donor-donation-type--${d.type.toLowerCase()}`}>
-                      {d.type}
-                    </span>
-                  </div>
-                  <StatusBadge status={d.status} />
-                </div>
-                
-                <div className="donor-donation-card__body">
-                  <div className="donor-donation-card__amount">
-                    {d.type === 'Monetary' ? <DollarSign size={16} /> : <Package size={16} />}
-                    <span>{d.amount}</span>
+          <>
+            <div className="donor-donations-grid">
+              {paging.pageItems.map((d) => (
+                <div key={d.id} className="donor-donation-card">
+                  <div className="donor-donation-card__header">
+                    <div className="donor-donation-card__tracking">
+                      <strong>{d.trackingCode}</strong>
+                      <span className={`donor-donation-type donor-donation-type--${d.type.toLowerCase()}`}>
+                        {d.type}
+                      </span>
+                    </div>
+                    <StatusBadge status={d.status} />
                   </div>
                   
-                  <div className="donor-donation-card__details">
-                    <span className="donor-donation-card__program">{d.program}</span>
-                    <span className="donor-donation-card__date">
-                      <Calendar size={14} /> {d.date}
-                    </span>
-                    {d.beneficiaries > 0 && (
-                      <span className="donor-donation-card__impact">
-                        <Users size={14} /> {d.beneficiaries} beneficiaries
+                  <div className="donor-donation-card__body">
+                    <div className="donor-donation-card__amount">
+                      {d.type === 'Monetary' ? <DollarSign size={16} /> : <Package size={16} />}
+                      <span>{d.amount}</span>
+                    </div>
+                    
+                    <div className="donor-donation-card__details">
+                      <span className="donor-donation-card__program">{d.program}</span>
+                      <span className="donor-donation-card__date">
+                        <Calendar size={14} /> {d.date}
                       </span>
-                    )}
+                      {d.beneficiaries > 0 && (
+                        <span className="donor-donation-card__impact">
+                          <Users size={14} /> {d.beneficiaries} beneficiaries
+                        </span>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="donor-donation-card__actions">
+                    <button 
+                      type="button" 
+                      className="btn btn--sm btn--outline" 
+                      onClick={() => setSelected(d)}
+                    >
+                      Track Details
+                    </button>
                   </div>
                 </div>
-
-                <div className="donor-donation-card__actions">
-                  <button 
-                    type="button" 
-                    className="btn btn--sm btn--outline" 
-                    onClick={() => setSelected(d)}
-                  >
-                    Track Details
-                  </button>
-                </div>
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
+            <Pagination
+              page={paging.page}
+              totalPages={paging.totalPages}
+              total={paging.total}
+              startIndex={paging.startIndex}
+              endIndex={paging.endIndex}
+              onPageChange={paging.setPage}
+              className="pagination--portal"
+              noun="donations"
+            />
+          </>
         )}
       </section>
 

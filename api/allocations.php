@@ -154,12 +154,16 @@ function mark_request_allocated(PDO $pdo, ?int $requestId): void
     return;
   }
   try {
-    $pdo->prepare("
+    $stmt = $pdo->prepare("
       UPDATE assistance_requests
       SET status = 'Allocated'
       WHERE id = ?
         AND status NOT IN ('Allocated', 'Completed', 'Rejected', 'Cancelled')
-    ")->execute([$requestId]);
+    ");
+    $stmt->execute([$requestId]);
+    if ($stmt->rowCount() > 0 && function_exists('notify_request_lifecycle')) {
+      notify_request_lifecycle($pdo, (int) $requestId, 'Allocated');
+    }
   } catch (Throwable $e) {
     // best-effort status sync
   }

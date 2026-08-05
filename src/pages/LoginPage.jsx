@@ -6,18 +6,12 @@ import Logo from '../components/shared/Logo'
 import Req from '../components/shared/Req'
 import { heroBg } from '../assets'
 
-const demoAccounts = [
-  { role: 'Admin', email: 'admin@riseabovefoundation.org', password: 'admin123' },
-  { role: 'Donor', email: 'donor@riseabovefoundation.org', password: 'demo123' },
-  { role: 'Volunteer', email: 'volunteer@riseabovefoundation.org', password: 'demo123' },
-  { role: 'Beneficiary', email: 'beneficiary@riseabovefoundation.org', password: 'demo123' },
-  { role: 'Staff', email: 'staff@riseabovefoundation.org', password: 'demo123' },
-]
-
 export default function LoginPage() {
-  const [email, setEmail] = useState('')
+  const [email, setEmail] = useState(() =>
+    localStorage.getItem('raf_remember') === '1' ? (localStorage.getItem('raf_remember_email') || '') : ''
+  )
   const [password, setPassword] = useState('')
-  const [remember, setRemember] = useState(false)
+  const [remember, setRemember] = useState(() => localStorage.getItem('raf_remember') === '1')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
   const { login } = useAuth()
@@ -30,7 +24,14 @@ export default function LoginPage() {
     setError('')
     setLoading(true)
     try {
-      const result = await login(email, password)
+      const result = await login(email, password, { remember })
+      if (remember) {
+        localStorage.setItem('raf_remember', '1')
+        localStorage.setItem('raf_remember_email', email.trim().toLowerCase())
+      } else {
+        localStorage.removeItem('raf_remember')
+        localStorage.removeItem('raf_remember_email')
+      }
       if (result.user?.mustChangePassword) {
         navigate('/change-password', { replace: true })
         return
@@ -104,7 +105,7 @@ export default function LoginPage() {
                 />
                 Remember me
               </label>
-              <button type="button" className="auth-link-btn">Forgot password?</button>
+              <Link to="/contact" className="auth-link-btn">Forgot password?</Link>
             </div>
 
             <button type="submit" className="btn btn--primary btn--lg auth-form__submit" disabled={loading}>
@@ -120,27 +121,6 @@ export default function LoginPage() {
               Donors: <Link to="/donate">Donate</Link> · Volunteers: <Link to="/volunteer">Apply</Link>
             </span>
           </p>
-
-          <div className="auth-demo">
-            <h3>Demo accounts</h3>
-            <ul>
-              {demoAccounts.map((acc) => (
-                <li key={acc.email}>
-                  <button
-                    type="button"
-                    className="auth-demo__btn"
-                    onClick={() => {
-                      setEmail(acc.email)
-                      setPassword(acc.password)
-                    }}
-                  >
-                    <strong>{acc.role}</strong>
-                    <span>{acc.email}</span>
-                  </button>
-                </li>
-              ))}
-            </ul>
-          </div>
 
           <Link to="/" className="auth-back-link">Back to website</Link>
         </div>

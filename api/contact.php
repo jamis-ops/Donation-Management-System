@@ -56,7 +56,11 @@ if (defined('FOUNDATION_EMAIL') && FOUNDATION_EMAIL) {
 
 // Prefer first Admin user's email when available
 try {
-  $adminEmail = $pdo->query("SELECT email FROM users WHERE role = 'Admin' AND email IS NOT NULL AND email != '' ORDER BY id ASC LIMIT 1")->fetchColumn();
+  $adminEmail = $pdo->query(
+    "SELECT u.email FROM users u JOIN roles r ON r.id = u.role_id
+     WHERE r.name = 'Admin' AND u.email IS NOT NULL AND u.email != ''
+     ORDER BY u.id ASC LIMIT 1"
+  )->fetchColumn();
   if ($adminEmail) {
     $notifyTo = (string) $adminEmail;
   }

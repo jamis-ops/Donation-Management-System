@@ -17,6 +17,8 @@ import { SeeMoreToggle } from '../../components/admin/shared/SeeMoreList'
 import NameFields from '../../components/shared/NameFields'
 import { emptyNameParts, formatFullName } from '../../utils/personName'
 import { notify } from '../../utils/toast'
+import { emailError, phoneError } from '../../utils/validation'
+import PhoneInput from '../../components/shared/PhoneInput'
 import { useCatalogOptions } from '../../hooks/useCatalogOptions'
 import { CatalogFieldLabel } from '../../components/admin/shared/CatalogQuickAdd'
 import { TASK_TYPES as FALLBACK_TASK_TYPES } from '../../constants/options'
@@ -116,6 +118,16 @@ export default function StaffPage() {
       notify.warning('Last Name and First Name are required.')
       return
     }
+    const emailMsg = emailError(form.email)
+    if (emailMsg) {
+      notify.warning(emailMsg)
+      return
+    }
+    const phoneMsg = phoneError(form.phone, { required: false })
+    if (phoneMsg) {
+      notify.warning(phoneMsg)
+      return
+    }
     setSaving(true)
     try {
       const res = await createStaffAccount({
@@ -168,6 +180,11 @@ export default function StaffPage() {
   const handleUpdateProfile = async (e) => {
     e.preventDefault()
     if (!selected || !editForm) return
+    const phoneMsg = phoneError(editForm.phone, { required: false })
+    if (phoneMsg) {
+      notify.warning(phoneMsg)
+      return
+    }
     setSaving(true)
     try {
       await updateStaff(selected.dbId, {
@@ -276,7 +293,13 @@ export default function StaffPage() {
 
       <FilterBar controller={filters} searchPlaceholder="Search by ID, name, or email..." />
       <ApiState loading={loading} error={error} onRetry={reload}>
-        <DataTable columns={columns} data={filters.filtered} onRowClick={openStaff} initialVisible={5} />
+        <DataTable
+          columns={columns}
+          data={filters.filtered}
+          onRowClick={openStaff}
+          pageSize={10}
+          resetKey={`${filters.search}|${JSON.stringify(filters.values)}`}
+        />
       </ApiState>
 
       {selected && editForm && (
@@ -302,7 +325,10 @@ export default function StaffPage() {
                   </label>
                   <label>
                     Phone
-                    <input value={editForm.phone} onChange={(e) => setEditForm({ ...editForm, phone: e.target.value })} />
+                    <PhoneInput
+                      value={editForm.phone}
+                      onChange={(phone) => setEditForm({ ...editForm, phone })}
+                    />
                   </label>
                 </div>
                 <label>
@@ -436,7 +462,10 @@ export default function StaffPage() {
                 </label>
                 <label>
                   Phone
-                  <input value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} placeholder="+63 9xx xxx xxxx" />
+                  <PhoneInput
+                    value={form.phone}
+                    onChange={(phone) => setForm({ ...form, phone })}
+                  />
                 </label>
               </div>
               <p className="field-hint">

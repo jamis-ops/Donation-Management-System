@@ -148,8 +148,10 @@ if ($method === 'POST') {
     $donorUserId = (int) ($uidStmt->fetchColumn() ?: 0) ?: null;
   }
   if (!$donorUserId && $donorEmail !== '') {
-    $uidStmt = $pdo->prepare('SELECT id FROM users WHERE email = ? AND role = ? LIMIT 1');
-    $uidStmt->execute([strtolower($donorEmail), 'Donor']);
+    $uidStmt = $pdo->prepare(
+      "SELECT u.id FROM users u JOIN roles r ON r.id = u.role_id WHERE u.email = ? AND r.name = 'Donor' LIMIT 1"
+    );
+    $uidStmt->execute([strtolower($donorEmail)]);
     $donorUserId = (int) ($uidStmt->fetchColumn() ?: 0) ?: null;
   }
   if ($donorUserId) {
@@ -162,19 +164,26 @@ if ($method === 'POST') {
       $donorUserId
     );
   }
-  if ($donorEmail !== '' && filter_var($donorEmail, FILTER_VALIDATE_EMAIL)) {
-    $safeName = htmlspecialchars($donorName, ENT_QUOTES, 'UTF-8');
+  // Email only for high-value stages (Sorted/Repacked/In Transit/Delivered).
+  if (
+    lifecycle_mail_allowed('donation_stage', $stage)
+    && $donorEmail !== ''
+    && filter_var($donorEmail, FILTER_VALIDATE_EMAIL)
+  ) {
+    $safeNote = $note !== ''
+      ? '<p style="margin:0 0 12px;line-height:1.6;color:#475569">' . htmlspecialchars($note, ENT_QUOTES, 'UTF-8') . '</p>'
+      : '';
     $safeTracking = htmlspecialchars($tracking !== '' ? $tracking : 'your donation', ENT_QUOTES, 'UTF-8');
     $safeStage = htmlspecialchars($stage, ENT_QUOTES, 'UTF-8');
-    $safeNote = $note !== '' ? '<p>' . htmlspecialchars($note, ENT_QUOTES, 'UTF-8') . '</p>' : '';
-    send_mail(
+    send_lifecycle_email(
       $donorEmail,
       $donorName,
-      "Donation update" . ($tracking !== '' ? ": {$tracking}" : ''),
-      "<p>Hello {$safeName},</p>"
-        . "<p>Your donation <strong>{$safeTracking}</strong> was updated to <strong>{$safeStage}</strong>.</p>"
-        . $safeNote
-        . email_link_html('/donor/donations', 'Track in donor portal')
+      'Update on your donation' . ($tracking !== '' ? ": {$tracking}" : ''),
+      "Progress: {$stage}",
+      "<p style=\"margin:0 0 12px;line-height:1.6;color:#475569\">Your donation <strong>{$safeTracking}</strong> was updated to <strong>{$safeStage}</strong>.</p>"
+        . $safeNote,
+      '/donor/donations',
+      'Track in donor portal'
     );
   }
 

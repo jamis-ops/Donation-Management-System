@@ -172,6 +172,344 @@ function notify_admins(PDO $pdo, string $type, string $title, string $message, ?
 }
 
 /**
+ * Allowlist of high-value lifecycle transitions that may email external users.
+ * Mid-hop operational statuses stay in-app only (Admin/Staff bell).
+ */
+function lifecycle_mail_allowed(string $domain, string $statusOrStage): bool
+{
+  $s = trim($statusOrStage);
+  return match ($domain) {
+    'donation' => in_array($s, ['Verified', 'Rejected', 'Cancelled', 'Distributed', 'Completed'], true),
+    'donation_stage' => in_array($s, ['Sorted', 'Repacked', 'In Transit', 'Delivered'], true),
+    'request' => in_array($s, ['Approved', 'Rejected', 'Allocated', 'Completed'], true),
+    'distribution' => in_array($s, ['In Transit', 'Delivered', 'Completed'], true),
+    'proof' => in_array($s, ['Approved', 'Rejected'], true),
+    'application' => in_array($s, ['Rejected'], true),
+    default => false,
+  };
+}
+
+/**
+ * Send a branded transactional status email to an external user (donor, barangay, volunteer).
+ * Returns false when the address is missing/invalid or mail is unavailable — never throws.
+ */
+function send_lifecycle_email(
+  string $toEmail,
+  string $toName,
+  string $subject,
+  string $headline,
+  string $messageHtml,
+  string $portalPath,
+  string $ctaLabel = 'Open portal'
+): bool {
+  $toEmail = trim($toEmail);
+  if ($toEmail === '' || !filter_var($toEmail, FILTER_VALIDATE_EMAIL)) {
+    return false;
+  }
+  if (!function_exists('send_mail')) {
+    return false;
+  }
+  $safeName = htmlspecialchars($toName !== '' ? $toName : 'there', ENT_QUOTES, 'UTF-8');
+  $safeHeadline = htmlspecialchars($headline, ENT_QUOTES, 'UTF-8');
+  $html = "<p style=\"margin:0 0 12px\">Hello {$safeName},</p>"
+    . "<p style=\"margin:0 0 14px;font-size:1.1rem;font-weight:700;color:#0f172a\">{$safeHeadline}</p>"
+    . $messageHtml
+    . (function_exists('email_link_html') ? email_link_html($portalPath, $ctaLabel) : '');
+  try {
+    return (bool) send_mail($toEmail, $toName !== '' ? $toName : $toEmail, $subject, $html);
+  } catch (Throwable $e) {
+    error_log('[lifecycle_email] ' . $e->getMessage());
+    return false;
+  }
+}
+
+/**
+ * Resolve barangay contact for in-app + email notifications.
+ * @return array{email:string,name:string,user_id:?int,label:string}|null
+ */
+function beneficiary_mail_contact(PDO $pdo, int $beneficiaryId): ?array
+{
+  if ($beneficiaryId <= 0) {
+    return null;
+  }
+  try {
+    $stmt = $pdo->prepare('
+      SELECT b.id, b.full_name, b.barangay, b.representative_name, b.representative_email, b.user_id, u.email AS user_email
+      FROM beneficiaries b
+      LEFT JOIN users u ON u.id = b.user_id
+      WHERE b.id = ?
+      LIMIT 1
+    ');
+    $stmt->execute([$beneficiaryId]);
+    $row = $stmt->fetch();
+  } catch (Throwable $e) {
+    return null;
+  }
+  if (!$row) {
+    return null;
+  }
+  $email = strtolower(trim((string) ($row['representative_email'] ?? '')));
+  if ($email === '' || !filter_var($email, FILTER_VALIDATE_EMAIL)) {
+    $email = strtolower(trim((string) ($row['user_email'] ?? '')));
+  }
+  if ($email !== '' && !filter_var($email, FILTER_VALIDATE_EMAIL)) {
+    $email = '';
+  }
+  $name = trim((string) ($row['representative_name'] ?? ''));
+  if ($name === '') {
+    $name = trim((string) ($row['full_name'] ?? $row['barangay'] ?? 'Barangay Representative'));
+  }
+  $label = trim((string) ($row['full_name'] ?: $row['barangay'] ?: 'your barangay'));
+  return [
+    'email' => $email,
+    'name' => $name,
+    'user_id' => !empty($row['user_id']) ? (int) $row['user_id'] : null,
+    'label' => $label,
+  ];
+}
+
+/**
+ * In-app (if linked) + optional email to the barangay for a lifecycle event.
+ */
+function notify_beneficiary_lifecycle(
+  PDO $pdo,
+  int $beneficiaryId,
+  string $type,
+  string $title,
+  string $message,
+  string $portalPath,
+  string $emailSubject,
+  string $emailHeadline,
+  string $emailBodyHtml = '',
+  bool $sendEmail = true,
+  string $ctaLabel = 'Open barangay portal'
+): void {
+  $contact = beneficiary_mail_contact($pdo, $beneficiaryId);
+  if ($contact === null) {
+    return;
+  }
+  if (!empty($contact['user_id'])) {
+    create_notification($pdo, $type, $title, $message, $portalPath, (int) $contact['user_id']);
+  }
+  if ($sendEmail && $contact['email'] !== '') {
+    $body = $emailBodyHtml !== ''
+      ? $emailBodyHtml
+      : '<p style="margin:0 0 12px;line-height:1.6;color:#475569">' . htmlspecialchars($message, ENT_QUOTES, 'UTF-8') . '</p>';
+    send_lifecycle_email(
+      $contact['email'],
+      $contact['name'],
+      $emailSubject,
+      $emailHeadline,
+      $body,
+      $portalPath,
+      $ctaLabel
+    );
+  }
+}
+
+/**
+ * Notify the barangay when an assistance request reaches a high-value status.
+ */
+function notify_request_lifecycle(PDO $pdo, int $requestId, string $newStatus, ?string $oldStatus = null): void
+{
+  if ($oldStatus !== null && $oldStatus === $newStatus) {
+    return;
+  }
+  if (!lifecycle_mail_allowed('request', $newStatus)) {
+    return;
+  }
+  try {
+    $stmt = $pdo->prepare('
+      SELECT ar.id, ar.reference_code, ar.status, ar.beneficiary_id, b.full_name AS barangay_name
+      FROM assistance_requests ar
+      JOIN beneficiaries b ON b.id = ar.beneficiary_id
+      WHERE ar.id = ?
+      LIMIT 1
+    ');
+    $stmt->execute([$requestId]);
+    $row = $stmt->fetch();
+  } catch (Throwable $e) {
+    return;
+  }
+  if (!$row || empty($row['beneficiary_id'])) {
+    return;
+  }
+  $code = (string) ($row['reference_code'] ?? ('#' . $requestId));
+  $barangay = (string) ($row['barangay_name'] ?? 'your barangay');
+  $safeCode = htmlspecialchars($code, ENT_QUOTES, 'UTF-8');
+  $copy = match ($newStatus) {
+    'Approved' => [
+      'title' => 'Assistance request approved',
+      'message' => "Request {$code} for {$barangay} was approved.",
+      'headline' => 'Your assistance request was approved',
+      'body' => "<p style=\"margin:0 0 12px;line-height:1.6;color:#475569\">Your request <strong>{$safeCode}</strong> has been approved. Our team will allocate resources and schedule delivery next.</p>",
+      'cta' => 'View requests',
+    ],
+    'Rejected' => [
+      'title' => 'Assistance request not approved',
+      'message' => "Request {$code} was not approved.",
+      'headline' => 'Update on your assistance request',
+      'body' => "<p style=\"margin:0 0 12px;line-height:1.6;color:#475569\">Your request <strong>{$safeCode}</strong> was not approved. Sign in to review details or submit a new request if needed.</p>",
+      'cta' => 'View requests',
+    ],
+    'Allocated' => [
+      'title' => 'Resources allocated',
+      'message' => "Resources were allocated for request {$code}.",
+      'headline' => 'Resources have been allocated',
+      'body' => "<p style=\"margin:0 0 12px;line-height:1.6;color:#475569\">Resources for request <strong>{$safeCode}</strong> have been allocated. A distribution will be scheduled soon.</p>",
+      'cta' => 'View requests',
+    ],
+    'Completed' => [
+      'title' => 'Assistance request completed',
+      'message' => "Request {$code} is complete.",
+      'headline' => 'Your assistance request is complete',
+      'body' => "<p style=\"margin:0 0 12px;line-height:1.6;color:#475569\">Request <strong>{$safeCode}</strong> has been marked complete. Thank you for coordinating with Rise Above Foundation Cebu.</p>",
+      'cta' => 'View requests',
+    ],
+    default => null,
+  };
+  if ($copy === null) {
+    return;
+  }
+  notify_beneficiary_lifecycle(
+    $pdo,
+    (int) $row['beneficiary_id'],
+    'assistance',
+    $copy['title'],
+    $copy['message'],
+    '/beneficiary/requests',
+    "Request {$code}: {$newStatus}",
+    $copy['headline'],
+    $copy['body'],
+    true,
+    $copy['cta']
+  );
+}
+
+/**
+ * Notify the barangay when a distribution reaches In Transit / Delivered / Completed.
+ */
+function notify_distribution_lifecycle(PDO $pdo, array $dist, string $newStatus, ?string $oldStatus = null): void
+{
+  if ($oldStatus !== null && $oldStatus === $newStatus) {
+    return;
+  }
+  if (!lifecycle_mail_allowed('distribution', $newStatus)) {
+    return;
+  }
+  $beneficiaryId = (int) ($dist['beneficiary_id'] ?? 0);
+  if ($beneficiaryId <= 0) {
+    return;
+  }
+  $code = (string) ($dist['code'] ?? 'distribution');
+  $safeCode = htmlspecialchars($code, ENT_QUOTES, 'UTF-8');
+  $copy = match ($newStatus) {
+    'In Transit' => [
+      'title' => 'Delivery in transit',
+      'message' => "Distribution {$code} is now In Transit.",
+      'headline' => 'Your delivery is on the way',
+      'body' => "<p style=\"margin:0 0 12px;line-height:1.6;color:#475569\">Distribution <strong>{$safeCode}</strong> is in transit. You will be asked to confirm receipt once it is marked Delivered.</p>",
+      'cta' => 'Track delivery',
+    ],
+    'Delivered' => [
+      'title' => 'Delivery marked Delivered',
+      'message' => "Distribution {$code} was marked Delivered. Please confirm receipt.",
+      'headline' => 'Please confirm you received the delivery',
+      'body' => "<p style=\"margin:0 0 12px;line-height:1.6;color:#475569\">Distribution <strong>{$safeCode}</strong> was marked <strong>Delivered</strong>. Sign in to confirm receipt and submit proof of delivery.</p>",
+      'cta' => 'Confirm receipt',
+    ],
+    'Completed' => [
+      'title' => 'Distribution completed',
+      'message' => "Distribution {$code} is complete.",
+      'headline' => 'Distribution complete',
+      'body' => "<p style=\"margin:0 0 12px;line-height:1.6;color:#475569\">Distribution <strong>{$safeCode}</strong> is complete. Thank you for submitting documentation.</p>",
+      'cta' => 'View distributions',
+    ],
+    default => null,
+  };
+  if ($copy === null) {
+    return;
+  }
+  notify_beneficiary_lifecycle(
+    $pdo,
+    $beneficiaryId,
+    'distribution',
+    $copy['title'],
+    $copy['message'],
+    '/beneficiary/distributions',
+    "Delivery {$code}: {$newStatus}",
+    $copy['headline'],
+    $copy['body'],
+    true,
+    $copy['cta']
+  );
+}
+
+/**
+ * Auto-close linked assistance request when all its distributions are completed.
+ */
+function try_close_linked_request(PDO $pdo, int $distributionId): void
+{
+  $requestId = null;
+
+  try {
+    $dr = $pdo->prepare('SELECT request_id FROM distributions WHERE id = ? AND request_id IS NOT NULL LIMIT 1');
+    $dr->execute([$distributionId]);
+    $requestId = $dr->fetchColumn();
+  } catch (Throwable $e) {
+  }
+
+  if (!$requestId) {
+    try {
+      $ar = $pdo->prepare('SELECT DISTINCT a.assistance_request_id FROM allocations a WHERE a.distribution_id = ? AND a.assistance_request_id IS NOT NULL');
+      $ar->execute([$distributionId]);
+      $requestId = $ar->fetchColumn();
+    } catch (Throwable $e) {
+    }
+  }
+
+  if (!$requestId) {
+    return;
+  }
+
+  $allDone = true;
+
+  $allocs = $pdo->prepare('SELECT id, distribution_id FROM allocations WHERE assistance_request_id = ?');
+  $allocs->execute([$requestId]);
+  foreach ($allocs->fetchAll() as $alloc) {
+    if (empty($alloc['distribution_id'])) {
+      $allDone = false;
+      break;
+    }
+    $ds = $pdo->prepare('SELECT status FROM distributions WHERE id = ? LIMIT 1');
+    $ds->execute([$alloc['distribution_id']]);
+    $distStatus = $ds->fetchColumn();
+    if ($distStatus !== 'Completed') {
+      $allDone = false;
+      break;
+    }
+  }
+
+  try {
+    $directDists = $pdo->prepare('SELECT status FROM distributions WHERE request_id = ? AND status != ?');
+    $directDists->execute([$requestId, 'Completed']);
+    if ($directDists->fetchColumn()) {
+      $allDone = false;
+    }
+  } catch (Throwable $e) {
+  }
+
+  if ($allDone) {
+    $upd = $pdo->prepare("UPDATE assistance_requests SET status = 'Completed' WHERE id = ? AND status NOT IN ('Rejected','Completed')");
+    $upd->execute([$requestId]);
+    if ($upd->rowCount() > 0) {
+      audit_log($pdo, 'auto-complete', 'assistance_request', (string) $requestId, 'Auto-completed: all linked distributions finished');
+      notify_request_lifecycle($pdo, (int) $requestId, 'Completed');
+    }
+  }
+}
+
+/**
  * Append a chronological donation progress update.
  */
 function record_donation_update(
@@ -233,6 +571,91 @@ function email_taken(PDO $pdo, string $email): bool
   $stmt = $pdo->prepare('SELECT COUNT(*) FROM users WHERE email = ?');
   $stmt->execute([$email]);
   return (bool) $stmt->fetchColumn();
+}
+
+/** Normalize PH mobile to 11 digits (09XXXXXXXXX). Returns '' if empty. */
+function normalize_ph_mobile(?string $phone): string
+{
+  $digits = preg_replace('/\D+/', '', (string) $phone) ?? '';
+  if ($digits === '') {
+    return '';
+  }
+  if (strlen($digits) === 12 && str_starts_with($digits, '63')) {
+    $digits = '0' . substr($digits, 2);
+  } elseif (strlen($digits) === 10 && str_starts_with($digits, '9')) {
+    $digits = '0' . $digits;
+  }
+  return $digits;
+}
+
+function is_valid_ph_mobile(?string $phone): bool
+{
+  $normalized = normalize_ph_mobile($phone);
+  return (bool) preg_match('/^09\d{9}$/', $normalized);
+}
+
+function require_valid_email(string $email, string $label = 'Email'): string
+{
+  $email = strtolower(trim($email));
+  if ($email === '' || !filter_var($email, FILTER_VALIDATE_EMAIL)) {
+    json_response(['ok' => false, 'error' => "{$label} must be a valid email address."], 400);
+  }
+  return $email;
+}
+
+function require_valid_ph_mobile(?string $phone, bool $required = false, string $label = 'Phone'): string
+{
+  $raw = trim((string) $phone);
+  if ($raw === '') {
+    if ($required) {
+      json_response(['ok' => false, 'error' => "{$label} is required (11-digit PH mobile)."], 400);
+    }
+    return '';
+  }
+  $normalized = normalize_ph_mobile($raw);
+  if (!is_valid_ph_mobile($normalized)) {
+    json_response(['ok' => false, 'error' => "{$label} must be an 11-digit PH mobile number (09XXXXXXXXX)."], 400);
+  }
+  return $normalized;
+}
+
+function user_role_name(PDO $pdo, int $userId): ?string
+{
+  $stmt = $pdo->prepare('SELECT r.name FROM users u JOIN roles r ON r.id = u.role_id WHERE u.id = ? LIMIT 1');
+  $stmt->execute([$userId]);
+  $role = $stmt->fetchColumn();
+  return $role !== false ? (string) $role : null;
+}
+
+function normalize_distribution_status(string $status): string
+{
+  $map = [
+    'Scheduled' => 'Planning',
+    'Pending' => 'Planning',
+    'In Progress' => 'Preparing',
+  ];
+  return $map[$status] ?? $status;
+}
+
+function is_valid_distribution_status(string $status): bool
+{
+  return in_array($status, distribution_workflow_steps(), true);
+}
+
+function require_setup_cli_or_local(): void
+{
+  if (PHP_SAPI === 'cli') {
+    return;
+  }
+  $addr = (string) ($_SERVER['REMOTE_ADDR'] ?? '');
+  $allowEnv = getenv('ALLOW_SETUP') === '1' || (string) ($_ENV['ALLOW_SETUP'] ?? '') === '1';
+  $local = in_array($addr, ['127.0.0.1', '::1'], true);
+  if (!$allowEnv && !$local) {
+    http_response_code(403);
+    header('Content-Type: text/plain; charset=utf-8');
+    echo "Forbidden. Setup/migrate is only allowed from localhost or with ALLOW_SETUP=1.\n";
+    exit;
+  }
 }
 
 function donor_name_taken(PDO $pdo, string $name, string $organization = '', ?int $excludeId = null): bool
@@ -344,11 +767,20 @@ function provision_donor_from_donation(PDO $pdo, array $donationRow): array
     return ['created' => false, 'userId' => null, 'mail' => null, 'error' => 'Donor email missing'];
   }
 
-  $existing = $pdo->prepare('SELECT id FROM users WHERE email = ? LIMIT 1');
-  $existing->execute([$email]);
-  $userId = $existing->fetchColumn();
-  if ($userId) {
-    $userId = (int) $userId;
+  if (email_taken($pdo, $email)) {
+    $stmt = $pdo->prepare('SELECT u.id, r.name AS role_name FROM users u JOIN roles r ON r.id = u.role_id WHERE u.email = ? LIMIT 1');
+    $stmt->execute([$email]);
+    $existingUser = $stmt->fetch();
+    $userId = (int) ($existingUser['id'] ?? 0);
+    $roleName = (string) ($existingUser['role_name'] ?? '');
+    if ($userId <= 0 || strcasecmp($roleName, 'Donor') !== 0) {
+      return [
+        'created' => false,
+        'userId' => null,
+        'mail' => null,
+        'error' => 'That email already belongs to a different account role. Use a unique donor email.',
+      ];
+    }
     if (!empty($donationRow['donor_id'])) {
       $pdo->prepare('UPDATE donors SET user_id = COALESCE(user_id, ?) WHERE id = ?')
         ->execute([$userId, (int) $donationRow['donor_id']]);
@@ -390,6 +822,23 @@ function provision_donor_from_donation(PDO $pdo, array $donationRow): array
  */
 function post_donation_to_inventory_packs(PDO $pdo, array $donationRow): void
 {
+  // Idempotent: skip if this donation was already posted to inventory.
+  if (!empty($donationRow['inventory_posted_at'])) {
+    return;
+  }
+  $donationId = (int) ($donationRow['id'] ?? 0);
+  if ($donationId > 0) {
+    try {
+      $check = $pdo->prepare('SELECT inventory_posted_at FROM donations WHERE id = ? LIMIT 1');
+      $check->execute([$donationId]);
+      if ($check->fetchColumn()) {
+        return;
+      }
+    } catch (Throwable $e) {
+      // column may be missing pre-migrate — continue
+    }
+  }
+
   if (($donationRow['type'] ?? '') !== 'In-Kind') {
     return;
   }
@@ -419,6 +868,14 @@ function post_donation_to_inventory_packs(PDO $pdo, array $donationRow): void
         $qty,
       ]);
   }
+  if ($donationId > 0) {
+    try {
+      $pdo->prepare('UPDATE donations SET inventory_posted_at = NOW() WHERE id = ? AND inventory_posted_at IS NULL')
+        ->execute([$donationId]);
+    } catch (Throwable $e) {
+      // column may be missing pre-migrate
+    }
+  }
 }
 
 /**
@@ -443,12 +900,22 @@ function provision_beneficiary_account(PDO $pdo, array $benRow): array
     return ['created' => false, 'userId' => (int) $benRow['user_id'], 'mail' => null, 'error' => null];
   }
   if (email_taken($pdo, $email)) {
-    $stmt = $pdo->prepare('SELECT id FROM users WHERE email = ? LIMIT 1');
+    $stmt = $pdo->prepare('SELECT u.id, r.name AS role_name FROM users u JOIN roles r ON r.id = u.role_id WHERE u.email = ? LIMIT 1');
     $stmt->execute([$email]);
-    $uid = (int) $stmt->fetchColumn();
+    $existingUser = $stmt->fetch();
+    $uid = (int) ($existingUser['id'] ?? 0);
+    $roleName = (string) ($existingUser['role_name'] ?? '');
+    if ($uid <= 0 || strcasecmp($roleName, 'Beneficiary') !== 0) {
+      return [
+        'created' => false,
+        'userId' => null,
+        'mail' => null,
+        'error' => 'That email already belongs to a different account role. Use a unique representative email.',
+      ];
+    }
     $pdo->prepare('UPDATE beneficiaries SET user_id = ?, status = ?, invitation_status = ?, invitation_token = NULL WHERE id = ?')
       ->execute([$uid, 'Active', 'accepted', (int) $benRow['id']]);
-    return ['created' => false, 'userId' => $uid, 'mail' => null, 'error' => 'Email already has an account; linked existing login.'];
+    return ['created' => false, 'userId' => $uid, 'mail' => null, 'error' => 'Email already has a barangay login; linked existing account.'];
   }
 
   $tempPassword = generate_temp_password();
@@ -487,10 +954,21 @@ function provision_volunteer_account(PDO $pdo, array $volunteerRow): array
     return ['created' => false, 'userId' => (int) $volunteerRow['user_id'], 'mail' => null, 'error' => null];
   }
   if (email_taken($pdo, $email)) {
-    $stmt = $pdo->prepare('SELECT id FROM users WHERE email = ? LIMIT 1');
+    $stmt = $pdo->prepare('SELECT u.id, r.name AS role_name FROM users u JOIN roles r ON r.id = u.role_id WHERE u.email = ? LIMIT 1');
     $stmt->execute([$email]);
-    $uid = (int) $stmt->fetchColumn();
-    $pdo->prepare('UPDATE volunteers SET user_id = ? WHERE id = ?')->execute([$uid, (int) $volunteerRow['id']]);
+    $existingUser = $stmt->fetch();
+    $uid = (int) ($existingUser['id'] ?? 0);
+    $roleName = (string) ($existingUser['role_name'] ?? '');
+    if ($uid <= 0 || strcasecmp($roleName, 'Volunteer') !== 0) {
+      return [
+        'created' => false,
+        'userId' => null,
+        'mail' => null,
+        'error' => 'That email already belongs to a different account role. Use a unique volunteer email.',
+      ];
+    }
+    $pdo->prepare('UPDATE volunteers SET user_id = ?, status = ? WHERE id = ?')
+      ->execute([$uid, 'Approved', (int) $volunteerRow['id']]);
     return ['created' => false, 'userId' => $uid, 'mail' => null, 'error' => null];
   }
 
@@ -595,27 +1073,44 @@ function send_verification_email(string $toEmail, string $name, string $token): 
 
 /**
  * Send login credentials when an admin creates an account for a user.
- * Uses NodeMailer (preferred) with a professional HTML template.
+ * Prefers NodeMailer; falls back to PHP SMTP/outbox so delivery stays consistent.
  * Returns ['sent' => bool, 'transport' => string, 'error' => string].
  */
 function send_account_credentials(string $toEmail, string $name, string $loginEmail, string $password, string $role): array
 {
   $sent = false;
+  $nodeError = '';
 
-  if (function_exists('nodemailer_send_credentials') && mail_resolved_transport() === 'nodemailer') {
+  if (function_exists('nodemailer_send_credentials') && function_exists('mail_resolved_transport') && mail_resolved_transport() === 'nodemailer') {
     $sent = nodemailer_send_credentials($toEmail, $name, $loginEmail, $password, $role);
-  } elseif (function_exists('send_mail')) {
-    // Fallback template (PHP SMTP / outbox) — still portal-focused, no Gmail-control language
+    if (!$sent) {
+      $last = function_exists('mail_last_result') ? mail_last_result() : [];
+      $nodeError = (string) ($last['error'] ?? 'NodeMailer credentials send failed');
+    }
+  }
+
+  // Fallback when NodeMailer is down / misconfigured (same pattern as invitations).
+  // Do not call send_mail() while MAIL_TRANSPORT=nodemailer — that would retry the same broken service.
+  if (!$sent && function_exists('send_mail')) {
     $safeName = htmlspecialchars($name, ENT_QUOTES, 'UTF-8');
     $safeEmail = htmlspecialchars($loginEmail, ENT_QUOTES, 'UTF-8');
     $safePassword = htmlspecialchars($password, ENT_QUOTES, 'UTF-8');
     $safeRole = htmlspecialchars($role, ENT_QUOTES, 'UTF-8');
     $loginUrl = htmlspecialchars(frontend_url('/login'), ENT_QUOTES, 'UTF-8');
     $recoveryUrl = htmlspecialchars(recovery_url(), ENT_QUOTES, 'UTF-8');
+    $year = date('Y');
+    $support = function_exists('mail_reply_to_address') ? mail_reply_to_address() : '';
+    $safeSupport = htmlspecialchars($support, ENT_QUOTES, 'UTF-8');
 
-    $subject = 'Welcome to Rise Above Foundation Cebu — your account credentials';
-    $html = '<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Welcome to Rise Above Foundation Cebu</title></head>'
+    // Soft subject — avoid spam triggers like “password” / “credentials”.
+    $subject = 'Your Rise Above Foundation Cebu portal account is ready';
+    $html = '<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">'
+      . '<meta name="format-detection" content="telephone=no,address=no,email=no,date=no,url=no">'
+      . '<title>Your Rise Above Foundation Cebu portal account</title></head>'
       . '<body style="margin:0;padding:0;background:#f1f5f9;font-family:Segoe UI,Roboto,Helvetica,Arial,sans-serif;color:#0f172a">'
+      . '<div style="display:none;max-height:0;overflow:hidden;opacity:0;color:transparent;font-size:1px;line-height:1px">'
+      . "Your {$safeRole} portal account with Rise Above Foundation Cebu is ready. Sign in to get started."
+      . '</div>'
       . '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f1f5f9;padding:28px 12px"><tr><td align="center">'
       . '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:560px;background:#ffffff;border-radius:16px;overflow:hidden;border:1px solid #e2e8f0">'
       . '<tr><td style="background:#AF101A;padding:20px 28px">'
@@ -623,38 +1118,66 @@ function send_account_credentials(string $toEmail, string $name, string $loginEm
       . '<div style="color:rgba(255,255,255,0.88);font-size:0.82rem;margin-top:3px">Donation Management System</div>'
       . '</td></tr>'
       . '<tr><td style="padding:30px 28px 6px">'
-      . '<p style="margin:0 0 8px;font-size:0.72rem;font-weight:700;letter-spacing:0.12em;text-transform:uppercase;color:#AF101A">Welcome</p>'
-      . '<h1 style="margin:0 0 14px;font-size:1.55rem;line-height:1.3;color:#0f172a">Welcome to Rise Above Foundation Cebu</h1>'
-      . "<p style=\"margin:0;font-size:0.98rem;line-height:1.65;color:#475569\">Hi {$safeName}, an administrator created a <strong style=\"color:#0f172a\">{$safeRole}</strong> account for you on the Rise Above Foundation portal. Use the temporary password below to sign in, then change it after your first login.</p>"
+      . '<p style="margin:0 0 8px;font-size:0.72rem;font-weight:700;letter-spacing:0.12em;text-transform:uppercase;color:#AF101A">Account ready</p>'
+      . '<h1 style="margin:0 0 14px;font-size:1.45rem;line-height:1.3;color:#0f172a">Your portal account is ready</h1>'
+      . "<p style=\"margin:0;font-size:0.98rem;line-height:1.65;color:#475569\">Hi {$safeName}, an administrator created a <strong style=\"color:#0f172a\">{$safeRole}</strong> account for you on the Rise Above Foundation Cebu portal. Use the one-time sign-in details below, then choose a new password after your first login.</p>"
       . '</td></tr>'
       . '<tr><td style="padding:16px 28px 8px">'
       . '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:12px">'
       . '<tr><td style="padding:16px 18px;border-bottom:1px solid #e2e8f0">'
-      . '<div style="font-size:0.7rem;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:#94a3b8;margin-bottom:6px">Email address</div>'
+      . '<div style="font-size:0.7rem;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:#94a3b8;margin-bottom:6px">Sign-in email</div>'
       . "<div style=\"font-size:1rem;font-weight:650;color:#0f172a;word-break:break-all\">{$safeEmail}</div></td></tr>"
       . '<tr><td style="padding:16px 18px">'
-      . '<div style="font-size:0.7rem;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:#94a3b8;margin-bottom:6px">Temporary password</div>'
-      . "<div style=\"font-size:1.2rem;font-weight:750;font-family:Consolas,Monaco,monospace;color:#AF101A;letter-spacing:0.04em\">{$safePassword}</div></td></tr>"
+      . '<div style="font-size:0.7rem;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:#94a3b8;margin-bottom:6px">One-time sign-in code</div>'
+      . "<div style=\"font-size:1.15rem;font-weight:750;font-family:Consolas,Monaco,monospace;color:#AF101A;letter-spacing:0.04em\">{$safePassword}</div></td></tr>"
       . '</table></td></tr>'
       . '<tr><td style="padding:22px 28px 8px;text-align:center">'
-      . '<a href="' . $loginUrl . '" style="display:inline-block;background:#AF101A;color:#ffffff;padding:15px 32px;border-radius:10px;text-decoration:none;font-weight:750;font-size:1rem">Log in to your account</a>'
+      . '<a href="' . $loginUrl . '" style="display:inline-block;background:#AF101A;color:#ffffff;padding:15px 32px;border-radius:10px;text-decoration:none;font-weight:750;font-size:1rem">Open portal sign-in</a>'
       . '</td></tr>'
       . '<tr><td style="padding:10px 28px 8px;text-align:center">'
       . '<a href="' . $recoveryUrl . '" style="display:inline-block;background:#ffffff;color:#AF101A;padding:12px 22px;border-radius:10px;text-decoration:none;font-weight:700;border:2px solid #AF101A">Add recovery number</a>'
       . '</td></tr>'
       . '<tr><td style="padding:8px 28px 20px;text-align:center;font-size:0.78rem;color:#94a3b8;word-break:break-all">Or open: <a href="' . $loginUrl . '" style="color:#2563eb">' . $loginUrl . '</a></td></tr>'
-      . '<tr><td style="padding:0 28px 26px"><div style="background:#fff7ed;border:1px solid #fed7aa;border-radius:10px;padding:14px 16px;font-size:0.85rem;line-height:1.55;color:#9a3412"><strong>Security tip:</strong> This temporary password is only for your Rise Above Foundation Cebu portal account. Sign in soon, change your password, and never share this email with others.</div></td></tr>'
-      . '<tr><td style="padding:16px 28px 22px;background:#f8fafc;border-top:1px solid #e2e8f0;text-align:center;font-size:0.75rem;line-height:1.55;color:#94a3b8"><strong style="color:#475569">Rise Above Foundation Cebu</strong><br>© ' . date('Y') . ' Rise Above Foundation Cebu. All rights reserved.<br>This is an automated message from the Donation Management System.</td></tr>'
+      . '<tr><td style="padding:0 28px 26px"><div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:14px 16px;font-size:0.85rem;line-height:1.55;color:#475569"><strong style="color:#0f172a">Security note:</strong> This one-time code is only for your Rise Above Foundation Cebu portal account. Sign in soon, set your own password, and never forward this email.</div></td></tr>'
+      . '<tr><td style="padding:16px 28px 22px;background:#f8fafc;border-top:1px solid #e2e8f0;text-align:center;font-size:0.75rem;line-height:1.55;color:#94a3b8"><strong style="color:#475569">Rise Above Foundation Cebu</strong><br>© ' . $year . ' Rise Above Foundation Cebu. All rights reserved.<br>This transactional message was sent because an administrator created a portal account for you.'
+      . ($safeSupport !== '' ? '<br>Questions? Contact <a href="mailto:' . $safeSupport . '" style="color:#2563eb">' . $safeSupport . '</a>.' : '')
+      . '</td></tr>'
       . '</table></td></tr></table></body></html>';
 
-    $sent = (bool) send_mail($toEmail, $name, $subject, $html);
+    $prepared = function_exists('mail_prepare_html') ? mail_prepare_html($subject, $html) : $html;
+    $activeTransport = function_exists('mail_resolved_transport') ? mail_resolved_transport() : '';
+
+    if ($activeTransport === 'nodemailer') {
+      $smtpReady = defined('SMTP_USER') && SMTP_USER !== '' && defined('SMTP_PASS') && SMTP_PASS !== '' && function_exists('smtp_send');
+      if ($smtpReady) {
+        $sent = smtp_send($toEmail, $name, $subject, $prepared);
+        if (function_exists('mail_archive_outbox')) {
+          mail_archive_outbox($toEmail, $name, $subject, $prepared, $sent, $sent ? 'smtp-fallback-ok' : 'smtp-fallback-failed');
+        }
+      }
+      if (!$sent && function_exists('mail_archive_outbox')) {
+        $path = mail_archive_outbox($toEmail, $name, $subject, $prepared, true, 'outbox-fallback');
+        $sent = $path !== null;
+        if ($sent && function_exists('mail_set_result')) {
+          $note = 'Saved to outbox after NodeMailer failure';
+          if ($nodeError !== '') {
+            $note .= ': ' . $nodeError;
+          }
+          mail_set_result(true, 'outbox', $note);
+        }
+      } elseif ($sent && $nodeError !== '' && function_exists('mail_set_result')) {
+        mail_set_result(true, 'smtp', 'Delivered via SMTP fallback after NodeMailer error: ' . $nodeError);
+      }
+    } else {
+      $sent = (bool) send_mail($toEmail, $name, $subject, $html);
+    }
   }
 
   $result = function_exists('mail_last_result') ? mail_last_result() : ['ok' => $sent, 'transport' => '', 'error' => ''];
   return [
     'sent' => $sent,
     'transport' => (string) ($result['transport'] ?? ''),
-    'error' => (string) ($result['error'] ?? ''),
+    'error' => (string) ($result['error'] ?? ($sent ? '' : ($nodeError !== '' ? $nodeError : 'Credentials email was not delivered'))),
   ];
 }
 
@@ -692,8 +1215,28 @@ function send_invitation_email(string $toEmail, string $barangayName, string $to
   }
 
   // Fallback when NodeMailer is down / misconfigured.
+  // Avoid retrying Node via send_mail() when MAIL_TRANSPORT is already nodemailer.
   if (!$sent && function_exists('send_mail')) {
-    $sent = (bool) send_mail($toEmail, 'Barangay Representative', $subject, $html);
+    $prepared = function_exists('mail_prepare_html') ? mail_prepare_html($subject, $html) : $html;
+    $activeTransport = function_exists('mail_resolved_transport') ? mail_resolved_transport() : '';
+    if ($activeTransport === 'nodemailer') {
+      $smtpReady = defined('SMTP_USER') && SMTP_USER !== '' && defined('SMTP_PASS') && SMTP_PASS !== '' && function_exists('smtp_send');
+      if ($smtpReady) {
+        $sent = smtp_send($toEmail, 'Barangay Representative', $subject, $prepared);
+        if (function_exists('mail_archive_outbox')) {
+          mail_archive_outbox($toEmail, 'Barangay Representative', $subject, $prepared, $sent, $sent ? 'smtp-fallback-ok' : 'smtp-fallback-failed');
+        }
+      }
+      if (!$sent && function_exists('mail_archive_outbox')) {
+        $path = mail_archive_outbox($toEmail, 'Barangay Representative', $subject, $prepared, true, 'outbox-fallback');
+        $sent = $path !== null;
+        if ($sent && function_exists('mail_set_result')) {
+          mail_set_result(true, 'outbox', 'Saved invitation to outbox after NodeMailer failure');
+        }
+      }
+    } else {
+      $sent = (bool) send_mail($toEmail, 'Barangay Representative', $subject, $html);
+    }
   }
 
   $result = function_exists('mail_last_result') ? mail_last_result() : ['ok' => $sent, 'transport' => '', 'error' => ''];

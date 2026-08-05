@@ -1,4 +1,48 @@
 /**
+ * Shared helpers for transactional mail (deliverability-focused).
+ */
+
+export function escapeHtml(v) {
+  return String(v ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+}
+
+/** Soft subject — avoid spam triggers like “password” / “credentials”. */
+export const CREDENTIALS_SUBJECT = 'Your Rise Above Foundation Cebu portal account is ready'
+
+export function credentialsPlainText({
+  name,
+  loginEmail,
+  temporaryPassword,
+  role,
+  loginUrl,
+  recoveryUrl,
+  orgName,
+}) {
+  const brand = orgName || 'Rise Above Foundation Cebu'
+  return [
+    `Hi ${name || 'there'},`,
+    '',
+    `An administrator created a ${role || 'Donor'} account for you on the ${brand} portal.`,
+    '',
+    `Sign-in email: ${loginEmail}`,
+    `One-time sign-in code: ${temporaryPassword}`,
+    '',
+    `Open the portal: ${loginUrl}`,
+    `Add a recovery number (optional): ${recoveryUrl}`,
+    '',
+    'After you sign in, please choose a new password for your account.',
+    'If you did not expect this message, contact the foundation and do not share this email.',
+    '',
+    `— ${brand}`,
+    'This is an automated message from the Donation Management System.',
+  ].join('\n')
+}
+
+/**
  * Professional HTML email templates for Rise Above Foundation.
  */
 
@@ -11,12 +55,9 @@ export function credentialsEmailHtml({
   recoveryUrl,
   orgName,
   year,
+  supportEmail,
 }) {
-  const safe = (v) => String(v ?? '')
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
+  const safe = escapeHtml
 
   const displayName = safe(name || 'there')
   const email = safe(loginEmail)
@@ -26,6 +67,7 @@ export function credentialsEmailHtml({
   const recovery = safe(recoveryUrl || loginUrl)
   const brand = safe(orgName || 'Rise Above Foundation Cebu')
   const yr = safe(year || new Date().getFullYear())
+  const support = safe(supportEmail || '')
 
   return `<!DOCTYPE html>
 <html lang="en" xmlns="http://www.w3.org/1999/xhtml">
@@ -34,7 +76,8 @@ export function credentialsEmailHtml({
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <meta http-equiv="X-UA-Compatible" content="IE=edge" />
   <meta name="x-apple-disable-message-reformatting" />
-  <title>Welcome to Rise Above Foundation Cebu</title>
+  <meta name="format-detection" content="telephone=no,address=no,email=no,date=no,url=no" />
+  <title>Your ${brand} portal account</title>
   <!--[if mso]>
   <noscript>
     <xml>
@@ -46,13 +89,13 @@ export function credentialsEmailHtml({
   <![endif]-->
 </head>
 <body style="margin:0;padding:0;background:#f1f5f9;font-family:'Segoe UI',Roboto,Helvetica,Arial,sans-serif;color:#0f172a;-webkit-text-size-adjust:100%;-ms-text-size-adjust:100%;">
-  <div style="display:none;max-height:0;overflow:hidden;mso-hide:all;opacity:0;">
-    Welcome to Rise Above Foundation Cebu — your ${roleLabel} account credentials are ready.
+  <div style="display:none;max-height:0;overflow:hidden;mso-hide:all;opacity:0;color:transparent;font-size:1px;line-height:1px;">
+    Your ${roleLabel} portal account with ${brand} is ready. Sign in to get started.
   </div>
   <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#f1f5f9;width:100%;padding:28px 12px;">
     <tr>
       <td align="center">
-        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="max-width:560px;width:100%;background:#ffffff;border-radius:16px;overflow:hidden;border:1px solid #e2e8f0;box-shadow:0 10px 30px rgba(15,23,42,0.08);">
+        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="max-width:560px;width:100%;background:#ffffff;border-radius:16px;overflow:hidden;border:1px solid #e2e8f0;">
 
           <!-- Brand header -->
           <tr>
@@ -74,31 +117,31 @@ export function credentialsEmailHtml({
           <!-- Welcome -->
           <tr>
             <td style="padding:30px 28px 6px;">
-              <p style="margin:0 0 8px;font-size:0.72rem;font-weight:700;letter-spacing:0.12em;text-transform:uppercase;color:#AF101A;">Welcome</p>
-              <h1 style="margin:0 0 14px;font-size:1.55rem;line-height:1.3;font-weight:750;color:#0f172a;">
-                Welcome to Rise Above Foundation Cebu
+              <p style="margin:0 0 8px;font-size:0.72rem;font-weight:700;letter-spacing:0.12em;text-transform:uppercase;color:#AF101A;">Account ready</p>
+              <h1 style="margin:0 0 14px;font-size:1.45rem;line-height:1.3;font-weight:750;color:#0f172a;">
+                Your portal account is ready
               </h1>
               <p style="margin:0 0 8px;font-size:0.98rem;line-height:1.65;color:#475569;">
-                Hi ${displayName}, an administrator created a <strong style="color:#0f172a;">${roleLabel}</strong> account for you on the Rise Above Foundation portal.
-                Use the temporary password below to sign in, then change it after your first login.
+                Hi ${displayName}, an administrator created a <strong style="color:#0f172a;">${roleLabel}</strong> account for you on the Rise Above Foundation Cebu portal.
+                Use the one-time sign-in details below, then choose a new password after your first login.
               </p>
             </td>
           </tr>
 
-          <!-- Credentials card -->
+          <!-- Sign-in details -->
           <tr>
             <td style="padding:16px 28px 8px;">
               <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="width:100%;background:#f8fafc;border:1px solid #e2e8f0;border-radius:12px;">
                 <tr>
                   <td style="padding:16px 18px;border-bottom:1px solid #e2e8f0;">
-                    <div style="margin:0 0 6px;font-size:0.7rem;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:#94a3b8;">Email address</div>
+                    <div style="margin:0 0 6px;font-size:0.7rem;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:#94a3b8;">Sign-in email</div>
                     <div style="margin:0;font-size:1rem;font-weight:650;color:#0f172a;word-break:break-all;">${email}</div>
                   </td>
                 </tr>
                 <tr>
                   <td style="padding:16px 18px;">
-                    <div style="margin:0 0 6px;font-size:0.7rem;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:#94a3b8;">Temporary password</div>
-                    <div style="margin:0;font-size:1.2rem;font-weight:750;font-family:Consolas,Monaco,'Courier New',monospace;color:#AF101A;letter-spacing:0.04em;word-break:break-all;">${password}</div>
+                    <div style="margin:0 0 6px;font-size:0.7rem;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:#94a3b8;">One-time sign-in code</div>
+                    <div style="margin:0;font-size:1.15rem;font-weight:750;font-family:Consolas,Monaco,'Courier New',monospace;color:#AF101A;letter-spacing:0.04em;word-break:break-all;">${password}</div>
                   </td>
                 </tr>
               </table>
@@ -111,12 +154,12 @@ export function credentialsEmailHtml({
               <!--[if mso]>
               <v:roundrect xmlns:v="urn:schemas-microsoft-com:vml" xmlns:w="urn:schemas-microsoft-com:office:word" href="${signIn}" style="height:48px;v-text-anchor:middle;width:240px;" arcsize="20%" stroke="f" fillcolor="#AF101A">
                 <w:anchorlock/>
-                <center style="color:#ffffff;font-family:Segoe UI,Arial,sans-serif;font-size:16px;font-weight:700;">Log in to your account</center>
+                <center style="color:#ffffff;font-family:Segoe UI,Arial,sans-serif;font-size:16px;font-weight:700;">Open portal sign-in</center>
               </v:roundrect>
               <![endif]-->
               <!--[if !mso]><!-- -->
               <a href="${signIn}" style="display:inline-block;background:#AF101A;color:#ffffff;text-decoration:none;font-weight:750;font-size:1rem;line-height:1.2;padding:15px 32px;border-radius:10px;mso-hide:all;">
-                Log in to your account
+                Open portal sign-in
               </a>
               <!--<![endif]-->
             </td>
@@ -139,11 +182,11 @@ export function credentialsEmailHtml({
           <!-- Security tip -->
           <tr>
             <td style="padding:0 28px 26px;">
-              <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="width:100%;background:#fff7ed;border:1px solid #fed7aa;border-radius:10px;">
+              <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="width:100%;background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;">
                 <tr>
-                  <td style="padding:14px 16px;font-size:0.85rem;line-height:1.55;color:#9a3412;">
-                    <strong>Security tip:</strong> This temporary password is only for your Rise Above Foundation Cebu portal account.
-                    Sign in soon, change your password, and never share this email with others.
+                  <td style="padding:14px 16px;font-size:0.85rem;line-height:1.55;color:#475569;">
+                    <strong style="color:#0f172a;">Security note:</strong> This one-time code is only for your Rise Above Foundation Cebu portal account.
+                    Sign in soon, set your own password, and never forward this email.
                   </td>
                 </tr>
               </table>
@@ -156,7 +199,8 @@ export function credentialsEmailHtml({
               <p style="margin:0 0 4px;font-size:0.82rem;font-weight:650;color:#475569;">Rise Above Foundation Cebu</p>
               <p style="margin:0;font-size:0.75rem;line-height:1.55;color:#94a3b8;">
                 © ${yr} ${brand}. All rights reserved.<br />
-                This is an automated message from the Donation Management System.
+                This transactional message was sent because an administrator created a portal account for you.
+                ${support ? `<br />Questions? Contact <a href="mailto:${support}" style="color:#2563eb;text-decoration:underline;">${support}</a>.` : ''}
               </p>
             </td>
           </tr>
@@ -168,18 +212,13 @@ export function credentialsEmailHtml({
 </html>`
 }
 
-
 export function verificationEmailHtml({
   name,
   verifyUrl,
   orgName,
   year,
 }) {
-  const safe = (v) => String(v ?? '')
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
+  const safe = escapeHtml
 
   const displayName = safe(name || 'there')
   const link = safe(verifyUrl || '#')
@@ -282,11 +321,7 @@ export function invitationEmailHtml({
   year,
   expiresInDays = 7,
 }) {
-  const safe = (v) => String(v ?? '')
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
+  const safe = escapeHtml
 
   const barangay = safe(formatBarangayLabel(barangayName))
   const link = safe(inviteUrl || '#')
@@ -384,7 +419,6 @@ export function invitationEmailHtml({
 </html>`
 }
 
-
 export function genericEmailHtml({ title, bodyHtml, orgName }) {
   const brand = orgName || 'Rise Above Foundation Cebu'
   return `<!DOCTYPE html>
@@ -402,3 +436,4 @@ export function genericEmailHtml({ title, bodyHtml, orgName }) {
   </div>
 </body></html>`
 }
+

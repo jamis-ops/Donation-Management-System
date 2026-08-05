@@ -106,14 +106,21 @@ if ($method === 'POST') {
     json_response(['ok' => false, 'error' => 'Name is required'], 400);
   }
   if ($public) {
-    if ($email === '' || !filter_var($email, FILTER_VALIDATE_EMAIL)) {
-      json_response(['ok' => false, 'error' => 'A valid email is required'], 400);
-    }
+    $email = require_valid_email($email, 'Email');
     if (empty($body['acceptedPolicies']) && empty($body['termsAccepted'])) {
       json_response(['ok' => false, 'error' => 'Please accept the Data Privacy Policy and Terms & Conditions'], 400);
     }
-  } elseif ($email !== '' && !filter_var($email, FILTER_VALIDATE_EMAIL)) {
-    json_response(['ok' => false, 'error' => 'A valid email is required'], 400);
+  } elseif ($email !== '') {
+    $email = require_valid_email($email, 'Email');
+  }
+  if ($email !== '' && email_taken($pdo, $email)) {
+    // Allow re-apply only when the existing user is already a Volunteer (approval links later).
+    $roleCheck = $pdo->prepare("SELECT r.name FROM users u JOIN roles r ON r.id = u.role_id WHERE u.email = ? LIMIT 1");
+    $roleCheck->execute([$email]);
+    $existingRole = (string) ($roleCheck->fetchColumn() ?: '');
+    if ($existingRole !== '' && strcasecmp($existingRole, 'Volunteer') !== 0) {
+      json_response(['ok' => false, 'error' => 'That email already belongs to a different account role.'], 400);
+    }
   }
 
   $programs = $body['programs'] ?? [];
@@ -211,13 +218,15 @@ if ($method === 'PUT') {
     ? strtoupper(substr(preg_replace('/[^a-zA-Z]/', '', $middleInitial) ?: '', 0, 1))
     : null;
 
+  $email = require_valid_email((string) ($body['email'] ?? $existing['email'] ?? ''), 'Email');
+
   $update = $pdo->prepare('UPDATE volunteers SET full_name = ?, first_name = ?, last_name = ?, middle_initial = ?, email = ?, programs_json = ?, skills_json = ?, skills_other = ?, availability = ?, status = ?, hours = ?, required_hours = ? WHERE id = ?');
   $update->execute([
     $name,
     $firstName !== '' ? $firstName : null,
     $lastName !== '' ? $lastName : null,
     $miDb,
-    $body['email'] ?? $existing['email'],
+    $email,
     $programs,
     $skillsJson,
     $skillsOther,
@@ -253,6 +262,35 @@ if ($method === 'PUT') {
       if (!empty($provision['temporaryPassword'])) {
         $temporaryPassword = (string) $provision['temporaryPassword'];
       }
+    }
+  }
+
+  if (
+    $newStatus === 'Rejected'
+    && ($existing['status'] ?? '') !== 'Rejected'
+    && lifecycle_mail_allowed('application', 'Rejected')
+  ) {
+    $volEmail = strtolower(trim((string) ($existing['email'] ?? '')));
+    $volName = trim((string) ($existing['full_name'] ?? 'Volunteer'));
+    send_lifecycle_email(
+      $volEmail,
+      $volName,
+      'Update on your volunteer application',
+      'Application update',
+      '<p style="margin:0 0 12px;line-height:1.6;color:#475569">Your volunteer application with Rise Above Foundation Cebu was not approved at this time.</p>'
+        . '<p style="margin:0 0 12px;line-height:1.6;color:#475569">You may apply again later or contact the foundation if you have questions.</p>',
+      '/login',
+      'Open portal'
+    );
+    if (!empty($existing['user_id'])) {
+      create_notification(
+        $pdo,
+        'volunteer',
+        'Application update',
+        'Your volunteer application was not approved.',
+        '/login',
+        (int) $existing['user_id']
+      );
     }
   }
 

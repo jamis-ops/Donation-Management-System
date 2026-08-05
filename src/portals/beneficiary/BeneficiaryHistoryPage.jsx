@@ -3,20 +3,25 @@ import { Calendar, Download, TrendingUp, Package } from 'lucide-react'
 import ApiState from '../../components/admin/shared/ApiState'
 import { getPortalData } from '../../api/resources'
 import { useApiObject } from '../../hooks/useApiList'
+import { usePagination, DEFAULT_PAGE_SIZE } from '../../hooks/usePagination'
+import Pagination from '../../components/admin/shared/Pagination'
 import { notify } from '../../utils/toast'
 
 export default function BeneficiaryHistoryPage() {
   const { data, loading, error, reload } = useApiObject(() => getPortalData())
   const [selectedYear] = useState(2026)
 
-  const totalValue = data?.history?.reduce((sum, h) => {
-    const value = parseFloat(h.value.replace(/[₱,]/g, ''))
+  const history = data?.history || []
+  const paging = usePagination(history, DEFAULT_PAGE_SIZE, String(history.length))
+
+  const totalValue = history.reduce((sum, h) => {
+    const value = parseFloat(String(h.value || '').replace(/[₱,]/g, '')) || 0
     return sum + value
-  }, 0) || 0
+  }, 0)
 
-  const totalItems = data?.history?.length || 0
+  const totalItems = history.length
 
-  const maxMonthlyValue = Math.max(...(data?.benefitsByMonth?.map(m => m.value) || [0]))
+  const maxMonthlyValue = Math.max(...(data?.benefitsByMonth?.map(m => m.value) || [0]), 1)
 
   const handleExportPDF = () => {
     notify.info('Export to PDF functionality - Demo mode')
@@ -121,8 +126,8 @@ export default function BeneficiaryHistoryPage() {
               <h2>Assistance History</h2>
             </div>
             <div className="beneficiary-history-timeline">
-              {(data.history || []).map((item, idx) => (
-                <div key={idx} className="beneficiary-history-item">
+              {paging.pageItems.map((item, idx) => (
+                <div key={`${item.date}-${item.item}-${idx}`} className="beneficiary-history-item">
                   <div className="beneficiary-history-item__date">
                     <span className="beneficiary-history-item__day">
                       {new Date(item.date).getDate()}
@@ -150,6 +155,16 @@ export default function BeneficiaryHistoryPage() {
                 </div>
               ))}
             </div>
+            <Pagination
+              page={paging.page}
+              totalPages={paging.totalPages}
+              total={paging.total}
+              startIndex={paging.startIndex}
+              endIndex={paging.endIndex}
+              onPageChange={paging.setPage}
+              className="pagination--portal"
+              noun="records"
+            />
           </section>
         </>
       )}

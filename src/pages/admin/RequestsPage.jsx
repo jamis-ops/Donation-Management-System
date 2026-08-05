@@ -12,8 +12,8 @@ import PageHeader from '../../components/admin/shared/PageHeader';
 import StatusBadge from '../../components/admin/shared/StatusBadge';
 import FilterBar from '../../components/admin/shared/FilterBar';
 import ApiState from '../../components/admin/shared/ApiState';
-import { useSeeMore } from '../../hooks/useSeeMore'
-import { SeeMoreToggle } from '../../components/admin/shared/SeeMoreList';
+import { usePagination, DEFAULT_PAGE_SIZE } from '../../hooks/usePagination'
+import Pagination from '../../components/admin/shared/Pagination'
 import { notify } from '../../utils/toast';
 
 const styles = `
@@ -115,6 +115,7 @@ const styles = `
   display: grid;
   grid-template-columns: 1fr;
   gap: 1rem;
+  align-items: stretch;
 }
 @media (min-width: 768px) {
   .requests-grid { grid-template-columns: repeat(2, 1fr); }
@@ -132,6 +133,9 @@ const styles = `
   flex-direction: column;
   position: relative;
   overflow: hidden;
+  height: 100%;
+  min-height: 100%;
+  box-sizing: border-box;
   transition: transform 0.2s, box-shadow 0.2s;
   font-family: var(--font-sans);
 }
@@ -220,12 +224,15 @@ const styles = `
   font-size: 0.875rem;
   color: var(--admin-text-muted);
   margin: 0;
-  line-height: 1.4;
+  line-height: 1.45;
   flex: 1;
   display: -webkit-box;
-  -webkit-line-clamp: 2;
+  -webkit-line-clamp: 3;
   -webkit-box-orient: vertical;
   overflow: hidden;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  min-width: 0;
 }
 .request-card__meta {
   display: flex;
@@ -261,6 +268,8 @@ const styles = `
   gap: 0.5rem;
   justify-content: space-between;
   align-items: center;
+  flex-wrap: wrap;
+  margin-top: auto;
   background: var(--admin-bg);
 }
 
@@ -467,7 +476,11 @@ export default function RequestsPage() {
     });
   }, [filterController.filtered, emergencyIds, sortBy]);
 
-  const requestsSeeMore = useSeeMore(sortedData, 3);
+  const paging = usePagination(
+    sortedData,
+    DEFAULT_PAGE_SIZE,
+    `${filterController.search}|${filterController.values?.priority || ''}|${filterController.values?.status || ''}|${sortBy}`,
+  );
 
   const stats = useMemo(() => {
     let pending = 0;
@@ -556,9 +569,8 @@ export default function RequestsPage() {
           </div>
         </div>
 
-        <div className="see-more-wrap">
         <div className="requests-grid">
-          {requestsSeeMore.visible.map(req => {
+          {paging.pageItems.map(req => {
             const pConf = priorityConfig[req.priority] || priorityConfig.Medium;
             const PIcon = pConf.icon;
             const isEmergency = emergencyIds.has(req.dbId);
@@ -637,14 +649,18 @@ export default function RequestsPage() {
             </div>
           )}
         </div>
-        {requestsSeeMore.needsToggle && (
-          <SeeMoreToggle
-            expanded={requestsSeeMore.expanded}
-            onToggle={requestsSeeMore.toggle}
-            hiddenCount={requestsSeeMore.hiddenCount}
+        {sortedData.length > 0 && (
+          <Pagination
+            page={paging.page}
+            totalPages={paging.totalPages}
+            total={paging.total}
+            startIndex={paging.startIndex}
+            endIndex={paging.endIndex}
+            onPageChange={paging.setPage}
+            className="pagination--portal"
+            noun="requests"
           />
         )}
-        </div>
       </ApiState>
 
       {selectedRequest && (

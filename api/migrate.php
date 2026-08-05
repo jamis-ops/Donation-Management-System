@@ -6,6 +6,18 @@ declare(strict_types=1);
  */
 require __DIR__ . '/config.php';
 
+// Lock public HTTP access (CLI and localhost only, unless ALLOW_SETUP=1).
+if (PHP_SAPI !== 'cli') {
+  $addr = (string) ($_SERVER['REMOTE_ADDR'] ?? '');
+  $allow = getenv('ALLOW_SETUP') === '1' || in_array($addr, ['127.0.0.1', '::1'], true);
+  if (!$allow) {
+    http_response_code(403);
+    header('Content-Type: text/plain; charset=utf-8');
+    echo "Forbidden. migrate.php is only allowed from localhost or with ALLOW_SETUP=1.\n";
+    exit;
+  }
+}
+
 header('Content-Type: text/plain; charset=utf-8');
 
 function columnExists(PDO $pdo, string $table, string $column): bool
@@ -446,6 +458,44 @@ try {
     // index may already exist
   }
   echo "Ensured tasks.distribution_id\n";
+
+  // v24: Integrity fixes from client-ready review
+  try {
+    $pdo->exec("ALTER TABLE distributions MODIFY proof_status ENUM('Not Required','Awaiting Proof','Proof Submitted','Proof Verified','Proof Rejected') NOT NULL DEFAULT 'Not Required'");
+    echo "Widened distributions.proof_status ENUM\n";
+  } catch (Throwable $e) {
+    echo "proof_status ENUM note: " . $e->getMessage() . "\n";
+  }
+  try {
+    $pdo->exec("ALTER TABLE assistance_requests MODIFY priority ENUM('Low','Medium','High','Critical') NOT NULL DEFAULT 'Medium'");
+    echo "Widened assistance_requests.priority ENUM\n";
+  } catch (Throwable $e) {
+    echo "priority ENUM note: " . $e->getMessage() . "\n";
+  }
+  addColumn($pdo, 'donations', 'inventory_posted_at', 'TIMESTAMP NULL DEFAULT NULL AFTER updated_at');
+  // Normalize legacy distribution statuses to Admin workflow
+  $pdo->exec("UPDATE distributions SET status = 'Planning' WHERE status IN ('Scheduled','Pending')");
+  $pdo->exec("UPDATE distributions SET status = 'Preparing' WHERE status = 'In Progress'");
+  echo "Normalized legacy distribution statuses\n";
+  // Beneficiary Active counts as approved for metrics
+  $pdo->exec("UPDATE beneficiaries SET status = 'Active' WHERE status = 'Approved'");
+  echo "Normalized beneficiary Approved → Active\n";
+  // Volunteer Active/Assigned → Approved for reporting consistency
+  $pdo->exec("UPDATE volunteers SET status = 'Approved' WHERE status IN ('Active','Assigned')");
+  echo "Normalized volunteer Active/Assigned → Approved\n";
+  // Unique emails where safe (ignore failures if duplicates already exist)
+  foreach ([
+    'CREATE UNIQUE INDEX uq_donors_email ON donors (email)',
+    'CREATE UNIQUE INDEX uq_volunteers_email ON volunteers (email)',
+    'CREATE UNIQUE INDEX uq_beneficiaries_rep_email ON beneficiaries (representative_email)',
+  ] as $sql) {
+    try {
+      $pdo->exec($sql);
+      echo "Applied: {$sql}\n";
+    } catch (Throwable $e) {
+      echo "Index skipped (may exist or duplicates present): {$sql}\n";
+    }
+  }
 
   echo "\nMigration complete!\n";
 } catch (Throwable $e) {

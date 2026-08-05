@@ -9,6 +9,18 @@ declare(strict_types=1);
 
 require __DIR__ . '/config.php';
 
+// Lock public HTTP access (CLI and localhost only, unless ALLOW_SETUP=1).
+if (PHP_SAPI !== 'cli') {
+  $addr = (string) ($_SERVER['REMOTE_ADDR'] ?? '');
+  $allow = getenv('ALLOW_SETUP') === '1' || in_array($addr, ['127.0.0.1', '::1'], true);
+  if (!$allow) {
+    http_response_code(403);
+    header('Content-Type: text/plain; charset=utf-8');
+    echo "Forbidden. setup.php is only allowed from localhost or with ALLOW_SETUP=1.\n";
+    exit;
+  }
+}
+
 header('Content-Type: text/plain; charset=utf-8');
 
 $demoUsers = [

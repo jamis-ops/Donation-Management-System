@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { Link } from 'react-router-dom'
 import { HeartHandshake, UserCheck, Users, Package, Truck, UserCog } from 'lucide-react'
 import { getDashboard, needsStockApi } from '../../api/resources'
@@ -18,6 +18,14 @@ const GRANULARITIES = [
   { value: 'year', label: 'Year' },
 ]
 
+const NEEDS_POLL_MS = 45000
+
+const INDICATOR_LABEL = {
+  shortage: 'Shortage',
+  sufficient: 'Sufficient',
+  excess: 'Surplus',
+}
+
 const quickActions = [
   { to: '/admin/donations', icon: HeartHandshake, title: 'Verify Donations' },
   { to: '/admin/volunteers', icon: UserCheck, title: 'Review Volunteers' },
@@ -31,14 +39,99 @@ function ChartEmpty({ message }) {
   return <p className="admin-chart__empty">{message}</p>
 }
 
+function NeedsVsStockRow({ row }) {
+  const max = Math.max(row.requested || 0, row.available || 0, 1)
+  const needPct = Math.round(((row.requested || 0) / max) * 100)
+  const stockPct = Math.round(((row.available || 0) / max) * 100)
+  const unit = row.unit || 'packs'
+  const indicator = INDICATOR_LABEL[row.indicator] || row.indicator
+
+  return (
+    <li className={`needs-vs-stock-list__item needs-vs-stock-list__item--${row.indicator}`}>
+      <div className="needs-vs-stock-list__head">
+        <strong>{row.label}</strong>
+        <span className={`needs-vs-stock-list__badge needs-vs-stock-list__badge--${row.indicator}`}>
+          {indicator}
+        </span>
+      </div>
+      <div className="needs-vs-stock-list__bars" aria-hidden="true">
+        <div className="needs-vs-stock-list__bar-row">
+          <span className="needs-vs-stock-list__bar-label">Need</span>
+          <div className="needs-vs-stock-list__track">
+            <div
+              className="needs-vs-stock-list__fill needs-vs-stock-list__fill--need"
+              style={{ width: `${needPct}%` }}
+            />
+          </div>
+          <span className="needs-vs-stock-list__bar-value">
+            {Number(row.requested || 0).toLocaleString()}
+          </span>
+        </div>
+        <div className="needs-vs-stock-list__bar-row">
+          <span className="needs-vs-stock-list__bar-label">Stock</span>
+          <div className="needs-vs-stock-list__track">
+            <div
+              className="needs-vs-stock-list__fill needs-vs-stock-list__fill--stock"
+              style={{ width: `${stockPct}%` }}
+            />
+          </div>
+          <span className="needs-vs-stock-list__bar-value">
+            {Number(row.available || 0).toLocaleString()}
+          </span>
+        </div>
+      </div>
+      <div className="needs-vs-stock-list__meta">
+        <span>
+          Gap {row.gap > 0 ? '+' : ''}
+          {Number(row.gap || 0).toLocaleString()} {unit}
+        </span>
+        {row.requests > 0 && (
+          <span>
+            {row.requests} request{row.requests === 1 ? '' : 's'}
+            {row.barangays > 0
+              ? ` · ${row.barangays} barangay${row.barangays === 1 ? '' : 's'}`
+              : ''}
+          </span>
+        )}
+        {row.coverage != null && row.requested > 0 && (
+          <span>{row.coverage}% covered</span>
+        )}
+      </div>
+    </li>
+  )
+}
+
 export default function DashboardPage() {
   const { data, loading, error, reload } = useApiObject(() => getDashboard())
   const [gran, setGran] = useState('month')
   const [needs, setNeeds] = useState(null)
+  const [needsError, setNeedsError] = useState('')
+
+  const loadNeeds = useCallback(() => {
+    needsStockApi.get()
+      .then((res) => {
+        setNeeds(res.data || null)
+        setNeedsError('')
+      })
+      .catch((err) => {
+        setNeeds(null)
+        setNeedsError(err?.message || 'Could not load needs vs stock.')
+      })
+  }, [])
 
   useEffect(() => {
-    needsStockApi.get().then((res) => setNeeds(res.data)).catch(() => setNeeds(null))
-  }, [data])
+    loadNeeds()
+  }, [data, loadNeeds])
+
+  useEffect(() => {
+    const id = window.setInterval(loadNeeds, NEEDS_POLL_MS)
+    const onFocus = () => loadNeeds()
+    window.addEventListener('focus', onFocus)
+    return () => {
+      window.clearInterval(id)
+      window.removeEventListener('focus', onFocus)
+    }
+  }, [loadNeeds])
 
   const charts = data?.charts || {}
   const trend = charts.trend?.[gran] || charts.monthlyTrend || []
@@ -50,7 +143,9 @@ export default function DashboardPage() {
   const flowComparison = (charts.flowComparison || []).filter((d) => d.value > 0)
   const forecast = charts.forecast || []
   const stockSeeMore = useSeeMore(inventoryLevels, 3)
-  const needsSeeMore = useSeeMore(needs?.comparison || [], 3)
+  const needsComparison = needs?.comparison || []
+  const needsSeeMore = useSeeMore(needsComparison, 4)
+  const needsSummary = needs?.summary || null
   const forecastSeeMore = useSeeMore(forecast, 3)
   const activitySeeMore = useSeeMore(data?.recentActivity || [], 3)
 
@@ -72,7 +167,14 @@ export default function DashboardPage() {
   return (
     <>
       <PageHeader title="Dashboard" description="System overview and key metrics from MySQL." />
-      <ApiState loading={loading} error={error} onRetry={reload}>
+      <ApiState
+        loading={loading}
+        error={error}
+        onRetry={() => {
+          reload()
+          loadNeeds()
+        }}
+      >
         {data && (
           <>
             <div className="admin-stats-grid">
@@ -195,17 +297,26 @@ export default function DashboardPage() {
 
               <section className="admin-panel admin-panel--chart">
                 <h3 className="admin-chart__title">Needs vs Available Stock</h3>
-                {needs?.comparison?.length ? (
+                <p className="needs-vs-stock-list__hint">
+                  Open request needs vs matching inventory by category/item. Live from MySQL.
+                </p>
+                {needsSummary && (
+                  <div className="needs-vs-stock-summary" aria-label="Needs summary">
+                    <span className="needs-chip needs-chip--shortage">{needsSummary.shortage} shortage</span>
+                    <span className="needs-chip needs-chip--ok">{needsSummary.sufficient} sufficient</span>
+                    <span className="needs-chip needs-chip--excess">{needsSummary.excess} surplus</span>
+                    {needsSummary.openRequests != null && (
+                      <span className="needs-vs-stock-summary__meta">
+                        {needsSummary.openRequests} open request{needsSummary.openRequests === 1 ? '' : 's'}
+                      </span>
+                    )}
+                  </div>
+                )}
+                {needsComparison.length > 0 ? (
                   <div className="see-more-wrap">
                     <ul className="needs-vs-stock-list">
                       {needsSeeMore.visible.map((row) => (
-                        <li key={row.key} className={`needs-vs-stock-list__item needs-vs-stock-list__item--${row.indicator}`}>
-                          <div className="needs-vs-stock-list__head">
-                            <strong>{row.label}</strong>
-                            <span>{row.indicator}</span>
-                          </div>
-                          <span>Need {row.requested} · Stock {row.available} {row.unit} · Gap {row.gap}</span>
-                        </li>
+                        <NeedsVsStockRow key={row.key} row={row} />
                       ))}
                     </ul>
                     {needsSeeMore.needsToggle && (
@@ -217,11 +328,16 @@ export default function DashboardPage() {
                     )}
                   </div>
                 ) : (
-                  <ChartEmpty message="No needs or inventory to compare yet." />
+                  <ChartEmpty message={needsError || 'No open request needs or inventory to compare yet.'} />
                 )}
-                <Link to="/admin/allocation" className="btn btn--sm btn--outline" style={{ marginTop: '0.75rem' }}>
-                  Open Allocation
-                </Link>
+                <div className="needs-vs-stock-list__actions">
+                  <Link to="/admin/allocation" className="btn btn--sm btn--outline">
+                    Open Allocation
+                  </Link>
+                  <button type="button" className="btn btn--sm btn--ghost" onClick={loadNeeds}>
+                    Refresh
+                  </button>
+                </div>
               </section>
 
               <section className="admin-panel admin-panel--chart">

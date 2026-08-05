@@ -6,6 +6,8 @@ import MasterDataSettings from '../components/admin/shared/MasterDataSettings'
 import Req from '../components/shared/Req'
 import { notify } from '../utils/toast'
 import { isSuperAdminRole } from '../utils/roleRoutes'
+import PhoneInput from '../components/shared/PhoneInput'
+import { phoneError } from '../utils/validation'
 
 export default function AccountSettingsPage() {
   const { user, updateAccount, changePassword, refreshUser } = useAuth()
@@ -48,6 +50,16 @@ export default function AccountSettingsPage() {
 
   const handleSaveProfile = async (e) => {
     e.preventDefault()
+    const phoneMsg = phoneError(phone, { required: false })
+    if (phoneMsg) {
+      notify.warning(phoneMsg)
+      return
+    }
+    const recoveryMsg = phoneError(recoveryPhone, { required: false })
+    if (recoveryMsg) {
+      notify.warning(recoveryMsg.replace('Phone number', 'Recovery phone'))
+      return
+    }
     setSavingProfile(true)
     try {
       await updateAccount({ name, phone, recoveryPhone })
@@ -149,18 +161,14 @@ export default function AccountSettingsPage() {
             </label>
             <label>
               Phone
-              <input
-                value={phone}
-                onChange={(e) => setPhone(e.target.value)}
-                placeholder="+63 …"
-              />
+              <PhoneInput value={phone} onChange={setPhone} />
             </label>
             <label>
               Recovery phone
-              <input
+              <PhoneInput
                 value={recoveryPhone}
-                onChange={(e) => setRecoveryPhone(e.target.value)}
-                placeholder="Alternate number for account recovery"
+                onChange={setRecoveryPhone}
+                placeholder="09XXXXXXXXX"
               />
             </label>
             <button type="submit" className="btn btn--primary" disabled={savingProfile}>

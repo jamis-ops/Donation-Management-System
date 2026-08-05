@@ -17,6 +17,8 @@ import PolicyLinks from '../../components/shared/PolicyLinks'
 import NameFields from '../../components/shared/NameFields'
 import { emptyNameParts, formatFullName } from '../../utils/personName'
 import { notify } from '../../utils/toast'
+import PhoneInput from '../../components/shared/PhoneInput'
+import { phoneError, emailError } from '../../utils/validation'
 
 const filterConfig = {
   searchKeys: ['id', 'name', 'email', 'firstName', 'lastName'],
@@ -75,6 +77,16 @@ export default function AdminsPage() {
       notify.warning('Last Name and First Name are required.')
       return
     }
+    const emailMsg = emailError(form.email)
+    if (emailMsg) {
+      notify.warning(emailMsg)
+      return
+    }
+    const phoneMsg = phoneError(form.phone, { required: false })
+    if (phoneMsg) {
+      notify.warning(phoneMsg)
+      return
+    }
     setSaving(true)
     try {
       const res = await createStaffAccount({
@@ -127,6 +139,11 @@ export default function AdminsPage() {
   const handleUpdateProfile = async (e) => {
     e.preventDefault()
     if (!selected || !editForm) return
+    const phoneMsg = phoneError(editForm.phone, { required: false })
+    if (phoneMsg) {
+      notify.warning(phoneMsg)
+      return
+    }
     setSaving(true)
     try {
       await updateStaff(selected.dbId, {
@@ -210,7 +227,13 @@ export default function AdminsPage() {
 
       <FilterBar controller={filters} searchPlaceholder="Search by ID, name, or email..." />
       <ApiState loading={loading} error={error} onRetry={reload}>
-        <DataTable columns={columns} data={filters.filtered} onRowClick={openAdmin} initialVisible={5} />
+        <DataTable
+          columns={columns}
+          data={filters.filtered}
+          onRowClick={openAdmin}
+          pageSize={10}
+          resetKey={`${filters.search}|${JSON.stringify(filters.values)}`}
+        />
       </ApiState>
 
       {selected && editForm && (
@@ -236,7 +259,10 @@ export default function AdminsPage() {
                   </label>
                   <label>
                     Phone
-                    <input value={editForm.phone} onChange={(e) => setEditForm({ ...editForm, phone: e.target.value })} />
+                    <PhoneInput
+                      value={editForm.phone}
+                      onChange={(phone) => setEditForm({ ...editForm, phone })}
+                    />
                   </label>
                 </div>
                 <label>
@@ -281,7 +307,10 @@ export default function AdminsPage() {
                 </label>
                 <label>
                   Phone
-                  <input value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} placeholder="+63 9xx xxx xxxx" />
+                  <PhoneInput
+                    value={form.phone}
+                    onChange={(phone) => setForm({ ...form, phone })}
+                  />
                 </label>
               </div>
               <p className="field-hint">

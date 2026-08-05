@@ -21,10 +21,10 @@ async function apiFetch(path, options = {}) {
   return data
 }
 
-export async function login(email, password) {
+export async function login(email, password, { remember = false } = {}) {
   return apiFetch('/api/login.php', {
     method: 'POST',
-    body: JSON.stringify({ email, password }),
+    body: JSON.stringify({ email, password, remember: !!remember }),
   })
 }
 

@@ -41,7 +41,9 @@ function map_donation(array $row): array
     'proofFileName' => $proofName,
     'proofFileType' => $proofType,
     'proofIsImage' => $hasProof && donation_proof_is_image($proofType, $proofName),
-    'proofUrl' => $hasProof ? ('/api/uploads/donation_proofs/' . basename((string) $proofPath)) : null,
+    'proofUrl' => $hasProof
+      ? ('/api/file.php?kind=donation_proofs&name=' . rawurlencode(basename((string) $proofPath)))
+      : null,
   ];
 }
 
@@ -134,7 +136,7 @@ if ($method === 'POST') {
   $organization = $donorType === 'Company'
     ? trim((string) ($body['organization'] ?? $body['company'] ?? ''))
     : '';
-  $phone = trim((string) ($body['phone'] ?? ''));
+  $phone = require_valid_ph_mobile($body['phone'] ?? '', $public, 'Phone');
   $country = trim((string) ($body['country'] ?? ''));
   $address = trim((string) ($body['address'] ?? ''));
 
@@ -165,11 +167,22 @@ if ($method === 'POST') {
 
   $proof = $isMultipart ? save_donation_proof_upload() : null;
 
+  if ($donorEmail !== '') {
+    $donorEmail = require_valid_email($donorEmail, 'Donor email');
+  }
+
+  if ($type === 'Monetary' && ($amount === null || $amount <= 0)) {
+    json_response(['ok' => false, 'error' => 'Monetary donation amount must be greater than 0.'], 400);
+  }
+  if ($type === 'In-Kind' && ($items === null || $items === '')) {
+    json_response(['ok' => false, 'error' => 'In-kind item description is required.'], 400);
+  }
+
   if ($public) {
     if (empty($body['acceptedPolicies']) && empty($body['termsAccepted'])) {
       json_response(['ok' => false, 'error' => 'You must accept the Data Privacy Policy and Terms & Conditions'], 400);
     }
-    if ($donorEmail === '' || !filter_var($donorEmail, FILTER_VALIDATE_EMAIL)) {
+    if ($donorEmail === '') {
       json_response(['ok' => false, 'error' => 'A valid email is required'], 400);
     }
     if (!$proof) {
@@ -377,21 +390,21 @@ if ($method === 'PUT') {
       $user ?? current_user()
     );
     notify_admins($pdo, 'status_update', 'Donation status updated', "{$donation['trackingCode']} is now {$status}", '/admin/donations');
-    if (!empty($existing['donor_email'])) {
-      $donorName = htmlspecialchars((string) $existing['donor_name'], ENT_QUOTES, 'UTF-8');
+    // Email donors only on high-value milestones (avoids mid-hop spam + doubles with stage posts).
+    if (lifecycle_mail_allowed('donation', (string) $status) && !empty($existing['donor_email'])) {
       $tracking = htmlspecialchars((string) $existing['tracking_code'], ENT_QUOTES, 'UTF-8');
       $statusSafe = htmlspecialchars((string) $status, ENT_QUOTES, 'UTF-8');
-      send_mail(
-        $existing['donor_email'],
-        $existing['donor_name'],
-        "Donation {$existing['tracking_code']} status update",
-        "<p>Hello {$donorName},</p>"
-          . "<p>Your donation <strong>{$tracking}</strong> has been updated to "
-          . "<strong>{$statusSafe}</strong>.</p>"
-          . ($becomingVerified && !empty($accountProvision['created'])
-            ? '<p>A donor portal account was created. Check your email for temporary login credentials, then change your password on first sign-in.</p>'
-            : '<p>You can track its full progress anytime from your donor portal.</p>')
-          . email_link_html('/donor/donations', 'Open donor portal')
+      $extra = ($becomingVerified && !empty($accountProvision['created']))
+        ? '<p style="margin:0 0 12px;line-height:1.6;color:#475569">A donor portal account was created. Check your inbox for sign-in details, then choose a new password after you sign in.</p>'
+        : '<p style="margin:0 0 12px;line-height:1.6;color:#475569">You can track full progress anytime from your donor portal.</p>';
+      send_lifecycle_email(
+        (string) $existing['donor_email'],
+        (string) $existing['donor_name'],
+        "Update on your donation {$existing['tracking_code']}",
+        "Donation status: {$status}",
+        "<p style=\"margin:0 0 12px;line-height:1.6;color:#475569\">Your donation <strong>{$tracking}</strong> is now <strong>{$statusSafe}</strong>.</p>" . $extra,
+        '/donor/donations',
+        'Open donor portal'
       );
     }
   }

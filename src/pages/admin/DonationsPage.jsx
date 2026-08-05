@@ -116,6 +116,9 @@ export default function DonationsPage() {
       notify.warning('Cannot approve: proof of donation is required.')
       return
     }
+    if (!window.confirm(`Verify donation ${row.trackingCode}? This may create a donor account and post in-kind items to inventory.`)) {
+      return
+    }
     try {
       const res = await donationsApi.update(row.dbId, { status: 'Verified' })
       if (res?.accountCreated || res?.credentialsSent) {
@@ -234,7 +237,13 @@ export default function DonationsPage() {
       />
 
       <ApiState loading={loading} error={error} onRetry={reload}>
-        <DataTable columns={columns} data={filters.filtered} onRowClick={setSelected} initialVisible={5} />
+        <DataTable
+          columns={columns}
+          data={filters.filtered}
+          onRowClick={setSelected}
+          pageSize={10}
+          resetKey={`${filters.search}|${JSON.stringify(filters.values)}`}
+        />
       </ApiState>
 
       {showForm && (

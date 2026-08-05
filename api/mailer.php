@@ -26,6 +26,9 @@ if (!defined('MAIL_FROM_EMAIL')) {
 if (!defined('MAIL_FROM_NAME')) {
   define('MAIL_FROM_NAME', 'Rise Above Foundation');
 }
+if (!defined('MAIL_REPLY_TO')) {
+  define('MAIL_REPLY_TO', '');
+}
 if (!defined('MAIL_ENABLED')) {
   define('MAIL_ENABLED', true);
 }
@@ -104,13 +107,72 @@ if (!function_exists('mail_resolved_transport')) {
 }
 
 if (!function_exists('mail_from_address')) {
+  /**
+   * Prefer the authenticated SMTP mailbox as From (critical for Gmail inbox delivery).
+   */
   function mail_from_address(): string
   {
     $user = trim((string) SMTP_USER);
+    $configured = trim((string) MAIL_FROM_EMAIL);
     if ($user !== '' && filter_var($user, FILTER_VALIDATE_EMAIL)) {
+      if ($configured !== '' && strcasecmp($configured, $user) !== 0 && preg_match('/@(gmail|googlemail)\.com$/i', $user)) {
+        error_log("[mailer] MAIL_FROM_EMAIL ({$configured}) differs from SMTP_USER ({$user}); using SMTP_USER for deliverability.");
+      }
       return $user;
     }
-    return (string) MAIL_FROM_EMAIL;
+    if ($configured !== '' && filter_var($configured, FILTER_VALIDATE_EMAIL)) {
+      return $configured;
+    }
+    return 'no-reply@riseabovefoundation.org';
+  }
+}
+
+if (!function_exists('mail_reply_to_address')) {
+  function mail_reply_to_address(): string
+  {
+    $reply = trim((string) MAIL_REPLY_TO);
+    if ($reply !== '' && filter_var($reply, FILTER_VALIDATE_EMAIL)) {
+      return $reply;
+    }
+    return mail_from_address();
+  }
+}
+
+if (!function_exists('mail_is_full_document')) {
+  function mail_is_full_document(string $html): bool
+  {
+    $trim = ltrim($html);
+    return (bool) preg_match('/^<!DOCTYPE\s+html/i', $trim)
+      || (bool) preg_match('/^<html[\s>]/i', $trim);
+  }
+}
+
+if (!function_exists('mail_html_to_text')) {
+  function mail_html_to_text(string $html): string
+  {
+    $text = preg_replace('/<style\b[^>]*>.*?<\/style>/is', ' ', $html) ?? $html;
+    $text = preg_replace('/<script\b[^>]*>.*?<\/script>/is', ' ', $text) ?? $text;
+    $text = preg_replace('/<br\s*\/?>/i', "\n", $text) ?? $text;
+    $text = preg_replace('/<\/p>/i', "\n\n", $text) ?? $text;
+    $text = preg_replace('/<\/(div|tr|h[1-6])>/i', "\n", $text) ?? $text;
+    $text = preg_replace('/<a\b[^>]*href=["\']([^"\']+)["\'][^>]*>(.*?)<\/a>/is', '$2 ($1)', $text) ?? $text;
+    $text = strip_tags($text);
+    $text = html_entity_decode($text, ENT_QUOTES | ENT_HTML5, 'UTF-8');
+    $text = preg_replace("/[ \t]+\n/", "\n", $text) ?? $text;
+    $text = preg_replace("/\n{3,}/", "\n\n", $text) ?? $text;
+    $text = preg_replace('/[ \t]{2,}/', ' ', $text) ?? $text;
+    return trim($text);
+  }
+}
+
+if (!function_exists('mail_prepare_html')) {
+  /** Skip double-wrapping when callers already pass a full HTML document. */
+  function mail_prepare_html(string $subject, string $bodyHtml): string
+  {
+    if (mail_is_full_document($bodyHtml)) {
+      return $bodyHtml;
+    }
+    return mail_wrap_html($subject, $bodyHtml);
   }
 }
 
@@ -125,6 +187,19 @@ if (!function_exists('mail_wrap_html')) {
       . '<div style="padding:14px 24px;background:#f8fafc;color:#94a3b8;font-size:0.75rem;border-top:1px solid #e2e8f0">'
       . 'This is an automated message from the Rise Above Foundation Donation Management System. If you did not request this, you can ignore this email.</div>'
       . '</div></body></html>';
+  }
+}
+
+if (!function_exists('mail_smtp_ehlo_host')) {
+  function mail_smtp_ehlo_host(): string
+  {
+    $from = mail_from_address();
+    $domain = explode('@', $from)[1] ?? '';
+    if ($domain !== '' && preg_match('/^[a-z0-9.-]+$/i', $domain)) {
+      return $domain;
+    }
+    $host = gethostname();
+    return is_string($host) && $host !== '' ? $host : 'localhost';
   }
 }
 
@@ -409,10 +484,11 @@ if (!function_exists('smtp_send')) {
         throw new RuntimeException('Bad greeting: ' . trim($greeting));
       }
 
-      $write('EHLO localhost');
+      $ehloHost = mail_smtp_ehlo_host();
+      $write('EHLO ' . $ehloHost);
       $ehlo = $read();
       if (!$expect($ehlo, '250')) {
-        $write('HELO localhost');
+        $write('HELO ' . $ehloHost);
         $ehlo = $read();
         if (!$expect($ehlo, '250')) {
           throw new RuntimeException('EHLO/HELO failed');
@@ -428,7 +504,7 @@ if (!function_exists('smtp_send')) {
         if (!stream_socket_enable_crypto($fp, true, STREAM_CRYPTO_METHOD_TLS_CLIENT)) {
           throw new RuntimeException('TLS negotiation failed');
         }
-        $write('EHLO localhost');
+        $write('EHLO ' . $ehloHost);
         $ehlo = $read();
         if (!$expect($ehlo, '250')) {
           throw new RuntimeException('EHLO after TLS failed');
@@ -467,19 +543,35 @@ if (!function_exists('smtp_send')) {
       $safeToName = str_replace(['"', "\r", "\n"], '', $toName);
       $toHeader = $safeToName !== '' ? "\"{$safeToName}\" <{$toEmail}>" : $toEmail;
       $fromName = str_replace(['"', "\r", "\n"], '', (string) MAIL_FROM_NAME);
+      $replyTo = mail_reply_to_address();
+      $boundary = 'rafc_' . bin2hex(random_bytes(12));
+      $plain = mail_html_to_text($html);
+      $safePlain = preg_replace('/^\./m', '..', $plain) ?? $plain;
+      $safeHtml = preg_replace('/^\./m', '..', $html) ?? $html;
+      $domain = explode('@', $from)[1] ?? 'riseabove-cebu.org';
       $headers = [
         "From: \"{$fromName}\" <{$from}>",
         "To: {$toHeader}",
-        "Reply-To: {$from}",
+        "Reply-To: {$replyTo}",
         "Subject: {$encodedSubject}",
         'MIME-Version: 1.0',
-        'Content-Type: text/html; charset=UTF-8',
-        'Content-Transfer-Encoding: 8bit',
+        "Content-Type: multipart/alternative; boundary=\"{$boundary}\"",
         'Date: ' . date('r'),
-        'Message-ID: <' . bin2hex(random_bytes(12)) . '@' . (explode('@', $from)[1] ?? 'riseabove-cebu.org') . '>',
+        'Message-ID: <' . bin2hex(random_bytes(12)) . '@' . $domain . '>',
+        'Auto-Submitted: auto-generated',
+        'X-Auto-Response-Suppress: OOF, AutoReply',
+        'X-Mailer: RiseAbove-DonationSystem',
       ];
-      $safeHtml = preg_replace('/^\./m', '..', $html) ?? $html;
-      $body = implode("\r\n", $headers) . "\r\n\r\n" . $safeHtml . "\r\n.";
+      $multipart = "--{$boundary}\r\n"
+        . "Content-Type: text/plain; charset=UTF-8\r\n"
+        . "Content-Transfer-Encoding: 8bit\r\n\r\n"
+        . $safePlain . "\r\n\r\n"
+        . "--{$boundary}\r\n"
+        . "Content-Type: text/html; charset=UTF-8\r\n"
+        . "Content-Transfer-Encoding: 8bit\r\n\r\n"
+        . $safeHtml . "\r\n\r\n"
+        . "--{$boundary}--";
+      $body = implode("\r\n", $headers) . "\r\n\r\n" . $multipart . "\r\n.";
       $write($body);
       if (!$expect($read(), '250')) {
         throw new RuntimeException('Message not accepted by SMTP server');
@@ -506,7 +598,7 @@ if (!function_exists('send_mail')) {
       return false;
     }
 
-    $html = mail_wrap_html($subject, $bodyHtml);
+    $html = mail_prepare_html($subject, $bodyHtml);
     $transport = mail_resolved_transport();
     $sent = false;
 
@@ -530,12 +622,24 @@ if (!function_exists('send_mail')) {
 
     if ($transport === 'mail' && function_exists('mail')) {
       $from = mail_from_address();
+      $replyTo = mail_reply_to_address();
+      $boundary = 'rafc_' . bin2hex(random_bytes(8));
+      $plain = mail_html_to_text($html);
       $headers = [
         'MIME-Version: 1.0',
-        'Content-Type: text/html; charset=UTF-8',
+        'Content-Type: multipart/alternative; boundary="' . $boundary . '"',
         'From: ' . MAIL_FROM_NAME . ' <' . $from . '>',
+        'Reply-To: ' . $replyTo,
+        'Auto-Submitted: auto-generated',
       ];
-      $sent = @mail($toEmail, $subject, $html, implode("\r\n", $headers));
+      $body = "--{$boundary}\r\n"
+        . "Content-Type: text/plain; charset=UTF-8\r\n\r\n"
+        . $plain . "\r\n\r\n"
+        . "--{$boundary}\r\n"
+        . "Content-Type: text/html; charset=UTF-8\r\n\r\n"
+        . $html . "\r\n\r\n"
+        . "--{$boundary}--";
+      $sent = @mail($toEmail, $subject, $body, implode("\r\n", $headers));
       mail_archive_outbox($toEmail, $toName, $subject, $html, $sent, $sent ? 'mail-ok' : 'mail-failed');
       mail_set_result($sent, 'mail', $sent ? '' : 'PHP mail() returned false');
       return $sent;

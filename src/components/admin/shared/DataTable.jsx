@@ -1,5 +1,5 @@
-import { useSeeMore } from '../../../hooks/useSeeMore'
-import { SeeMoreToggle } from './SeeMoreList'
+import { usePagination, DEFAULT_PAGE_SIZE } from '../../../hooks/usePagination'
+import Pagination from './Pagination'
 
 export default function DataTable({
   columns,
@@ -7,15 +7,30 @@ export default function DataTable({
   onRowClick,
   /** Optional className for a row (string or (row) => string). */
   rowClassName,
-  /** When set, only the first N rows show until the user expands. */
+  /** Rows per page (default 10). */
+  pageSize = DEFAULT_PAGE_SIZE,
+  /** @deprecated Use pageSize. Kept so existing call sites keep working. */
   initialVisible,
+  /** Change this when search/filters change so the pager returns to page 1. */
+  resetKey = '',
+  noun = 'records',
 }) {
-  const limit = typeof initialVisible === 'number' && initialVisible > 0 ? initialVisible : null
-  const { visible, expanded, toggle, needsToggle, hiddenCount, total } = useSeeMore(
-    data,
-    limit ?? (data?.length || 0),
+  const list = Array.isArray(data) ? data : []
+  const size = (
+    typeof pageSize === 'number' && pageSize > 0
+      ? pageSize
+      : (typeof initialVisible === 'number' && initialVisible > 0 ? initialVisible : DEFAULT_PAGE_SIZE)
   )
-  const rows = limit ? visible : data
+
+  const {
+    page,
+    setPage,
+    pageItems,
+    total,
+    totalPages,
+    startIndex,
+    endIndex,
+  } = usePagination(list, size, String(resetKey))
 
   return (
     <div className="data-table-wrapper">
@@ -28,14 +43,14 @@ export default function DataTable({
           </tr>
         </thead>
         <tbody>
-          {data.length === 0 ? (
+          {list.length === 0 ? (
             <tr>
               <td colSpan={columns.length} className="data-table__empty">
                 No records found
               </td>
             </tr>
           ) : (
-            rows.map((row, i) => {
+            pageItems.map((row, i) => {
               const extraClass = typeof rowClassName === 'function' ? rowClassName(row) : (rowClassName || '')
               const classes = [
                 onRowClick ? 'data-table__row--clickable' : '',
@@ -43,7 +58,7 @@ export default function DataTable({
               ].filter(Boolean).join(' ')
               return (
                 <tr
-                  key={row.id ?? row.dbId ?? i}
+                  key={row.id ?? row.dbId ?? `${startIndex + i}`}
                   onClick={() => onRowClick?.(row)}
                   className={classes || undefined}
                 >
@@ -59,28 +74,17 @@ export default function DataTable({
         </tbody>
       </table>
 
-      {data.length > 0 && (
-        <div className={`data-table__footer${limit && needsToggle ? ' data-table__footer--see-more' : ''}`}>
-          {limit && needsToggle && (
-            <SeeMoreToggle
-              expanded={expanded}
-              onToggle={toggle}
-              hiddenCount={hiddenCount}
-            />
-          )}
-          <span className="data-table__count">
-            {limit && needsToggle && !expanded ? (
-              <>
-                Showing <strong>{rows.length}</strong> of <strong>{total}</strong>{' '}
-                {total === 1 ? 'record' : 'records'}
-              </>
-            ) : (
-              <>
-                Showing <strong>{data.length}</strong>{' '}
-                {data.length === 1 ? 'record' : 'records'}
-              </>
-            )}
-          </span>
+      {list.length > 0 && (
+        <div className="data-table__footer">
+          <Pagination
+            page={page}
+            totalPages={totalPages}
+            total={total}
+            startIndex={startIndex}
+            endIndex={endIndex}
+            onPageChange={setPage}
+            noun={noun}
+          />
         </div>
       )}
     </div>

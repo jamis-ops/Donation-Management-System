@@ -7,6 +7,8 @@ import PolicyLinks from '../components/shared/PolicyLinks'
 import { heroBg } from '../assets'
 import { REPRESENTATIVE_POSITIONS } from '../constants/options'
 import { MUNICIPALITIES, barangaysForMunicipality } from '../constants/locations'
+import PhoneInput from '../components/shared/PhoneInput'
+import { phoneError } from '../utils/validation'
 
 const emptyForm = {
   barangay: '',
@@ -72,6 +74,11 @@ export default function AcceptInvitePage() {
   const handleSubmit = async (e) => {
     e.preventDefault()
     setError('')
+    const phoneMsg = phoneError(form.contactNumber, { required: true })
+    if (phoneMsg) {
+      setError(phoneMsg)
+      return
+    }
     if (!form.acceptTerms) {
       setError('Please agree to the Data Privacy Policy and Terms & Conditions.')
       return
@@ -224,12 +231,11 @@ export default function AcceptInvitePage() {
                   </label>
                   <label>
                     <Req required>Contact Number</Req>
-                    <input
-                      type="tel"
+                    <PhoneInput
                       required
                       value={form.contactNumber}
-                      onChange={(e) => set('contactNumber', e.target.value)}
-                      placeholder="+63 9xx xxx xxxx"
+                      onChange={(contactNumber) => set('contactNumber', contactNumber)}
+                      showError={Boolean(error)}
                     />
                   </label>
                 </div>

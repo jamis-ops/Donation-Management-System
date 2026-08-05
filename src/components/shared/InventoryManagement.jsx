@@ -349,7 +349,13 @@ export default function InventoryManagement() {
           />
 
           <ApiState loading={loading} error={error} onRetry={reload}>
-            <DataTable columns={inventoryColumns} data={invFilters.filtered} onRowClick={openItemEdit} initialVisible={5} />
+            <DataTable
+              columns={inventoryColumns}
+              data={invFilters.filtered}
+              onRowClick={openItemEdit}
+              pageSize={10}
+              resetKey={`${invFilters.search}|${JSON.stringify(invFilters.values)}`}
+            />
           </ApiState>
         </>
       )}
@@ -387,7 +393,12 @@ export default function InventoryManagement() {
           />
 
           <ApiState loading={rpkLoading} error={rpkError} onRetry={reloadRpk}>
-            <DataTable columns={repackingColumns} data={rpkFilters.filtered} initialVisible={5} />
+            <DataTable
+              columns={repackingColumns}
+              data={rpkFilters.filtered}
+              pageSize={10}
+              resetKey={`${rpkFilters.search}|${JSON.stringify(rpkFilters.values)}`}
+            />
           </ApiState>
         </>
       )}

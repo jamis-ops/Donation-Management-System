@@ -377,7 +377,13 @@ export default function VolunteersPage() {
         exportConfig={{ filename: 'volunteer-report', title: 'Volunteer Report', columns, rows: filters.filtered }}
       />
       <ApiState loading={loading} error={error} onRetry={reload}>
-        <DataTable columns={columns} data={filters.filtered} onRowClick={openVolunteer} initialVisible={5} />
+        <DataTable
+          columns={columns}
+          data={filters.filtered}
+          onRowClick={openVolunteer}
+          pageSize={10}
+          resetKey={`${filters.search}|${JSON.stringify(filters.values)}`}
+        />
       </ApiState>
 
       {selected && (

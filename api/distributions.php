@@ -99,6 +99,30 @@ function map_distribution(PDO $pdo, array $row): array
     }
   }
 
+  // Volunteer / staff status updates surface via admin notifications (audit trail for detail UI).
+  $statusActivity = [];
+  $code = (string) ($row['code'] ?? '');
+  if ($code !== '') {
+    try {
+      $act = $pdo->prepare(
+        "SELECT title, message, created_at FROM notifications
+         WHERE type = 'distribution' AND message LIKE ?
+         ORDER BY created_at DESC LIMIT 12"
+      );
+      $act->execute(['%' . $code . '%']);
+      foreach ($act->fetchAll() as $n) {
+        $statusActivity[] = [
+          'title' => (string) ($n['title'] ?? ''),
+          'message' => (string) ($n['message'] ?? ''),
+          'at' => format_date($n['created_at'] ?? null),
+          'atRaw' => $n['created_at'] ?? null,
+        ];
+      }
+    } catch (Throwable $e) {
+      $statusActivity = [];
+    }
+  }
+
   return [
     'id' => $row['code'],
     'dbId' => (int) $row['id'],
@@ -117,7 +141,7 @@ function map_distribution(PDO $pdo, array $row): array
     'distanceKm' => isset($row['distance_km']) && $row['distance_km'] !== null ? (float) $row['distance_km'] : null,
     'fuelLiters' => isset($row['fuel_liters']) && $row['fuel_liters'] !== null ? (float) $row['fuel_liters'] : null,
     'fuelCost' => isset($row['fuel_cost']) && $row['fuel_cost'] !== null ? (float) $row['fuel_cost'] : null,
-    'status' => $row['status'],
+    'status' => normalize_distribution_status((string) ($row['status'] ?? 'Planning')),
     'proofStatus' => $row['proof_status'] ?? 'Not Required',
     'receiptStatus' => $row['receipt_status'] ?? 'Awaiting Confirmation',
     'receivedQuantity' => isset($row['received_quantity']) && $row['received_quantity'] !== null ? (int) $row['received_quantity'] : null,
@@ -137,6 +161,7 @@ function map_distribution(PDO $pdo, array $row): array
     'requestPriority' => $requestPriority,
     'request' => $requestInfo,
     'sourceAllocationIds' => $sourceAllocIds,
+    'statusActivity' => $statusActivity,
     'isAutoDraft' => str_contains($row['notes'] ?? '', 'Auto-created from Allocation'),
   ];
 }
@@ -179,67 +204,8 @@ function distributions_for_beneficiary(PDO $pdo, array $ben, bool $forProof = fa
 
 /**
  * Auto-close linked assistance request when all its distributions are completed.
+ * Defined in bootstrap.php so proofs and distributions can both call it.
  */
-function try_close_linked_request(PDO $pdo, int $distributionId): void
-{
-  // Find the request linked to this distribution (via allocation or direct link)
-  $requestId = null;
-
-  // Check direct request_id on distribution
-  try {
-    $dr = $pdo->prepare('SELECT request_id FROM distributions WHERE id = ? AND request_id IS NOT NULL LIMIT 1');
-    $dr->execute([$distributionId]);
-    $requestId = $dr->fetchColumn();
-  } catch (Throwable $e) {}
-
-  // Check via linked allocations
-  if (!$requestId) {
-    try {
-      $ar = $pdo->prepare('SELECT DISTINCT a.assistance_request_id FROM allocations a WHERE a.distribution_id = ? AND a.assistance_request_id IS NOT NULL');
-      $ar->execute([$distributionId]);
-      $requestId = $ar->fetchColumn();
-    } catch (Throwable $e) {}
-  }
-
-  if (!$requestId) {
-    return;
-  }
-
-  // Check if ALL distributions linked to this request are completed
-  $allDone = true;
-
-  // Find all allocations for this request
-  $allocs = $pdo->prepare('SELECT id, distribution_id FROM allocations WHERE assistance_request_id = ?');
-  $allocs->execute([$requestId]);
-  foreach ($allocs->fetchAll() as $alloc) {
-    if (empty($alloc['distribution_id'])) {
-      $allDone = false;
-      break;
-    }
-    $ds = $pdo->prepare('SELECT status FROM distributions WHERE id = ? LIMIT 1');
-    $ds->execute([$alloc['distribution_id']]);
-    $distStatus = $ds->fetchColumn();
-    if ($distStatus !== 'Completed') {
-      $allDone = false;
-      break;
-    }
-  }
-
-  // Also check direct-linked distributions
-  try {
-    $directDists = $pdo->prepare('SELECT status FROM distributions WHERE request_id = ? AND status != ?');
-    $directDists->execute([$requestId, 'Completed']);
-    if ($directDists->fetchColumn()) {
-      $allDone = false;
-    }
-  } catch (Throwable $e) {}
-
-  if ($allDone) {
-    $pdo->prepare("UPDATE assistance_requests SET status = 'Completed' WHERE id = ? AND status NOT IN ('Rejected','Completed')")
-      ->execute([$requestId]);
-    audit_log($pdo, 'auto-complete', 'assistance_request', (string) $requestId, 'Auto-completed: all linked distributions finished');
-  }
-}
 
 $user = require_auth(['Admin', 'Staff', 'Beneficiary']);
 
@@ -299,19 +265,20 @@ if ($user['role'] === 'Beneficiary') {
   $action = $body['action'] ?? 'confirm-receipt';
 
   if ($action === 'confirm-receipt') {
+    $status = normalize_distribution_status((string) ($dist['status'] ?? ''));
+    if ($status !== 'Delivered') {
+      json_response([
+        'ok' => false,
+        'error' => 'You can confirm receipt only after the distribution is marked Delivered.',
+      ], 400);
+    }
     $qty = isset($body['receivedQuantity']) ? (int) $body['receivedQuantity'] : null;
     $notes = trim((string) ($body['notes'] ?? ''));
     $proofStatus = (string) ($dist['proof_status'] ?? 'Not Required');
     $newProof = in_array($proofStatus, ['Proof Verified', 'Proof Submitted'], true)
       ? $proofStatus
       : 'Awaiting Proof';
-    $status = (string) ($dist['status'] ?? '');
-    $newStatus = in_array($status, ['Completed'], true)
-      ? $status
-      : (in_array($newProof, ['Awaiting Proof', 'Proof Submitted'], true) ? 'Awaiting Proof' : $status);
-    if (in_array($status, ['Scheduled', 'Planning', 'Preparing', 'In Transit', 'Delivered'], true)) {
-      $newStatus = 'Awaiting Proof';
-    }
+    $newStatus = 'Awaiting Proof';
     $upd = $pdo->prepare('
       UPDATE distributions
       SET receipt_status = ?, received_quantity = ?, received_at = NOW(), receipt_notes = ?,
@@ -606,14 +573,40 @@ if ($method === 'PUT') {
     json_response(['ok' => false, 'error' => 'Distribution not found'], 404);
   }
 
-  $newStatus = $body['status'] ?? $existing['status'];
+  $newStatus = normalize_distribution_status((string) ($body['status'] ?? $existing['status']));
+  if (!is_valid_distribution_status($newStatus)) {
+    json_response([
+      'ok' => false,
+      'error' => 'Invalid distribution status. Use: ' . implode(', ', distribution_workflow_steps()),
+    ], 400);
+  }
   $proofStatus = $body['proofStatus'] ?? $existing['proof_status'];
+  $allowedProof = ['Not Required', 'Awaiting Proof', 'Proof Submitted', 'Proof Verified', 'Proof Rejected'];
+  if (!in_array((string) $proofStatus, $allowedProof, true)) {
+    $proofStatus = $existing['proof_status'] ?? 'Not Required';
+  }
 
-  if ($newStatus === 'Delivered' && ($proofStatus === 'Not Required' || $proofStatus === '')) {
+  if ($newStatus === 'Delivered' && in_array((string) $proofStatus, ['Not Required', ''], true)) {
     $proofStatus = 'Awaiting Proof';
   }
+  // Completed requires verified proof — Staff/Admin cannot skip barangay receipt/proof.
   if ($newStatus === 'Completed') {
+    $existingProof = (string) ($existing['proof_status'] ?? '');
+    $hasVerified = ($proofStatus === 'Proof Verified') || ($existingProof === 'Proof Verified');
+    if (!$hasVerified && empty($body['forceComplete'])) {
+      json_response([
+        'ok' => false,
+        'error' => 'Cannot mark Completed until proof is verified. Advance to Delivered, then wait for barangay receipt and proof approval.',
+      ], 400);
+    }
     $proofStatus = 'Proof Verified';
+  }
+  // Staff may only set early/mid workflow statuses (not Completed without proof).
+  if (($user['role'] ?? '') === 'Staff' && $newStatus === 'Completed' && ($existing['proof_status'] ?? '') !== 'Proof Verified') {
+    json_response([
+      'ok' => false,
+      'error' => 'Staff cannot complete a distribution before proof verification.',
+    ], 403);
   }
 
   $type = $body['type'] ?? $existing['distribution_type'];
@@ -672,6 +665,12 @@ if ($method === 'PUT') {
         // best-effort
       }
     }
+    // Email + in-app for barangay on In Transit / Delivered / Completed
+    $freshForMail = array_merge($existing, [
+      'status' => $newStatus,
+      'beneficiary_id' => $beneficiaryId ?? ($existing['beneficiary_id'] ?? null),
+    ]);
+    notify_distribution_lifecycle($pdo, $freshForMail, (string) $newStatus, (string) ($existing['status'] ?? ''));
   }
 
   audit_log($pdo, 'update', 'distribution', $existing['code'], "Updated distribution" . ($newStatus !== $existing['status'] ? " (status: {$newStatus})" : ''));

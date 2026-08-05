@@ -5,7 +5,7 @@ import dotenv from 'dotenv'
 import path from 'path'
 import { fileURLToPath } from 'url'
 import fs from 'fs'
-import { credentialsEmailHtml, verificationEmailHtml, invitationEmailHtml, genericEmailHtml } from './templates.js'
+import { credentialsEmailHtml, credentialsPlainText, CREDENTIALS_SUBJECT, verificationEmailHtml, invitationEmailHtml, genericEmailHtml } from './templates.js'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
@@ -22,6 +22,8 @@ const SMTP_PASS = (process.env.SMTP_PASS || '').replace(/\s+/g, '').trim()
 const SMTP_SECURE = String(process.env.SMTP_SECURE || 'tls').toLowerCase() === 'ssl'
 const MAIL_FROM_EMAIL = (process.env.MAIL_FROM_EMAIL || SMTP_USER).trim()
 const MAIL_FROM_NAME = process.env.MAIL_FROM_NAME || 'Rise Above Foundation'
+const MAIL_REPLY_TO = (process.env.MAIL_REPLY_TO || MAIL_FROM_EMAIL || SMTP_USER).trim()
+const LIST_UNSUBSCRIBE_MAILTO = (process.env.MAIL_LIST_UNSUBSCRIBE || MAIL_REPLY_TO || MAIL_FROM_EMAIL || SMTP_USER).trim()
 // Prefer APP_URL / FRONTEND_URL from env. PHP always passes absolute loginUrl/recoveryUrl
 // from api/app_url.php — these defaults are fallbacks only.
 const FRONTEND_URL = (
@@ -32,6 +34,79 @@ const FRONTEND_URL = (
 ).replace(/\/$/, '')
 const RECOVERY_URL = process.env.RECOVERY_URL || `${FRONTEND_URL}/login`
 const ORG_NAME = process.env.ORG_NAME || 'Rise Above Foundation Cebu'
+
+/** Align From with authenticated SMTP mailbox (critical for Gmail inbox delivery). */
+function resolvedFromEmail() {
+  const smtp = SMTP_USER.trim()
+  const configured = MAIL_FROM_EMAIL.trim()
+  if (smtp && /@(gmail|googlemail)\.com$/i.test(smtp)) {
+    if (configured && configured.toLowerCase() !== smtp.toLowerCase()) {
+      console.warn(
+        `[mail-service] MAIL_FROM_EMAIL (${configured}) differs from SMTP_USER (${smtp}). `
+        + 'Using SMTP_USER as From to improve Gmail deliverability.',
+      )
+    }
+    return smtp
+  }
+  return configured || smtp
+}
+
+function htmlToPlainText(html) {
+  return String(html || '')
+    .replace(/<style[\s\S]*?<\/style>/gi, ' ')
+    .replace(/<script[\s\S]*?<\/script>/gi, ' ')
+    .replace(/<br\s*\/?>/gi, '\n')
+    .replace(/<\/p>/gi, '\n\n')
+    .replace(/<\/div>/gi, '\n')
+    .replace(/<\/tr>/gi, '\n')
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/&nbsp;/g, ' ')
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/\r/g, '')
+    .replace(/[ \t]+\n/g, '\n')
+    .replace(/\n{3,}/g, '\n\n')
+    .replace(/[ \t]{2,}/g, ' ')
+    .trim()
+}
+
+/**
+ * Transactional headers only — avoid Precedence:bulk / List-Unsubscribe
+ * on account emails (those signals are for marketing and can hurt inboxing).
+ */
+function deliverabilityHeaders({ marketing = false } = {}) {
+  const headers = {
+    'Auto-Submitted': 'auto-generated',
+    'X-Auto-Response-Suppress': 'OOF, AutoReply',
+    'X-Mailer': 'RiseAbove-DonationSystem',
+  }
+  if (marketing) {
+    headers.Precedence = 'bulk'
+    const mailto = LIST_UNSUBSCRIBE_MAILTO
+    if (mailto && mailto.includes('@')) {
+      headers['List-Unsubscribe'] = `<mailto:${mailto}?subject=unsubscribe>`
+      headers['List-Unsubscribe-Post'] = 'List-Unsubscribe=One-Click'
+    }
+  }
+  return headers
+}
+
+function buildMailOptions({ toEmail, toName, subject, html, text, replyTo, marketing = false }) {
+  const fromEmail = resolvedFromEmail()
+  const plain = (text && String(text).trim()) || htmlToPlainText(html)
+  return {
+    from: `"${MAIL_FROM_NAME}" <${fromEmail}>`,
+    to: toName ? `"${toName}" <${toEmail}>` : toEmail,
+    replyTo: replyTo || MAIL_REPLY_TO || fromEmail,
+    subject,
+    html,
+    text: plain,
+    headers: deliverabilityHeaders({ marketing }),
+    attachments: logoAttachment(),
+  }
+}
 
 const logoCandidates = [
   path.resolve(__dirname, 'assets/logo.png'),
@@ -131,11 +206,12 @@ app.get('/health', (_req, res) => {
   res.json({
     ok: true,
     service: 'rafc-mail-service',
-    version: '1.1.0',
+    version: '1.2.0',
     routes: ['/send', '/send-credentials', '/send-verification', '/send-invitation', '/verify-smtp'],
     smtpConfigured: Boolean(SMTP_USER && SMTP_PASS),
     smtpUser: SMTP_USER ? SMTP_USER.replace(/(.{2}).+(@.+)/, '$1***$2') : '',
-    from: MAIL_FROM_EMAIL,
+    from: resolvedFromEmail(),
+    replyTo: MAIL_REPLY_TO || resolvedFromEmail(),
     logo: Boolean(resolveLogoPath()),
     envFile: path.join(__dirname, '.env'),
   })
@@ -148,14 +224,13 @@ app.post('/send', requireApiKey, async (req, res) => {
       return res.status(400).json({ ok: false, error: 'toEmail, subject, and html are required' })
     }
     const transporter = createTransport()
-    const info = await transporter.sendMail({
-      from: `"${MAIL_FROM_NAME}" <${MAIL_FROM_EMAIL}>`,
-      to: toName ? `"${toName}" <${toEmail}>` : toEmail,
+    const info = await transporter.sendMail(buildMailOptions({
+      toEmail,
+      toName,
       subject,
       html: html.includes('cid:orgLogo') ? html : genericEmailHtml({ bodyHtml: html, orgName: ORG_NAME }),
-      text: text || undefined,
-      attachments: logoAttachment(),
-    })
+      text,
+    }))
     return res.json({
       ok: true,
       transport: 'nodemailer',
@@ -189,38 +264,41 @@ app.post('/send-credentials', requireApiKey, async (req, res) => {
       })
     }
 
+    const signInUrl = loginUrl || `${FRONTEND_URL}/login`
+    const recoverUrl = recoveryUrl || RECOVERY_URL
+    const roleLabel = role || 'Donor'
+    const displayName = toName || loginEmail
+
     const html = credentialsEmailHtml({
-      name: toName || loginEmail,
+      name: displayName,
       loginEmail,
       temporaryPassword,
-      role: role || 'Donor',
-      loginUrl: loginUrl || `${FRONTEND_URL}/login`,
-      recoveryUrl: recoveryUrl || RECOVERY_URL,
+      role: roleLabel,
+      loginUrl: signInUrl,
+      recoveryUrl: recoverUrl,
       orgName: ORG_NAME,
       year: new Date().getFullYear(),
+      supportEmail: MAIL_REPLY_TO || resolvedFromEmail(),
+    })
+
+    const text = credentialsPlainText({
+      name: displayName,
+      loginEmail,
+      temporaryPassword,
+      role: roleLabel,
+      loginUrl: signInUrl,
+      recoveryUrl: recoverUrl,
+      orgName: ORG_NAME,
     })
 
     const transporter = createTransport()
-    const info = await transporter.sendMail({
-      from: `"${MAIL_FROM_NAME}" <${MAIL_FROM_EMAIL}>`,
-      to: toName ? `"${toName}" <${toEmail}>` : toEmail,
-      subject: 'Welcome to Rise Above Foundation Cebu — your account credentials',
+    const info = await transporter.sendMail(buildMailOptions({
+      toEmail,
+      toName: displayName,
+      subject: CREDENTIALS_SUBJECT,
       html,
-      text: [
-        `Hi ${toName || 'there'},`,
-        '',
-        `A ${role || 'Donor'} account was created for you on the Rise Above Foundation portal.`,
-        `Email: ${loginEmail}`,
-        `Temporary password: ${temporaryPassword}`,
-        `Recovery number: None yet`,
-        '',
-        `Sign in: ${loginUrl || `${FRONTEND_URL}/login`}`,
-        `Add recovery number: ${recoveryUrl || RECOVERY_URL}`,
-        '',
-        'Please change your password after signing in.',
-      ].join('\n'),
-      attachments: logoAttachment(),
-    })
+      text,
+    }))
 
     console.log(`[mail-service] credentials sent to ${toEmail} (${info.messageId})`)
     return res.json({
@@ -255,9 +333,9 @@ app.post('/send-verification', requireApiKey, async (req, res) => {
     })
 
     const transporter = createTransport()
-    const info = await transporter.sendMail({
-      from: `"${MAIL_FROM_NAME}" <${MAIL_FROM_EMAIL}>`,
-      to: toName ? `"${toName}" <${toEmail}>` : toEmail,
+    const info = await transporter.sendMail(buildMailOptions({
+      toEmail,
+      toName,
       subject: `Verify it's you — ${ORG_NAME}`,
       html,
       text: [
@@ -269,8 +347,7 @@ app.post('/send-verification', requireApiKey, async (req, res) => {
         'After verifying, sign in with the password you created during registration.',
         'If you did not create this account, you can ignore this email.',
       ].join('\n'),
-      attachments: logoAttachment(),
-    })
+    }))
 
     console.log(`[mail-service] verification sent to ${toEmail} (${info.messageId})`)
     return res.json({
@@ -318,9 +395,9 @@ app.post('/send-invitation', requireApiKey, async (req, res) => {
       : `Barangay ${String(barangay).trim()}`
 
     const transporter = createTransport()
-    const info = await transporter.sendMail({
-      from: `"${MAIL_FROM_NAME}" <${MAIL_FROM_EMAIL}>`,
-      to: `"Barangay Representative" <${toEmail}>`,
+    const info = await transporter.sendMail(buildMailOptions({
+      toEmail,
+      toName: 'Barangay Representative',
       subject: `Barangay partnership invitation — ${ORG_NAME}`,
       html,
       text: [
@@ -334,8 +411,7 @@ app.post('/send-invitation', requireApiKey, async (req, res) => {
         '',
         'If you were not expecting this invitation, you can ignore this email.',
       ].join('\n'),
-      attachments: logoAttachment(),
-    })
+    }))
 
     console.log(`[mail-service] invitation sent to ${toEmail} (${info.messageId})`)
     return res.json({

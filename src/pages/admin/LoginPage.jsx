@@ -6,7 +6,7 @@ import Req from '../../components/shared/Req'
 import { adminBg } from '../../assets'
 
 export default function LoginPage() {
-  const [email, setEmail] = useState('admin@riseabovefoundation.org')
+  const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)

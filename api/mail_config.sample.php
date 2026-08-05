@@ -14,6 +14,16 @@ declare(strict_types=1);
  *
  * Gmail App Password: Google Account → Security → 2-Step Verification → App passwords
  *
+ * === Deliverability (inbox vs spam) ===
+ * - MAIL_FROM_EMAIL must match SMTP_USER when sending through Gmail
+ *   (Gmail rejects / spam-filters mismatched From addresses).
+ * - Set MAIL_REPLY_TO to a monitored inbox (can be the same Gmail address).
+ * - Use a production FRONTEND_URL (https://…) so links are not localhost.
+ * - For a custom domain (e.g. @riseabovefoundation.org), send via Google Workspace
+ *   or another authenticated SMTP host and publish SPF + DKIM + DMARC DNS records.
+ *   Example SPF: v=spf1 include:_spf.google.com ~all
+ * - Prefer the Node mail-service (multipart HTML+text, Reply-To, logo CID).
+ *
  * === Application URLs (emails & notifications) ===
  * Set FRONTEND_URL (or APP_URL) to your live SPA origin in production.
  * Example: https://riseabovefoundation.org
@@ -21,8 +31,11 @@ declare(strict_types=1);
  * If unset, the API derives the URL from Origin / Referer / Host.
  */
 
+/** Must equal SMTP_USER for Gmail App Password delivery */
 define('MAIL_FROM_EMAIL', 'your.gmail@gmail.com');
 define('MAIL_FROM_NAME', 'Rise Above Foundation');
+/** Monitored reply address shown to recipients (defaults to From when empty) */
+define('MAIL_REPLY_TO', 'your.gmail@gmail.com');
 
 define('MAIL_ENABLED', true);
 
@@ -57,7 +70,10 @@ define('API_PUBLIC_URL', getenv('API_PUBLIC_URL') ?: '');
 /** “Add Recovery Number Now” button — defaults to SPA /login when empty */
 define('RECOVERY_URL', getenv('RECOVERY_URL') ?: (rtrim((string) FRONTEND_URL, '/') . '/login'));
 
-/** Optional PHP SMTP fallback (usually unused when NodeMailer is running) */
+/**
+ * Optional PHP SMTP fallback when NodeMailer is unreachable.
+ * For Gmail: SMTP_USER and MAIL_FROM_EMAIL must be the same address.
+ */
 define('SMTP_HOST', 'smtp.gmail.com');
 define('SMTP_PORT', 587);
 define('SMTP_USER', 'your.gmail@gmail.com');

@@ -4,6 +4,8 @@ import StatusBadge from '../../components/admin/shared/StatusBadge'
 import ApiState from '../../components/admin/shared/ApiState'
 import { getPortalData } from '../../api/resources'
 import { useApiObject } from '../../hooks/useApiList'
+import { usePagination, DEFAULT_PAGE_SIZE } from '../../hooks/usePagination'
+import Pagination from '../../components/admin/shared/Pagination'
 import { notify } from '../../utils/toast'
 
 const ACTIVITY_TYPE_COLORS = {
@@ -45,6 +47,7 @@ export default function VolunteerHoursPage() {
 
   const breakdown = data?.hoursBreakdown || []
   const activityLog = data?.activityLog || []
+  const paging = usePagination(activityLog, DEFAULT_PAGE_SIZE, String(activityLog.length))
   const totalHours = breakdown.reduce((sum, m) => sum + Number(m.hours || 0), 0)
   const currentMonthIndex = new Date().getMonth()
   const currentMonthHours = Number(breakdown[currentMonthIndex]?.hours || 0)
@@ -177,7 +180,7 @@ export default function VolunteerHoursPage() {
                     </td>
                   </tr>
                 ) : (
-                  activityLog.map((log) => (
+                  paging.pageItems.map((log) => (
                     <tr key={log.id}>
                       <td>
                         <span className="portal-table-date">{formatDisplayDate(log.date)}</span>
@@ -204,6 +207,18 @@ export default function VolunteerHoursPage() {
               </tbody>
             </table>
           </div>
+          {activityLog.length > 0 && (
+            <Pagination
+              page={paging.page}
+              totalPages={paging.totalPages}
+              total={paging.total}
+              startIndex={paging.startIndex}
+              endIndex={paging.endIndex}
+              onPageChange={paging.setPage}
+              className="pagination--portal"
+              noun="activities"
+            />
+          )}
         </div>
 
         <p className="portal-note">

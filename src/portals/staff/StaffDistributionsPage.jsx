@@ -1,9 +1,18 @@
 import { useState, useMemo } from 'react'
-import { Truck, MapPin, Calendar, Users, Package, Clock, CheckCircle, Search, Filter, Eye, Edit, PlayCircle, CheckSquare } from 'lucide-react'
+import { Truck, MapPin, Calendar, Users, Package, Clock, CheckCircle, Search, Filter, Eye, Edit, PlayCircle, CheckSquare, ArrowRight } from 'lucide-react'
 import ApiState from '../../components/admin/shared/ApiState'
 import { getPortalData, distributionsApi } from '../../api/resources'
 import { useApiObject } from '../../hooks/useApiList'
+import { usePagination, DEFAULT_PAGE_SIZE } from '../../hooks/usePagination'
+import Pagination from '../../components/admin/shared/Pagination'
 import { notify } from '../../utils/toast'
+import { DISTRIBUTION_STATUSES } from '../../constants/options'
+
+const STAFF_ADVANCE = {
+  Planning: 'Preparing',
+  Preparing: 'In Transit',
+  'In Transit': 'Delivered',
+}
 
 export default function StaffDistributionsPage() {
   const { data: portalData, loading, error, reload } = useApiObject(() => getPortalData())
@@ -12,6 +21,7 @@ export default function StaffDistributionsPage() {
   const [searchQuery, setSearchQuery] = useState('')
   const [selectedDistribution, setSelectedDistribution] = useState(null)
   const [viewMode, setViewMode] = useState('grid') // 'grid' or 'calendar'
+  const [saving, setSaving] = useState(false)
 
   const distributions = portalData?.distributions || []
 
@@ -26,20 +36,25 @@ export default function StaffDistributionsPage() {
     })
   }, [distributions, filterStatus, filterProgram, searchQuery])
 
+  const paging = usePagination(
+    filteredDistributions,
+    DEFAULT_PAGE_SIZE,
+    `${searchQuery}|${filterStatus}|${filterProgram}|${viewMode}`,
+  )
+
   const programs = [...new Set(distributions.map(d => d.program))]
-  const statusCounts = {
-    'Scheduled': distributions.filter(d => d.status === 'Scheduled').length,
-    'In Progress': distributions.filter(d => d.status === 'In Progress').length,
-    'Completed': distributions.filter(d => d.status === 'Completed').length,
-    'Pending': distributions.filter(d => d.status === 'Pending').length,
-  }
+  const statusCounts = Object.fromEntries(
+    DISTRIBUTION_STATUSES.map((s) => [s, distributions.filter((d) => d.status === s).length])
+  )
 
   const getStatusColor = (status) => {
     switch (status) {
-      case 'Scheduled': return '#3b82f6'
-      case 'In Progress': return '#f59e0b'
+      case 'Planning': return '#6b7280'
+      case 'Preparing': return '#3b82f6'
+      case 'In Transit': return '#f59e0b'
+      case 'Delivered': return '#0891b2'
+      case 'Awaiting Proof': return '#7c3aed'
       case 'Completed': return '#16a34a'
-      case 'Pending': return '#6b7280'
       default: return '#6b7280'
     }
   }
@@ -56,35 +71,30 @@ export default function StaffDistributionsPage() {
     return colors[program] || '#6b7280'
   }
 
-  const handleStartDistribution = async (dist) => {
+  const handleAdvanceStatus = async (dist) => {
     if (!dist?.dbId) return
-    if (!window.confirm(`Start distribution at ${dist.location}?`)) return
+    const next = STAFF_ADVANCE[dist.status]
+    if (!next) {
+      notify.info('After Delivered, barangay must confirm receipt and submit proof before Completed.')
+      return
+    }
+    if (!window.confirm(`Advance "${dist.location || dist.program}" to ${next}?`)) return
+    setSaving(true)
     try {
-      await distributionsApi.update(dist.dbId, { status: 'In Progress' })
-      notify.success('Distribution started.')
+      await distributionsApi.update(dist.dbId, { status: next })
+      notify.success(`Status updated to ${next}.`)
       setSelectedDistribution(null)
       reload()
     } catch (err) {
-      notify.error(err.message || 'Failed to start distribution')
+      notify.error(err.message || 'Failed to update distribution')
+    } finally {
+      setSaving(false)
     }
   }
 
-  const handleCompleteDistribution = async (dist) => {
-    if (!dist?.dbId) return
-    if (!window.confirm(`Mark distribution at ${dist.location} as completed?`)) return
-    try {
-      await distributionsApi.update(dist.dbId, { status: 'Completed' })
-      notify.success('Distribution completed.')
-      setSelectedDistribution(null)
-      reload()
-    } catch (err) {
-      notify.error(err.message || 'Failed to complete distribution')
-    }
-  }
-
-  const groupByDate = () => {
+  const groupByDate = (list) => {
     const grouped = {}
-    filteredDistributions.forEach(dist => {
+    list.forEach(dist => {
       if (!grouped[dist.date]) {
         grouped[dist.date] = []
       }
@@ -93,7 +103,7 @@ export default function StaffDistributionsPage() {
     return grouped
   }
 
-  const groupedDistributions = viewMode === 'calendar' ? groupByDate() : {}
+  const groupedDistributions = viewMode === 'calendar' ? groupByDate(paging.pageItems) : {}
 
   return (
     <ApiState loading={loading} error={error} onRetry={reload}>
@@ -174,7 +184,7 @@ export default function StaffDistributionsPage() {
                   </div>
                 ) : (
                   <div className="staff-distributions-grid">
-                    {filteredDistributions.map((dist) => (
+                    {paging.pageItems.map((dist) => (
                       <div key={dist.id} className="staff-distribution-card">
                         <div className="staff-distribution-card__header">
                           <span 
@@ -251,22 +261,14 @@ export default function StaffDistributionsPage() {
                             <Eye size={14} />
                             Details
                           </button>
-                          {dist.status === 'Scheduled' && (
+                          {STAFF_ADVANCE[dist.status] && (
                             <button 
                               className="btn btn--sm btn--warning"
-                              onClick={() => handleStartDistribution(dist)}
+                              disabled={saving}
+                              onClick={() => handleAdvanceStatus(dist)}
                             >
-                              <PlayCircle size={14} />
-                              Start
-                            </button>
-                          )}
-                          {dist.status === 'In Progress' && (
-                            <button 
-                              className="btn btn--sm btn--success"
-                              onClick={() => handleCompleteDistribution(dist)}
-                            >
-                              <CheckCircle size={14} />
-                              Complete
+                              <ArrowRight size={14} />
+                              {saving ? 'Saving…' : `→ ${STAFF_ADVANCE[dist.status]}`}
                             </button>
                           )}
                         </div>
@@ -280,7 +282,7 @@ export default function StaffDistributionsPage() {
             {/* Distribution List - Calendar View */}
             {viewMode === 'calendar' && (
               <div className="staff-distributions-calendar">
-                {Object.keys(groupedDistributions).length === 0 ? (
+                {filteredDistributions.length === 0 ? (
                   <div className="portal-empty">
                     <Calendar size={48} />
                     <p>No distributions match your filters.</p>
@@ -339,6 +341,19 @@ export default function StaffDistributionsPage() {
                     ))
                 )}
               </div>
+            )}
+
+            {filteredDistributions.length > 0 && (
+              <Pagination
+                page={paging.page}
+                totalPages={paging.totalPages}
+                total={paging.total}
+                startIndex={paging.startIndex}
+                endIndex={paging.endIndex}
+                onPageChange={paging.setPage}
+                className="pagination--portal"
+                noun="distributions"
+              />
             )}
           </section>
 
@@ -495,27 +510,22 @@ export default function StaffDistributionsPage() {
                   )}
 
                   <div className="staff-modal__actions">
-                    {selectedDistribution.status === 'Scheduled' && (
+                    {STAFF_ADVANCE[selectedDistribution.status] ? (
                       <button 
                         className="btn btn--warning"
-                        onClick={() => handleStartDistribution(selectedDistribution)}
+                        disabled={saving}
+                        onClick={() => handleAdvanceStatus(selectedDistribution)}
                       >
-                        <PlayCircle size={16} />
-                        Start Distribution
+                        <ArrowRight size={16} />
+                        {saving ? 'Saving…' : `Advance to ${STAFF_ADVANCE[selectedDistribution.status]}`}
                       </button>
-                    )}
-                    {selectedDistribution.status === 'In Progress' && (
-                      <button 
-                        className="btn btn--success"
-                        onClick={() => handleCompleteDistribution(selectedDistribution)}
-                      >
-                        <CheckCircle size={16} />
-                        Mark as Completed
-                      </button>
-                    )}
-                    <button className="btn btn--secondary">
-                      <Edit size={16} />
-                      Edit Details
+                    ) : selectedDistribution.status === 'Delivered' || selectedDistribution.status === 'Awaiting Proof' ? (
+                      <p className="staff-modal__hint" style={{ margin: 0, color: '#64748b', fontSize: '0.9rem' }}>
+                        Waiting for barangay receipt confirmation and proof verification before Completed.
+                      </p>
+                    ) : null}
+                    <button type="button" className="btn btn--secondary" onClick={() => setSelectedDistribution(null)}>
+                      Close
                     </button>
                   </div>
                 </div>

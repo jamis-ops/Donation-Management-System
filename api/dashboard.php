@@ -6,9 +6,9 @@ $pdo = db();
 require_auth(['Admin', 'Staff']);
 
 $donationCount = (int) $pdo->query('SELECT COUNT(*) FROM donations')->fetchColumn();
-$beneficiaryCount = (int) $pdo->query("SELECT COUNT(*) FROM beneficiaries WHERE status = 'Approved'")->fetchColumn();
+$beneficiaryCount = (int) $pdo->query("SELECT COUNT(*) FROM beneficiaries WHERE status IN ('Approved','Active')")->fetchColumn();
 $inventoryQty = (int) $pdo->query('SELECT COALESCE(SUM(quantity), 0) FROM inventory_items')->fetchColumn();
-$activeDeliveries = (int) $pdo->query("SELECT COUNT(*) FROM distributions WHERE status IN ('Scheduled','Planning','Preparing','In Transit','Delivered','Awaiting Proof')")->fetchColumn();
+$activeDeliveries = (int) $pdo->query("SELECT COUNT(*) FROM distributions WHERE status IN ('Planning','Preparing','In Transit','Delivered','Awaiting Proof')")->fetchColumn();
 $pendingDonations = (int) $pdo->query("SELECT COUNT(*) FROM donations WHERE status = 'Pending Verification'")->fetchColumn();
 $pendingVolunteers = (int) $pdo->query("SELECT COUNT(*) FROM volunteers WHERE status = 'Pending Review'")->fetchColumn();
 $pendingBeneficiaries = (int) $pdo->query("SELECT COUNT(*) FROM beneficiaries WHERE status = 'Pending Approval'")->fetchColumn();
@@ -16,7 +16,7 @@ $lowStock = (int) $pdo->query('SELECT COUNT(*) FROM inventory_items WHERE quanti
 $openTasks = (int) $pdo->query("SELECT COUNT(*) FROM tasks WHERE board_column IN ('todo','inProgress','review')")->fetchColumn();
 
 $beneficiariesServed = (int) $pdo->query("SELECT COALESCE(SUM(beneficiaries_count), 0) FROM distributions WHERE status IN ('Completed','Delivered')")->fetchColumn();
-$familiesAffected = (int) $pdo->query("SELECT COALESCE(SUM(affected_families), 0) FROM beneficiaries WHERE status = 'Approved'")->fetchColumn();
+$familiesAffected = (int) $pdo->query("SELECT COALESCE(SUM(affected_families), 0) FROM beneficiaries WHERE status IN ('Approved','Active')")->fetchColumn();
 
 // Cash vs in-kind totals
 $cashTotal = (float) $pdo->query("SELECT COALESCE(SUM(amount), 0) FROM donations WHERE type = 'Monetary'")->fetchColumn();
@@ -96,7 +96,7 @@ foreach ($pdo->query('SELECT item_name, quantity, unit, low_stock_threshold, mod
 
 // Active beneficiaries broken down by barangay type
 $beneficiaryTypes = [];
-foreach ($pdo->query("SELECT COALESCE(NULLIF(barangay_type, ''), 'Unspecified') AS label, COUNT(*) AS cnt FROM beneficiaries WHERE status = 'Approved' GROUP BY label ORDER BY cnt DESC")->fetchAll() as $row) {
+foreach ($pdo->query("SELECT COALESCE(NULLIF(barangay_type, ''), 'Unspecified') AS label, COUNT(*) AS cnt FROM beneficiaries WHERE status IN ('Approved','Active') GROUP BY label ORDER BY cnt DESC")->fetchAll() as $row) {
   $beneficiaryTypes[] = ['label' => $row['label'], 'value' => (int) $row['cnt']];
 }
 

@@ -3,6 +3,8 @@ import { CheckCircle2, Clock, AlertCircle, Filter, Search, Calendar, User, Tag }
 import ApiState from '../../components/admin/shared/ApiState'
 import { getPortalData, tasksApi } from '../../api/resources'
 import { useApiObject } from '../../hooks/useApiList'
+import { usePagination, DEFAULT_PAGE_SIZE } from '../../hooks/usePagination'
+import Pagination from '../../components/admin/shared/Pagination'
 import { notify } from '../../utils/toast'
 
 export default function StaffTasksPage() {
@@ -27,17 +29,24 @@ export default function StaffTasksPage() {
     })
   }, [tasks, filterStatus, filterPriority, filterCategory, searchQuery])
 
+  const paging = usePagination(
+    filteredTasks,
+    DEFAULT_PAGE_SIZE,
+    `${searchQuery}|${filterStatus}|${filterPriority}|${filterCategory}`,
+  )
+
   const categories = [...new Set(tasks.map(t => t.category))]
   const statusCounts = {
+    'To Do': tasks.filter(t => t.status === 'To Do').length,
     'In Progress': tasks.filter(t => t.status === 'In Progress').length,
-    'Assigned': tasks.filter(t => t.status === 'Assigned').length,
-    'Pending': tasks.filter(t => t.status === 'Pending').length,
-    'Completed': tasks.filter(t => t.status === 'Completed').length,
+    'In Review': tasks.filter(t => t.status === 'In Review').length,
+    'Done': tasks.filter(t => t.status === 'Done').length,
   }
 
   const getPriorityColor = (priority) => {
     switch (priority) {
       case 'High': return '#dc2626'
+      case 'Critical': return '#991b1b'
       case 'Medium': return '#f59e0b'
       case 'Low': return '#6b7280'
       default: return '#6b7280'
@@ -46,10 +55,10 @@ export default function StaffTasksPage() {
 
   const getStatusColor = (status) => {
     switch (status) {
+      case 'To Do': return '#6b7280'
       case 'In Progress': return '#3b82f6'
-      case 'Assigned': return '#f59e0b'
-      case 'Pending': return '#6b7280'
-      case 'Completed': return '#16a34a'
+      case 'In Review': return '#f59e0b'
+      case 'Done': return '#16a34a'
       default: return '#6b7280'
     }
   }
@@ -81,11 +90,11 @@ export default function StaffTasksPage() {
 
   const handleComplete = async (task) => {
     if (!task?.dbId) return
-    if (!window.confirm(`Mark "${task.title}" as completed?`)) return
+    if (!window.confirm(`Mark "${task.title}" as Done?`)) return
     setSaving(true)
     try {
       await tasksApi.update(task.dbId, { boardColumn: 'done' })
-      notify.success('Task marked as completed.')
+      notify.success('Task marked as Done.')
       setSelectedTask(null)
       reload()
     } catch (err) {
@@ -167,101 +176,113 @@ export default function StaffTasksPage() {
                 <p>No tasks match your filters.</p>
               </div>
             ) : (
-              <div className="staff-tasks-grid">
-                {filteredTasks.map((task) => {
-                  const daysUntil = getDaysUntilDue(task.dueDate)
-                  const isOverdue = daysUntil < 0 && task.status !== 'Completed'
-                  const isDueSoon = daysUntil >= 0 && daysUntil <= 2 && task.status !== 'Completed'
+              <>
+                <div className="staff-tasks-grid">
+                  {paging.pageItems.map((task) => {
+                    const daysUntil = getDaysUntilDue(task.dueDate)
+                    const isOverdue = daysUntil < 0 && task.status !== 'Completed'
+                    const isDueSoon = daysUntil >= 0 && daysUntil <= 2 && task.status !== 'Completed'
 
-                  return (
-                    <div 
-                      key={task.id} 
-                      className={`staff-task-detail-card ${task.status === 'Completed' ? 'staff-task-detail-card--completed' : ''}`}
-                      onClick={() => setSelectedTask(task)}
-                    >
-                      <div className="staff-task-detail-card__header">
-                        <div className="staff-task-detail-card__badges">
+                    return (
+                      <div 
+                        key={task.id} 
+                        className={`staff-task-detail-card ${task.status === 'Completed' ? 'staff-task-detail-card--completed' : ''}`}
+                        onClick={() => setSelectedTask(task)}
+                      >
+                        <div className="staff-task-detail-card__header">
+                          <div className="staff-task-detail-card__badges">
+                            <span 
+                              className="staff-task-detail-card__category"
+                              style={{ 
+                                backgroundColor: `${getCategoryColor(task.category)}15`,
+                                color: getCategoryColor(task.category)
+                              }}
+                            >
+                              <Tag size={12} />
+                              {task.category}
+                            </span>
+                            <span 
+                              className="staff-task-detail-card__priority"
+                              style={{ 
+                                backgroundColor: `${getPriorityColor(task.priority)}15`,
+                                color: getPriorityColor(task.priority)
+                              }}
+                            >
+                              <AlertCircle size={12} />
+                              {task.priority}
+                            </span>
+                          </div>
                           <span 
-                            className="staff-task-detail-card__category"
+                            className="staff-task-detail-card__status"
                             style={{ 
-                              backgroundColor: `${getCategoryColor(task.category)}15`,
-                              color: getCategoryColor(task.category)
+                              backgroundColor: `${getStatusColor(task.status)}15`,
+                              color: getStatusColor(task.status)
                             }}
                           >
-                            <Tag size={12} />
-                            {task.category}
-                          </span>
-                          <span 
-                            className="staff-task-detail-card__priority"
-                            style={{ 
-                              backgroundColor: `${getPriorityColor(task.priority)}15`,
-                              color: getPriorityColor(task.priority)
-                            }}
-                          >
-                            <AlertCircle size={12} />
-                            {task.priority}
+                            {task.status}
                           </span>
                         </div>
-                        <span 
-                          className="staff-task-detail-card__status"
-                          style={{ 
-                            backgroundColor: `${getStatusColor(task.status)}15`,
-                            color: getStatusColor(task.status)
-                          }}
-                        >
-                          {task.status}
-                        </span>
-                      </div>
 
-                      <h3 className="staff-task-detail-card__title">{task.title}</h3>
-                      <p className="staff-task-detail-card__description">{task.description}</p>
+                        <h3 className="staff-task-detail-card__title">{task.title}</h3>
+                        <p className="staff-task-detail-card__description">{task.description}</p>
 
-                      <div className="staff-task-detail-card__meta">
-                        <div className="staff-task-detail-card__meta-item">
-                          <Calendar size={14} />
-                          <span className={isOverdue ? 'text-danger' : isDueSoon ? 'text-warning' : ''}>
-                            {isOverdue ? `Overdue by ${Math.abs(daysUntil)} days` : 
-                             isDueSoon ? `Due in ${daysUntil} ${daysUntil === 1 ? 'day' : 'days'}` :
-                             task.dueDate}
-                          </span>
-                        </div>
-                        <div className="staff-task-detail-card__meta-item">
-                          <Clock size={14} />
-                          <span>{task.estimatedTime}</span>
-                        </div>
-                        {task.assignedTo && (
+                        <div className="staff-task-detail-card__meta">
                           <div className="staff-task-detail-card__meta-item">
-                            <User size={14} />
-                            <span>{task.assignedTo}</span>
+                            <Calendar size={14} />
+                            <span className={isOverdue ? 'text-danger' : isDueSoon ? 'text-warning' : ''}>
+                              {isOverdue ? `Overdue by ${Math.abs(daysUntil)} days` : 
+                               isDueSoon ? `Due in ${daysUntil} ${daysUntil === 1 ? 'day' : 'days'}` :
+                               task.dueDate}
+                            </span>
+                          </div>
+                          <div className="staff-task-detail-card__meta-item">
+                            <Clock size={14} />
+                            <span>{task.estimatedTime}</span>
+                          </div>
+                          {task.assignedTo && (
+                            <div className="staff-task-detail-card__meta-item">
+                              <User size={14} />
+                              <span>{task.assignedTo}</span>
+                            </div>
+                          )}
+                        </div>
+
+                        {task.completionRate > 0 && task.status !== 'Completed' && (
+                          <div className="staff-task-detail-card__progress">
+                            <div className="staff-task-detail-card__progress-info">
+                              <span>Progress</span>
+                              <span>{task.completionRate}%</span>
+                            </div>
+                            <div className="staff-task-progress">
+                              <div 
+                                className="staff-task-progress__bar" 
+                                style={{ width: `${task.completionRate}%` }}
+                              ></div>
+                            </div>
+                          </div>
+                        )}
+
+                        {task.completedDate && (
+                          <div className="staff-task-detail-card__completed">
+                            <CheckCircle2 size={14} />
+                            <span>Completed on {task.completedDate}</span>
                           </div>
                         )}
                       </div>
-
-                      {task.completionRate > 0 && task.status !== 'Completed' && (
-                        <div className="staff-task-detail-card__progress">
-                          <div className="staff-task-detail-card__progress-info">
-                            <span>Progress</span>
-                            <span>{task.completionRate}%</span>
-                          </div>
-                          <div className="staff-task-progress">
-                            <div 
-                              className="staff-task-progress__bar" 
-                              style={{ width: `${task.completionRate}%` }}
-                            ></div>
-                          </div>
-                        </div>
-                      )}
-
-                      {task.completedDate && (
-                        <div className="staff-task-detail-card__completed">
-                          <CheckCircle2 size={14} />
-                          <span>Completed on {task.completedDate}</span>
-                        </div>
-                      )}
-                    </div>
-                  )
-                })}
-              </div>
+                    )
+                  })}
+                </div>
+                <Pagination
+                  page={paging.page}
+                  totalPages={paging.totalPages}
+                  total={paging.total}
+                  startIndex={paging.startIndex}
+                  endIndex={paging.endIndex}
+                  onPageChange={paging.setPage}
+                  className="pagination--portal"
+                  noun="tasks"
+                />
+              </>
             )}
           </section>
 

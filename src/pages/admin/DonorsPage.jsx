@@ -14,6 +14,8 @@ import FilterBar from '../../components/admin/shared/FilterBar'
 import ModalHeader from '../../components/admin/shared/ModalHeader'
 import { emptyNameParts, formatFullName, parseFullName } from '../../utils/personName'
 import { notify } from '../../utils/toast'
+import { emailError, phoneError } from '../../utils/validation'
+import PhoneInput from '../../components/shared/PhoneInput'
 
 const emptyForm = {
   donorType: 'Individual',
@@ -106,6 +108,16 @@ export default function DonorsPage() {
     e.preventDefault()
     if (isCompany && !form.organization.trim()) {
       notify.warning('Company / Organization Name is required.')
+      return
+    }
+    const emailMsg = emailError(form.email)
+    if (emailMsg) {
+      notify.warning(emailMsg)
+      return
+    }
+    const phoneMsg = phoneError(form.phone, { required: true })
+    if (phoneMsg) {
+      notify.warning(phoneMsg)
       return
     }
     setSaving(true)
@@ -219,7 +231,13 @@ export default function DonorsPage() {
         exportConfig={{ filename: 'donor-report', title: 'Donor Report', columns, rows: filters.filtered }}
       />
       <ApiState loading={loading} error={error} onRetry={reload}>
-        <DataTable columns={columns} data={filters.filtered} onRowClick={openView} initialVisible={5} />
+        <DataTable
+          columns={columns}
+          data={filters.filtered}
+          onRowClick={openView}
+          pageSize={10}
+          resetKey={`${filters.search}|${JSON.stringify(filters.values)}`}
+        />
       </ApiState>
 
       {mode === 'view' && active && (
@@ -305,8 +323,12 @@ export default function DonorsPage() {
               </label>
               <div className="form-row">
                 <label>
-                  Contact Number
-                  <input value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} placeholder="+63 9xx xxx xxxx" />
+                  <Req required>Contact Number</Req>
+                  <PhoneInput
+                    required
+                    value={form.phone}
+                    onChange={(phone) => setForm({ ...form, phone })}
+                  />
                 </label>
                 <label>
                   Country

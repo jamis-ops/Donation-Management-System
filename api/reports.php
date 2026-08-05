@@ -49,7 +49,7 @@ $distributionsCompleted = (int) $pdo->query(
 )->fetchColumn();
 
 $volunteerHours = (int) $pdo->query(
-  "SELECT COALESCE(SUM(hours), 0) FROM volunteers WHERE status = 'Approved'"
+  "SELECT COALESCE(SUM(hours), 0) FROM volunteers WHERE status IN ('Approved','Active','Assigned')"
 )->fetchColumn();
 
 $invTotals = $pdo->query(
@@ -136,7 +136,7 @@ foreach (['week', 'month', 'year'] as $gran) {
 $beneficiariesByCategory = [];
 foreach ($pdo->query(
   "SELECT COALESCE(NULLIF(category, ''), 'Uncategorized') AS label, COUNT(*) AS value
-   FROM beneficiaries WHERE status = 'Approved'
+   FROM beneficiaries WHERE status IN ('Approved','Active')
    GROUP BY label ORDER BY value DESC"
 )->fetchAll() as $row) {
   $beneficiariesByCategory[] = ['label' => $row['label'], 'value' => (int) $row['value']];

@@ -105,7 +105,11 @@ function read_donor_fields(array $body, ?array $existing = null): array
     : trim((string) ($body['contactPerson'] ?? $body['contact_person'] ?? ($existing['contact_person'] ?? '')));
   $fullName = trim((string) ($body['fullName'] ?? $body['name'] ?? $body['full_name'] ?? ($existing['full_name'] ?? '')));
   $email = strtolower(trim((string) ($body['email'] ?? ($existing['email'] ?? ''))));
-  $phone = trim((string) ($body['phone'] ?? $body['contactNumber'] ?? ($existing['phone'] ?? '')));
+  if ($email !== '') {
+    $email = require_valid_email($email, 'Email');
+  }
+  $phoneRaw = trim((string) ($body['phone'] ?? $body['contactNumber'] ?? ($existing['phone'] ?? '')));
+  $phone = $phoneRaw !== '' ? require_valid_ph_mobile($phoneRaw, false, 'Phone') : '';
   $country = trim((string) ($body['country'] ?? ($existing['country'] ?? '')));
   $address = trim((string) ($body['address'] ?? ($existing['address'] ?? '')));
   $notes = trim((string) ($body['notes'] ?? ($existing['notes'] ?? '')));

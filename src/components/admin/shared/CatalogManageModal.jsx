@@ -3,10 +3,11 @@ import { createPortal } from 'react-dom'
 import { Eye, Pencil, Plus, Trash2, X } from 'lucide-react'
 import { catalogItemsApi } from '../../../api/resources'
 import ModalHeader from './ModalHeader'
-import { useSeeMore } from '../../../hooks/useSeeMore'
-import { SeeMoreToggle } from './SeeMoreList'
+import { usePagination, DEFAULT_PAGE_SIZE } from '../../../hooks/usePagination'
+import Pagination from './Pagination'
 import { notify } from '../../../utils/toast'
 import { notifyCatalogChanged } from '../../../utils/catalogSync'
+import { sortCatalogItemsAz } from '../../../utils/sortLabels'
 
 /**
  * Full CRUD modal for a Settings-managed catalog (Add / Edit / Delete / View).
@@ -40,7 +41,7 @@ export default function CatalogManageModal({
     setLoading(true)
     try {
       const res = await catalogItemsApi.list(catalog, true)
-      const list = res?.data || []
+      const list = sortCatalogItemsAz(res?.data || [])
       setItems(list)
       publish(list)
       return list
@@ -62,7 +63,7 @@ export default function CatalogManageModal({
     return undefined
   }, [open, load])
 
-  const seeMore = useSeeMore(items, 8)
+  const paging = usePagination(items, DEFAULT_PAGE_SIZE, `${items.length}:${items[0]?.label || ''}`)
 
   if (!open || typeof document === 'undefined') return null
 
@@ -188,7 +189,7 @@ export default function CatalogManageModal({
         ) : (
           <>
             <ul className="catalog-manage-modal__list" aria-label={title}>
-              {seeMore.visible.map((row) => {
+              {paging.pageItems.map((row) => {
                 const rowId = row.dbId || row.id
                 const isEditing = editingId === rowId
                 return (
@@ -237,15 +238,16 @@ export default function CatalogManageModal({
                 )
               })}
             </ul>
-            {seeMore.needsToggle && (
-              <SeeMoreToggle
-                expanded={seeMore.expanded}
-                onToggle={seeMore.toggle}
-                hiddenCount={seeMore.hiddenCount}
-                moreLabel="Show More"
-                lessLabel="Show Less"
-              />
-            )}
+            <Pagination
+              page={paging.page}
+              totalPages={paging.totalPages}
+              total={paging.total}
+              startIndex={paging.startIndex}
+              endIndex={paging.endIndex}
+              onPageChange={paging.setPage}
+              noun="items"
+              className="pagination--portal"
+            />
           </>
         )}
 

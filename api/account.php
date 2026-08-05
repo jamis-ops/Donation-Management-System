@@ -104,11 +104,11 @@ if ($method === 'PUT') {
   }
   if (array_key_exists('phone', $body)) {
     $fields[] = 'phone = ?';
-    $params[] = trim((string) $body['phone']) ?: null;
+    $params[] = require_valid_ph_mobile($body['phone'] ?? '', false, 'Phone') ?: null;
   }
   if (array_key_exists('recoveryPhone', $body)) {
     $fields[] = 'recovery_phone = ?';
-    $params[] = trim((string) $body['recoveryPhone']) ?: null;
+    $params[] = require_valid_ph_mobile($body['recoveryPhone'] ?? '', false, 'Recovery phone') ?: null;
   }
   if ($fields) {
     $params[] = $uid;
@@ -132,8 +132,9 @@ if ($method === 'POST') {
   }
   $file = $_FILES['photo'];
   $mime = mime_content_type($file['tmp_name']) ?: ($file['type'] ?? '');
-  if (!str_starts_with($mime, 'image/')) {
-    json_response(['ok' => false, 'error' => 'Photo must be an image'], 400);
+  $allowedMime = ['image/jpeg' => 'jpg', 'image/png' => 'png', 'image/webp' => 'webp'];
+  if (!isset($allowedMime[$mime])) {
+    json_response(['ok' => false, 'error' => 'Photo must be JPG, PNG, or WebP'], 400);
   }
   if ($file['size'] > 3 * 1024 * 1024) {
     json_response(['ok' => false, 'error' => 'Photo must be under 3MB'], 400);
@@ -142,7 +143,7 @@ if ($method === 'POST') {
   if (!is_dir($dir)) {
     mkdir($dir, 0755, true);
   }
-  $ext = pathinfo($file['name'], PATHINFO_EXTENSION) ?: 'jpg';
+  $ext = $allowedMime[$mime];
   $safe = 'profile_' . (int) $user['id'] . '_' . time() . '.' . $ext;
   if (!move_uploaded_file($file['tmp_name'], $dir . '/' . $safe)) {
     json_response(['ok' => false, 'error' => 'Failed to save photo'], 500);

@@ -9,6 +9,7 @@ import { useSeeMore } from '../../hooks/useSeeMore'
 import { SeeMoreToggle } from '../admin/shared/SeeMoreList'
 import CatalogQuickAdd from '../admin/shared/CatalogQuickAdd'
 import { CATALOG_CHANGED_EVENT } from '../../utils/catalogSync'
+import { sortLabelsAz } from '../../utils/sortLabels'
 
 const NEED_ICONS = {
   Food: Utensils,
@@ -51,17 +52,21 @@ export default function NeedsPicker({
   options: optionsProp = null,
   showQuickAdd = false,
   onCatalogUpdated,
+  required = false,
+  error = '',
 }) {
   const selected = Array.isArray(value) ? value.filter(Boolean) : []
   const [options, setOptions] = useState(() => (
-    Array.isArray(optionsProp) && optionsProp.length > 0
-      ? optionsProp.map((o) => (typeof o === 'string' ? o : o.label)).filter(Boolean)
-      : FALLBACK_NEEDS
+    sortLabelsAz(
+      Array.isArray(optionsProp) && optionsProp.length > 0
+        ? optionsProp.map((o) => (typeof o === 'string' ? o : o.label)).filter(Boolean)
+        : FALLBACK_NEEDS,
+    )
   ))
 
   useEffect(() => {
     if (Array.isArray(optionsProp)) {
-      setOptions(optionsProp.map((o) => (typeof o === 'string' ? o : o.label)).filter(Boolean))
+      setOptions(sortLabelsAz(optionsProp.map((o) => (typeof o === 'string' ? o : o.label)).filter(Boolean)))
       return
     }
     let active = true
@@ -69,7 +74,7 @@ export default function NeedsPicker({
       .then((res) => {
         if (!active) return
         const list = (res?.data || []).map((n) => n.label).filter(Boolean)
-        if (list.length > 0) setOptions(list)
+        if (list.length > 0) setOptions(sortLabelsAz(list))
       })
       .catch(() => { /* keep fallback */ })
     return () => { active = false }
@@ -86,14 +91,14 @@ export default function NeedsPicker({
           .map((item) => item.label)
           .filter(Boolean)
         if (labels.length > 0) {
-          setOptions(labels)
+          setOptions(sortLabelsAz(labels))
           return
         }
       }
       catalogItemsApi.list('needs', false)
         .then((res) => {
           const list = (res?.data || []).map((n) => n.label).filter(Boolean)
-          if (list.length > 0) setOptions(list)
+          if (list.length > 0) setOptions(sortLabelsAz(list))
         })
         .catch(() => { /* ignore */ })
     }
@@ -108,7 +113,7 @@ export default function NeedsPicker({
       .filter((item) => item && item.isActive !== false)
       .map((item) => item.label)
       .filter(Boolean)
-    if (labels.length > 0) setOptions(labels)
+    if (labels.length > 0) setOptions(sortLabelsAz(labels))
     onCatalogUpdated?.(list)
   }
 
@@ -125,10 +130,13 @@ export default function NeedsPicker({
   }
 
   return (
-    <div className="needs-picker">
+    <div className={`needs-picker${error || (required && selected.length === 0) ? ' needs-picker--invalid' : ''}`}>
       <div className="needs-picker__header">
         <span className="needs-picker__label-row">
-          <span className="needs-picker__label">{label}</span>
+          <span className="needs-picker__label">
+            {label}
+            {required ? <span className="req" aria-hidden> *</span> : null}
+          </span>
           {showQuickAdd && (
             <CatalogQuickAdd catalog="needs" onUpdated={handleCatalogUpdated} />
           )}
@@ -138,7 +146,12 @@ export default function NeedsPicker({
         </span>
       </div>
 
-      <div className="needs-picker__grid" role="group" aria-label="Select types of needs">
+      <div
+        className="needs-picker__grid"
+        role="group"
+        aria-label="Select types of needs"
+        aria-required={required || undefined}
+      >
         {seeMore.visible.map((need) => {
           const Icon = iconForNeed(need)
           const isActive = selected.includes(need)
@@ -197,6 +210,12 @@ export default function NeedsPicker({
           </div>
         </div>
       )}
+
+      {error ? (
+        <p className="needs-picker__error" role="alert" style={{ color: '#dc2626', fontSize: '0.85rem', marginTop: '0.35rem' }}>
+          {error}
+        </p>
+      ) : null}
 
       {showNote && typeof onNoteChange === 'function' && (
         <label className="needs-picker__note">

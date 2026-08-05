@@ -34,6 +34,22 @@ if ($method === 'GET') {
     if (!$row) {
       json_response(['ok' => false, 'error' => 'Certificate not found'], 404);
     }
+    $role = (string) ($user['role'] ?? '');
+    if (in_array($role, ['Donor', 'Volunteer'], true)) {
+      $allowed = false;
+      if ($role === 'Donor') {
+        $own = $pdo->prepare('SELECT COUNT(*) FROM donations WHERE tracking_code = ? AND donor_email = ?');
+        $own->execute([(string) ($row['reference_code'] ?? ''), (string) $user['email']]);
+        $allowed = ((int) $own->fetchColumn() > 0)
+          || strcasecmp((string) ($row['recipient_name'] ?? ''), (string) ($user['name'] ?? '')) === 0;
+      } else {
+        $allowed = strcasecmp((string) ($row['recipient_name'] ?? ''), (string) ($user['name'] ?? '')) === 0
+          && in_array((string) ($row['recipient_type'] ?? 'Volunteer'), ['Volunteer', ''], true);
+      }
+      if (!$allowed) {
+        json_response(['ok' => false, 'error' => 'You do not have access to this certificate.'], 403);
+      }
+    }
     json_response(['ok' => true, 'data' => map_certificate($row)]);
   }
 

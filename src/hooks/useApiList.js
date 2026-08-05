@@ -27,6 +27,13 @@ export function useApiList(fetchFn, refreshKey) {
     void reload()
   }, [reload, refreshKey])
 
+  // Refresh list when user opens a notification link (keeps portals current without full poll).
+  useEffect(() => {
+    const onNav = () => { void reload() }
+    window.addEventListener('raf:notification-navigate', onNav)
+    return () => window.removeEventListener('raf:notification-navigate', onNav)
+  }, [reload])
+
   return { data, loading, error, reload, setData }
 }
 
@@ -55,6 +62,12 @@ export function useApiObject(fetchFn, refreshKey) {
   useEffect(() => {
     void reload()
   }, [reload, refreshKey])
+
+  useEffect(() => {
+    const onNav = () => { void reload() }
+    window.addEventListener('raf:notification-navigate', onNav)
+    return () => window.removeEventListener('raf:notification-navigate', onNav)
+  }, [reload])
 
   return { data, loading, error, reload }
 }

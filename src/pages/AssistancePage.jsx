@@ -1,5 +1,7 @@
 import { useState } from 'react'
 import { MUNICIPALITIES } from '../constants/locations'
+import PhoneInput from '../components/shared/PhoneInput'
+import { phoneError } from '../utils/validation'
 
 const emptyForm = {
   name: '',
@@ -20,6 +22,11 @@ export default function AssistancePage() {
   const handleSubmit = async (e) => {
     e.preventDefault()
     setSubmitError('')
+    const phoneMsg = phoneError(form.phone, { required: true })
+    if (phoneMsg) {
+      setSubmitError(phoneMsg)
+      return
+    }
     setSubmitting(true)
     try {
       const data = {
@@ -120,11 +127,12 @@ export default function AssistancePage() {
 
               <div className="form-row">
                 <label>
-                  Phone Number
-                  <input
-                    type="tel"
+                  Phone Number *
+                  <PhoneInput
+                    required
                     value={form.phone}
-                    onChange={(e) => setForm({ ...form, phone: e.target.value })}
+                    onChange={(phone) => setForm({ ...form, phone })}
+                    showError={Boolean(submitError)}
                   />
                 </label>
                 <label>
