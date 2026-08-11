@@ -84,10 +84,10 @@ function buildNav(isSuperAdmin) {
       type: 'section',
       label: 'People & Partners',
       items: [
-        { to: '/admin/donors', label: 'Donors', icon: HeartHandshake },
-        { to: '/admin/beneficiaries', label: 'Barangays', icon: Building2 },
-        { to: '/admin/volunteers', label: 'Volunteers', icon: UserCheck },
         { to: '/admin/staff', label: 'Staff', icon: UserCog },
+        { to: '/admin/donors', label: 'Donors', icon: HeartHandshake },
+        { to: '/admin/volunteers', label: 'Volunteers', icon: UserCheck },
+        { to: '/admin/beneficiaries', label: 'Barangays', icon: Building2 },
       ],
     },
     operations,

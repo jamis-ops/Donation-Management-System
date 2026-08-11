@@ -1627,16 +1627,9 @@
     font-size: 1.05rem;
     margin-bottom: 1rem;
   }
-  /* Stack any two-column form rows on small screens */
-  .admin-modal .form-row {
-    grid-template-columns: 1fr;
-  }
-  .admin-modal__actions {
-    flex-direction: column-reverse;
-  }
-  .admin-modal__actions .btn {
-    width: 100%;
-  }
+  /* Note: form-row stacking is now handled in enhancements.css at 500px
+     with higher specificity, so we do NOT override grid here to avoid
+     conflicting with the 3-column NameFields layout. */
 }
 
 .admin-modal h2 {
@@ -2460,7 +2453,6 @@
   margin: 0 0.15rem;
 }
 
-@keyframes spin { to { transform: rotate(360deg); } }
 
 /* =========================================================
    Responsive
@@ -3051,10 +3043,14 @@
   align-items: flex-start;
   justify-content: space-between;
   gap: 1rem;
-  margin-bottom: 1rem;
+  margin-bottom: 1.25rem;
+  padding-bottom: 0.85rem;
+  border-bottom: 1px solid var(--admin-border);
 }
 .admin-modal__header h2 {
   margin: 0;
+  padding-bottom: 0;
+  border-bottom: none;
 }
 .admin-modal__subtitle {
   margin: 0.35rem 0 0;

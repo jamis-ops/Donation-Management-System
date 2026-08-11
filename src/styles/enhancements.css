@@ -3660,3 +3660,179 @@ select {
   font-weight: 600;
   line-height: 1.35;
 }
+
+/* =========================================================
+   Admin Modal Form - Layout & Spacing Fixes
+   Fixes: NameFields 3-col grid, label spacing, form-row,
+   need-check, field-hint, volunteer-manage panel forms.
+   ========================================================= */
+
+/* --- Base label layout inside admin modals --- */
+.admin-modal label {
+  display: block;
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--admin-text);
+  margin-bottom: 0.85rem;
+}
+
+.admin-modal label input,
+.admin-modal label select,
+.admin-modal label textarea {
+  display: block;
+  width: 100%;
+  margin-top: 0.35rem;
+  box-sizing: border-box;
+}
+
+/* --- Ensure two-column form-row is clean in modal --- */
+.admin-modal .form-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.85rem;
+  margin-bottom: 0.85rem;
+}
+
+.admin-modal .form-row > label {
+  margin-bottom: 0;
+}
+
+/* --- NameFields: always 3-column Last / First / MI --- */
+.admin-modal .form-row--names {
+  display: grid !important;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(4.5rem, 5.5rem) !important;
+  gap: 0.75rem !important;
+  align-items: end;
+  margin-bottom: 0.85rem;
+}
+
+.admin-modal .form-row--names > .name-fields__field {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  margin-bottom: 0;
+}
+
+.admin-modal .form-row--names .name-fields__label {
+  display: block;
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--admin-text);
+  margin-bottom: 0.35rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.admin-modal .form-row--names input {
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+}
+
+/* --- field-hint inside admin modal --- */
+.admin-modal .field-hint {
+  display: block;
+  font-size: 0.8rem;
+  color: var(--admin-text-muted);
+  line-height: 1.5;
+  margin: -0.25rem 0 0.85rem;
+  padding: 0.55rem 0.75rem;
+  background: var(--admin-bg);
+  border-radius: 8px;
+  border-left: 3px solid var(--admin-border-strong);
+}
+
+/* --- need-check inside admin modal --- */
+.admin-modal .need-check {
+  display: flex !important;
+  flex-direction: row !important;
+  align-items: flex-start;
+  gap: 0.55rem;
+  font-size: 0.875rem;
+  font-weight: 500;
+  padding: 0.65rem 0.85rem;
+  margin-bottom: 0.85rem;
+  border: 1.5px solid var(--admin-border);
+  border-radius: 10px;
+  cursor: pointer;
+  background: var(--admin-bg);
+  transition: border-color 0.15s ease, background 0.15s ease, box-shadow 0.15s ease;
+}
+
+.admin-modal .need-check:hover {
+  border-color: #93c5fd;
+  background: #f8fafc;
+}
+
+.admin-modal .need-check:has(input:checked) {
+  border-color: var(--admin-brand);
+  background: var(--admin-brand-muted);
+  box-shadow: 0 0 0 3px var(--admin-brand-muted);
+}
+
+.admin-modal .need-check input[type="checkbox"] {
+  width: auto !important;
+  margin: 0.1rem 0 0 !important;
+  flex-shrink: 0;
+  accent-color: var(--admin-brand);
+  cursor: pointer;
+}
+
+.admin-modal .need-check span {
+  line-height: 1.45;
+  flex: 1;
+}
+
+/* --- Volunteer manage-modal panel form improvements --- */
+.volunteer-manage-modal .volunteer-panel-section form label {
+  display: block;
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--admin-text);
+  margin-bottom: 0.8rem;
+}
+
+.volunteer-manage-modal .volunteer-panel-section form .form-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.85rem;
+  margin-bottom: 0.85rem;
+}
+
+.volunteer-manage-modal .volunteer-panel-section form .form-row > label {
+  margin-bottom: 0;
+}
+
+/* --- Section title spacing inside admin modal forms --- */
+.admin-modal .form-section-title {
+  margin: 0.25rem 0 0.75rem;
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: var(--admin-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+/* --- Responsive: stack on narrow screens --- */
+@media (max-width: 500px) {
+  .admin-modal .form-row--names {
+    grid-template-columns: 1fr !important;
+  }
+
+  .admin-modal .form-row--names .name-fields__field--mi {
+    max-width: 8rem;
+  }
+
+  .admin-modal .form-row {
+    grid-template-columns: 1fr !important;
+  }
+
+  .admin-modal .admin-modal__actions {
+    flex-direction: column-reverse;
+  }
+
+  .admin-modal .admin-modal__actions .btn {
+    width: 100%;
+  }
+}

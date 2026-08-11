@@ -596,14 +596,9 @@ export default function BeneficiariesPage() {
         title="Barangays"
         description="Select a barangay from the side panel to view its full profile, or manage partners below."
         actions={(
-          <>
-            <button type="button" className="btn btn--outline" onClick={openInvite}>
-              <Mail size={16} /> Invite Barangay
-            </button>
-            <button type="button" className="btn btn--primary" onClick={openCreate}>
-              <Plus size={16} /> Add Barangay
-            </button>
-          </>
+          <button type="button" className="btn btn--outline" onClick={openInvite}>
+            <Mail size={16} /> Invite Barangay
+          </button>
         )}
       />
 

@@ -1,6 +1,6 @@
-import { useCallback, useState } from 'react'
-import { Package, PackagePlus, Pencil, Play, CheckCircle2, XCircle, Trash2 } from 'lucide-react'
-import { inventoryApi, repackingApi } from '../../api/resources'
+import { useCallback, useState, useEffect } from 'react'
+import { Package, PackagePlus, Pencil, Play, CheckCircle2, XCircle, Trash2, Calculator, Users, AlertCircle, Info } from 'lucide-react'
+import { inventoryApi, repackingApi, getStaff, volunteersApi, beneficiariesApi } from '../../api/resources'
 import { useApiList } from '../../hooks/useApiList'
 import { DONATION_CATEGORIES } from '../../constants/options'
 import { useFilters } from '../../hooks/useFilters'
@@ -10,6 +10,7 @@ import StockLevelBar from '../admin/shared/StockLevelBar'
 import ApiState from '../admin/shared/ApiState'
 import FilterBar from '../admin/shared/FilterBar'
 import ModalHeader from '../admin/shared/ModalHeader'
+import MultiSourceRepackingModal from './MultiSourceRepackingModal'
 import { notify } from '../../utils/toast'
 
 const inventoryFilterConfig = {
@@ -21,7 +22,7 @@ const inventoryFilterConfig = {
 }
 
 const repackingFilterConfig = {
-  searchKeys: ['id', 'output', 'source', 'assignedTo'],
+  searchKeys: ['id', 'output', 'source', 'assignedTo', 'targetBarangayName'],
   filters: [{ key: 'status', label: 'Status' }],
   dateKey: 'dueDateRaw',
 }
@@ -32,8 +33,18 @@ const emptyItemForm = {
 }
 
 const emptyBatchForm = {
-  sourceItemId: '', sourceQuantity: '', output: '', quantity: '', outputUnit: 'packs',
-  assignedTo: '', dueDate: '', notes: '',
+  sourceItemId: '',
+  sourceQuantity: '',
+  output: '',
+  quantity: '',
+  outputUnit: 'packs',
+  assignedTo: '',
+  assignedType: '', // 'staff' or 'volunteer'
+  dueDate: '',
+  notes: '',
+  // Smart calculation fields
+  packsPerUnit: '',
+  autoCalculate: false,
 }
 
 export default function InventoryManagement() {
@@ -45,7 +56,14 @@ export default function InventoryManagement() {
   const [itemForm, setItemForm] = useState(emptyItemForm)
   const [batchModal, setBatchModal] = useState(null) // null | 'create' | row
   const [batchForm, setBatchForm] = useState(emptyBatchForm)
+  const [multiSourceModal, setMultiSourceModal] = useState(false) // New multi-source modal
   const [saving, setSaving] = useState(false)
+  
+  // New state for enhanced features
+  const [staff, setStaff] = useState([])
+  const [volunteers, setVolunteers] = useState([])
+  const [loadingTeam, setLoadingTeam] = useState(false)
+  const [beneficiaries, setBeneficiaries] = useState([])
 
   const fetchInventory = useCallback(async () => {
     const res = await inventoryApi.list()
@@ -67,6 +85,28 @@ export default function InventoryManagement() {
 
   const invFilters = useFilters(items, inventoryFilterConfig)
   const rpkFilters = useFilters(batches, repackingFilterConfig)
+
+  // Load staff and volunteers for assignment dropdown
+  useEffect(() => {
+    const loadTeam = async () => {
+      setLoadingTeam(true)
+      try {
+        const [staffData, volunteerData, beneficiaryData] = await Promise.all([
+          getStaff(),
+          volunteersApi.list(),
+          beneficiariesApi.list(),
+        ])
+        setStaff(Array.isArray(staffData) ? staffData.filter(s => s.status === 'Active') : [])
+        setVolunteers(Array.isArray(volunteerData.data) ? volunteerData.data.filter(v => v.status === 'Approved') : [])
+        setBeneficiaries(Array.isArray(beneficiaryData.data) ? beneficiaryData.data : [])
+      } catch (err) {
+        console.error('Failed to load team members:', err)
+      } finally {
+        setLoadingTeam(false)
+      }
+    }
+    loadTeam()
+  }, [])
 
   /* ---------- Inventory handlers ---------- */
 
@@ -132,6 +172,26 @@ export default function InventoryManagement() {
 
   /* ---------- Repacking handlers ---------- */
 
+  // Smart calculation: Auto-calculate pack quantity based on source and packs per unit
+  const calculatePackQuantity = (sourceQty, packsPerUnit) => {
+    const source = Number(sourceQty) || 0
+    const ratio = Number(packsPerUnit) || 0
+    if (source > 0 && ratio > 0) {
+      return Math.floor(source * ratio)
+    }
+    return ''
+  }
+
+  //Update pack quantity when source quantity or ratio changes
+  useEffect(() => {
+    if (batchForm.autoCalculate && batchForm.sourceQuantity && batchForm.packsPerUnit) {
+      const calculated = calculatePackQuantity(batchForm.sourceQuantity, batchForm.packsPerUnit)
+      if (calculated) {
+        setBatchForm(prev => ({ ...prev, quantity: String(calculated) }))
+      }
+    }
+  }, [batchForm.sourceQuantity, batchForm.packsPerUnit, batchForm.autoCalculate])
+
   const openBatchCreate = () => {
     setBatchForm(emptyBatchForm)
     setBatchModal('create')
@@ -145,8 +205,11 @@ export default function InventoryManagement() {
       quantity: String(row.quantity),
       outputUnit: row.outputUnit || 'packs',
       assignedTo: row.assignedTo || '',
+      assignedType: '', // Can't determine from existing data
       dueDate: row.dueDateRaw || '',
       notes: row.notes || '',
+      packsPerUnit: '',
+      autoCalculate: false,
     })
     setBatchModal(row)
   }
@@ -184,6 +247,18 @@ export default function InventoryManagement() {
       notify.error(err.message)
     } finally {
       setSaving(false)
+    }
+  }
+
+  // Handle multi-source repacking batch submission
+  const handleMultiSourceSubmit = async (batchData) => {
+    try {
+      const result = await repackingApi.create(batchData)
+      reloadAll()
+      return result.data
+    } catch (err) {
+      console.error('Multi-source batch creation failed:', err)
+      throw err
     }
   }
 
@@ -262,6 +337,18 @@ export default function InventoryManagement() {
 
   const repackingColumns = [
     { key: 'id', label: 'Batch' },
+    {
+      key: 'targetBarangay',
+      label: 'Target Barangay',
+      render: (row) => row.targetBarangayName ? (
+        <div>
+          <strong>{row.targetBarangayName}</strong>
+          {row.targetBarangayLocation && <div className="inv-category">{row.targetBarangayLocation}</div>}
+        </div>
+      ) : (
+        <span style={{ color: '#94a3b8', fontSize: '0.85rem' }}>General Stock</span>
+      ),
+    },
     { key: 'source', label: 'Source (deducted)' },
     {
       key: 'output',
@@ -383,7 +470,21 @@ export default function InventoryManagement() {
             <p className="inv-toolbar__hint">
               Creating a batch deducts source stock immediately. Completing a batch adds the repacked output to inventory automatically.
             </p>
-            <button type="button" className="btn btn--primary" onClick={openBatchCreate}>+ New Repacking Batch</button>
+            <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap' }}>
+              <button type="button" className="btn btn--primary" onClick={openBatchCreate}>
+                <PackagePlus size={18} style={{ marginRight: '0.5rem' }} />
+                Single-Source Batch
+              </button>
+              <button 
+                type="button" 
+                className="btn btn--primary" 
+                onClick={() => setMultiSourceModal(true)}
+                style={{ background: '#10b981' }}
+              >
+                <Package size={18} style={{ marginRight: '0.5rem' }} />
+                Multi-Source Pack
+              </button>
+            </div>
           </div>
 
           <FilterBar
@@ -448,52 +549,328 @@ export default function InventoryManagement() {
               title={batchModal === 'create' ? 'New Repacking Batch' : `Edit Batch ${batchModal.id}`}
               onClose={() => setBatchModal(null)}
             />
-            <form onSubmit={handleBatchSave}>
+            <form onSubmit={handleBatchSave} className="repacking-form">
               {batchModal === 'create' ? (
+                <>
+                  {/* Source Selection Section */}
+                  <div className="repacking-section">
+                    <div className="repacking-section__header">
+                      <Package size={16} />
+                      <h4>Source Inventory</h4>
+                    </div>
+                    
+                    <div className="form-row">
+                      <label className="form-label-enhanced">
+                        Source Item <span className="required">*</span>
+                        <select 
+                          required 
+                          value={batchForm.sourceItemId} 
+                          onChange={(e) => {
+                            setBatchForm({ 
+                              ...batchForm, 
+                              sourceItemId: e.target.value,
+                              sourceQuantity: '',
+                              quantity: '',
+                            })
+                          }}
+                          className="form-select-enhanced"
+                        >
+                          <option value="">Select item to repack...</option>
+                          {items.filter((i) => i.quantity > 0).map((i) => (
+                            <option key={i.dbId} value={i.dbId}>
+                              {i.item} — {i.quantity} {i.unit} available
+                              {i.category && ` (${i.category})`}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+                    </div>
+
+                    {selectedSource && (
+                      <div className="source-info-card">
+                        <div className="source-info-row">
+                          <span className="source-info-label">Available Stock:</span>
+                          <span className="source-info-value">{selectedSource.quantity} {selectedSource.unit}</span>
+                        </div>
+                        {selectedSource.category && (
+                          <div className="source-info-row">
+                            <span className="source-info-label">Category:</span>
+                            <span className="source-info-value">{selectedSource.category}</span>
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    <div className="form-row">
+                      <label className="form-label-enhanced">
+                        Quantity to Use <span className="required">*</span>
+                        {selectedSource && <span className="field-hint-inline">(max: {selectedSource.quantity} {selectedSource.unit})</span>}
+                        <input
+                          type="number"
+                          min="1"
+                          max={selectedSource?.quantity || undefined}
+                          required
+                          value={batchForm.sourceQuantity}
+                          onChange={(e) => setBatchForm({ ...batchForm, sourceQuantity: e.target.value })}
+                          placeholder="Enter quantity"
+                          className="form-input-enhanced"
+                          disabled={!batchForm.sourceItemId}
+                        />
+                      </label>
+                    </div>
+                  </div>
+
+                  {/* Smart Calculator Section */}
+                  {batchForm.sourceItemId && batchForm.sourceQuantity && (
+                    <div className="repacking-section repacking-section--calculator">
+                      <div className="repacking-section__header">
+                        <Calculator size={16} />
+                        <h4>Pack Calculator</h4>
+                        <label className="calculator-toggle">
+                          <input
+                            type="checkbox"
+                            checked={batchForm.autoCalculate}
+                            onChange={(e) => setBatchForm({ ...batchForm, autoCalculate: e.target.checked })}
+                          />
+                          <span>Auto-calculate</span>
+                        </label>
+                      </div>
+
+                      <div className="calculator-grid">
+                        <div className="calculator-item">
+                          <span className="calculator-label">Source Quantity:</span>
+                          <span className="calculator-value">{batchForm.sourceQuantity} {selectedSource?.unit || 'units'}</span>
+                        </div>
+                        <div className="calculator-multiplier">×</div>
+                        <div className="calculator-item">
+                          <label className="calculator-label">
+                            Packs per {selectedSource?.unit || 'unit'}:
+                            <input
+                              type="number"
+                              min="0.1"
+                              step="0.1"
+                              value={batchForm.packsPerUnit}
+                              onChange={(e) => setBatchForm({ ...batchForm, packsPerUnit: e.target.value })}
+                              placeholder="e.g., 2.5"
+                              className="calculator-input"
+                            />
+                          </label>
+                        </div>
+                        <div className="calculator-equals">=</div>
+                        <div className="calculator-item">
+                          <span className="calculator-label">Total Packs:</span>
+                          <span className="calculator-value calculator-value--result">
+                            {batchForm.packsPerUnit ? calculatePackQuantity(batchForm.sourceQuantity, batchForm.packsPerUnit) : '—'}
+                          </span>
+                        </div>
+                      </div>
+
+                      {batchForm.autoCalculate && batchForm.packsPerUnit && (
+                        <div className="calculator-note">
+                          <Info size={14} />
+                          <span>Output quantity will update automatically based on this calculation</span>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </>
+              ) : (
+                <div className="repacking-section">
+                  <div className="source-locked-info">
+                    <AlertCircle size={16} />
+                    <div>
+                      <strong>Source: {batchModal.source}</strong>
+                      <p>Source inventory has already been deducted and cannot be changed.</p>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Output Section */}
+              <div className="repacking-section">
+                <div className="repacking-section__header">
+                  <PackagePlus size={16} />
+                  <h4>Output Specification</h4>
+                </div>
+
                 <div className="form-row">
-                  <label>Source Inventory Item
-                    <select required value={batchForm.sourceItemId} onChange={(e) => setBatchForm({ ...batchForm, sourceItemId: e.target.value })}>
-                      <option value="">Select item to repack...</option>
-                      {items.filter((i) => i.quantity > 0).map((i) => (
-                        <option key={i.dbId} value={i.dbId}>{i.item} — {i.quantity} {i.unit} in stock</option>
-                      ))}
-                    </select>
-                  </label>
-                  <label>Quantity to Use{selectedSource ? ` (max ${selectedSource.quantity})` : ''}
-                    <input
-                      type="number"
-                      min="1"
-                      max={selectedSource?.quantity || undefined}
-                      required
-                      value={batchForm.sourceQuantity}
-                      onChange={(e) => setBatchForm({ ...batchForm, sourceQuantity: e.target.value })}
+                  <label className="form-label-enhanced">
+                    Output Item Name <span className="required">*</span>
+                    <input 
+                      required 
+                      value={batchForm.output} 
+                      onChange={(e) => setBatchForm({ ...batchForm, output: e.target.value })} 
+                      placeholder="e.g., Family Relief Packs"
+                      className="form-input-enhanced"
                     />
                   </label>
                 </div>
-              ) : (
-                <p className="portal-hint">Source: {batchModal.source} (already deducted from inventory)</p>
-              )}
 
-              <div className="form-row">
-                <label>Output Item<input required value={batchForm.output} onChange={(e) => setBatchForm({ ...batchForm, output: e.target.value })} placeholder="e.g. Family Relief Packs" /></label>
-                <label>Output Quantity<input type="number" min="1" required value={batchForm.quantity} onChange={(e) => setBatchForm({ ...batchForm, quantity: e.target.value })} /></label>
-                <label>Output Unit<input value={batchForm.outputUnit} onChange={(e) => setBatchForm({ ...batchForm, outputUnit: e.target.value })} /></label>
+                <div className="form-row form-row--3">
+                  <label className="form-label-enhanced">
+                    Output Quantity <span className="required">*</span>
+                    <input 
+                      type="number" 
+                      min="1" 
+                      required 
+                      value={batchForm.quantity} 
+                      onChange={(e) => setBatchForm({ ...batchForm, quantity: e.target.value })}
+                      placeholder="Number of packs"
+                      className="form-input-enhanced"
+                      disabled={batchForm.autoCalculate && batchForm.packsPerUnit}
+                    />
+                  </label>
+                  <label className="form-label-enhanced">
+                    Unit
+                    <input 
+                      value={batchForm.outputUnit} 
+                      onChange={(e) => setBatchForm({ ...batchForm, outputUnit: e.target.value })}
+                      placeholder="packs"
+                      className="form-input-enhanced"
+                    />
+                  </label>
+                  {batchForm.quantity && batchForm.sourceQuantity && (
+                    <div className="efficiency-indicator">
+                      <span className="efficiency-label">Efficiency:</span>
+                      <span className="efficiency-value">
+                        {(Number(batchForm.quantity) / Number(batchForm.sourceQuantity)).toFixed(2)}x
+                      </span>
+                    </div>
+                  )}
+                </div>
               </div>
 
-              <div className="form-row">
-                <label>Assigned To<input value={batchForm.assignedTo} onChange={(e) => setBatchForm({ ...batchForm, assignedTo: e.target.value })} placeholder="Staff or volunteer team" /></label>
-                <label>Due Date<input type="date" value={batchForm.dueDate} onChange={(e) => setBatchForm({ ...batchForm, dueDate: e.target.value })} /></label>
+              {/* Assignment Section */}
+              <div className="repacking-section">
+                <div className="repacking-section__header">
+                  <Users size={16} />
+                  <h4>Assignment & Schedule</h4>
+                </div>
+
+                <div className="form-row">
+                  <label className="form-label-enhanced">
+                    Assign To
+                    <select
+                      value={batchForm.assignedType}
+                      onChange={(e) => {
+                        setBatchForm({ ...batchForm, assignedType: e.target.value, assignedTo: '' })
+                      }}
+                      className="form-select-enhanced"
+                    >
+                      <option value="">Select team type...</option>
+                      <option value="staff">Staff Member</option>
+                      <option value="volunteer">Volunteer</option>
+                      <option value="custom">Enter Custom Name</option>
+                    </select>
+                  </label>
+                </div>
+
+                {batchForm.assignedType === 'staff' && (
+                  <div className="form-row">
+                    <label className="form-label-enhanced">
+                      Staff Member
+                      <select
+                        value={batchForm.assignedTo}
+                        onChange={(e) => setBatchForm({ ...batchForm, assignedTo: e.target.value })}
+                        className="form-select-enhanced"
+                        disabled={loadingTeam}
+                      >
+                        <option value="">Select staff member...</option>
+                        {staff.map((s) => (
+                          <option key={s.id} value={s.name}>
+                            {s.name} {s.department && `(${s.department})`}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                  </div>
+                )}
+
+                {batchForm.assignedType === 'volunteer' && (
+                  <div className="form-row">
+                    <label className="form-label-enhanced">
+                      Volunteer
+                      <select
+                        value={batchForm.assignedTo}
+                        onChange={(e) => setBatchForm({ ...batchForm, assignedTo: e.target.value })}
+                        className="form-select-enhanced"
+                        disabled={loadingTeam}
+                      >
+                        <option value="">Select volunteer...</option>
+                        {volunteers.map((v) => (
+                          <option key={v.id} value={v.name}>
+                            {v.name} {v.skills && `— ${v.skills.slice(0, 2).join(', ')}`}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                  </div>
+                )}
+
+                {batchForm.assignedType === 'custom' && (
+                  <div className="form-row">
+                    <label className="form-label-enhanced">
+                      Team Name
+                      <input
+                        value={batchForm.assignedTo}
+                        onChange={(e) => setBatchForm({ ...batchForm, assignedTo: e.target.value })}
+                        placeholder="e.g., Volunteer Team A, Logistics Crew"
+                        className="form-input-enhanced"
+                      />
+                    </label>
+                  </div>
+                )}
+
+                <div className="form-row">
+                  <label className="form-label-enhanced">
+                    Due Date
+                    <input 
+                      type="date" 
+                      value={batchForm.dueDate} 
+                      onChange={(e) => setBatchForm({ ...batchForm, dueDate: e.target.value })}
+                      min={new Date().toISOString().split('T')[0]}
+                      className="form-input-enhanced"
+                    />
+                  </label>
+                </div>
               </div>
 
-              <label>Notes<textarea rows={2} value={batchForm.notes} onChange={(e) => setBatchForm({ ...batchForm, notes: e.target.value })} /></label>
+              {/* Notes Section */}
+              <div className="repacking-section">
+                <label className="form-label-enhanced">
+                  Additional Notes
+                  <textarea 
+                    rows={3} 
+                    value={batchForm.notes} 
+                    onChange={(e) => setBatchForm({ ...batchForm, notes: e.target.value })}
+                    placeholder="Special instructions, handling notes, etc."
+                    className="form-textarea-enhanced"
+                  />
+                </label>
+              </div>
 
               <div className="admin-modal__actions">
-                <button type="submit" className="btn btn--primary" disabled={saving}>{saving ? 'Saving...' : batchModal === 'create' ? 'Create Batch' : 'Save Changes'}</button>
+                <button type="submit" className="btn btn--primary" disabled={saving}>
+                  {saving ? 'Saving...' : batchModal === 'create' ? 'Create Batch' : 'Save Changes'}
+                </button>
                 <button type="button" className="btn btn--ghost" onClick={() => setBatchModal(null)}>Cancel</button>
               </div>
             </form>
           </div>
         </div>
+      )}
+
+      {/* Multi-Source Repacking Modal */}
+      {multiSourceModal && (
+        <MultiSourceRepackingModal
+          onClose={() => setMultiSourceModal(false)}
+          onSubmit={handleMultiSourceSubmit}
+          items={items}
+          beneficiaries={beneficiaries}
+          staff={staff}
+          volunteers={volunteers}
+          loadingTeam={loadingTeam}
+        />
       )}
     </>
   )

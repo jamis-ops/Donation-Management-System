@@ -167,6 +167,11 @@ try {
   addColumn($pdo, 'repacking_jobs', 'source_quantity', 'INT UNSIGNED NOT NULL DEFAULT 0 AFTER source_items');
   addColumn($pdo, 'repacking_jobs', 'output_unit', "VARCHAR(30) NULL AFTER output_item");
   addColumn($pdo, 'repacking_jobs', 'notes', 'TEXT NULL AFTER due_date');
+  addColumn($pdo, 'repacking_jobs', 'source_items_json', 'JSON NULL AFTER source_quantity');
+  addColumn($pdo, 'repacking_jobs', 'target_barangay_id', 'BIGINT UNSIGNED NULL AFTER output_unit');
+  addColumn($pdo, 'repacking_jobs', 'recommended_contents_json', 'JSON NULL AFTER target_barangay_id');
+  addColumn($pdo, 'repacking_jobs', 'families_targeted', 'INT UNSIGNED NULL AFTER recommended_contents_json');
+  addColumn($pdo, 'repacking_jobs', 'sufficiency_status', "ENUM('Insufficient','Partial','Sufficient','Excess') NULL AFTER families_targeted");
 
   // v3: Certificate management fields
   addColumn($pdo, 'certificates', 'recipient_type', "VARCHAR(30) NOT NULL DEFAULT 'Donor' AFTER cert_type");

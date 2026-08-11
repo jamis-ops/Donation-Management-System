@@ -81,6 +81,7 @@ export const allocationsApi = {
 export const certificatesApi = resourceApi('/api/certificates.php')
 export const needsStockApi = {
   get: () => apiFetch('/api/needs_stock.php'),
+  barangayAnalysis: (barangayId) => apiFetch(`/api/needs_stock.php?action=barangay_analysis&barangay_id=${barangayId}`),
 }
 
 /** Settings-managed catalogs: needs | barangay_types | task_types */

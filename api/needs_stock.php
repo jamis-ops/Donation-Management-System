@@ -13,6 +13,8 @@ require __DIR__ . '/bootstrap.php';
 $pdo = db();
 require_auth(['Admin', 'Staff']);
 
+$action = $_GET['action'] ?? 'overview';
+
 function normalize_need_key(string $s): string
 {
   $s = strtolower(trim($s));
@@ -524,6 +526,254 @@ foreach ($benRows as $ben) {
   ];
 }
 
+// ========== BARANGAY ANALYSIS ENDPOINT ==========
+// GET /api/needs_stock.php?action=barangay_analysis&barangay_id=X
+if ($action === 'barangay_analysis') {
+  $barangayId = isset($_GET['barangay_id']) ? (int) $_GET['barangay_id'] : 0;
+  
+  if ($barangayId <= 0) {
+    json_response(['ok' => false, 'error' => 'barangay_id is required'], 400);
+  }
+
+  // Get barangay/beneficiary details
+  $benStmt = $pdo->prepare('
+    SELECT id, code, full_name, barangay, municipality, address, affected_families, 
+           needs, category, representative_name, representative_phone, status
+    FROM beneficiaries
+    WHERE id = ?
+    LIMIT 1
+  ');
+  $benStmt->execute([$barangayId]);
+  $barangay = $benStmt->fetch();
+  
+  if (!$barangay) {
+    json_response(['ok' => false, 'error' => 'Barangay not found'], 404);
+  }
+
+  // Get open assistance requests for this barangay
+  $reqStmt = $pdo->prepare('
+    SELECT id, reference_code, assistance_type, needs_json, priority, status, 
+           request_date, notes
+    FROM assistance_requests
+    WHERE beneficiary_id = ?
+      AND status IN ("Pending Review", "Under Review", "Approved", "Allocated")
+    ORDER BY FIELD(priority, "Critical", "High", "Medium", "Low"), request_date DESC
+  ');
+  $reqStmt->execute([$barangayId]);
+  $openRequests = $reqStmt->fetchAll();
+
+  // Aggregate all needs from requests + barangay profile
+  $allNeeds = [];
+  $priorityWeight = ['Critical' => 4, 'High' => 3, 'Medium' => 2, 'Low' => 1];
+  $maxPriority = 'Medium';
+  $maxPriorityValue = 2;
+
+  foreach ($openRequests as $req) {
+    $reqNeeds = decode_needs_list($req['needs_json'] ?? null, $req['assistance_type'] ?? null);
+    foreach ($reqNeeds as $need) {
+      $allNeeds[] = $need;
+    }
+    $reqPrio = $req['priority'] ?? 'Medium';
+    if (($priorityWeight[$reqPrio] ?? 2) > $maxPriorityValue) {
+      $maxPriority = $reqPrio;
+      $maxPriorityValue = $priorityWeight[$reqPrio];
+    }
+  }
+
+  // Add barangay profile needs
+  $profileNeeds = decode_needs_list($barangay['needs'] ?? null, $barangay['category'] ?? null);
+  foreach ($profileNeeds as $need) {
+    $allNeeds[] = $need;
+  }
+
+  // Deduplicate and count occurrences
+  $needCounts = [];
+  foreach ($allNeeds as $need) {
+    $key = normalize_need_key($need);
+    if ($key === '') continue;
+    if (!isset($needCounts[$key])) {
+      $needCounts[$key] = ['label' => $need, 'count' => 0];
+    }
+    $needCounts[$key]['count']++;
+  }
+
+  // Sort by frequency (most requested first)
+  usort($needCounts, fn($a, $b) => $b['count'] <=> $a['count']);
+
+  $families = max(1, (int) ($barangay['affected_families'] ?? 1));
+
+  // Get available inventory
+  $invStmt = $pdo->query('
+    SELECT id, code, item_name, category, quantity, allocated, unit
+    FROM inventory_items
+    WHERE (quantity - allocated) > 0
+    ORDER BY item_name ASC
+  ');
+  $availableInventory = $invStmt->fetchAll();
+
+  // Build smart pack recommendations
+  $packRecommendations = [];
+  $totalAvailable = 0;
+  $totalNeeded = $families;
+  $insufficientItems = [];
+  $minPacksPossible = null; // Limit factor: the bottleneck item across all needs
+
+  foreach ($needCounts as $needData) {
+    $needLabel = $needData['label'];
+    $needKey = normalize_need_key($needLabel);
+    
+    // Find best matching inventory items
+    $matches = [];
+    foreach ($availableInventory as $inv) {
+      $score = inventory_match_score($needKey, $inv);
+      if ($score > 0) {
+        $available = inventory_available($inv);
+        if ($available > 0) {
+          $matches[] = [
+            'score' => $score,
+            'item' => $inv,
+            'available' => $available,
+          ];
+        }
+      }
+    }
+
+    // Sort by score (best match first)
+    usort($matches, fn($a, $b) => $b['score'] <=> $a['score']);
+
+    if (empty($matches)) {
+      $insufficientItems[] = [
+        'need' => $needLabel,
+        'reason' => 'No matching inventory items found',
+        'suggestedQuantity' => $families,
+      ];
+      $minPacksPossible = 0;
+      continue;
+    }
+
+    // Take top match
+    $bestMatch = $matches[0];
+    $item = $bestMatch['item'];
+    $available = $bestMatch['available'];
+    
+    // Calculate quantities
+    $quantityPerPack = 1; // Default: 1 item per pack
+    $totalRequired = $families * $quantityPerPack;
+    $canFulfill = $available >= $totalRequired;
+    $maxPacks = (int) floor($available / $quantityPerPack);
+    
+    // Update bottleneck count
+    $minPacksPossible = ($minPacksPossible === null) ? $maxPacks : min($minPacksPossible, $maxPacks);
+
+    $packRecommendations[] = [
+      'need' => $needLabel,
+      'needFrequency' => $needData['count'],
+      'matchScore' => $bestMatch['score'],
+      'inventoryItem' => [
+        'id' => (int) $item['id'],
+        'code' => $item['code'],
+        'name' => $item['item_name'],
+        'category' => $item['category'] ?? '',
+        'unit' => $item['unit'],
+        'available' => $available,
+      ],
+      'quantityPerPack' => $quantityPerPack,
+      'totalRequired' => $totalRequired,
+      'canFulfill' => $canFulfill,
+      'maxPacks' => $maxPacks,
+      'sufficiency' => $canFulfill ? 'Sufficient' : ($available > 0 ? 'Partial' : 'Insufficient'),
+    ];
+
+    if ($canFulfill) {
+      $totalAvailable++;
+    } elseif ($available > 0) {
+      $insufficientItems[] = [
+        'need' => $needLabel,
+        'available' => $available,
+        'required' => $totalRequired,
+        'shortage' => $totalRequired - $available,
+        'unit' => $item['unit'],
+      ];
+    }
+  }
+
+  // Handle case where no needs are listed
+  if ($minPacksPossible === null) {
+    $minPacksPossible = 0;
+  }
+
+  // Calculate overall sufficiency
+  $sufficientCount = count(array_filter($packRecommendations, fn($r) => $r['sufficiency'] === 'Sufficient'));
+  $partialCount = count(array_filter($packRecommendations, fn($r) => $r['sufficiency'] === 'Partial'));
+  $insufficientCount = count($packRecommendations) - $sufficientCount - $partialCount + count($insufficientItems);
+
+  $overallSufficiency = 'Insufficient';
+  if ($sufficientCount === count($packRecommendations) && count($insufficientItems) === 0) {
+    $overallSufficiency = 'Sufficient';
+  } elseif ($sufficientCount + $partialCount >= count($packRecommendations) * 0.7) {
+    $overallSufficiency = 'Partial';
+  }
+
+  // Generate suggested pack contents (top items that can be fulfilled)
+  $suggestedContents = [];
+  foreach ($packRecommendations as $rec) {
+    if ($rec['canFulfill'] || $rec['sufficiency'] === 'Partial') {
+      $suggestedContents[] = [
+        'item' => $rec['inventoryItem']['name'],
+        'itemId' => $rec['inventoryItem']['id'],
+        'quantity' => $rec['quantityPerPack'],
+        'unit' => $rec['inventoryItem']['unit'],
+        'priority' => $rec['needFrequency'],
+      ];
+    }
+  }
+
+  json_response([
+    'ok' => true,
+    'data' => [
+      'barangay' => [
+        'id' => (int) $barangay['id'],
+        'code' => $barangay['code'],
+        'name' => $barangay['full_name'],
+        'location' => $barangay['barangay'] ?? '',
+        'municipality' => $barangay['municipality'] ?? '',
+        'address' => $barangay['address'] ?? '',
+        'affectedFamilies' => $families,
+        'representative' => $barangay['representative_name'] ?? '',
+        'representativePhone' => $barangay['representative_phone'] ?? '',
+        'status' => $barangay['status'],
+      ],
+      'requests' => array_map(function($req) {
+        return [
+          'id' => (int) $req['id'],
+          'code' => $req['reference_code'],
+          'type' => $req['assistance_type'],
+          'priority' => $req['priority'],
+          'status' => $req['status'],
+          'date' => $req['request_date'],
+        ];
+      }, $openRequests),
+      'needs' => array_values($needCounts),
+      'recommendations' => $packRecommendations,
+      'suggestedContents' => $suggestedContents,
+      'insufficientItems' => $insufficientItems,
+      'analysis' => [
+        'targetFamilies' => $families,
+        'totalNeedTypes' => count($needCounts),
+        'sufficientItems' => $sufficientCount,
+        'partialItems' => $partialCount,
+        'insufficientItems' => $insufficientCount,
+        'overallSufficiency' => $overallSufficiency,
+        'highestPriority' => $maxPriority,
+        'canCreatePacks' => $overallSufficiency !== 'Insufficient',
+        'estimatedPacksFromStock' => min($minPacksPossible, $families),
+      ],
+      'generatedAt' => date('c'),
+    ],
+  ]);
+}
+
+// ========== DEFAULT: OVERVIEW ENDPOINT ==========
 json_response([
   'ok' => true,
   'data' => [

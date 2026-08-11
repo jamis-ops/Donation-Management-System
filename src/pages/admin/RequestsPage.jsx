@@ -368,6 +368,32 @@ const styles = `
   color: var(--admin-text-muted);
 }
 .barangay-stat strong { color: var(--admin-text); }
+
+.admin-modal__body {
+  display: flex;
+  gap: 1.25rem;
+  padding: 1.25rem 1.5rem;
+  overflow: auto;
+}
+
+.admin-modal__left {
+  flex: 3;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  min-width: 0;
+}
+
+@media (max-width: 640px) {
+  .admin-modal__body {
+    flex-direction: column;
+    padding: 1rem;
+  }
+
+  .requests-page .admin-modal__right {
+    flex: none;
+  }
+}
 `;
 
 const priorityConfig = {
@@ -698,7 +724,7 @@ function ReviewModal({ request, allRequests, onClose, onUpdate, isUpdating, navi
 
   return (
     <div className="admin-modal-overlay" onClick={onClose}>
-      <div className="admin-modal" onClick={e => e.stopPropagation()}>
+      <div className="admin-modal admin-modal--wide" onClick={e => e.stopPropagation()}>
         <div className="admin-modal__header">
           <h2>Review Request: {request.id}</h2>
           <button className="admin-modal__close" onClick={onClose}><X size={24} /></button>
