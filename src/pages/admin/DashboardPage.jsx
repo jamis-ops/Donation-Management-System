@@ -377,7 +377,7 @@ export default function DashboardPage() {
               </section>
             </div>
 
-            <div className="admin-dashboard-grid">
+            <div className="admin-dashboard-grid" style={{ marginBottom: '1.5rem' }}>
               <section className="admin-panel">
                 <h2>Recent Activity</h2>
                 <ul className="activity-feed">
@@ -408,7 +408,9 @@ export default function DashboardPage() {
                     const meta = data.quickActions?.[i]?.meta
                     return (
                       <Link key={action.to} to={action.to} className="quick-action">
-                        <Icon size={20} strokeWidth={2} />
+                        <div className="quick-action__icon-wrap">
+                          <Icon size={18} strokeWidth={2} />
+                        </div>
                         <div>
                           <strong>{action.title}</strong>
                           {meta && <span>{meta}</span>}
@@ -419,6 +421,7 @@ export default function DashboardPage() {
                 </div>
               </section>
             </div>
+
           </>
         )}
       </ApiState>

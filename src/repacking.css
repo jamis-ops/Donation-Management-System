@@ -2216,13 +2216,6 @@ textarea.form-input-enhanced {
   font-weight: 600;
 }
 
-.detail-value.status-badge {
-  padding: 0.35rem 0.875rem;
-  background: var(--admin-brand-muted, rgba(175, 16, 26, 0.08));
-  color: var(--admin-brand, #af101a);
-  border-radius: 999px;
-  font-size: 0.85rem;
-}
 
 /* ==========================================
    RESPONSIVE DESIGN

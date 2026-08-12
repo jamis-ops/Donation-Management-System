@@ -562,7 +562,8 @@ if ($method === 'POST' && ($action === 'approve' || $action === 'reject')) {
     json_response(['ok' => false, 'error' => 'Only pending barangay applications can be approved.'], 400);
   }
 
-  $provision = provision_beneficiary_account($pdo, $ben);
+  $customPass = trim((string) ($body['password'] ?? $body['temporaryPassword'] ?? $body['customPassword'] ?? ''));
+  $provision = provision_beneficiary_account($pdo, $ben, $customPass !== '' ? $customPass : null);
   if (!empty($provision['error']) && empty($provision['userId']) && empty($provision['created'])) {
     json_response(['ok' => false, 'error' => $provision['error']], 400);
   }

@@ -60,7 +60,7 @@ export default function HeroSection() {
 
           <div className={`hero-section__actions ${isVisible ? 'hero-section__actions--visible' : ''}`}>
             <Link to="/donate" className="btn btn--primary btn--lg btn--animated">
-              <span className="btn__text">Give Now</span>
+              <span className="btn__text">Donate Now</span>
               <span className="btn__icon">
                 <Heart size={18} />
               </span>

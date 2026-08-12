@@ -881,7 +881,7 @@ function post_donation_to_inventory_packs(PDO $pdo, array $donationRow): void
 /**
  * After Admin approves a barangay application: create login + email credentials.
  */
-function provision_beneficiary_account(PDO $pdo, array $benRow): array
+function provision_beneficiary_account(PDO $pdo, array $benRow, ?string $customPassword = null): array
 {
   $email = strtolower(trim((string) ($benRow['representative_email'] ?? '')));
   $name = trim((string) ($benRow['representative_name'] ?? ''));
@@ -918,7 +918,7 @@ function provision_beneficiary_account(PDO $pdo, array $benRow): array
     return ['created' => false, 'userId' => $uid, 'mail' => null, 'error' => 'Email already has a barangay login; linked existing account.'];
   }
 
-  $tempPassword = generate_temp_password();
+  $tempPassword = ($customPassword !== null && strlen(trim($customPassword)) >= 6) ? trim($customPassword) : generate_temp_password();
   $userId = create_user_account($pdo, 'Beneficiary', $name, $email, $tempPassword, 'ACTIVE', true, [
     'lastName' => (string) ($benRow['representative_last_name'] ?? ''),
     'firstName' => (string) ($benRow['representative_first_name'] ?? ''),
@@ -927,7 +927,11 @@ function provision_beneficiary_account(PDO $pdo, array $benRow): array
   accept_privacy_terms($pdo, $userId);
   $pdo->prepare('UPDATE beneficiaries SET user_id = ?, status = ?, invitation_status = ?, invitation_token = NULL WHERE id = ?')
     ->execute([$userId, 'Active', 'accepted', (int) $benRow['id']]);
-  $mail = send_account_credentials($email, $name, $email, $tempPassword, 'Beneficiary');
+  
+  // Use Barangay-specific approval welcome email
+  $barangayName = trim((string) ($benRow['full_name'] ?? $benRow['barangay'] ?? 'your Barangay'));
+  $mail = send_barangay_approval_credentials($email, $name, $barangayName, $email, $tempPassword);
+  
   $sent = !empty($mail['sent']);
   $transport = (string) ($mail['transport'] ?? '');
   $includeTemp = !$sent || $transport === 'outbox' || !in_array($transport, ['nodemailer', 'smtp'], true);
@@ -1068,6 +1072,91 @@ function send_verification_email(string $toEmail, string $name, string $token): 
     'sent' => $sent,
     'transport' => (string) ($result['transport'] ?? ''),
     'error' => (string) ($result['error'] ?? ''),
+  ];
+}
+
+/**
+ * Send Barangay approval welcome email with login credentials after Admin approval.
+ * Returns ['sent' => bool, 'transport' => string, 'error' => string].
+ */
+function send_barangay_approval_credentials(string $toEmail, string $name, string $barangayName, string $loginEmail, string $password): array
+{
+  $sent = false;
+  $nodeError = '';
+
+  $safeName = htmlspecialchars($name, ENT_QUOTES, 'UTF-8');
+  $safeBarangay = htmlspecialchars($barangayName, ENT_QUOTES, 'UTF-8');
+  $safeEmail = htmlspecialchars($loginEmail, ENT_QUOTES, 'UTF-8');
+  $safePassword = htmlspecialchars($password, ENT_QUOTES, 'UTF-8');
+  $loginUrl = htmlspecialchars(frontend_url('/login'), ENT_QUOTES, 'UTF-8');
+  $year = date('Y');
+  $support = function_exists('mail_reply_to_address') ? mail_reply_to_address() : '';
+  $safeSupport = htmlspecialchars($support, ENT_QUOTES, 'UTF-8');
+
+  $subject = 'Welcome to Rise Above Foundation Cebu!';
+  $html = '<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">'
+    . '<meta name="format-detection" content="telephone=no,address=no,email=no,date=no,url=no">'
+    . '<title>Welcome to Rise Above Foundation Cebu</title></head>'
+    . '<body style="margin:0;padding:0;background:#f1f5f9;font-family:Segoe UI,Roboto,Helvetica,Arial,sans-serif;color:#0f172a">'
+    . '<div style="display:none;max-height:0;overflow:hidden;opacity:0;color:transparent;font-size:1px;line-height:1px">'
+    . 'Your Barangay has been approved as a beneficiary of Rise Above Foundation Cebu. Your Barangay Portal account is ready.'
+    . '</div>'
+    . '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f1f5f9;padding:28px 12px"><tr><td align="center">'
+    . '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:560px;background:#ffffff;border-radius:16px;overflow:hidden;border:1px solid #e2e8f0">'
+    . '<tr><td style="background:#AF101A;padding:24px 28px;text-align:center">'
+    . '<div style="color:#ffffff;font-size:1.25rem;font-weight:800;letter-spacing:-0.02em">Rise Above Foundation Cebu</div>'
+    . '<div style="color:rgba(255,255,255,0.92);font-size:0.85rem;margin-top:4px;font-weight:500">Barangay Partner Program</div>'
+    . '</td></tr>'
+    . '<tr><td style="padding:32px 28px 8px;text-align:center">'
+    . '<div style="width:64px;height:64px;margin:0 auto 16px;background:#dcfce7;border-radius:50%;display:flex;align-items:center;justify-content:center">'
+    . '<div style="width:40px;height:40px;background:#16a34a;border-radius:50%;display:flex;align-items:center;justify-content:center">'
+    . '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#ffffff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>'
+    . '</div></div>'
+    . '<h1 style="margin:0 0 12px;font-size:1.65rem;line-height:1.25;color:#0f172a;font-weight:800">Welcome to Rise Above Foundation Cebu!</h1>'
+    . "<p style=\"margin:0 0 18px;font-size:1.05rem;line-height:1.65;color:#475569\">We are pleased to inform you that <strong style=\"color:#0f172a\">{$safeBarangay}</strong> has been approved as a beneficiary of Rise Above Foundation Cebu.</p>"
+    . '<p style="margin:0;font-size:0.98rem;line-height:1.6;color:#64748b">Your Barangay Portal account is now ready, and your login credentials are provided below.</p>'
+    . '</td></tr>'
+    . '<tr><td style="padding:24px 28px 12px">'
+    . '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f8fafc;border:2px solid #e2e8f0;border-radius:12px">'
+    . '<tr><td style="padding:18px 20px;border-bottom:2px solid #e2e8f0">'
+    . '<div style="font-size:0.7rem;font-weight:800;letter-spacing:0.1em;text-transform:uppercase;color:#94a3b8;margin-bottom:8px">Email Address</div>'
+    . "<div style=\"font-size:1.05rem;font-weight:650;color:#0f172a;word-break:break-all\">{$safeEmail}</div></td></tr>"
+    . '<tr><td style="padding:18px 20px">'
+    . '<div style="font-size:0.7rem;font-weight:800;letter-spacing:0.1em;text-transform:uppercase;color:#94a3b8;margin-bottom:8px">Temporary Password</div>'
+    . "<div style=\"font-size:1.2rem;font-weight:800;font-family:Consolas,Monaco,monospace;color:#AF101A;letter-spacing:0.06em\">{$safePassword}</div>"
+    . '<div style="font-size:0.75rem;color:#64748b;margin-top:6px">Change this after your first login</div></td></tr>'
+    . '</table></td></tr>'
+    . '<tr><td style="padding:24px 28px 12px;text-align:center">'
+    . '<a href="' . $loginUrl . '" style="display:inline-block;background:#AF101A;color:#ffffff;padding:16px 36px;border-radius:10px;text-decoration:none;font-weight:800;font-size:1.05rem;letter-spacing:0.01em;box-shadow:0 4px 12px rgba(175,16,26,0.25)">Access Barangay Portal</a>'
+    . '</td></tr>'
+    . '<tr><td style="padding:12px 28px 26px">'
+    . '<div style="background:#f0f9ff;border:2px solid #bae6fd;border-radius:10px;padding:16px 18px">'
+    . '<div style="font-size:0.85rem;font-weight:700;color:#0369a1;margin-bottom:6px">📋 Next Steps:</div>'
+    . '<div style="font-size:0.85rem;line-height:1.6;color:#075985">'
+    . '1. Log in using your credentials above<br>'
+    . '2. Set your own secure password<br>'
+    . '3. Complete your barangay profile<br>'
+    . '4. Start submitting assistance requests'
+    . '</div></div></td></tr>'
+    . '<tr><td style="padding:0 28px 26px"><div style="background:#fef3c7;border:2px solid #fde047;border-radius:10px;padding:14px 16px;font-size:0.82rem;line-height:1.55;color:#854d0e">'
+    . '<strong style="color:#713f12;display:block;margin-bottom:4px">🔒 Security Reminder:</strong>'
+    . 'Keep this password confidential. Change it immediately after your first login. Never share your login details with anyone.</div></td></tr>'
+    . '<tr><td style="padding:16px 28px 22px;background:#f8fafc;border-top:1px solid#e2e8f0;text-align:center;font-size:0.75rem;line-height:1.6;color:#94a3b8">'
+    . '<strong style="color:#475569;display:block;margin-bottom:4px">Rise Above Foundation Cebu</strong>'
+    . '© ' . $year . ' Rise Above Foundation Cebu. All rights reserved.'
+    . ($safeSupport !== '' ? '<br>Questions? Contact <a href="mailto:' . $safeSupport . '" style="color:#2563eb">' . $safeSupport . '</a>' : '')
+    . '</td></tr>'
+    . '</table></td></tr></table></body></html>';
+
+  if (function_exists('send_mail')) {
+    $sent = (bool) send_mail($toEmail, $name, $subject, $html);
+  }
+
+  $result = function_exists('mail_last_result') ? mail_last_result() : ['ok' => $sent, 'transport' => '', 'error' => ''];
+  return [
+    'sent' => $sent,
+    'transport' => (string) ($result['transport'] ?? ''),
+    'error' => (string) ($result['error'] ?? ($sent ? '' : 'Welcome email was not delivered')),
   ];
 }
 

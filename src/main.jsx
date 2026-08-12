@@ -15,6 +15,9 @@ import './repacking.css'
 import './admin.css'
 import './styles/enhancements.css'
 import './repacking-modal-improved.css'
+import './barangay-overview-improved.css'
+import './barangay-submission-modal-improved.css'
+import './styles/loading-spinner.css'
 import App from './App.jsx'
 
 // Leaflet default marker fix for bundlers

@@ -28,5 +28,6 @@ export function canStartOrRefreshInvite(row) {
 /** Submitted via invite form and waiting for admin decision. */
 export function isAwaitingBarangayApproval(row) {
   if (!row) return false
-  return row.status === 'Pending Approval' && row.invitationStatus === 'applied'
+  if (row.userId || ['Active', 'Approved'].includes(row.status)) return false
+  return row.status === 'Pending Approval' || row.invitationStatus === 'applied'
 }

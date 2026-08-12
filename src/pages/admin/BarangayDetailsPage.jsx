@@ -3,6 +3,7 @@ import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import {
   ArrowLeft, Pencil, Mail, Trash2, FileText, Truck, Package,
   User, Calendar, Check, Eye, X, Shield, Plus, Upload, CheckCircle2, XCircle,
+  Building, Phone, UserCheck, HeartHandshake, MapPin, Clock, Users, Activity
 } from 'lucide-react'
 import {
   beneficiariesApi,
@@ -94,6 +95,8 @@ export default function BarangayDetailsPage() {
   const [actionBusy, setActionBusy] = useState(false)
   const [approveConfirm, setApproveConfirm] = useState(false)
   const [rejectConfirm, setRejectConfirm] = useState(false)
+  const [useCustomPass, setUseCustomPass] = useState(false)
+  const [customPassword, setCustomPassword] = useState('')
   const [editForm, setEditForm] = useState({})
   const { options: barangayTypeOptions, applyList: applyBarangayTypes } = useCatalogOptions(
     'barangay_types',
@@ -238,10 +241,15 @@ export default function BarangayDetailsPage() {
   }
 
   const handleApprove = async () => {
+    if (useCustomPass && customPassword.trim().length < 6) {
+      notify.warning('Custom password must be at least 6 characters long.')
+      return
+    }
     setApproveConfirm(false)
     setActionBusy(true)
     try {
-      const res = await beneficiariesApi.approve(beneficiary.dbId)
+      const payload = useCustomPass && customPassword.trim() ? { password: customPassword.trim() } : {}
+      const res = await beneficiariesApi.approve(beneficiary.dbId, payload)
       if (res?.credentialsSent) {
         suppressNotificationToast('beneficiary_credentials')
         notify.success(res?.message || 'Login credentials have been successfully sent to the approved Barangay.')
@@ -303,9 +311,29 @@ export default function BarangayDetailsPage() {
             </div>
             <h3 className="approval-confirm__title">Approve Partnership?</h3>
             <p className="approval-confirm__body">
-              This will create a Barangay account for <strong>{barangayName}</strong> and email their login credentials.
-              This action cannot be undone.
+              This will create a Barangay account for <strong>{barangayName}</strong> and email login credentials to <strong>{beneficiary.representativeEmail || 'the representative'}</strong>.
             </p>
+            <div className="form-group" style={{ margin: '0.85rem 0', textAlign: 'left' }}>
+              <label className="checkbox-label" style={{ fontWeight: 600, display: 'flex', alignItems: 'center', gap: '0.4rem', cursor: 'pointer', fontSize: '0.82rem' }}>
+                <input
+                  type="checkbox"
+                  checked={useCustomPass}
+                  onChange={(e) => setUseCustomPass(e.target.checked)}
+                />
+                <span>Assign custom initial password</span>
+              </label>
+              {useCustomPass && (
+                <div style={{ marginTop: '0.4rem' }}>
+                  <input
+                    type="password"
+                    minLength={6}
+                    value={customPassword}
+                    onChange={(e) => setCustomPassword(e.target.value)}
+                    placeholder="Enter custom password (min 6 chars)"
+                  />
+                </div>
+              )}
+            </div>
             <div className="approval-confirm__actions">
               <button
                 type="button"
@@ -402,26 +430,49 @@ export default function BarangayDetailsPage() {
 
       <div className="barangay-metrics">
         <div className="barangay-metric">
+          <div className="barangay-metric__header">
+            <Users size={15} className="barangay-metric__icon" />
+            <span className="barangay-metric__label">Affected Families</span>
+          </div>
           <span className="barangay-metric__value">{Number(beneficiary.affectedFamilies || 0).toLocaleString()}</span>
-          <span className="barangay-metric__label">Families</span>
         </div>
         <div className="barangay-metric">
+          <div className="barangay-metric__header">
+            <FileText size={15} className="barangay-metric__icon" />
+            <span className="barangay-metric__label">Relief Requests</span>
+          </div>
           <span className="barangay-metric__value">{requests.length}</span>
-          <span className="barangay-metric__label">Requests</span>
         </div>
         <div className="barangay-metric">
+          <div className="barangay-metric__header">
+            <CheckCircle2 size={15} className="barangay-metric__icon" />
+            <span className="barangay-metric__label">Delivered Packs</span>
+          </div>
           <span className="barangay-metric__value">{completedDistributions}</span>
-          <span className="barangay-metric__label">Delivered</span>
         </div>
         <div className="barangay-metric">
+          <div className="barangay-metric__header">
+            <Clock size={15} className="barangay-metric__icon" />
+            <span className="barangay-metric__label">Pending Items</span>
+          </div>
           <span className="barangay-metric__value">{pendingItems}</span>
-          <span className="barangay-metric__label">Pending</span>
         </div>
       </div>
 
       <div className="barangay-tabs" role="tablist" aria-label="Beneficiary sections">
         {TABS.map((tab) => {
           const key = tabKey(tab)
+          let countBadge = null
+          if (key === 'relief-requests') countBadge = requests.length
+          if (key === 'distributions') countBadge = bDistributions.length
+
+          let TabIcon = FileText
+          if (key === 'overview') TabIcon = UserCheck
+          if (key === 'relief-requests') TabIcon = HeartHandshake
+          if (key === 'distributions') TabIcon = Truck
+          if (key === 'tracker') TabIcon = Activity
+          if (key === 'documents') TabIcon = Upload
+
           return (
             <button
               key={tab}
@@ -431,7 +482,11 @@ export default function BarangayDetailsPage() {
               className={`barangay-tab${activeTab === key ? ' barangay-tab--active' : ''}`}
               onClick={() => selectTab(key)}
             >
-              {tab}
+              <TabIcon size={14} />
+              <span>{tab}</span>
+              {countBadge !== null && (
+                <span className="barangay-tab__badge">{countBadge}</span>
+              )}
             </button>
           )
         })}
@@ -477,46 +532,100 @@ export default function BarangayDetailsPage() {
               </div>
             </div>
           )}
-          <dl className="barangay-facts">
-            <div>
-              <dt>Representative</dt>
-              <dd>{beneficiary.representativeName || '—'}</dd>
+
+          <div className="barangay-overview-grid">
+            {/* Card 1: Representative & Contact Details */}
+            <div className="barangay-overview-card">
+              <div className="barangay-overview-card__header">
+                <UserCheck size={16} className="barangay-overview-card__icon" />
+                <h3>Representative Details</h3>
+              </div>
+              <div className="barangay-overview-card__body">
+                <div className="barangay-info-row">
+                  <span className="barangay-info-label">Name</span>
+                  <span className="barangay-info-value">{beneficiary.representativeName || '—'}</span>
+                </div>
+                <div className="barangay-info-row">
+                  <span className="barangay-info-label">Position</span>
+                  <span className="barangay-info-value">{beneficiary.representativePosition || '—'}</span>
+                </div>
+                <div className="barangay-info-row">
+                  <span className="barangay-info-label">Phone</span>
+                  <span className="barangay-info-value">
+                    {beneficiary.representativePhone ? (
+                      <a href={`tel:${beneficiary.representativePhone}`} className="barangay-contact-link">
+                        <Phone size={13} /> {beneficiary.representativePhone}
+                      </a>
+                    ) : '—'}
+                  </span>
+                </div>
+                <div className="barangay-info-row">
+                  <span className="barangay-info-label">Email</span>
+                  <span className="barangay-info-value">
+                    {beneficiary.representativeEmail ? (
+                      <a href={`mailto:${beneficiary.representativeEmail}`} className="barangay-contact-link">
+                        <Mail size={13} /> {beneficiary.representativeEmail}
+                      </a>
+                    ) : '—'}
+                  </span>
+                </div>
+              </div>
             </div>
-            <div>
-              <dt>Position</dt>
-              <dd>{beneficiary.representativePosition || '—'}</dd>
+
+            {/* Card 2: Barangay Profile & Location */}
+            <div className="barangay-overview-card">
+              <div className="barangay-overview-card__header">
+                <Building size={16} className="barangay-overview-card__icon" />
+                <h3>Barangay Profile</h3>
+              </div>
+              <div className="barangay-overview-card__body">
+                <div className="barangay-info-row">
+                  <span className="barangay-info-label">Municipality / City</span>
+                  <span className="barangay-info-value">{beneficiary.municipality || '—'}</span>
+                </div>
+                <div className="barangay-info-row">
+                  <span className="barangay-info-label">Barangay Type</span>
+                  <span className="barangay-info-value">{beneficiary.barangayType || '—'}</span>
+                </div>
+                <div className="barangay-info-row">
+                  <span className="barangay-info-label">Address</span>
+                  <span className="barangay-info-value">{beneficiary.address || '—'}</span>
+                </div>
+                <div className="barangay-info-row">
+                  <span className="barangay-info-label">Affected Families</span>
+                  <span className="barangay-info-value font-semibold">
+                    {Number(beneficiary.affectedFamilies || 0).toLocaleString()}
+                  </span>
+                </div>
+              </div>
             </div>
-            <div>
-              <dt>Phone</dt>
-              <dd>{beneficiary.representativePhone || '—'}</dd>
-            </div>
-            <div>
-              <dt>Email</dt>
-              <dd>{beneficiary.representativeEmail || '—'}</dd>
-            </div>
-            <div>
-              <dt>Address</dt>
-              <dd>{beneficiary.address || '—'}</dd>
-            </div>
-            <div>
-              <dt>Type</dt>
-              <dd>{beneficiary.barangayType || '—'}</dd>
-            </div>
-            <div>
-              <dt>Notes</dt>
-              <dd>{beneficiary.notes || '—'}</dd>
-            </div>
-            <div className="barangay-facts__full">
-              <dt>Type of Needs</dt>
-              <dd>
-                {needs.length > 0 ? (
-                  <div className="barangay-pills">
-                    {needs.map((n) => <span key={n} className="barangay-pill">{n}</span>)}
+
+            {/* Card 3: Relief Needs & Notes */}
+            <div className="barangay-overview-card">
+              <div className="barangay-overview-card__header">
+                <HeartHandshake size={16} className="barangay-overview-card__icon" />
+                <h3>Relief Profile & Needs</h3>
+              </div>
+              <div className="barangay-overview-card__body">
+                <div className="barangay-info-group">
+                  <span className="barangay-info-label">Types of Needs</span>
+                  {needs.length > 0 ? (
+                    <div className="barangay-pills">
+                      {needs.map((n) => <span key={n} className="barangay-pill">{n}</span>)}
+                    </div>
+                  ) : (
+                    <span className="barangay-info-value text-muted">No specific needs listed</span>
+                  )}
+                </div>
+                {beneficiary.notes && (
+                  <div className="barangay-info-group barangay-notes-box">
+                    <span className="barangay-info-label">Notes & Instructions</span>
+                    <p className="barangay-notes-text">{beneficiary.notes}</p>
                   </div>
-                ) : '—'}
-              </dd>
+                )}
+              </div>
             </div>
-          </dl>
+          </div>
         </div>
       )}
 

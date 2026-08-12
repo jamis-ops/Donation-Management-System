@@ -1,0 +1,564 @@
+/* =========================================================
+   SMOOTH & CUTE LOADING ANIMATIONS
+   Consistent with system colors, fonts, and UI
+   ========================================================= */
+
+/* ── Base Keyframes ── */
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+@keyframes pulse {
+  0%, 100% { transform: scale(1); opacity: 1; }
+  50% { transform: scale(1.1); opacity: 0.7; }
+}
+
+@keyframes bounce {
+  0%, 80%, 100% { transform: translateY(0); }
+  40% { transform: translateY(-8px); }
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+@keyframes dotBounce {
+  0%, 80%, 100% { transform: scale(0.8) translateY(0); opacity: 0.5; }
+  40% { transform: scale(1.2) translateY(-10px); opacity: 1; }
+}
+
+@keyframes barGrow {
+  0%, 100% { transform: scaleY(0.4); }
+  50% { transform: scaleY(1); }
+}
+
+@keyframes heartBeat {
+  0%, 100% { transform: scale(1); }
+  10%, 30% { transform: scale(0.9); }
+  20%, 40% { transform: scale(1.1); }
+}
+
+/* ── Default Loading Spinner (Ring Style) ── */
+.loading-spinner {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1rem;
+  padding: 2rem;
+  animation: fadeIn 0.3s ease-out;
+}
+
+.loading-spinner__ring {
+  width: 48px;
+  height: 48px;
+  position: relative;
+  animation: fadeIn 0.3s ease-out;
+}
+
+.loading-spinner__ring-segment {
+  width: 100%;
+  height: 100%;
+  border: 4px solid var(--admin-border, #e5e7eb);
+  border-top-color: var(--admin-brand, #af101a);
+  border-radius: 50%;
+  animation: spin 0.8s cubic-bezier(0.68, -0.55, 0.27, 1.55) infinite;
+}
+
+.loading-spinner__ring--large {
+  width: 64px;
+  height: 64px;
+}
+
+.loading-spinner__ring--large .loading-spinner__ring-segment {
+  border-width: 5px;
+}
+
+.loading-spinner__text {
+  font-family: var(--font-sans, system-ui);
+  font-size: 0.9rem;
+  font-weight: 500;
+  color: var(--admin-text-muted, #6b7280);
+  letter-spacing: 0.01em;
+  animation: pulse 2s ease-in-out infinite;
+}
+
+/* Size Variants */
+.loading-spinner--small .loading-spinner__ring {
+  width: 32px;
+  height: 32px;
+}
+
+.loading-spinner--small .loading-spinner__ring-segment {
+  border-width: 3px;
+}
+
+.loading-spinner--small .loading-spinner__text {
+  font-size: 0.8rem;
+}
+
+.loading-spinner--large .loading-spinner__ring {
+  width: 64px;
+  height: 64px;
+}
+
+.loading-spinner--large .loading-spinner__ring-segment {
+  border-width: 5px;
+}
+
+.loading-spinner--large .loading-spinner__text {
+  font-size: 1rem;
+}
+
+/* Position Variants */
+.loading-spinner--inline {
+  flex-direction: row;
+  padding: 0.5rem 0;
+  gap: 0.65rem;
+}
+
+.loading-spinner--inline .loading-spinner__ring {
+  width: 20px;
+  height: 20px;
+}
+
+.loading-spinner--inline .loading-spinner__ring-segment {
+  border-width: 2px;
+}
+
+.loading-spinner--inline .loading-spinner__text {
+  font-size: 0.85rem;
+}
+
+.loading-spinner--page {
+  min-height: 400px;
+}
+
+.loading-spinner--card {
+  min-height: 200px;
+  background: var(--admin-bg, #f8f7f5);
+  border-radius: var(--admin-radius, 10px);
+  border: 1px solid var(--admin-border, #e5e7eb);
+}
+
+/* ── Dots Loading Animation ── */
+.loading-dots {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 1.5rem;
+  flex-wrap: wrap;
+}
+
+.loading-dots__dot {
+  width: 12px;
+  height: 12px;
+  background: var(--admin-brand, #af101a);
+  border-radius: 50%;
+  animation: dotBounce 1.4s infinite ease-in-out;
+}
+
+.loading-dots__dot:nth-child(1) {
+  animation-delay: -0.32s;
+}
+
+.loading-dots__dot:nth-child(2) {
+  animation-delay: -0.16s;
+}
+
+.loading-dots__dot:nth-child(3) {
+  animation-delay: 0s;
+}
+
+.loading-dots__text {
+  width: 100%;
+  text-align: center;
+  margin-top: 0.5rem;
+  font-family: var(--font-sans, system-ui);
+  font-size: 0.9rem;
+  font-weight: 500;
+  color: var(--admin-text-muted, #6b7280);
+}
+
+/* ── Pulse Loading Animation ── */
+.loading-pulse {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1rem;
+  padding: 2rem;
+}
+
+.loading-pulse__circle {
+  width: 56px;
+  height: 56px;
+  background: var(--admin-brand-muted, rgba(175, 16, 26, 0.15));
+  border: 3px solid var(--admin-brand, #af101a);
+  border-radius: 50%;
+  animation: pulse 1.5s ease-in-out infinite;
+}
+
+.loading-pulse__text {
+  font-family: var(--font-sans, system-ui);
+  font-size: 0.9rem;
+  font-weight: 500;
+  color: var(--admin-text-muted, #6b7280);
+}
+
+/* ── Bars Loading Animation ── */
+.loading-bars {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1rem;
+  padding: 2rem;
+}
+
+.loading-bars__bar {
+  width: 6px;
+  height: 32px;
+  background: var(--admin-brand, #af101a);
+  border-radius: 4px;
+  display: inline-block;
+  margin: 0 3px;
+  animation: barGrow 1.2s ease-in-out infinite;
+}
+
+.loading-bars__bar:nth-child(1) {
+  animation-delay: -0.48s;
+}
+
+.loading-bars__bar:nth-child(2) {
+  animation-delay: -0.32s;
+}
+
+.loading-bars__bar:nth-child(3) {
+  animation-delay: -0.16s;
+}
+
+.loading-bars__bar:nth-child(4) {
+  animation-delay: 0s;
+}
+
+.loading-bars__text {
+  font-family: var(--font-sans, system-ui);
+  font-size: 0.9rem;
+  font-weight: 500;
+  color: var(--admin-text-muted, #6b7280);
+  margin-top: 0.5rem;
+}
+
+/* ── Full Page Loading Overlay ── */
+.loading-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(248, 247, 245, 0.95);
+  backdrop-filter: blur(4px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 9999;
+  animation: fadeIn 0.2s ease-out;
+}
+
+.loading-overlay--transparent {
+  background: rgba(255, 255, 255, 0.7);
+  backdrop-filter: blur(2px);
+}
+
+.loading-overlay__content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1.25rem;
+  padding: 2.5rem 3rem;
+  background: var(--admin-surface, #ffffff);
+  border-radius: 16px;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.12), 0 4px 12px rgba(0, 0, 0, 0.08);
+  border: 1px solid var(--admin-border, #e5e7eb);
+  animation: fadeIn 0.3s ease-out 0.1s both;
+}
+
+.loading-overlay__text {
+  font-family: var(--font-sans, system-ui);
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--admin-text, #0f172a);
+  letter-spacing: 0.01em;
+}
+
+/* ── Heart Beat Loading (Cute variant for donations/beneficiaries) ── */
+.loading-heart {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1rem;
+  padding: 2rem;
+  animation: fadeIn 0.3s ease-out;
+}
+
+.loading-heart__icon {
+  width: 56px;
+  height: 56px;
+  color: var(--admin-brand, #af101a);
+  animation: heartBeat 1.3s ease-in-out infinite;
+  filter: drop-shadow(0 2px 4px rgba(175, 16, 26, 0.2));
+}
+
+.loading-heart__text {
+  font-family: var(--font-sans, system-ui);
+  font-size: 0.9rem;
+  font-weight: 500;
+  color: var(--admin-text-muted, #6b7280);
+  animation: pulse 2s ease-in-out infinite;
+}
+
+/* ── Skeleton Loader (Content Placeholders) ── */
+.skeleton-loader {
+  display: flex;
+  flex-direction: column;
+  padding: 1rem 0;
+  animation: fadeIn 0.3s ease-out;
+}
+
+.skeleton-loader__line {
+  background: linear-gradient(
+    90deg,
+    var(--admin-bg, #f1f5f9) 0%,
+    #e2e8f0 50%,
+    var(--admin-bg, #f1f5f9) 100%
+  );
+  background-size: 200% 100%;
+  border-radius: 6px;
+  animation: shimmer 1.5s ease-in-out infinite;
+}
+
+/* ── Inline Loader (For buttons and small spaces) ── */
+.inline-loader {
+  display: inline-block;
+  vertical-align: middle;
+  animation: fadeIn 0.2s ease-out;
+}
+
+.inline-loader__circle {
+  stroke-dasharray: 50;
+  stroke-dashoffset: 0;
+  transform-origin: center;
+  animation: spin 1s linear infinite;
+  opacity: 0.8;
+}
+
+/* ── Admin Loading (Legacy - Enhanced) ── */
+.admin-loading {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1.25rem;
+  color: var(--admin-text-muted, #6b7280);
+  background: var(--admin-bg, #f8f7f5);
+  animation: fadeIn 0.3s ease-out;
+}
+
+.admin-loading__spinner {
+  width: 48px;
+  height: 48px;
+  border: 4px solid var(--admin-border, #e5e7eb);
+  border-top-color: var(--admin-brand, #af101a);
+  border-radius: 50%;
+  animation: spin 0.8s cubic-bezier(0.68, -0.55, 0.27, 1.55) infinite;
+}
+
+.admin-loading p {
+  font-family: var(--font-sans, system-ui);
+  font-size: 0.95rem;
+  font-weight: 500;
+  margin: 0;
+  animation: pulse 2s ease-in-out infinite;
+}
+
+/* ── Portal Loading (Public Portal) ── */
+.portal-loading {
+  min-height: 50vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1.25rem;
+  padding: 3rem 1.5rem;
+  animation: fadeIn 0.3s ease-out;
+}
+
+.portal-loading__spinner {
+  width: 52px;
+  height: 52px;
+  border: 4px solid #e5e7eb;
+  border-top-color: var(--admin-brand, #af101a);
+  border-radius: 50%;
+  animation: spin 0.8s cubic-bezier(0.68, -0.55, 0.27, 1.55) infinite;
+}
+
+.portal-loading p {
+  font-family: var(--font-sans, system-ui);
+  font-size: 0.95rem;
+  font-weight: 500;
+  color: #64748b;
+  margin: 0;
+  animation: pulse 2s ease-in-out infinite;
+}
+
+/* ── Progress Tracker Loading ── */
+.progress-tracker-loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1rem;
+  padding: 3rem 1.5rem;
+  min-height: 200px;
+  animation: fadeIn 0.3s ease-out;
+}
+
+.progress-tracker-loading .spinner {
+  width: 42px;
+  height: 42px;
+  border: 3px solid #e5e7eb;
+  border-top-color: var(--admin-brand, #af101a);
+  border-radius: 50%;
+  animation: spin 0.8s cubic-bezier(0.68, -0.55, 0.27, 1.55) infinite;
+}
+
+.progress-tracker-loading span {
+  font-family: var(--font-sans, system-ui);
+  font-size: 0.88rem;
+  font-weight: 500;
+  color: #64748b;
+  animation: pulse 2s ease-in-out infinite;
+}
+
+/* ── Analysis Loading (Barangay Needs Analyzer) ── */
+.analysis-loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1rem;
+  padding: 2.5rem 1.5rem;
+  min-height: 240px;
+  background: var(--admin-bg, #f8f7f5);
+  border-radius: var(--admin-radius, 10px);
+  border: 1px dashed var(--admin-border, #e5e7eb);
+  animation: fadeIn 0.3s ease-out;
+}
+
+.analysis-loading .spinner {
+  width: 44px;
+  height: 44px;
+  border: 4px solid var(--admin-border, #e5e7eb);
+  border-top-color: var(--admin-brand, #af101a);
+  border-radius: 50%;
+  animation: spin 0.8s cubic-bezier(0.68, -0.55, 0.27, 1.55) infinite;
+}
+
+.analysis-loading span {
+  font-family: var(--font-sans, system-ui);
+  font-size: 0.9rem;
+  font-weight: 500;
+  color: var(--admin-text-muted, #6b7280);
+  animation: pulse 2s ease-in-out infinite;
+}
+
+/* ── Responsive Adjustments ── */
+@media (max-width: 768px) {
+  .loading-spinner {
+    padding: 1.5rem;
+  }
+
+  .loading-overlay__content {
+    padding: 2rem 2.5rem;
+    margin: 1rem;
+  }
+
+  .loading-spinner__ring--large {
+    width: 56px;
+    height: 56px;
+  }
+
+  .loading-heart__icon {
+    width: 48px;
+    height: 48px;
+  }
+}
+
+@media (max-width: 480px) {
+  .loading-spinner {
+    padding: 1rem;
+  }
+
+  .loading-overlay__content {
+    padding: 1.5rem 2rem;
+  }
+
+  .loading-spinner__text,
+  .loading-overlay__text {
+    font-size: 0.85rem;
+  }
+}
+
+/* ── Reduced Motion Accessibility ── */
+@media (prefers-reduced-motion: reduce) {
+  .loading-spinner__ring-segment,
+  .admin-loading__spinner,
+  .portal-loading__spinner,
+  .inline-loader__circle,
+  .spinner {
+    animation-duration: 1.5s;
+  }
+
+  .loading-dots__dot,
+  .loading-bars__bar,
+  .loading-heart__icon {
+    animation: none;
+    opacity: 0.8;
+  }
+
+  .loading-pulse__circle {
+    animation: none;
+    transform: scale(1);
+  }
+
+  .skeleton-loader__line {
+    animation-duration: 2.5s;
+  }
+}
+
+/* ── Print Styles ── */
+@media print {
+  .loading-spinner,
+  .loading-overlay,
+  .loading-heart,
+  .loading-dots,
+  .loading-pulse,
+  .loading-bars,
+  .admin-loading,
+  .portal-loading,
+  .progress-tracker-loading,
+  .analysis-loading {
+    display: none;
+  }
+}

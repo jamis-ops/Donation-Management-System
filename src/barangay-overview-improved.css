@@ -1,0 +1,635 @@
+/* =========================================================
+   BARANGAY OVERVIEW UI IMPROVEMENTS
+   Enhanced spacing, alignment, sizing, and layout
+   Maintains system colors, fonts, buttons, icons
+   ========================================================= */
+
+/* ── Page Container Improvements ── */
+.beneficiaries-page {
+  gap: 1.75rem !important; /* Increased from 1.5rem for better section separation */
+}
+
+/* ── Stats Cards Improvements ── */
+.beneficiaries-stats {
+  gap: 1.25rem !important; /* Increased from 1rem for better card separation */
+  margin-bottom: 0.5rem !important; /* Better spacing to next section */
+}
+
+.beneficiaries-stat {
+  padding: 1.35rem 1.45rem !important; /* Increased from 1.15rem 1.25rem - more breathing room */
+  gap: 1.15rem !important; /* Increased from 1rem - better icon-to-content spacing */
+  border-radius: 12px !important; /* Slightly larger for modern feel */
+  transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease !important;
+}
+
+.beneficiaries-stat:hover:not(.beneficiaries-stat--clickable) {
+  box-shadow: 0 3px 8px rgba(0, 0, 0, 0.08) !important;
+}
+
+.beneficiaries-stat__icon {
+  width: 52px !important; /* Increased from 48px */
+  height: 52px !important;
+  border-radius: 13px !important; /* Proportional increase */
+}
+
+.beneficiaries-stat__value {
+  font-size: 1.55rem !important; /* Increased from 1.45rem */
+  font-weight: 750 !important; /* Slightly bolder */
+  line-height: 1.15 !important;
+  margin-bottom: 0.15rem !important; /* Better spacing to label */
+}
+
+.beneficiaries-stat__label {
+  font-size: 0.88rem !important; /* Increased from 0.84rem */
+  margin-top: 0 !important; /* Remove margin, rely on value's margin-bottom */
+  line-height: 1.3 !important;
+}
+
+/* ── Section Navigation Tabs Improvements ── */
+.barangay-section-tabs {
+  gap: 0.65rem !important; /* Increased from 0.5rem */
+  margin-bottom: 1.5rem !important; /* Increased from 1.25rem */
+  margin-top: 0.5rem !important; /* Add top margin for separation */
+  padding-bottom: 3px !important;
+  border-bottom-width: 2px !important;
+}
+
+.barangay-section-tab {
+  padding: 0.75rem 1.25rem !important; /* Increased from 0.65rem 1.1rem */
+  font-size: 0.94rem !important; /* Increased from 0.9rem */
+  gap: 0.6rem !important; /* Better icon spacing */
+  border-radius: 10px 10px 0 0 !important;
+}
+
+.barangay-section-tab--active::after {
+  height: 3px !important; /* Maintain thickness */
+  bottom: -3px !important; /* Adjusted to new padding */
+}
+
+.barangay-section-tab__badge {
+  padding: 0.2rem 0.55rem !important; /* Slightly larger */
+  font-size: 0.74rem !important;
+  min-width: 22px !important;
+  text-align: center !important;
+}
+
+/* ── Filter Bar Spacing ── */
+#barangays-overview-section {
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 1.25rem !important;
+}
+
+/* ── Data Table Row Improvements ── */
+.beneficiaries-name {
+  font-weight: 650 !important;
+  font-size: 0.9rem !important;
+}
+
+.beneficiaries-status-cell {
+  display: flex !important;
+  align-items: center !important;
+  gap: 0.5rem !important;
+  flex-wrap: wrap !important;
+}
+
+.beneficiaries-review-pill {
+  display: inline-flex !important;
+  align-items: center !important;
+  padding: 0.2rem 0.55rem !important;
+  font-size: 0.7rem !important;
+  font-weight: 700 !important;
+  border-radius: 999px !important;
+  background: #fef3c7 !important;
+  color: #b45309 !important;
+  border: 1px solid #fde68a !important;
+  white-space: nowrap !important;
+}
+
+.beneficiaries-latest {
+  gap: 0.15rem !important;
+}
+
+.beneficiaries-latest__type {
+  font-size: 0.88rem !important; /* Increased from 0.875rem */
+  font-weight: 550 !important;
+}
+
+.beneficiaries-latest__date {
+  font-size: 0.76rem !important; /* Slightly increased */
+}
+
+.beneficiaries-priority {
+  padding: 0.25rem 0.65rem !important; /* Increased from 0.2rem 0.55rem */
+  font-size: 0.82rem !important; /* Increased from 0.8rem */
+  font-weight: 650 !important;
+}
+
+.table-actions {
+  gap: 0.4rem !important; /* Increased from 0.35rem */
+}
+
+.beneficiaries-review-actions {
+  display: flex !important;
+  gap: 0.4rem !important;
+  flex-wrap: wrap !important;
+  align-items: center !important;
+}
+
+/* ── Registration Submissions Section Improvements ── */
+.barangay-submissions-section {
+  padding: 1.35rem 1.5rem !important; /* Increased from 1.1rem 1.25rem */
+  border-radius: 14px !important; /* Increased from 12px */
+  margin-bottom: 1.5rem !important;
+}
+
+.barangay-submissions-section__header {
+  gap: 0.85rem !important; /* Increased from 0.65rem */
+  padding-bottom: 1.05rem !important; /* Increased from 0.85rem */
+  margin-bottom: 1.25rem !important; /* Increased from 1rem */
+}
+
+.barangay-submissions-section__title-group {
+  gap: 0.6rem !important; /* Increased from 0.5rem */
+}
+
+.barangay-submissions-section__title-group h2 {
+  font-size: 1rem !important; /* Increased from 0.95rem */
+  font-weight: 700 !important;
+}
+
+.barangay-submissions-section__icon {
+  width: 20px !important;
+  height: 20px !important;
+}
+
+.barangay-submissions-section__count {
+  padding: 0.2rem 0.65rem !important; /* Increased from 0.15rem 0.55rem */
+  font-size: 0.74rem !important;
+  font-weight: 650 !important;
+}
+
+.barangay-submissions-section__flow-hint {
+  padding: 0.3rem 0.75rem !important; /* Increased padding */
+  font-size: 0.77rem !important;
+}
+
+.barangay-submissions-empty {
+  padding: 1.05rem 1.2rem !important; /* Increased from 0.85rem 1rem */
+  font-size: 0.87rem !important;
+  gap: 0.6rem !important;
+}
+
+/* ── Submission Cards Grid Improvements ── */
+.barangay-submissions-grid {
+  gap: 1.25rem !important; /* Increased from 1rem */
+  grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)) !important; /* Increased from 320px */
+}
+
+.barangay-submission-card {
+  padding: 1.25rem 1.35rem !important; /* Increased from 1.1rem */
+  gap: 1rem !important; /* Increased from 0.85rem */
+  border-radius: 12px !important;
+  border-left-width: 4px !important; /* Increased from 3px for better accent */
+}
+
+.barangay-submission-card__top {
+  gap: 0.65rem !important; /* Increased from 0.5rem */
+  margin-bottom: 0.15rem !important;
+}
+
+.barangay-submission-card__title {
+  font-size: 1.05rem !important; /* Increased from 1rem */
+  font-weight: 700 !important;
+  line-height: 1.35 !important;
+  margin-bottom: 0.2rem !important;
+}
+
+.barangay-submission-card__sub {
+  gap: 0.3rem !important;
+  font-size: 0.8rem !important; /* Slightly increased */
+}
+
+.barangay-submission-card__details {
+  gap: 0.55rem !important; /* Increased from 0.45rem */
+  padding: 0.9rem 1.05rem !important; /* Increased from 0.75rem 0.9rem */
+  border-radius: 9px !important;
+}
+
+.barangay-submission-row {
+  gap: 0.65rem !important; /* Increased from 0.5rem */
+  padding-bottom: 0.4rem !important;
+  min-height: 24px !important; /* Ensure consistent row height */
+}
+
+.barangay-submission-row:not(:last-child) {
+  border-bottom: 1px dashed rgba(0, 0, 0, 0.06) !important;
+}
+
+.barangay-submission-label {
+  font-size: 0.75rem !important;
+  font-weight: 650 !important;
+  text-transform: uppercase !important;
+  letter-spacing: 0.02em !important;
+}
+
+.barangay-submission-val {
+  font-size: 0.85rem !important;
+  font-weight: 550 !important;
+}
+
+.barangay-submission-card__actions {
+  gap: 0.45rem !important; /* Increased from 0.35rem */
+  padding-top: 0.4rem !important;
+  margin-top: 0.15rem !important;
+}
+
+.barangay-submission-card__actions .btn {
+  padding: 0.55rem 0.4rem !important; /* Increased from 0.45rem 0.3rem */
+  font-size: 0.78rem !important; /* Slightly increased */
+  font-weight: 650 !important;
+  gap: 0.3rem !important;
+  display: inline-flex !important;
+  align-items: center !important;
+}
+
+/* ── Submission Details Modal Improvements ── */
+.barangay-submission-modal__body {
+  gap: 0.5rem !important;
+}
+
+.barangay-submission-modal__flow {
+  gap: 0.75rem !important;
+  margin-bottom: 0.35rem !important;
+  padding-bottom: 0.75rem !important;
+  border-bottom: 1px solid var(--admin-border) !important;
+}
+
+/* ── Overview Card Grid Improvements (Modal) ── */
+.barangay-overview-grid {
+  gap: 1.25rem !important; /* Increased from 1rem */
+  margin-top: 1.25rem !important;
+  margin-bottom: 0.25rem !important;
+}
+
+.barangay-overview-card {
+  border-radius: 12px !important;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.06) !important;
+}
+
+.barangay-overview-card__header {
+  gap: 0.6rem !important; /* Increased from 0.5rem */
+  padding: 0.9rem 1.15rem !important; /* Increased from 0.75rem 1rem */
+  border-bottom-width: 1px !important;
+}
+
+.barangay-overview-card__header h3 {
+  font-size: 0.88rem !important; /* Increased from 0.85rem */
+  font-weight: 700 !important;
+  letter-spacing: 0.025em !important;
+}
+
+.barangay-overview-card__icon {
+  width: 17px !important;
+  height: 17px !important;
+}
+
+.barangay-overview-card__body {
+  padding: 1.05rem 1.15rem !important; /* Increased from 0.85rem 1rem */
+  gap: 0.7rem !important; /* Increased from 0.6rem */
+}
+
+.barangay-info-row {
+  gap: 0.65rem !important; /* Increased from 0.5rem */
+  padding-bottom: 0.55rem !important; /* Increased from 0.45rem */
+  align-items: flex-start !important; /* Better for multi-line content */
+}
+
+.barangay-info-label {
+  font-size: 0.77rem !important; /* Increased from 0.75rem */
+  font-weight: 650 !important;
+  letter-spacing: 0.01em !important;
+  min-width: 110px !important; /* Ensure label column width */
+}
+
+.barangay-info-value {
+  font-size: 0.86rem !important; /* Increased from 0.83rem */
+  font-weight: 550 !important;
+  line-height: 1.4 !important;
+}
+
+.barangay-contact-link {
+  gap: 0.35rem !important;
+  font-size: 0.86rem !important;
+}
+
+.barangay-info-group {
+  gap: 0.45rem !important; /* Increased from 0.35rem */
+}
+
+.barangay-notes-box {
+  margin-top: 0.45rem !important;
+  padding: 0.8rem 0.9rem !important; /* Increased from 0.65rem 0.75rem */
+  border-radius: 8px !important;
+}
+
+.barangay-notes-text {
+  font-size: 0.83rem !important; /* Increased from 0.8rem */
+  line-height: 1.5 !important;
+}
+
+.barangay-pills {
+  gap: 0.4rem !important; /* Increased from 0.35rem */
+  margin-top: 0.25rem !important;
+}
+
+.barangay-pill {
+  padding: 0.25rem 0.7rem !important; /* Increased from 0.2rem 0.6rem */
+  font-size: 0.75rem !important;
+  font-weight: 650 !important;
+  border-width: 1px !important;
+}
+
+/* ── Approval/Rejection Summary Cards ── */
+.barangay-approve-summary,
+.barangay-reject-summary {
+  gap: 1rem !important; /* Increased from 0.85rem */
+  padding: 1.05rem 1.2rem !important; /* Increased from 0.85rem 1rem */
+  border-radius: 10px !important;
+  margin-bottom: 0.85rem !important;
+}
+
+.barangay-approve-summary strong,
+.barangay-reject-summary strong {
+  font-size: 0.96rem !important;
+  display: block !important;
+  margin-bottom: 0.15rem !important;
+}
+
+.barangay-approve-summary p,
+.barangay-reject-summary p {
+  font-size: 0.82rem !important;
+  line-height: 1.45 !important;
+}
+
+/* ── Icon Button Improvements ── */
+.icon-btn {
+  width: 34px !important; /* Increased from 32px */
+  height: 34px !important;
+  border-radius: 9px !important;
+}
+
+/* ── Responsive Improvements ── */
+@media (max-width: 1024px) {
+  .beneficiaries-stats {
+    grid-template-columns: repeat(2, 1fr) !important;
+    gap: 1rem !important;
+  }
+
+  .barangay-submissions-grid {
+    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)) !important;
+  }
+}
+
+@media (max-width: 768px) {
+  .beneficiaries-stat {
+    padding: 1.15rem 1.25rem !important;
+  }
+
+  .beneficiaries-stat__icon {
+    width: 46px !important;
+    height: 46px !important;
+  }
+
+  .beneficiaries-stat__value {
+    font-size: 1.4rem !important;
+  }
+
+  .barangay-section-tab {
+    padding: 0.65rem 1rem !important;
+    font-size: 0.88rem !important;
+  }
+
+  .barangay-submissions-section {
+    padding: 1.15rem 1.25rem !important;
+  }
+
+  .barangay-submission-card {
+    padding: 1.1rem 1.2rem !important;
+  }
+
+  .barangay-overview-grid {
+    gap: 1rem !important;
+  }
+}
+
+@media (max-width: 640px) {
+  .beneficiaries-stats {
+    grid-template-columns: 1fr !important;
+    gap: 0.85rem !important;
+  }
+
+  .barangay-section-tabs {
+    gap: 0.4rem !important;
+    flex-wrap: wrap !important;
+  }
+
+  .barangay-section-tab {
+    padding: 0.6rem 0.85rem !important;
+    font-size: 0.84rem !important;
+    gap: 0.4rem !important;
+  }
+
+  .barangay-submissions-grid {
+    grid-template-columns: 1fr !important;
+  }
+
+  .barangay-submission-card__actions {
+    grid-template-columns: 1fr !important;
+  }
+
+  .barangay-overview-card__header {
+    padding: 0.8rem 1rem !important;
+  }
+
+  .barangay-overview-card__body {
+    padding: 0.9rem 1rem !important;
+  }
+
+  .barangay-info-label {
+    min-width: 90px !important;
+    font-size: 0.74rem !important;
+  }
+
+  .barangay-info-value {
+    font-size: 0.82rem !important;
+  }
+}
+
+/* ── Hover and Focus States Improvements ── */
+.data-table__row--pending-review {
+  background: transparent !important; /* Remove yellow background */
+  position: relative !important;
+}
+
+.data-table__row--pending-review::before {
+  content: '' !important;
+  position: absolute !important;
+  left: 0 !important;
+  top: 0 !important;
+  bottom: 0 !important;
+  width: 4px !important;
+  background: #f59e0b !important; /* Orange accent bar instead */
+  border-radius: 0 !important;
+}
+
+.data-table__row--pending-review:hover td {
+  background: rgba(249, 250, 251, 0.8) !important; /* Subtle hover instead of yellow */
+}
+
+/* ── Modal Actions Spacing ── */
+.admin-modal__actions {
+  gap: 0.65rem !important;
+  margin-top: 1.5rem !important;
+  padding-top: 1.25rem !important;
+  border-top: 1px solid var(--admin-border) !important;
+}
+
+.admin-modal__actions .btn {
+  padding: 0.65rem 1.15rem !important;
+  font-size: 0.9rem !important;
+  font-weight: 650 !important;
+  gap: 0.4rem !important;
+}
+
+/* ── Checkbox Label Improvements (Approve Modal) ── */
+.checkbox-label {
+  gap: 0.5rem !important;
+  font-size: 0.88rem !important;
+  padding: 0.35rem 0 !important;
+}
+
+.checkbox-label input[type="checkbox"] {
+  width: 17px !important;
+  height: 17px !important;
+  margin: 0 !important;
+  cursor: pointer !important;
+}
+
+/* ── Form Section Improvements ── */
+.form-group {
+  margin-bottom: 1.35rem !important;
+}
+
+.form-section-title {
+  margin-top: 1.35rem !important;
+  margin-bottom: 0.95rem !important;
+  font-weight: 700 !important;
+  font-size: 0.94rem !important;
+}
+
+/* ── Text Utility Improvements ── */
+.text-sm {
+  font-size: 0.86rem !important;
+  line-height: 1.45 !important;
+}
+
+.text-xs {
+  font-size: 0.77rem !important;
+}
+
+.text-muted {
+  color: var(--admin-text-muted) !important;
+  opacity: 0.92 !important;
+}
+
+/* ── Success/Danger Text Colors ── */
+.text-success {
+  color: var(--admin-success, #16a34a) !important;
+}
+
+.text-danger {
+  color: var(--admin-danger, #dc2626) !important;
+}
+
+/* ── Inline Icon Alignment ── */
+.inline-icon {
+  display: inline !important;
+  vertical-align: middle !important;
+  margin-top: -2px !important;
+}
+
+/* ── Badge and Pill Consistency ── */
+.status-badge {
+  padding: 0.25rem 0.65rem !important;
+  font-size: 0.78rem !important;
+  font-weight: 650 !important;
+  border-radius: 6px !important;
+}
+
+/* ── Approval Button Styles (Maintain System Colors) ── */
+.approval-overlay__btn-approve {
+  background: var(--admin-success, #16a34a) !important;
+  border-color: var(--admin-success, #16a34a) !important;
+  color: #fff !important;
+  font-weight: 650 !important;
+}
+
+.approval-overlay__btn-approve:hover:not(:disabled) {
+  background: #15803d !important;
+  border-color: #15803d !important;
+  box-shadow: 0 2px 6px rgba(22, 163, 74, 0.25) !important;
+}
+
+.approval-overlay__btn-reject {
+  background: transparent !important;
+  border: 1.5px solid var(--admin-danger, #dc2626) !important;
+  color: var(--admin-danger, #dc2626) !important;
+  font-weight: 650 !important;
+}
+
+.approval-overlay__btn-reject:hover:not(:disabled) {
+  background: rgba(220, 38, 38, 0.08) !important;
+  border-color: #b91c1c !important;
+  color: #b91c1c !important;
+}
+
+/* ── Loading and Empty States ── */
+.beneficiary-view-empty {
+  padding: 1.25rem !important;
+  text-align: center !important;
+  color: var(--admin-text-muted) !important;
+  font-size: 0.88rem !important;
+  background: var(--admin-bg) !important;
+  border-radius: 8px !important;
+  border: 1px dashed var(--admin-border) !important;
+}
+
+/* ── Better Visual Hierarchy ── */
+.barangay-submission-card__details strong {
+  font-weight: 650 !important;
+}
+
+.font-semibold {
+  font-weight: 650 !important;
+}
+
+/* ── Ensure Proper Bounding and Containment ── */
+.barangay-submission-card__title,
+.barangay-item-card__title {
+  word-break: break-word !important;
+  overflow-wrap: break-word !important;
+  hyphens: auto !important;
+}
+
+/* ── Better Contact Link Spacing ── */
+a.barangay-contact-link {
+  line-height: 1.4 !important;
+}
+
+/* ── Improved Badge Spacing in Tab ── */
+.barangay-section-tab .barangay-section-tab__badge {
+  margin-left: 0.15rem !important;
+}
+
+/* ── End of Barangay Overview Improvements ── */

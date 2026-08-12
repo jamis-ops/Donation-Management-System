@@ -450,30 +450,38 @@ select {
   .filter-bar__reset { margin-left: 0; width: 100%; justify-content: center; }
 }
 
-/* Report period toggle */
+/* Report period toggle — pill-shaped segmented control */
 .report-period {
   display: inline-flex;
   padding: 3px;
   background: var(--admin-bg, #f3f4f6);
   border: 1px solid var(--admin-border, #e5e7eb);
   border-radius: 999px;
+  gap: 2px;
 }
 
 .report-period__btn {
-  padding: 0.35rem 0.85rem;
-  font-size: 0.8rem;
+  padding: 0.3rem 0.8rem;
+  font-size: 0.78rem;
   font-weight: 600;
   color: var(--admin-text-muted, #6b7280);
   background: none;
   border: none;
   border-radius: 999px;
   cursor: pointer;
-  transition: background 0.18s ease, color 0.18s ease;
+  transition: background 0.2s ease, color 0.2s ease, box-shadow 0.2s ease;
+  letter-spacing: 0.01em;
+}
+
+.report-period__btn:hover:not(.report-period__btn--active) {
+  background: rgba(0, 0, 0, 0.05);
+  color: var(--admin-text, #111827);
 }
 
 .report-period__btn--active {
   background: var(--admin-brand, #af101a);
   color: #fff;
+  box-shadow: 0 1px 4px rgba(175, 16, 26, 0.35);
 }
 
 .admin-chart__toolbar {
@@ -489,11 +497,18 @@ select {
   margin: 0;
 }
 
-/* Clearer time labels inside the charts */
+/* X-axis labels — slightly bold for readability */
 .admin-chart .admin-chart__axis-label {
-  font-size: 11px;
+  font-size: 10px;
   font-weight: 600;
   fill: var(--admin-text-muted, #6b7280);
+}
+
+/* Y-axis labels — dimmer, slightly smaller */
+.admin-chart .admin-chart__y-label {
+  font-size: 9.5px;
+  font-weight: 500;
+  fill: var(--admin-text-subtle, #9ca3af);
 }
 
 /* =========================================================
@@ -502,6 +517,10 @@ select {
 
 .admin-chart__plot {
   position: relative;
+  /* Prevent tooltip absolute-positioning from causing scrollbar on the page */
+  overflow: hidden;
+  /* Allow the container to shrink properly inside flex/grid parents */
+  min-width: 0;
 }
 
 .chart-tooltip {
@@ -568,33 +587,56 @@ select {
   to { opacity: 1; }
 }
 
-/* Line chart: draw-in stroke + interactive points */
+/* Line chart: smooth draw-in stroke + interactive points */
 .admin-chart__line {
   stroke-dasharray: 1;
-  animation: chartLineDraw 0.95s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  animation: chartLineDraw 1.1s cubic-bezier(0.16, 1, 0.3, 1) both;
 }
 
 @keyframes chartLineDraw {
   from { stroke-dashoffset: 1; }
-  to { stroke-dashoffset: 0; }
+  to   { stroke-dashoffset: 0; }
+}
+
+/* Gradient area fill beneath the line */
+.admin-chart__area {
+  animation: chartAreaFadeIn 1.2s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+@keyframes chartAreaFadeIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+/* Vertical hover crosshair */
+.admin-chart__crosshair {
+  stroke: var(--admin-border, #e5e7eb);
+  stroke-width: 1.5;
+  stroke-dasharray: 4 3;
+  pointer-events: none;
+  opacity: 0.9;
 }
 
 .admin-chart__point {
   cursor: pointer;
-  transition: r 0.12s ease;
-  animation: chartFadeIn 0.4s ease backwards;
+  transition: r 0.15s ease, stroke-width 0.15s ease;
+  animation: chartFadeIn 0.5s ease backwards;
+}
+
+.admin-chart__point:hover {
+  filter: drop-shadow(0 0 4px currentColor);
 }
 
 /* Bar chart: grow-in + hover highlight */
 .admin-bar-chart__fill {
   transform-origin: left center;
-  animation: chartBarGrow 0.7s cubic-bezier(0.16, 1, 0.3, 1) backwards;
-  transition: filter 0.15s ease;
+  animation: chartBarGrow 0.75s cubic-bezier(0.16, 1, 0.3, 1) backwards;
+  transition: filter 0.18s ease;
 }
 
 @keyframes chartBarGrow {
   from { transform: scaleX(0); }
-  to { transform: scaleX(1); }
+  to   { transform: scaleX(1); }
 }
 
 .admin-bar-chart__item {
@@ -602,7 +644,7 @@ select {
 }
 
 .admin-bar-chart__item:hover .admin-bar-chart__fill {
-  filter: brightness(1.09);
+  filter: brightness(1.1);
 }
 
 .admin-bar-chart__item:hover .admin-bar-chart__label {
@@ -618,16 +660,16 @@ select {
   transform-box: fill-box;
   transform-origin: center;
   cursor: pointer;
-  transition: opacity 0.15s ease, transform 0.15s ease;
-  animation: chartFadeIn 0.5s ease backwards;
+  transition: opacity 0.18s ease, transform 0.18s ease;
+  animation: chartFadeIn 0.55s ease backwards;
 }
 
 .admin-donut__svg--has-hover .admin-donut__slice:not(.is-active) {
-  opacity: 0.4;
+  opacity: 0.35;
 }
 
 .admin-donut__slice.is-active {
-  transform: scale(1.05);
+  transform: scale(1.06);
 }
 
 .admin-donut__legend li {
@@ -644,6 +686,7 @@ select {
 
 @media (prefers-reduced-motion: reduce) {
   .admin-chart__line,
+  .admin-chart__area,
   .admin-chart__point,
   .admin-bar-chart__fill,
   .admin-donut__slice,
@@ -657,10 +700,14 @@ select {
    ========================================================= */
 
 .admin-chart__empty {
-  margin: 2rem 0;
+  margin: 2.5rem 0;
   text-align: center;
   font-size: 0.85rem;
   color: var(--admin-text-muted, #6b7280);
+  padding: 1.5rem;
+  border: 1.5px dashed var(--admin-border, #e5e7eb);
+  border-radius: var(--admin-radius, 10px);
+  background: var(--admin-bg, #f4f5f7);
 }
 
 .dashboard-stock-list {
@@ -3698,7 +3745,7 @@ select {
 }
 
 /* --- NameFields: always 3-column Last / First / MI --- */
-.admin-modal .form-row--names {
+.form-row--names {
   display: grid !important;
   grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(4.5rem, 5.5rem) !important;
   gap: 0.75rem !important;
@@ -3706,25 +3753,25 @@ select {
   margin-bottom: 0.85rem;
 }
 
-.admin-modal .form-row--names > .name-fields__field {
+.form-row--names > .name-fields__field {
   display: flex;
   flex-direction: column;
   min-width: 0;
   margin-bottom: 0;
 }
 
-.admin-modal .form-row--names .name-fields__label {
+.form-row--names .name-fields__label {
   display: block;
   font-size: 0.875rem;
   font-weight: 600;
-  color: var(--admin-text);
+  color: var(--color-text, var(--admin-text));
   margin-bottom: 0.35rem;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
-.admin-modal .form-row--names input {
+.form-row--names input {
   width: 100%;
   min-width: 0;
   box-sizing: border-box;

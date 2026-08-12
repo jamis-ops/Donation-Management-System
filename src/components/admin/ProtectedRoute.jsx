@@ -1,6 +1,7 @@
 import { Navigate, useLocation } from 'react-router-dom'
 import { useAuth } from '../../context/AuthContext'
 import { getHomeForRole, isAdminPortalRole } from '../../utils/roleRoutes'
+import LoadingSpinner from '../shared/LoadingSpinner'
 
 export default function ProtectedRoute({ children }) {
   const { user, isAuthenticated, loading } = useAuth()
@@ -9,8 +10,7 @@ export default function ProtectedRoute({ children }) {
   if (loading) {
     return (
       <div className="admin-loading">
-        <div className="admin-loading__spinner" />
-        <p>Loading...</p>
+        <LoadingSpinner size="large" message="Verifying authentication..." />
       </div>
     )
   }

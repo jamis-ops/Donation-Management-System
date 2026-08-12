@@ -7,6 +7,19 @@ import PolicyLinks from '../components/shared/PolicyLinks'
 import { emptyNameParts, formatFullName } from '../utils/personName'
 import { emailError, phoneError, fileSizeError, MAX_UPLOAD_BYTES } from '../utils/validation'
 import PhoneInput from '../components/shared/PhoneInput'
+import NeedsPicker from '../components/shared/NeedsPicker'
+
+const getExampleFor = (need) => {
+  const n = String(need || '').toLowerCase()
+  if (n.includes('food')) return 'Rice, canned goods, biscuits, etc.'
+  if (n.includes('water')) return 'Bottled water, drinking water, etc.'
+  if (n.includes('cloth')) return 'Shirts, pants, blankets, etc.'
+  if (n.includes('medicine')) return 'First-aid supplies, basic medicines, etc.'
+  if (n.includes('hygiene')) return 'Soap, toothpaste, alcohol, etc.'
+  if (n.includes('education')) return 'Notebooks, pens, bags, etc.'
+  if (n.includes('shelter')) return 'Tents, tarpaulins, mats, etc.'
+  return `Details for ${need}...`
+}
 
 const donationTypes = [
   { id: 'monetary', label: 'Monetary Donation' },
@@ -36,6 +49,8 @@ const emptyForm = {
   address: '',
   amount: '',
   items: '',
+  selectedNeeds: [],
+  needDescriptions: {},
   paymentMethod: 'bank-transfer',
   proof: null,
   message: '',
@@ -73,9 +88,17 @@ export default function DonatePage() {
       setSubmitError('Monetary amount must be greater than 0.')
       return
     }
-    if (form.type === 'in-kind' && !String(form.items || '').trim()) {
-      setSubmitError('In-kind item description is required.')
-      return
+    if (form.type === 'in-kind') {
+      if (!form.selectedNeeds || form.selectedNeeds.length === 0) {
+        setSubmitError('Please select at least one Type of Need.')
+        return
+      }
+      for (const need of form.selectedNeeds) {
+        if (!form.needDescriptions[need] || !form.needDescriptions[need].trim()) {
+          setSubmitError(`Please provide a description for ${need}.`)
+          return
+        }
+      }
     }
     if (!form.proof) {
       setSubmitError('Proof of donation is required.')
@@ -113,7 +136,10 @@ export default function DonatePage() {
         fd.append('amount', String(form.amount))
         fd.append('paymentMethod', form.paymentMethod)
       } else {
-        fd.append('items', form.items)
+        const itemsStr = form.selectedNeeds
+          .map((need) => `[${need}] ${form.needDescriptions[need]}`)
+          .join('\n')
+        fd.append('items', itemsStr)
       }
       if (form.message) fd.append('message', form.message)
       if (form.proof) fd.append('proof', form.proof)
@@ -298,16 +324,39 @@ export default function DonatePage() {
                   </label>
                 </>
               ) : (
-                <label>
-                  <Req required>Items Description</Req>
-                  <textarea
-                    rows={4}
+                <div className="in-kind-items-section">
+                  <NeedsPicker
+                    label="Type of Needs"
+                    value={form.selectedNeeds}
+                    onChange={(needs) => setForm({ ...form, selectedNeeds: needs })}
+                    showNote={false}
                     required
-                    placeholder="List items, quantities, and condition (e.g., 10 canned goods, good condition)..."
-                    value={form.items}
-                    onChange={(e) => setForm({ ...form, items: e.target.value })}
                   />
-                </label>
+
+                  {form.selectedNeeds.length > 0 && (
+                    <div className="items-descriptions" style={{ marginTop: '1.5rem', marginBottom: '1rem' }}>
+                      <p className="form-section-title">Items</p>
+                      {form.selectedNeeds.map((need) => (
+                        <label key={need} style={{ marginBottom: '1rem' }}>
+                          <Req required>{need}</Req>
+                          <input
+                            type="text"
+                            required
+                            placeholder={getExampleFor(need)}
+                            value={form.needDescriptions[need] || ''}
+                            onChange={(e) => setForm({
+                              ...form,
+                              needDescriptions: {
+                                ...form.needDescriptions,
+                                [need]: e.target.value,
+                              },
+                            })}
+                          />
+                        </label>
+                      ))}
+                    </div>
+                  )}
+                </div>
               )}
 
               <label>

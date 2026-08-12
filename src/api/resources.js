@@ -44,9 +44,9 @@ export const beneficiariesApi = {
     method: 'POST',
     body: JSON.stringify({ ...body, action: 'reinvite' }),
   }),
-  approve: (id) => apiFetch(`/api/beneficiaries.php?id=${id}&action=approve`, {
+  approve: (id, body = {}) => apiFetch(`/api/beneficiaries.php?id=${id}&action=approve`, {
     method: 'POST',
-    body: JSON.stringify({ action: 'approve' }),
+    body: JSON.stringify({ ...body, action: 'approve' }),
   }),
   reject: (id, body = {}) => apiFetch(`/api/beneficiaries.php?id=${id}&action=reject`, {
     method: 'POST',

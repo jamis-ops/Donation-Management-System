@@ -1,9 +1,10 @@
+import LoadingSpinner from '../../shared/LoadingSpinner'
+
 export default function ApiState({ loading, error, onRetry, children }) {
   if (loading) {
     return (
-      <div className="admin-loading" style={{ minHeight: '200px' }}>
-        <div className="admin-loading__spinner" />
-        <p>Loading data from database...</p>
+      <div style={{ minHeight: '200px' }}>
+        <LoadingSpinner variant="card" message="Loading data from database..." />
       </div>
     )
   }

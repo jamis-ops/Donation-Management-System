@@ -1354,7 +1354,6 @@
 .detail-row:last-child { border-bottom: none; }
 .detail-label { font-weight: 600; color: #64748b; }
 .detail-value { color: #1e293b; font-weight: 500; }
-.status-badge { background: #d1fae5; color: #065f46; border-radius: 4px; padding: 0.15rem 0.5rem; font-size: 0.75rem; font-weight: 700; }
 
 /* ============================================================
    SHARED FORM STYLES (kept in sync with repacking.css)

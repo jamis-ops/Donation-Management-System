@@ -4,6 +4,7 @@ import ModalHeader from '../admin/shared/ModalHeader'
 import BarangayNeedsAnalyzer from './BarangayNeedsAnalyzer'
 import PackContentBuilder from './PackContentBuilder'
 import RepackingSummaryCard from './RepackingSummaryCard'
+import StatusBadge from '../admin/shared/StatusBadge'
 import { notify } from '../../utils/toast'
 
 const STEPS = ['barangay', 'builder', 'summary', 'confirmation']
@@ -268,7 +269,7 @@ export default function MultiSourceRepackingModal({
                 )}
                 <div className="detail-row">
                   <span className="detail-label">Status:</span>
-                  <span className="detail-value status-badge">{createdBatch.status}</span>
+                  <StatusBadge status={createdBatch.status} />
                 </div>
               </div>
             )}

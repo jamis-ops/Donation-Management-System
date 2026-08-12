@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useLocation, useNavigate, useSearchParams } from 'react-router-dom'
-import { Mail, Plus, Users, Activity, Clock, AlertCircle, Eye, Pencil, Trash2, Send, CheckCircle2, XCircle } from 'lucide-react'
+import { Mail, Plus, Users, Activity, Clock, AlertCircle, Eye, Pencil, Trash2, Send, CheckCircle2, XCircle, Shield, Building, Phone, HeartHandshake, FileText, UserCheck, MapPin } from 'lucide-react'
 import { beneficiariesApi, assistanceRequestsApi } from '../../api/resources'
 import { useApiList } from '../../hooks/useApiList'
 import { useFilters } from '../../hooks/useFilters'
@@ -25,6 +25,7 @@ import { notify, suppressNotificationToast } from '../../utils/toast'
 import { useHashScroll, useQueryFocus } from '../../hooks/useDeepLinkFocus'
 import PhoneInput from '../../components/shared/PhoneInput'
 import { phoneError, emailError } from '../../utils/validation'
+import LoadingSpinner, { LoadingHeart, InlineLoader } from '../../components/shared/LoadingSpinner'
 
 const STATUS_OPTIONS = ['Active', 'Approved', 'Pending Approval', 'Suspended', 'Rejected']
 /** Create-only statuses — Edit never changes partnership status. */
@@ -222,15 +223,34 @@ export default function BeneficiariesPage() {
   const [inviteForm, setInviteForm] = useState(emptyInviteForm)
   const [saving, setSaving] = useState(false)
   const [actionBusyId, setActionBusyId] = useState(null)
+
+  // Navigation section: 'overview' (Barangay Overview) vs 'submissions' (Barangay Registration Submissions)
+  const [activeSection, setActiveSection] = useState(() => (
+    searchParams.get('section') === 'submissions' || searchParams.get('focus') === 'pending' ? 'submissions' : 'overview'
+  ))
+
+  // Registration submission approval flow states
+  const [viewingSubmission, setViewingSubmission] = useState(null)
+  const [approveTarget, setApproveTarget] = useState(null)
+  const [rejectTarget, setRejectTarget] = useState(null)
+  const [useCustomPass, setUseCustomPass] = useState(false)
+  const [customPassword, setCustomPassword] = useState('')
+  const [rejectionReason, setRejectionReason] = useState('')
+
   const { options: barangayTypeOptions, applyList: applyBarangayTypes } = useCatalogOptions(
     'barangay_types',
     FALLBACK_BARANGAY_TYPES,
   )
   const { options: needOptions, applyList: applyNeeds } = useCatalogOptions('needs', FALLBACK_NEEDS)
 
+  const pendingSubmissions = useMemo(
+    () => (beneficiaries || []).filter((b) => isAwaitingBarangayApproval(b) || b.status === 'Pending Approval'),
+    [beneficiaries],
+  )
+
   const totalBeneficiaries = beneficiaries.length
   const activeBeneficiaries = beneficiaries.filter((b) => b.status === 'Active' || b.status === 'Approved').length
-  const pendingInvites = beneficiaries.filter((b) => isAwaitingBarangayApproval(b)).length
+  const pendingInvites = pendingSubmissions.length
 
   const urgentNeedsCount = useMemo(() => {
     if (!requests) return 0
@@ -324,23 +344,32 @@ export default function BeneficiariesPage() {
     }
   }
 
-  const handleApprove = async (e, row) => {
-    e.stopPropagation()
-    if (actionBusyId === row.dbId) return
-    const name = row.barangay || row.name || 'this barangay'
-    if (!window.confirm(`Approve partnership application for "${name}"? This creates their account and emails login credentials.`)) return
-    setActionBusyId(row.dbId)
+  const handleApprove = (e, row) => {
+    if (e) e.stopPropagation()
+    setApproveTarget(row)
+    setCustomPassword('')
+    setUseCustomPass(false)
+  }
+
+  const handleConfirmApprove = async () => {
+    if (!approveTarget) return
+    if (useCustomPass && customPassword.trim().length < 6) {
+      notify.warning('Custom password must be at least 6 characters long.')
+      return
+    }
+    setActionBusyId(approveTarget.dbId)
     try {
-      const res = await beneficiariesApi.approve(row.dbId)
+      const payload = useCustomPass && customPassword.trim() ? { password: customPassword.trim() } : {}
+      const res = await beneficiariesApi.approve(approveTarget.dbId, payload)
       if (res?.credentialsSent) {
         suppressNotificationToast('beneficiary_credentials')
-        notify.success(res?.message || 'Login credentials have been successfully sent to the approved Barangay.')
+        notify.success(res?.message || `Login credentials successfully emailed to ${approveTarget.representativeEmail || 'representative'}.`)
       } else if (res?.accountCreated) {
         notify.warning(
           [
             res?.message || 'Barangay approved and account was created.',
-            res?.temporaryPassword ? `Temporary password (share securely): ${res.temporaryPassword}` : '',
-            res?.mailError ? `Email note: ${res.mailError}` : 'Credential email was not delivered.',
+            res?.temporaryPassword ? `Temporary password: ${res.temporaryPassword}` : '',
+            res?.mailError ? `Email note: ${res.mailError}` : 'Credential email delivery failed.',
           ].filter(Boolean).join(' '),
         )
       } else {
@@ -348,6 +377,8 @@ export default function BeneficiariesPage() {
         if (res?.mailError) notify.warning(res.mailError)
       }
       notifyBeneficiariesChanged()
+      setApproveTarget(null)
+      setViewingSubmission(null)
       reload()
     } catch (err) {
       notify.error(err.message || 'Failed to approve barangay')
@@ -356,16 +387,21 @@ export default function BeneficiariesPage() {
     }
   }
 
-  const handleReject = async (e, row) => {
-    e.stopPropagation()
-    if (actionBusyId === row.dbId) return
-    const name = row.barangay || row.name || 'this barangay'
-    if (!window.confirm(`Reject partnership application for "${name}"?`)) return
-    setActionBusyId(row.dbId)
+  const handleReject = (e, row) => {
+    if (e) e.stopPropagation()
+    setRejectTarget(row)
+    setRejectionReason('')
+  }
+
+  const handleConfirmReject = async () => {
+    if (!rejectTarget) return
+    setActionBusyId(rejectTarget.dbId)
     try {
-      const res = await beneficiariesApi.reject(row.dbId)
+      const res = await beneficiariesApi.reject(rejectTarget.dbId, { reason: rejectionReason })
       notify.success(res?.message || 'Application rejected.')
       notifyBeneficiariesChanged()
+      setRejectTarget(null)
+      setViewingSubmission(null)
       reload()
     } catch (err) {
       notify.error(err.message || 'Failed to reject application')
@@ -490,39 +526,12 @@ export default function BeneficiariesPage() {
     { key: 'municipality', label: 'Municipality / City', render: (row) => row.municipality || '—' },
     { key: 'representativeName', label: 'Representative', render: (row) => row.representativeName || '—' },
     {
-      key: 'affectedFamilies',
-      label: 'Affected Families',
-      render: (row) => (row.affectedFamilies || 0).toLocaleString(),
-    },
-    { key: 'status', label: 'Status', render: (row) => (
-      <div className="beneficiaries-status-cell">
-        <StatusBadge status={row.status} />
-        {isAwaitingBarangayApproval(row) && (
-          <span className="beneficiaries-review-pill">Awaiting approval</span>
-        )}
-      </div>
-    ) },
-    {
       key: 'priority',
       label: 'Priority',
       render: (row) => {
         const priority = openPriorityMap[row.dbId]
         if (!priority) return <span className={priorityClass('none')}>None</span>
         return <span className={priorityClass(priority)}>{priority}</span>
-      },
-    },
-    {
-      key: 'latestRequest',
-      label: 'Latest Request',
-      render: (row) => {
-        const latest = latestRequestsMap[row.dbId]
-        if (!latest) return <div className="beneficiaries-latest__empty">No requests</div>
-        return (
-          <div className="beneficiaries-latest">
-            <span className="beneficiaries-latest__type">{latest.type}</span>
-            <span className="beneficiaries-latest__date">{latest.date || '—'}</span>
-          </div>
-        )
       },
     },
     {
@@ -539,7 +548,7 @@ export default function BeneficiariesPage() {
                 <button
                   type="button"
                   className="btn btn--sm btn--primary"
-                  title="Approve application and email login credentials"
+                  title="Approve application"
                   disabled={busy}
                   onClick={(e) => handleApprove(e, row)}
                 >
@@ -553,9 +562,6 @@ export default function BeneficiariesPage() {
                   onClick={(e) => handleReject(e, row)}
                 >
                   <XCircle size={14} /> Reject
-                </button>
-                <button type="button" className="icon-btn" title="View details" onClick={() => handleRowClick(row)}>
-                  <Eye size={16} />
                 </button>
               </div>
             ) : (
@@ -617,7 +623,13 @@ export default function BeneficiariesPage() {
             <span className="beneficiaries-stat__label">Active</span>
           </div>
         </div>
-        <div className="beneficiaries-stat">
+        <div
+          className="beneficiaries-stat beneficiaries-stat--clickable"
+          onClick={() => setActiveSection('submissions')}
+          title="Click to view pending barangay registration submissions"
+          role="button"
+          tabIndex={0}
+        >
           <div className="beneficiaries-stat__icon beneficiaries-stat__icon--warning"><Clock size={22} /></div>
           <div>
             <span className="beneficiaries-stat__value">{pendingInvites}</span>
@@ -633,23 +645,154 @@ export default function BeneficiariesPage() {
         </div>
       </div>
 
-      <FilterBar
-        controller={filters}
-        searchPlaceholder="Search by barangay, municipality, or representative…"
-      />
-
-      <div id="barangays-table">
-        <ApiState loading={loading} error={error} onRetry={reload}>
-          <DataTable
-            columns={columns}
-            data={filters.filtered}
-            onRowClick={handleRowClick}
-            rowClassName={(row) => (isAwaitingBarangayApproval(row) ? 'data-table__row--pending-review' : '')}
-            pageSize={10}
-            resetKey={`${filters.search}|${JSON.stringify(filters.values)}`}
-          />
-        </ApiState>
+      {/* ── Section Navigation Tabs ── */}
+      <div className="barangay-section-tabs" role="tablist">
+        <button
+          type="button"
+          role="tab"
+          aria-selected={activeSection === 'overview'}
+          className={`barangay-section-tab${activeSection === 'overview' ? ' barangay-section-tab--active' : ''}`}
+          onClick={() => setActiveSection('overview')}
+        >
+          <Building size={16} />
+          <span>Barangay Overview</span>
+        </button>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={activeSection === 'submissions'}
+          className={`barangay-section-tab${activeSection === 'submissions' ? ' barangay-section-tab--active' : ''}`}
+          onClick={() => setActiveSection('submissions')}
+        >
+          <Shield size={16} />
+          <span>Barangay Registration Submissions</span>
+          {pendingSubmissions.length > 0 && (
+            <span className="barangay-section-tab__badge">{pendingSubmissions.length}</span>
+          )}
+        </button>
       </div>
+
+      {/* ── SECTION 1: BARANGAY OVERVIEW (Table List) ── */}
+      {activeSection === 'overview' && (
+        <div id="barangays-overview-section">
+          <FilterBar
+            controller={filters}
+            searchPlaceholder="Search by barangay, municipality, or representative…"
+          />
+
+          <div id="barangays-table">
+            <ApiState loading={loading} error={error} onRetry={reload}>
+              <DataTable
+                columns={columns}
+                data={filters.filtered}
+                onRowClick={handleRowClick}
+                rowClassName={(row) => (isAwaitingBarangayApproval(row) ? 'data-table__row--pending-review' : '')}
+                pageSize={10}
+                resetKey={`${filters.search}|${JSON.stringify(filters.values)}`}
+              />
+            </ApiState>
+          </div>
+        </div>
+      )}
+
+      {/* ── SECTION 2: BARANGAY REGISTRATION SUBMISSIONS ── */}
+      {activeSection === 'submissions' && (
+        <section className="barangay-submissions-section" aria-label="Registration applications">
+          <div className="barangay-submissions-section__header">
+            <div className="barangay-submissions-section__title-group">
+              <Shield size={18} className="barangay-submissions-section__icon" />
+              <h2>Barangay Registration Submissions</h2>
+              <span className="barangay-submissions-section__count">
+                {pendingSubmissions.length} {pendingSubmissions.length === 1 ? 'submission' : 'submissions'} pending approval
+              </span>
+            </div>
+            <span className="barangay-submissions-section__flow-hint">
+              Invitation Sent → Form Submitted → <strong>Admin Review</strong> → Credentials Emailed
+            </span>
+          </div>
+
+          {pendingSubmissions.length === 0 ? (
+            <div className="barangay-submissions-empty">
+              <CheckCircle2 size={18} className="text-success" />
+              <span>No pending registration submissions to review at this time.</span>
+            </div>
+          ) : (
+            <div className="barangay-submissions-grid">
+              {pendingSubmissions.map((sub) => (
+                <div key={sub.dbId || sub.id} className="barangay-submission-card">
+                  <div className="barangay-submission-card__top">
+                    <div>
+                      <h3 className="barangay-submission-card__title">{sub.barangay || sub.name}</h3>
+                      <span className="barangay-submission-card__sub">
+                        <MapPin size={12} className="inline-icon" /> {sub.municipality || 'Cebu'} • {sub.barangayType || 'Barangay'}
+                      </span>
+                    </div>
+                    <StatusBadge status="Pending Approval" />
+                  </div>
+
+                  <div className="barangay-submission-card__details">
+                    <div className="barangay-submission-row">
+                      <span className="barangay-submission-label">Representative</span>
+                      <strong className="barangay-submission-val">{sub.representativeName || '—'}</strong>
+                    </div>
+                    {sub.representativePosition && (
+                      <div className="barangay-submission-row">
+                        <span className="barangay-submission-label">Position</span>
+                        <span className="barangay-submission-val">{sub.representativePosition}</span>
+                      </div>
+                    )}
+                    <div className="barangay-submission-row">
+                      <span className="barangay-submission-label">Contact Email</span>
+                      <a href={`mailto:${sub.representativeEmail}`} className="barangay-contact-link text-xs">
+                        <Mail size={12} /> {sub.representativeEmail || '—'}
+                      </a>
+                    </div>
+                    {sub.representativePhone && (
+                      <div className="barangay-submission-row">
+                        <span className="barangay-submission-label">Phone</span>
+                        <a href={`tel:${sub.representativePhone}`} className="barangay-contact-link text-xs">
+                          <Phone size={12} /> {sub.representativePhone}
+                        </a>
+                      </div>
+                    )}
+                    <div className="barangay-submission-row">
+                      <span className="barangay-submission-label">Affected Families</span>
+                      <span className="barangay-submission-val font-semibold">{Number(sub.affectedFamilies || 0).toLocaleString()} families</span>
+                    </div>
+                  </div>
+
+                  <div className="barangay-submission-card__actions">
+                    <button
+                      type="button"
+                      className="btn btn--outline btn--sm"
+                      onClick={() => setViewingSubmission(sub)}
+                      title="View complete submitted details"
+                    >
+                      <Eye size={14} /> View Details
+                    </button>
+                    <button
+                      type="button"
+                      className="btn approval-overlay__btn-approve btn--sm"
+                      onClick={() => handleApprove(null, sub)}
+                      title="Approve registration and send login credentials"
+                    >
+                      <CheckCircle2 size={14} /> Approve
+                    </button>
+                    <button
+                      type="button"
+                      className="btn approval-overlay__btn-reject btn--sm"
+                      onClick={() => handleReject(null, sub)}
+                      title="Reject registration"
+                    >
+                      <XCircle size={14} /> Reject
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </section>
+      )}
 
       {modalMode === 'invite' && (
         <div className="admin-modal-overlay" onClick={() => setModalMode(null)}>
@@ -864,6 +1007,345 @@ export default function BeneficiariesPage() {
                   {saving ? 'Saving…' : 'Save Barangay'}
                 </button>
                 <button type="button" className="btn btn--ghost" onClick={() => setModalMode(null)}>Cancel</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ── Submission Details Modal ── */}
+      {viewingSubmission && (
+        <div className="admin-modal-overlay" onClick={() => setViewingSubmission(null)}>
+          <div className="admin-modal admin-modal--extra-wide barangay-submission-modal" onClick={(e) => e.stopPropagation()}>
+            <ModalHeader
+              title="Barangay Registration Submission Review"
+              onClose={() => setViewingSubmission(null)}
+            />
+            <div className="barangay-submission-modal__body">
+              {/* Header Summary */}
+              <div className="barangay-submission-modal__header">
+                <div className="barangay-submission-modal__title-section">
+                  <MapPin size={20} className="barangay-submission-modal__location-icon" />
+                  <div>
+                    <h2 className="barangay-submission-modal__barangay-name">
+                      {viewingSubmission.barangay || viewingSubmission.name}
+                    </h2>
+                    <p className="barangay-submission-modal__location">
+                      {viewingSubmission.municipality}, Cebu
+                      {viewingSubmission.barangayType && <> • {viewingSubmission.barangayType}</>}
+                    </p>
+                  </div>
+                </div>
+                <div className="barangay-submission-modal__status-section">
+                  <StatusBadge status="Pending Approval" />
+                  <span className="barangay-submission-modal__submitted-by">
+                    Submitted by {viewingSubmission.representativeName || 'Barangay Representative'}
+                  </span>
+                </div>
+              </div>
+
+              {/* Quick Stats Bar */}
+              <div className="barangay-submission-modal__stats">
+                <div className="barangay-submission-modal__stat">
+                  <Users size={16} className="barangay-submission-modal__stat-icon" />
+                  <div>
+                    <span className="barangay-submission-modal__stat-value">
+                      {Number(viewingSubmission.affectedFamilies || 0).toLocaleString()}
+                    </span>
+                    <span className="barangay-submission-modal__stat-label">Affected Families</span>
+                  </div>
+                </div>
+                <div className="barangay-submission-modal__stat">
+                  <HeartHandshake size={16} className="barangay-submission-modal__stat-icon" />
+                  <div>
+                    <span className="barangay-submission-modal__stat-value">
+                      {normalizeNeeds(viewingSubmission.needs).length}
+                    </span>
+                    <span className="barangay-submission-modal__stat-label">Types of Needs</span>
+                  </div>
+                </div>
+                <div className="barangay-submission-modal__stat">
+                  <Shield size={16} className="barangay-submission-modal__stat-icon" />
+                  <div>
+                    <span className="barangay-submission-modal__stat-value">Pending</span>
+                    <span className="barangay-submission-modal__stat-label">Awaiting Review</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Main Content Grid */}
+              <div className="barangay-submission-modal__grid">
+                {/* Representative Details Card */}
+                <div className="barangay-submission-modal__card">
+                  <div className="barangay-submission-modal__card-header">
+                    <UserCheck size={18} className="barangay-submission-modal__card-icon" />
+                    <h3>Representative Details</h3>
+                  </div>
+                  <div className="barangay-submission-modal__card-body">
+                    <div className="barangay-submission-modal__info-item">
+                      <span className="barangay-submission-modal__info-label">Full Name</span>
+                      <span className="barangay-submission-modal__info-value">
+                        {viewingSubmission.representativeName || '—'}
+                      </span>
+                    </div>
+                    <div className="barangay-submission-modal__info-item">
+                      <span className="barangay-submission-modal__info-label">Position / Role</span>
+                      <span className="barangay-submission-modal__info-value">
+                        {viewingSubmission.representativePosition || '—'}
+                      </span>
+                    </div>
+                    <div className="barangay-submission-modal__info-item">
+                      <span className="barangay-submission-modal__info-label">Contact Number</span>
+                      <div className="barangay-submission-modal__info-value">
+                        {viewingSubmission.representativePhone ? (
+                          <a href={`tel:${viewingSubmission.representativePhone}`} className="barangay-submission-modal__link">
+                            <Phone size={14} /> {viewingSubmission.representativePhone}
+                          </a>
+                        ) : (
+                          '—'
+                        )}
+                      </div>
+                    </div>
+                    <div className="barangay-submission-modal__info-item">
+                      <span className="barangay-submission-modal__info-label">Email Address</span>
+                      <div className="barangay-submission-modal__info-value">
+                        {viewingSubmission.representativeEmail ? (
+                          <a href={`mailto:${viewingSubmission.representativeEmail}`} className="barangay-submission-modal__link">
+                            <Mail size={14} /> <span className="barangay-submission-modal__email-text">{viewingSubmission.representativeEmail}</span>
+                          </a>
+                        ) : (
+                          '—'
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Location & Profile Card */}
+                <div className="barangay-submission-modal__card">
+                  <div className="barangay-submission-modal__card-header">
+                    <Building size={18} className="barangay-submission-modal__card-icon" />
+                    <h3>Location & Profile</h3>
+                  </div>
+                  <div className="barangay-submission-modal__card-body">
+                    <div className="barangay-submission-modal__info-item">
+                      <span className="barangay-submission-modal__info-label">Barangay Name</span>
+                      <span className="barangay-submission-modal__info-value barangay-submission-modal__info-value--highlight">
+                        {viewingSubmission.barangay || viewingSubmission.name || '—'}
+                      </span>
+                    </div>
+                    <div className="barangay-submission-modal__info-item">
+                      <span className="barangay-submission-modal__info-label">Municipality / City</span>
+                      <span className="barangay-submission-modal__info-value">
+                        {viewingSubmission.municipality || '—'}
+                      </span>
+                    </div>
+                    <div className="barangay-submission-modal__info-item">
+                      <span className="barangay-submission-modal__info-label">Classification</span>
+                      <span className="barangay-submission-modal__info-value">
+                        {viewingSubmission.barangayType || 'Not specified'}
+                      </span>
+                    </div>
+                    <div className="barangay-submission-modal__info-item">
+                      <span className="barangay-submission-modal__info-label">Complete Address</span>
+                      <span className="barangay-submission-modal__info-value">
+                        {viewingSubmission.address || 'Not provided'}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Relief Needs & Impact Section */}
+              <div className="barangay-submission-modal__section">
+                <div className="barangay-submission-modal__section-header">
+                  <HeartHandshake size={18} />
+                  <h3>Relief Needs & Community Impact</h3>
+                </div>
+                <div className="barangay-submission-modal__section-body">
+                  <div className="barangay-submission-modal__needs-row">
+                    <div className="barangay-submission-modal__needs-col">
+                      <span className="barangay-submission-modal__section-label">Types of Assistance Needed</span>
+                      {normalizeNeeds(viewingSubmission.needs).length > 0 ? (
+                        <div className="barangay-submission-modal__pills">
+                          {normalizeNeeds(viewingSubmission.needs).map((n) => (
+                            <span key={n} className="barangay-submission-modal__pill">{n}</span>
+                          ))}
+                        </div>
+                      ) : (
+                        <p className="barangay-submission-modal__empty">No specific needs listed</p>
+                      )}
+                    </div>
+                    <div className="barangay-submission-modal__needs-col barangay-submission-modal__needs-col--narrow">
+                      <span className="barangay-submission-modal__section-label">Affected Families</span>
+                      <div className="barangay-submission-modal__affected-families">
+                        <Users size={24} className="barangay-submission-modal__affected-icon" />
+                        <span className="barangay-submission-modal__affected-value">
+                          {Number(viewingSubmission.affectedFamilies || 0).toLocaleString()}
+                        </span>
+                        <span className="barangay-submission-modal__affected-unit">families</span>
+                      </div>
+                    </div>
+                  </div>
+                  {viewingSubmission.notes && (
+                    <div className="barangay-submission-modal__notes">
+                      <span className="barangay-submission-modal__section-label">
+                        <FileText size={14} /> Additional Notes & Instructions
+                      </span>
+                      <p className="barangay-submission-modal__notes-text">{viewingSubmission.notes}</p>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Action Buttons */}
+              <div className="barangay-submission-modal__actions">
+                <button
+                  type="button"
+                  className="btn btn--lg approval-overlay__btn-approve"
+                  onClick={() => {
+                    setViewingSubmission(null)
+                    handleApprove(null, viewingSubmission)
+                  }}
+                  disabled={actionBusyId === viewingSubmission.dbId}
+                >
+                  <CheckCircle2 size={18} /> Approve & Send Credentials
+                </button>
+                <button
+                  type="button"
+                  className="btn btn--lg approval-overlay__btn-reject"
+                  onClick={() => {
+                    setViewingSubmission(null)
+                    handleReject(null, viewingSubmission)
+                  }}
+                  disabled={actionBusyId === viewingSubmission.dbId}
+                >
+                  <XCircle size={18} /> Reject Application
+                </button>
+                <button
+                  type="button"
+                  className="btn btn--lg btn--ghost"
+                  onClick={() => setViewingSubmission(null)}
+                >
+                  Close
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Approve & Provision Credentials Modal ── */}
+      {approveTarget && (
+        <div className="admin-modal-overlay" onClick={() => setApproveTarget(null)}>
+          <div className="admin-modal" onClick={(e) => e.stopPropagation()}>
+            <ModalHeader title="Approve Partnership & Send Credentials" onClose={() => setApproveTarget(null)} />
+            <form onSubmit={(e) => { e.preventDefault(); handleConfirmApprove() }}>
+              <div className="barangay-approve-summary">
+                <CheckCircle2 size={24} className="text-success" />
+                <div>
+                  <strong>{approveTarget.barangay || approveTarget.name} ({approveTarget.municipality})</strong>
+                  <p className="text-sm text-muted" style={{ margin: '0.1rem 0 0' }}>
+                    Representative: {approveTarget.representativeName || 'Representative'} ({approveTarget.representativeEmail})
+                  </p>
+                </div>
+              </div>
+
+              <p className="text-sm text-muted" style={{ margin: '1rem 0 0.85rem' }}>
+                Approving this registration creates a Barangay Portal user account linked to <strong>{approveTarget.representativeEmail}</strong> and automatically emails login credentials.
+              </p>
+
+              <div className="form-group" style={{ marginBottom: '1.25rem' }}>
+                <label className="checkbox-label" style={{ fontWeight: 600, display: 'flex', alignItems: 'center', gap: '0.4rem', cursor: 'pointer' }}>
+                  <input
+                    type="checkbox"
+                    checked={useCustomPass}
+                    onChange={(e) => setUseCustomPass(e.target.checked)}
+                  />
+                  <span>Assign custom initial password (otherwise auto-generates secure password)</span>
+                </label>
+                {useCustomPass && (
+                  <div style={{ marginTop: '0.5rem' }}>
+                    <input
+                      type="password"
+                      required={useCustomPass}
+                      minLength={6}
+                      value={customPassword}
+                      onChange={(e) => setCustomPassword(e.target.value)}
+                      placeholder="Enter custom initial password (min 6 chars)"
+                    />
+                  </div>
+                )}
+              </div>
+
+              <div className="admin-modal__actions">
+                <button
+                  type="submit"
+                  className="btn approval-overlay__btn-approve"
+                  disabled={actionBusyId === approveTarget.dbId}
+                >
+                  {actionBusyId === approveTarget.dbId ? (
+                    <>
+                      <InlineLoader size={16} /> Approving & Sending Credentials...
+                    </>
+                  ) : (
+                    'Approve & Send Credentials'
+                  )}
+                </button>
+                <button
+                  type="button"
+                  className="btn btn--ghost"
+                  onClick={() => setApproveTarget(null)}
+                  disabled={actionBusyId === approveTarget.dbId}
+                >
+                  Cancel
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ── Reject Application Modal ── */}
+      {rejectTarget && (
+        <div className="admin-modal-overlay" onClick={() => setRejectTarget(null)}>
+          <div className="admin-modal" onClick={(e) => e.stopPropagation()}>
+            <ModalHeader title="Reject Partnership Application" onClose={() => setRejectTarget(null)} />
+            <form onSubmit={(e) => { e.preventDefault(); handleConfirmReject() }}>
+              <div className="barangay-reject-summary">
+                <XCircle size={24} className="text-danger" />
+                <div>
+                  <strong>{rejectTarget.barangay || rejectTarget.name} ({rejectTarget.municipality})</strong>
+                  <p className="text-sm text-muted" style={{ margin: '0.1rem 0 0' }}>Applicant: {rejectTarget.representativeEmail}</p>
+                </div>
+              </div>
+
+              <label style={{ margin: '1rem 0 1.25rem', display: 'block' }}>
+                <span>Reason for Rejection (Optional)</span>
+                <textarea
+                  rows={3}
+                  value={rejectionReason}
+                  onChange={(e) => setRejectionReason(e.target.value)}
+                  placeholder="Explain why the application was rejected…"
+                />
+              </label>
+
+              <div className="admin-modal__actions">
+                <button
+                  type="submit"
+                  className="btn approval-overlay__btn-reject"
+                  disabled={actionBusyId === rejectTarget.dbId}
+                >
+                  {actionBusyId === rejectTarget.dbId ? 'Rejecting…' : 'Reject Application'}
+                </button>
+                <button
+                  type="button"
+                  className="btn btn--ghost"
+                  onClick={() => setRejectTarget(null)}
+                  disabled={actionBusyId === rejectTarget.dbId}
+                >
+                  Cancel
+                </button>
               </div>
             </form>
           </div>

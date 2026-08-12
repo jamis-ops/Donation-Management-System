@@ -165,7 +165,7 @@ export default function Header() {
               className="btn btn--primary btn--sm"
               onClick={() => setMenuOpen(false)}
             >
-              Give Now
+              Donate Now
             </Link>
           </div>
         </nav>
