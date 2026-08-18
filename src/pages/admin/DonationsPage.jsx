@@ -36,16 +36,16 @@ const filterConfig = {
   dateKey: 'date',
 }
 
-function toastVerifyResult(res) {
+function toastVerifyResult(res, status) {
   if (!res?.accountCreated) {
-    notify.success(res?.message || 'Donation verified.')
+    notify.success(`Status successfully updated to: ${status}. ${res?.message || ''}`)
     return
   }
   if (res.credentialsSent) {
-    notify.success('Donation verified. Donor portal account created and login credentials were emailed.')
+    notify.success(`Status successfully updated to: ${status}. Donor portal account created and login credentials were emailed.`)
     return
   }
-  notify.warning('Donation verified. Donor portal account was created, but the credential email was NOT delivered.')
+  notify.warning(`Status successfully updated to: ${status}. Donor portal account was created, but the credential email was NOT delivered.`)
 }
 
 export default function DonationsPage() {
@@ -121,12 +121,13 @@ export default function DonationsPage() {
     }
     try {
       const res = await donationsApi.update(row.dbId, { status: 'Verified' })
+      const status = res?.data?.status || 'Verified'
       if (res?.accountCreated || res?.credentialsSent) {
-        toastVerifyResult(res)
+        toastVerifyResult(res, status)
       } else if (res?.message) {
-        notify.success(res.message)
+        notify.success(`Status successfully updated to: ${status}. ${res.message}`)
       } else {
-        notify.success('Donation verified.')
+        notify.success(`Status successfully updated to: ${status}.`)
       }
       reload()
       setSelected(null)

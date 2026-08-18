@@ -66,7 +66,7 @@ export default function DonorDonationsPage() {
     try {
       await donationsApi.remove(row.dbId)
       setSelected(null)
-      notify.success(`Donation ${row.trackingCode} was cancelled.`)
+      notify.success('Status successfully updated to: Cancelled.')
       reload()
     } catch (err) {
       notify.error(err.message)

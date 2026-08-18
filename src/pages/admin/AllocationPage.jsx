@@ -415,10 +415,11 @@ export default function AllocationPage() {
           barangay: statusRow.beneficiary || 'Barangay',
         })
       }
+      const status = res?.data?.status || statusValue
       setStatusRow(null)
       setDetailRow(null)
       reload()
-      notify.success('Allocation status updated.')
+      notify.success(`Status successfully updated to: ${status}.`)
     } catch (err) {
       notify.error(err.message)
     } finally {

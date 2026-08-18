@@ -169,12 +169,13 @@ export default function AdminsPage() {
     const next = row.status === 'Active' ? 'Inactive' : 'Active'
     if (!window.confirm(`Set ${row.name} to ${next}?`)) return
     try {
-      await updateStaff(row.dbId, { status: next })
-      notify.success(`${row.name} is now ${next}.`)
+      const res = await updateStaff(row.dbId, { status: next })
+      const status = res?.data?.status || next
+      notify.success(`Status successfully updated to: ${status}.`)
       reload()
       if (selected?.dbId === row.dbId) {
-        setSelected({ ...row, status: next })
-        setEditForm((f) => (f ? { ...f, status: next } : f))
+        setSelected({ ...row, status })
+        setEditForm((f) => (f ? { ...f, status } : f))
       }
     } catch (err) {
       notify.error(err.message)

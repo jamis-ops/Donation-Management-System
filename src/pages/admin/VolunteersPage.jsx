@@ -141,13 +141,14 @@ export default function VolunteersPage() {
   const handleApprove = async (row) => {
     try {
       const res = await volunteersApi.update(row.dbId, { status: 'Approved' })
+      const status = res?.data?.status || 'Approved'
       if (res?.accountCreated || res?.credentialsSent) {
         if (res.credentialsSent) {
-          notify.success('Volunteer approved. Login credentials were emailed.')
+          notify.success(`Status successfully updated to: ${status}. Login credentials were emailed.`)
         } else {
           notify.warning(
             [
-              'Volunteer approved and account was created.',
+              `Status successfully updated to: ${status}. Account was created.`,
               res?.temporaryPassword ? `Temporary password (share securely): ${res.temporaryPassword}` : '',
               res?.mailError ? `Email note: ${res.mailError}` : 'Credential email was not delivered.',
               'Tip: run `npm run mail` with a valid Gmail App Password for automatic emails.',
@@ -155,10 +156,10 @@ export default function VolunteersPage() {
           )
         }
       } else if (res?.mailError) {
-        notify.success('Volunteer approved.')
+        notify.success(`Status successfully updated to: ${status}.`)
         notify.warning(`Note: ${res.mailError}`)
       } else {
-        notify.success('Volunteer approved.')
+        notify.success(`Status successfully updated to: ${status}.`)
       }
       reload()
     } catch (err) {
@@ -169,8 +170,9 @@ export default function VolunteersPage() {
   const handleReject = async (row) => {
     if (!window.confirm(`Reject volunteer application for "${row.name}"?`)) return
     try {
-      await volunteersApi.update(row.dbId, { status: 'Rejected' })
-      notify.success('Volunteer rejected.')
+      const res = await volunteersApi.update(row.dbId, { status: 'Rejected' })
+      const status = res?.data?.status || 'Rejected'
+      notify.success(`Status successfully updated to: ${status}.`)
       reload()
       if (selected?.dbId === row.dbId) closeVolunteer()
     } catch (err) {

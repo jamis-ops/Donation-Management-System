@@ -35,10 +35,11 @@ export default function StaffDonationsPage() {
     setBusy(true)
     try {
       const res = await donationsApi.update(row.dbId, { status: 'Verified' })
+      const status = res?.data?.status || 'Verified'
       if (res?.accountCreated || res?.credentialsSent || res?.message) {
-        notify.success(verifyResultMessage(res))
+        notify.success(`Status successfully updated to: ${status}. ${verifyResultMessage(res)}`)
       } else {
-        notify.success('Donation verified.')
+        notify.success(`Status successfully updated to: ${status}.`)
       }
       reload()
       setSelected(null)
@@ -54,11 +55,12 @@ export default function StaffDonationsPage() {
     if (reason === null) return
     setBusy(true)
     try {
-      await donationsApi.update(row.dbId, {
+      const res = await donationsApi.update(row.dbId, {
         status: 'Rejected',
         ...(reason.trim() ? { notes: reason.trim() } : {}),
       })
-      notify.success('Donation rejected.')
+      const status = res?.data?.status || 'Rejected'
+      notify.success(`Status successfully updated to: ${status}.`)
       reload()
       setSelected(null)
     } catch (err) {

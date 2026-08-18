@@ -6,7 +6,7 @@ declare(strict_types=1);
  *
  * Usage: /api/file.php?kind=donation_proofs|proofs&name=filename.ext
  */
-require __DIR__ . '/bootstrap.php';
+require_once __DIR__ . '/bootstrap.php';
 
 $user = require_auth();
 $kind = preg_replace('/[^a-z_]/', '', strtolower((string) ($_GET['kind'] ?? ''))) ?: '';

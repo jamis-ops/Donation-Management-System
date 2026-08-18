@@ -8,7 +8,21 @@ export async function apiFetch(path, options = {}) {
     ...options,
   })
 
-  const data = await res.json().catch(() => null)
+  const text = await res.text()
+  let data = null
+  try {
+    if (text) data = JSON.parse(text)
+  } catch (err) {
+    // If not valid JSON, we still want to throw so the UI shows the real error instead of 'Cannot read properties of null'.
+    if (!res.ok) {
+      if (res.status === 502 || res.status === 503) {
+        throw new Error('Cannot reach the PHP backend. Run: npm run api')
+      }
+      throw new Error(`Request failed (${res.status}): ` + text.substring(0, 200))
+    }
+    throw new Error('Invalid JSON from server: ' + text.substring(0, 200))
+  }
+
   if (!res.ok) {
     if (res.status === 502 || res.status === 503) {
       throw new Error('Cannot reach the PHP backend. Run: npm run api')

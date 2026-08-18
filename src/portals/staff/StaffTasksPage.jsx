@@ -93,8 +93,9 @@ export default function StaffTasksPage() {
     if (!window.confirm(`Mark "${task.title}" as Done?`)) return
     setSaving(true)
     try {
-      await tasksApi.update(task.dbId, { boardColumn: 'done' })
-      notify.success('Task marked as Done.')
+      const res = await tasksApi.update(task.dbId, { boardColumn: 'done' })
+      const status = res?.data?.status || 'Done'
+      notify.success(`Status successfully updated to: ${status}.`)
       setSelectedTask(null)
       reload()
     } catch (err) {
@@ -355,10 +356,11 @@ export default function StaffTasksPage() {
                           onClick={async () => {
                             setSaving(true)
                             try {
-                              await tasksApi.update(selectedTask.dbId, { boardColumn: 'inProgress' })
-                              notify.success('Task started.')
-                              setSelectedTask(null)
+                              const res = await tasksApi.update(selectedTask.dbId, { boardColumn: 'inProgress' })
+                              const status = res?.data?.status || 'In Progress'
+                              notify.success(`Status successfully updated to: ${status}.`)
                               reload()
+                              setSelectedTask(null)
                             } catch (err) {
                               notify.error(err.message || 'Failed to update task')
                             } finally {

@@ -250,7 +250,7 @@ export default function BeneficiaryRequestsPage() {
     setSaving(true)
     try {
       await assistanceRequestsApi.remove(requestId)
-      notify.success('Request cancelled.')
+      notify.success('Status successfully updated to: Cancelled.')
       setSelectedRequest(null)
       reload()
     } catch (err) {

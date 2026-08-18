@@ -1,6 +1,6 @@
 <?php
 declare(strict_types=1);
-require __DIR__ . '/bootstrap.php';
+require_once __DIR__ . '/bootstrap.php';
 
 $pdo = db();
 $method = request_method();
@@ -12,17 +12,17 @@ if ($method === 'GET' && !empty($_GET['action'])) {
   $action = $_GET['action'];
 }
 
-function ensure_request_needs_column(PDO $pdo): void
+function ensure_request_columns(PDO $pdo): void
 {
   static $done = false;
   if ($done) {
     return;
   }
-  try {
-    $pdo->exec('ALTER TABLE assistance_requests ADD COLUMN needs_json TEXT NULL AFTER notes');
-  } catch (Throwable $e) {
-    // column already exists
-  }
+  try { $pdo->exec('ALTER TABLE assistance_requests ADD COLUMN needs_json TEXT NULL AFTER notes'); } catch (Throwable $e) {}
+  try { $pdo->exec('ALTER TABLE assistance_requests ADD COLUMN calamity_tags TEXT NULL AFTER needs_json'); } catch (Throwable $e) {}
+  try { $pdo->exec('ALTER TABLE assistance_requests ADD COLUMN sla_deadline DATETIME NULL AFTER calamity_tags'); } catch (Throwable $e) {}
+  try { $pdo->exec('ALTER TABLE assistance_requests ADD COLUMN is_emergency TINYINT(1) NOT NULL DEFAULT 0 AFTER sla_deadline'); } catch (Throwable $e) {}
+  try { $pdo->exec('ALTER TABLE assistance_requests ADD COLUMN assigned_to VARCHAR(120) NULL AFTER is_emergency'); } catch (Throwable $e) {}
   $done = true;
 }
 
@@ -409,7 +409,7 @@ if ($method === 'POST') {
     $calamityTags = json_encode(array_values(array_map('strval', $body['calamityTags'])));
   }
 
-  ensure_request_needs_column($pdo);
+  ensure_request_columns($pdo);
   $needsJson = array_key_exists('needs', $body) ? encode_request_needs($body['needs']) : null;
 
   $stmt = $pdo->prepare('INSERT INTO assistance_requests (reference_code, beneficiary_id, assistance_type, status, priority, request_date, notes, needs_json, calamity_tags, sla_deadline, is_emergency, assigned_to) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)');
@@ -559,7 +559,7 @@ if ($method === 'PUT') {
     ? ($existing['assigned_to'] ?? null)
     : ($body['assignedTo'] ?? ($existing['assigned_to'] ?? null));
 
-  ensure_request_needs_column($pdo);
+  ensure_request_columns($pdo);
   $needsJson = array_key_exists('needs', $body)
     ? encode_request_needs($body['needs'])
     : ($existing['needs_json'] ?? null);

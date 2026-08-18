@@ -64,7 +64,8 @@ export default function VolunteerTasksPage() {
     setSaving(true)
     try {
       const res = await tasksApi.update(task.dbId, { boardColumn: 'done' })
-      notify.success('Task marked as done.')
+      const status = res?.data?.status || 'Done'
+      notify.success(`Status successfully updated to: ${status}.`)
       setSelectedTask(null)
       applyTaskUpdate(res?.data)
     } catch (err) {
@@ -83,7 +84,7 @@ export default function VolunteerTasksPage() {
     setSaving(true)
     try {
       const res = await tasksApi.update(task.dbId, { distributionStatus })
-      notify.success(`Distribution updated to ${label}.`)
+      notify.success(`Status successfully updated to: ${label}.`)
       applyTaskUpdate(res?.data)
       if (distributionStatus === 'Delivered') {
         setSelectedTask(null)

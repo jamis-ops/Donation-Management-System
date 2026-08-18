@@ -894,54 +894,93 @@ function provision_beneficiary_account(PDO $pdo, array $benRow, ?string $customP
   if ($email === '' || !filter_var($email, FILTER_VALIDATE_EMAIL)) {
     return ['created' => false, 'userId' => null, 'mail' => null, 'error' => 'Representative email is missing'];
   }
-  if (!empty($benRow['user_id'])) {
-    $pdo->prepare('UPDATE beneficiaries SET status = ?, invitation_status = ? WHERE id = ?')
-      ->execute(['Active', 'accepted', (int) $benRow['id']]);
-    return ['created' => false, 'userId' => (int) $benRow['user_id'], 'mail' => null, 'error' => null];
-  }
-  if (email_taken($pdo, $email)) {
-    $stmt = $pdo->prepare('SELECT u.id, r.name AS role_name FROM users u JOIN roles r ON r.id = u.role_id WHERE u.email = ? LIMIT 1');
-    $stmt->execute([$email]);
-    $existingUser = $stmt->fetch();
-    $uid = (int) ($existingUser['id'] ?? 0);
-    $roleName = (string) ($existingUser['role_name'] ?? '');
-    if ($uid <= 0 || strcasecmp($roleName, 'Beneficiary') !== 0) {
+  $pdo->beginTransaction();
+  try {
+    if (!empty($benRow['user_id'])) {
+      $pdo->prepare('UPDATE beneficiaries SET status = ?, invitation_status = ? WHERE id = ?')
+        ->execute(['Active', 'accepted', (int) $benRow['id']]);
+      $pdo->commit();
+      return ['created' => false, 'userId' => (int) $benRow['user_id'], 'mail' => null, 'error' => null];
+    }
+    if (email_taken($pdo, $email)) {
+      $stmt = $pdo->prepare('SELECT u.id, r.name AS role_name FROM users u JOIN roles r ON r.id = u.role_id WHERE u.email = ? LIMIT 1');
+      $stmt->execute([$email]);
+      $existingUser = $stmt->fetch();
+      $uid = (int) ($existingUser['id'] ?? 0);
+      $roleName = (string) ($existingUser['role_name'] ?? '');
+      if ($uid <= 0 || strcasecmp($roleName, 'Beneficiary') !== 0) {
+        $pdo->rollBack();
+        return [
+          'created' => false,
+          'userId' => null,
+          'mail' => null,
+          'error' => 'That email already belongs to a different account role. Use a unique representative email.',
+        ];
+      }
+      
+      // The same email is allowed because it belongs to the same Barangay registration flow.
+      // Generate new credentials and resend the email to ensure they receive it.
+      $tempPassword = ($customPassword !== null && strlen(trim($customPassword)) >= 6) ? trim($customPassword) : generate_temp_password();
+      $hash = password_hash($tempPassword, PASSWORD_DEFAULT);
+      $pdo->prepare('UPDATE users SET password_hash = ? WHERE id = ?')->execute([$hash, $uid]);
+
+      $pdo->prepare('UPDATE beneficiaries SET user_id = ?, status = ?, invitation_status = ?, invitation_token = NULL WHERE id = ?')
+        ->execute([$uid, 'Active', 'accepted', (int) $benRow['id']]);
+      
+      $barangayName = trim((string) ($benRow['full_name'] ?? $benRow['barangay'] ?? 'your Barangay'));
+      $mail = send_barangay_approval_credentials($email, $name, $barangayName, $email, $tempPassword);
+
+      $pdo->commit();
       return [
-        'created' => false,
-        'userId' => null,
-        'mail' => null,
-        'error' => 'That email already belongs to a different account role. Use a unique representative email.',
+        'created' => true,
+        'userId' => $uid,
+        'temporaryPassword' => $tempPassword,
+        'mail' => $mail,
+        'error' => null
       ];
     }
-    $pdo->prepare('UPDATE beneficiaries SET user_id = ?, status = ?, invitation_status = ?, invitation_token = NULL WHERE id = ?')
-      ->execute([$uid, 'Active', 'accepted', (int) $benRow['id']]);
-    return ['created' => false, 'userId' => $uid, 'mail' => null, 'error' => 'Email already has a barangay login; linked existing account.'];
-  }
 
-  $tempPassword = ($customPassword !== null && strlen(trim($customPassword)) >= 6) ? trim($customPassword) : generate_temp_password();
-  $userId = create_user_account($pdo, 'Beneficiary', $name, $email, $tempPassword, 'ACTIVE', true, [
-    'lastName' => (string) ($benRow['representative_last_name'] ?? ''),
-    'firstName' => (string) ($benRow['representative_first_name'] ?? ''),
-    'middleInitial' => (string) ($benRow['representative_middle_initial'] ?? ''),
-  ]);
-  accept_privacy_terms($pdo, $userId);
-  $pdo->prepare('UPDATE beneficiaries SET user_id = ?, status = ?, invitation_status = ?, invitation_token = NULL WHERE id = ?')
-    ->execute([$userId, 'Active', 'accepted', (int) $benRow['id']]);
-  
-  // Use Barangay-specific approval welcome email
-  $barangayName = trim((string) ($benRow['full_name'] ?? $benRow['barangay'] ?? 'your Barangay'));
-  $mail = send_barangay_approval_credentials($email, $name, $barangayName, $email, $tempPassword);
-  
-  $sent = !empty($mail['sent']);
-  $transport = (string) ($mail['transport'] ?? '');
-  $includeTemp = !$sent || $transport === 'outbox' || !in_array($transport, ['nodemailer', 'smtp'], true);
-  return [
-    'created' => true,
-    'userId' => $userId,
-    'mail' => $mail,
-    'temporaryPassword' => $includeTemp ? $tempPassword : null,
-    'error' => null,
-  ];
+    $tempPassword = ($customPassword !== null && strlen(trim($customPassword)) >= 6) ? trim($customPassword) : generate_temp_password();
+    $userId = create_user_account($pdo, 'Beneficiary', $name, $email, $tempPassword, 'ACTIVE', true, [
+      'lastName' => (string) ($benRow['representative_last_name'] ?? ''),
+      'firstName' => (string) ($benRow['representative_first_name'] ?? ''),
+      'middleInitial' => (string) ($benRow['representative_middle_initial'] ?? ''),
+    ]);
+    accept_privacy_terms($pdo, $userId);
+    $pdo->prepare('UPDATE beneficiaries SET user_id = ?, status = ?, invitation_status = ?, invitation_token = NULL WHERE id = ?')
+      ->execute([$userId, 'Active', 'accepted', (int) $benRow['id']]);
+    
+    // Use Barangay-specific approval welcome email
+    $barangayName = trim((string) ($benRow['full_name'] ?? $benRow['barangay'] ?? 'your Barangay'));
+    $mail = send_barangay_approval_credentials($email, $name, $barangayName, $email, $tempPassword);
+    
+    if (empty($mail['sent'])) {
+      throw new Exception($mail['error'] ?? 'Email delivery failed');
+    }
+    
+    $pdo->commit();
+    
+    $transport = (string) ($mail['transport'] ?? '');
+    $includeTemp = $transport === 'outbox' || !in_array($transport, ['nodemailer', 'smtp'], true);
+    return [
+      'created' => true,
+      'userId' => $userId,
+      'mail' => $mail,
+      'temporaryPassword' => $includeTemp ? $tempPassword : null,
+      'error' => null,
+    ];
+  } catch (Throwable $e) {
+    if ($pdo->inTransaction()) {
+      $pdo->rollBack();
+    }
+    return [
+      'created' => false,
+      'userId' => null,
+      'mail' => ['sent' => false, 'error' => $e->getMessage()],
+      'temporaryPassword' => null,
+      'error' => 'Account provisioning failed: ' . $e->getMessage(),
+    ];
+  }
 }
 
 /**
@@ -1193,6 +1232,21 @@ function send_account_credentials(string $toEmail, string $name, string $loginEm
 
     // Soft subject — avoid spam triggers like “password” / “credentials”.
     $subject = 'Your Rise Above Foundation Cebu portal account is ready';
+
+    $heading = 'Your portal account is ready';
+    if (in_array(strtolower($role), ['staff', 'donor', 'volunteer'], true)) {
+      $heading = 'Welcome to Rise Above Foundation Cebu!';
+    }
+
+    $intro = "Hi {$safeName}, an administrator created a <strong style=\"color:#0f172a\">{$safeRole}</strong> account for you on the Rise Above Foundation Cebu portal. Use the one-time sign-in details below, then choose a new password after your first login.";
+    if (strcasecmp($role, 'Staff') === 0) {
+      $intro = "Hi {$safeName}, welcome to the Rise Above Foundation Cebu team! Your Staff Portal account is ready for managing assigned tasks and supporting operations. Use the one-time sign-in details below, then choose a new password after your first login.";
+    } elseif (strcasecmp($role, 'Donor') === 0) {
+      $intro = "Hi {$safeName}, welcome and thank you for being a valued donor and partner! Your Donor Portal allows you to manage and track your donations. Use the one-time sign-in details below, then choose a new password after your first login.";
+    } elseif (strcasecmp($role, 'Volunteer') === 0) {
+      $intro = "Hi {$safeName}, welcome as a volunteer! Your Volunteer Portal allows you to view assigned tasks, schedules, and support relief operations. Use the one-time sign-in details below, then choose a new password after your first login.";
+    }
+
     $html = '<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">'
       . '<meta name="format-detection" content="telephone=no,address=no,email=no,date=no,url=no">'
       . '<title>Your Rise Above Foundation Cebu portal account</title></head>'
@@ -1208,8 +1262,8 @@ function send_account_credentials(string $toEmail, string $name, string $loginEm
       . '</td></tr>'
       . '<tr><td style="padding:30px 28px 6px">'
       . '<p style="margin:0 0 8px;font-size:0.72rem;font-weight:700;letter-spacing:0.12em;text-transform:uppercase;color:#AF101A">Account ready</p>'
-      . '<h1 style="margin:0 0 14px;font-size:1.45rem;line-height:1.3;color:#0f172a">Your portal account is ready</h1>'
-      . "<p style=\"margin:0;font-size:0.98rem;line-height:1.65;color:#475569\">Hi {$safeName}, an administrator created a <strong style=\"color:#0f172a\">{$safeRole}</strong> account for you on the Rise Above Foundation Cebu portal. Use the one-time sign-in details below, then choose a new password after your first login.</p>"
+      . '<h1 style="margin:0 0 14px;font-size:1.45rem;line-height:1.3;color:#0f172a">' . $heading . '</h1>'
+      . "<p style=\"margin:0;font-size:0.98rem;line-height:1.65;color:#475569\">" . $intro . "</p>"
       . '</td></tr>'
       . '<tr><td style="padding:16px 28px 8px">'
       . '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:12px">'
@@ -1336,6 +1390,8 @@ function send_invitation_email(string $toEmail, string $barangayName, string $to
     'inviteUrl' => $inviteUrl,
   ];
 }
+
+
 
 /**
  * Cryptographically random temporary password (uppercase, lowercase, digits, symbols).

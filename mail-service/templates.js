@@ -23,10 +23,25 @@ export function credentialsPlainText({
   orgName,
 }) {
   const brand = orgName || 'Rise Above Foundation Cebu'
+  const isSpecialRole = ['staff', 'donor', 'volunteer'].includes((role || '').toLowerCase())
+  const heading = isSpecialRole ? 'Welcome to Rise Above Foundation Cebu!' : 'Your portal account is ready'
+  
+  let intro = `An administrator created a ${role || 'Donor'} account for you on the ${brand} portal.`
+  if ((role || '').toLowerCase() === 'staff') {
+    intro = `Welcome to the ${brand} team! Your Staff Portal account is ready for managing assigned tasks and supporting operations.`
+  } else if ((role || '').toLowerCase() === 'donor') {
+    intro = `Welcome and thank you for being a valued donor and partner! Your Donor Portal allows you to manage and track your donations.`
+  } else if ((role || '').toLowerCase() === 'volunteer') {
+    intro = `Welcome as a volunteer! Your Volunteer Portal allows you to view assigned tasks, schedules, and support relief operations.`
+  }
+
   return [
     `Hi ${name || 'there'},`,
     '',
-    `An administrator created a ${role || 'Donor'} account for you on the ${brand} portal.`,
+    heading,
+    '--------------------------------------------------',
+    '',
+    intro,
     '',
     `Sign-in email: ${loginEmail}`,
     `One-time sign-in code: ${temporaryPassword}`,
@@ -119,11 +134,17 @@ export function credentialsEmailHtml({
             <td style="padding:30px 28px 6px;">
               <p style="margin:0 0 8px;font-size:0.72rem;font-weight:700;letter-spacing:0.12em;text-transform:uppercase;color:#AF101A;">Account ready</p>
               <h1 style="margin:0 0 14px;font-size:1.45rem;line-height:1.3;font-weight:750;color:#0f172a;">
-                Your portal account is ready
+                ${['staff', 'donor', 'volunteer'].includes((role || '').toLowerCase()) ? 'Welcome to Rise Above Foundation Cebu!' : 'Your portal account is ready'}
               </h1>
               <p style="margin:0 0 8px;font-size:0.98rem;line-height:1.65;color:#475569;">
-                Hi ${displayName}, an administrator created a <strong style="color:#0f172a;">${roleLabel}</strong> account for you on the Rise Above Foundation Cebu portal.
-                Use the one-time sign-in details below, then choose a new password after your first login.
+                ${(role || '').toLowerCase() === 'staff'
+                  ? `Hi ${displayName}, welcome to the Rise Above Foundation Cebu team! Your Staff Portal account is ready for managing assigned tasks and supporting operations. Use the one-time sign-in details below, then choose a new password after your first login.`
+                  : (role || '').toLowerCase() === 'donor'
+                  ? `Hi ${displayName}, welcome and thank you for being a valued donor and partner! Your Donor Portal allows you to manage and track your donations. Use the one-time sign-in details below, then choose a new password after your first login.`
+                  : (role || '').toLowerCase() === 'volunteer'
+                  ? `Hi ${displayName}, welcome as a volunteer! Your Volunteer Portal allows you to view assigned tasks, schedules, and support relief operations. Use the one-time sign-in details below, then choose a new password after your first login.`
+                  : `Hi ${displayName}, an administrator created a <strong style="color:#0f172a;">${roleLabel}</strong> account for you on the Rise Above Foundation Cebu portal. Use the one-time sign-in details below, then choose a new password after your first login.`
+                }
               </p>
             </td>
           </tr>

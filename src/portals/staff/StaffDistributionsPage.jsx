@@ -81,8 +81,9 @@ export default function StaffDistributionsPage() {
     if (!window.confirm(`Advance "${dist.location || dist.program}" to ${next}?`)) return
     setSaving(true)
     try {
-      await distributionsApi.update(dist.dbId, { status: next })
-      notify.success(`Status updated to ${next}.`)
+      const res = await distributionsApi.update(dist.dbId, { status: next })
+      const status = res?.data?.status || next
+      notify.success(`Status successfully updated to: ${status}.`)
       setSelectedDistribution(null)
       reload()
     } catch (err) {

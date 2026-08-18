@@ -67,7 +67,8 @@ export default function StaffVerificationPage() {
     setBusy(true)
     try {
       const res = await donationsApi.update(row.dbId, { status: 'Verified' })
-      notify.success(verifyResultMessage(res))
+      const status = res?.data?.status || 'Verified'
+      notify.success(`Status successfully updated to: ${status}. ${verifyResultMessage(res)}`)
       setSelected(null)
       reload()
     } catch (err) {
@@ -82,8 +83,9 @@ export default function StaffVerificationPage() {
     if (reason === null) return
     setBusy(true)
     try {
-      await donationsApi.update(row.dbId, { status: 'Rejected', notes: reason || undefined })
-      notify.success('Donation rejected.')
+      const res = await donationsApi.update(row.dbId, { status: 'Rejected', notes: reason || undefined })
+      const status = res?.data?.status || 'Rejected'
+      notify.success(`Status successfully updated to: ${status}.`)
       setSelected(null)
       reload()
     } catch (err) {

@@ -82,7 +82,7 @@ export default function BeneficiaryDistributionsPage() {
           receivedQuantity: Number(qty) || 0,
           notes,
         })
-        notify.success('Receipt confirmed. Continue to submit proof.')
+        notify.success('Status successfully updated to: Received. Continue to submit proof.')
         const distId = modal.row.dbId
         setModal(null)
         reload()

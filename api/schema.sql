@@ -165,6 +165,10 @@ CREATE TABLE IF NOT EXISTS assistance_requests (
   request_date DATE NOT NULL,
   notes TEXT NULL,
   needs_json TEXT NULL,
+  calamity_tags TEXT NULL,
+  sla_deadline DATETIME NULL,
+  is_emergency TINYINT(1) NOT NULL DEFAULT 0,
+  assigned_to VARCHAR(120) NULL,
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   CONSTRAINT fk_assistance_beneficiary_id FOREIGN KEY (beneficiary_id) REFERENCES beneficiaries(id) ON DELETE CASCADE

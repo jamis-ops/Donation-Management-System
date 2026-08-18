@@ -6,7 +6,8 @@ import { useFilters } from '../../hooks/useFilters';
 import { 
   AlertTriangle, AlertCircle, Clock, CheckCircle, 
   Users, Search, Pin, FileText, 
-  Check, X, MapPin, Loader2, Info
+  Check, X, MapPin, Loader2, Info,
+  Utensils, Droplets, Shirt, Pill, Sparkles, Home, Banknote, GraduationCap, Package, Tag
 } from 'lucide-react';
 import PageHeader from '../../components/admin/shared/PageHeader';
 import StatusBadge from '../../components/admin/shared/StatusBadge';
@@ -432,6 +433,32 @@ function timeAgo(dateString) {
   return `${diffDays} day${diffDays !== 1 ? 's' : ''} ago`;
 }
 
+const NEED_ICONS = {
+  Food: Utensils,
+  Water: Droplets,
+  Clothing: Shirt,
+  Medicine: Pill,
+  'Hygiene Kits': Sparkles,
+  Shelter: Home,
+  'Financial Assistance': Banknote,
+  'Educational Support': GraduationCap,
+};
+
+function iconForNeed(label) {
+  if (NEED_ICONS[label]) return NEED_ICONS[label];
+  const key = String(label || '').toLowerCase();
+  if (key.includes('food') || key.includes('rice')) return Utensils;
+  if (key.includes('water')) return Droplets;
+  if (key.includes('cloth')) return Shirt;
+  if (key.includes('medicine') || key.includes('medical')) return Pill;
+  if (key.includes('hygiene')) return Sparkles;
+  if (key.includes('shelter') || key.includes('housing')) return Home;
+  if (key.includes('financial') || key.includes('cash')) return Banknote;
+  if (key.includes('educat') || key.includes('school')) return GraduationCap;
+  if (key.includes('relief') || key.includes('pack')) return Package;
+  return Tag;
+}
+
 export default function RequestsPage() {
   const navigate = useNavigate();
   const { data: requestsData, loading: reqLoading, error: reqError, reload: reqReload } = useApiList(() => assistanceRequestsApi.list());
@@ -533,9 +560,10 @@ export default function RequestsPage() {
   const handleUpdateStatus = async (dbId, updates) => {
     try {
       setIsUpdating(true);
-      await assistanceRequestsApi.update(dbId, updates);
+      const res = await assistanceRequestsApi.update(dbId, updates);
+      const status = res?.data?.status || updates.status || 'Updated'
       await reqReload();
-      notify.success('Request updated successfully');
+      notify.success(`Status successfully updated to: ${status}.`);
       if (selectedRequest && selectedRequest.dbId === dbId) {
         setSelectedRequest(prev => ({ ...prev, ...updates }));
       }
@@ -730,19 +758,22 @@ function ReviewModal({ request, allRequests, onClose, onUpdate, isUpdating, navi
           <button className="admin-modal__close" onClick={onClose}><X size={24} /></button>
         </div>
         
-        <div className="admin-modal__body">
-          <div className="admin-modal__left">
+        <div className="admin-modal__body" style={{ gap: '2rem', padding: '1.5rem' }}>
+          <div className="admin-modal__left" style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
             {activeCriticalRequests.length > 0 && priority === 'Critical' && (
               <div className="alert-banner">
-                <AlertTriangle />
-                <strong>⚠️ Duplicate Alert: There is already an open Critical request for this barangay.</strong>
+                <AlertTriangle size={20} />
+                <div style={{ display: 'flex', flexDirection: 'column' }}>
+                  <strong>Duplicate Alert</strong>
+                  <span style={{ fontSize: '0.875rem' }}>There is already an open Critical request for this barangay.</span>
+                </div>
               </div>
             )}
             
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem' }}>
               <div className="form-group">
-                <label>Priority</label>
-                <select value={priority} onChange={e => setPriority(e.target.value)}>
+                <label style={{ marginBottom: '0.25rem' }}>Priority</label>
+                <select value={priority} onChange={e => setPriority(e.target.value)} style={{ padding: '0.75rem', border: '1px solid #cbd5e1' }}>
                   <option value="Critical">Critical</option>
                   <option value="High">High</option>
                   <option value="Medium">Medium</option>
@@ -750,44 +781,87 @@ function ReviewModal({ request, allRequests, onClose, onUpdate, isUpdating, navi
                 </select>
               </div>
               <div className="form-group">
-                <label>Status</label>
-                <input type="text" value={request.status} readOnly style={{ opacity: 0.7 }} />
+                <label style={{ marginBottom: '0.25rem' }}>Status</label>
+                <div style={{ display: 'flex', alignItems: 'center', height: '42px' }}>
+                  <StatusBadge status={request.status} />
+                </div>
               </div>
             </div>
 
             <div className="form-group">
-              <label>Request Type</label>
-              <input type="text" value={request.type} readOnly style={{ opacity: 0.7 }} />
+              <label style={{ marginBottom: '0.25rem' }}>Request Type</label>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem', background: '#f8fafc', border: '1px solid #e2e8f0', padding: '0.75rem', borderRadius: '6px' }}>
+                {(request.type || '').split(',').map(s => s.trim()).filter(Boolean).map((need, i) => {
+                  const Icon = iconForNeed(need);
+                  return (
+                    <div key={i} style={{ display: 'inline-flex', alignItems: 'center', gap: '0.375rem', backgroundColor: 'var(--admin-brand)', color: 'white', padding: '0.375rem 0.75rem', borderRadius: '9999px', fontSize: '0.875rem', fontWeight: 500 }}>
+                      <Icon size={14} strokeWidth={2.5} aria-hidden="true" />
+                      {need}
+                    </div>
+                  );
+                })}
+              </div>
             </div>
 
-            <div className="form-group">
-              <label>Description / Notes (Editable)</label>
-              <textarea value={notes} onChange={e => setNotes(e.target.value)} placeholder="Enter details..."></textarea>
+            <div className="form-group" style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
+              <label style={{ marginBottom: '0.25rem' }}>Description / Notes <span style={{ fontSize: '0.75rem', color: 'var(--admin-text-muted)', fontWeight: 'normal', marginLeft: '0.25rem' }}>(Editable)</span></label>
+              <textarea 
+                value={notes} 
+                onChange={e => setNotes(e.target.value)} 
+                placeholder="Enter details..."
+                style={{ flex: 1, minHeight: '120px', padding: '0.75rem', border: '1px solid #cbd5e1' }}
+              ></textarea>
             </div>
             
-            <div style={{ fontSize: '0.875rem', color: 'var(--admin-text-muted)' }}>
-              Submitted: {request.requestDate || request.date ? new Date(request.requestDate || request.date).toLocaleString() : 'N/A'}
+            <div style={{ fontSize: '0.875rem', color: 'var(--admin-text-muted)', display: 'flex', alignItems: 'center', gap: '0.5rem', marginTop: 'auto', paddingTop: '0.5rem' }}>
+              <Clock size={16} />
+              <span>Submitted: {request.requestDate || request.date ? new Date(request.requestDate || request.date).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' }) : 'N/A'}</span>
             </div>
           </div>
 
-          <div className="admin-modal__right">
-            <div className="barangay-context-card">
-              <h3><MapPin size={18} /> {request.beneficiary}</h3>
-              <div className="barangay-stat">
-                <MapPin size={16}/> <span>Municipality: <strong>{request.municipality}</strong></span>
+          <div className="admin-modal__right" style={{ background: '#f8fafc', padding: '1.5rem', borderRadius: '8px', display: 'flex', flexDirection: 'column', border: '1px solid #e2e8f0' }}>
+            <div className="barangay-context-card" style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
+              <h3 style={{ fontSize: '1.125rem', marginBottom: '1.25rem', color: 'var(--admin-text)', borderBottom: '1px solid #e2e8f0', paddingBottom: '0.75rem' }}>
+                <MapPin size={20} style={{ color: 'var(--admin-brand)' }} /> {request.beneficiary}
+              </h3>
+              
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+                <div className="barangay-stat" style={{ alignItems: 'flex-start' }}>
+                  <div style={{ width: '24px', display: 'flex', justifyContent: 'center', paddingTop: '2px' }}><MapPin size={16} color="#64748b"/></div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+                    <span style={{ fontSize: '0.75rem', color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em', fontWeight: '600' }}>Municipality</span>
+                    <strong style={{ fontSize: '0.95rem', color: 'var(--admin-text)' }}>{request.municipality}</strong>
+                  </div>
+                </div>
+                
+                <div className="barangay-stat" style={{ alignItems: 'flex-start' }}>
+                  <div style={{ width: '24px', display: 'flex', justifyContent: 'center', paddingTop: '2px' }}><Users size={16} color="#64748b"/></div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+                    <span style={{ fontSize: '0.75rem', color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em', fontWeight: '600' }}>Affected Families</span>
+                    <strong style={{ fontSize: '0.95rem', color: 'var(--admin-text)' }}>{request.affectedFamilies}</strong>
+                  </div>
+                </div>
+                
+                <div className="barangay-stat" style={{ alignItems: 'flex-start' }}>
+                  <div style={{ width: '24px', display: 'flex', justifyContent: 'center', paddingTop: '2px' }}><Users size={16} color="#64748b"/></div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+                    <span style={{ fontSize: '0.75rem', color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em', fontWeight: '600' }}>Representative</span>
+                    <strong style={{ fontSize: '0.95rem', color: 'var(--admin-text)' }}>{request.representative}</strong>
+                  </div>
+                </div>
+                
+                <div className="barangay-stat" style={{ alignItems: 'flex-start' }}>
+                  <div style={{ width: '24px', display: 'flex', justifyContent: 'center', paddingTop: '2px' }}><FileText size={16} color="#64748b"/></div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+                    <span style={{ fontSize: '0.75rem', color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em', fontWeight: '600' }}>Previous Requests</span>
+                    <strong style={{ fontSize: '0.95rem', color: 'var(--admin-text)' }}>{allRequests.filter(r => r.beneficiaryId === request.beneficiaryId).length - 1}</strong>
+                  </div>
+                </div>
               </div>
-              <div className="barangay-stat">
-                <Users size={16}/> <span>Affected Families: <strong>{request.affectedFamilies}</strong></span>
-              </div>
-              <div className="barangay-stat">
-                <Users size={16}/> <span>Representative: <strong>{request.representative}</strong></span>
-              </div>
-              <div className="barangay-stat">
-                <FileText size={16}/> <span>Previous Requests: <strong>{allRequests.filter(r => r.beneficiaryId === request.beneficiaryId).length - 1}</strong></span>
-              </div>
+              
               <button 
                 className="btn btn--outline" 
-                style={{ width: '100%', marginTop: '1rem' }}
+                style={{ width: '100%', marginTop: 'auto', paddingTop: '0.75rem', paddingBottom: '0.75rem', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '0.5rem' }}
                 onClick={() => navigate(`/admin/beneficiaries/${request.beneficiaryId}`)}
               >
                 View Barangay Details &rarr;
@@ -796,23 +870,23 @@ function ReviewModal({ request, allRequests, onClose, onUpdate, isUpdating, navi
           </div>
         </div>
 
-        <div className="admin-modal__footer">
+        <div className="admin-modal__footer" style={{ borderTop: '1px solid #e2e8f0', background: '#f8fafc', borderBottomLeftRadius: '8px', borderBottomRightRadius: '8px', display: 'flex', justifyContent: 'flex-end', gap: '1rem', padding: '1.25rem 1.5rem' }}>
           {request.status === 'Pending Review' && (
-            <button className="btn btn--outline" disabled={isUpdating} onClick={() => handleSave('Under Review')}>
-              Mark Under Review
+            <button className="btn btn--outline" disabled={isUpdating} onClick={() => handleSave('Under Review')} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              <Clock size={16} /> Mark Under Review
             </button>
           )}
           {request.status !== 'Rejected' && request.status !== 'Approved' && (
-            <button className="btn btn--danger" disabled={isUpdating} onClick={() => handleSave('Rejected')}>
-              Reject ✗
+            <button className="btn btn--danger" disabled={isUpdating} onClick={() => handleSave('Rejected')} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              <X size={16} /> Reject
             </button>
           )}
           {request.status !== 'Approved' ? (
-            <button className="btn btn--success" disabled={isUpdating} onClick={() => handleSave('Approved')}>
-              {isUpdating ? <Loader2 className="spin" size={16} /> : <Check size={16} />} Approve ✓
+            <button className="btn btn--success" disabled={isUpdating} onClick={() => handleSave('Approved')} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              {isUpdating ? <Loader2 className="spin" size={16} /> : <Check size={16} />} Approve
             </button>
           ) : (
-            <button className="btn btn--primary" onClick={() => navigate('/admin/allocation', { state: { prefillRequest: { requestId: request.dbId, beneficiaryId: request.beneficiaryId, type: request.type, notes: request.notes, beneficiaryName: request.beneficiary } } })}>
+            <button className="btn btn--primary" onClick={() => navigate('/admin/allocation', { state: { prefillRequest: { requestId: request.dbId, beneficiaryId: request.beneficiaryId, type: request.type, notes: request.notes, beneficiaryName: request.beneficiary } } })} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
               Create Allocation &rarr;
             </button>
           )}
