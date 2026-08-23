@@ -4678,10 +4678,37 @@
 
 /* Request Detail Modal */
 .beneficiary-request-modal {
-  display: flex;
-  flex-direction: column;
-  gap: 0;
-  min-width: 0;
+  display: flex !important;
+  flex-direction: column !important;
+  max-width: 680px !important;
+  width: 100% !important;
+  border-radius: 16px !important;
+  overflow: hidden !important;
+  padding: 0 !important;
+  background: #ffffff !important;
+  box-shadow: 0 20px 45px -10px rgba(0, 0, 0, 0.28) !important;
+  border: 1px solid rgba(0, 0, 0, 0.08) !important;
+  box-sizing: border-box !important;
+}
+
+.beneficiary-request-modal .admin-modal__header {
+  margin: 0 !important;
+  top: 0 !important;
+  position: static !important;
+  padding: 1.25rem 1.75rem !important;
+  border-top-left-radius: 16px !important;
+  border-top-right-radius: 16px !important;
+  border-bottom-left-radius: 0 !important;
+  border-bottom-right-radius: 0 !important;
+  width: 100% !important;
+  box-sizing: border-box !important;
+}
+
+.beneficiary-request-modal__body {
+  padding: 1.5rem;
+  max-height: calc(85vh - 75px);
+  overflow-y: auto;
+  box-sizing: border-box;
 }
 
 .beneficiary-request-detail {

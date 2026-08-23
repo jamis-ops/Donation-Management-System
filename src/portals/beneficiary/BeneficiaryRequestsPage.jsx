@@ -645,10 +645,10 @@ export default function BeneficiaryRequestsPage() {
         const preview = getRequestPreview(selectedRequest)
         return (
         <div className="admin-modal-overlay" onClick={() => setSelectedRequest(null)}>
-          <div className="admin-modal admin-modal--wide beneficiary-request-modal" style={{ maxWidth: '640px', padding: '0', overflow: 'hidden' }} onClick={(e) => e.stopPropagation()}>
+          <div className="admin-modal beneficiary-request-modal" onClick={(e) => e.stopPropagation()}>
             <ModalHeader title={`Assistance Request · ${selectedRequest.id}`} onClose={() => setSelectedRequest(null)} />
             
-            <div style={{ padding: '1.5rem', maxHeight: 'calc(85vh - 70px)', overflowY: 'auto' }}>
+            <div className="beneficiary-request-modal__body">
               {/* Header Hero Strip */}
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '1rem 1.25rem', background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '12px', marginBottom: '1.25rem', flexWrap: 'wrap', gap: '0.75rem' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
