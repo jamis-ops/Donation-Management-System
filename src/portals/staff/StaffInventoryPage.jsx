@@ -24,6 +24,46 @@ export default function StaffInventoryPage() {
   const inventory = portalData?.inventory || []
   const alerts = portalData?.inventoryAlerts || []
 
+  const categories = useMemo(() => {
+    const set = new Set(['Food', 'Hygiene', 'Medical', 'Education', 'Clothing'])
+    inventory.forEach((i) => {
+      if (i.category) set.add(i.category)
+    })
+    return Array.from(set)
+  }, [inventory])
+
+  const statuses = ['Normal', 'Low', 'Critical']
+
+  const categorySummary = useMemo(() => {
+    if (portalData?.categorySummary && Array.isArray(portalData.categorySummary) && portalData.categorySummary.length > 0) {
+      return portalData.categorySummary
+    }
+    const map = {}
+    inventory.forEach((item) => {
+      const cat = item.category || 'General'
+      if (!map[cat]) {
+        map[cat] = {
+          category: cat,
+          items: 0,
+          totalValueNum: 0,
+          status: 'Normal',
+        }
+      }
+      map[cat].items += 1
+      const qty = Number(item.currentStock ?? item.quantity ?? 0)
+      map[cat].totalValueNum += qty * (Number(item.costPerUnit) || 50)
+      if (item.status === 'Critical') {
+        map[cat].status = 'Critical'
+      } else if (item.status === 'Low' && map[cat].status !== 'Critical') {
+        map[cat].status = 'Low'
+      }
+    })
+    return Object.values(map).map((c) => ({
+      ...c,
+      totalValue: `₱${c.totalValueNum.toLocaleString()}`,
+    }))
+  }, [portalData?.categorySummary, inventory])
+
   const filteredInventory = useMemo(() => {
     return inventory.filter(item => {
       if (filterCategory !== 'all' && item.category !== filterCategory) return false
@@ -36,7 +76,7 @@ export default function StaffInventoryPage() {
   const paging = usePagination(filteredInventory, DEFAULT_PAGE_SIZE, `${filterCategory}|${filterStatus}|${searchQuery}`)
 
   const totalValue = useMemo(() => {
-    return inventory.reduce((sum, item) => sum + (item.quantity * 50), 0)
+    return inventory.reduce((sum, item) => sum + ((Number(item.currentStock ?? item.quantity) || 0) * (Number(item.costPerUnit) || 50)), 0)
   }, [inventory])
 
   const getStatusColor = (status) => {
