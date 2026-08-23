@@ -261,31 +261,6 @@ export default function VolunteerHoursPage() {
           </div>
         </div>
 
-        {/* Top Summary Stats */}
-        <div className="portal-stats portal-stats--inline">
-          <div className="portal-stat-card">
-            <div className="portal-stat-card__icon">
-              <Clock size={20} />
-            </div>
-            <span className="portal-stat-card__value">{totalYearHours} hrs</span>
-            <span className="portal-stat-card__label">Total Rendered ({selectedYear})</span>
-          </div>
-          <div className="portal-stat-card">
-            <div className="portal-stat-card__icon">
-              <Calendar size={20} />
-            </div>
-            <span className="portal-stat-card__value">{currentMonthHours} hrs</span>
-            <span className="portal-stat-card__label">This Month ({new Date().toLocaleString('en-US', { month: 'short' })})</span>
-          </div>
-          <div className="portal-stat-card">
-            <div className="portal-stat-card__icon">
-              <TrendingUp size={20} />
-            </div>
-            <span className="portal-stat-card__value">{activityLog.length}</span>
-            <span className="portal-stat-card__label">All Verified Activities</span>
-          </div>
-        </div>
-
         {/* Monthly Hours Breakdown Chart */}
         <div className="portal-chart-section">
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.75rem' }}>

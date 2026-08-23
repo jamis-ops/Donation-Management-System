@@ -1,16 +1,13 @@
-import { Clock, CheckSquare, Calendar, Award, ListTodo, CalendarDays, FileText, CheckCircle, Inbox } from 'lucide-react'
+import { useMemo } from 'react'
+import { 
+  Clock, CheckSquare, Calendar, Award, ListTodo, CalendarDays, 
+  FileText, CheckCircle, Inbox, TrendingUp, Sparkles, ShieldCheck 
+} from 'lucide-react'
 import { Link } from 'react-router-dom'
 import StatusBadge from '../../components/admin/shared/StatusBadge'
 import ApiState from '../../components/admin/shared/ApiState'
 import { getPortalData } from '../../api/resources'
 import { useApiObject } from '../../hooks/useApiList'
-
-const iconMap = {
-  clock: Clock,
-  checkSquare: CheckSquare,
-  calendar: Calendar,
-  award: Award,
-}
 
 const activityIconMap = {
   checkCircle: CheckCircle,
@@ -22,7 +19,7 @@ const activityIconMap = {
 function dateKey(value) {
   if (!value || value === '—') return ''
   if (typeof value === 'string' && /^\d{4}-\d{2}-\d{2}/.test(value)) return value.slice(0, 10)
-  const d = value instanceof Date ? value : new Date(value)
+  const d = new Date(value)
   if (Number.isNaN(d.getTime())) return ''
   const y = d.getFullYear()
   const m = String(d.getMonth() + 1).padStart(2, '0')
@@ -40,27 +37,109 @@ function parseLocalDate(value) {
 export default function VolunteerDashboard() {
   const { data, loading, error, reload } = useApiObject(() => getPortalData())
   const todayKey = dateKey(new Date())
+  const currentYear = new Date().getFullYear()
+  const currentMonthIndex = new Date().getMonth()
+  const currentMonthName = new Date().toLocaleString('en-US', { month: 'short' })
+
+  const activityLog = data?.activityLog || []
+  
+  const { totalYearHours, currentMonthHours } = useMemo(() => {
+    let yearSum = 0
+    let monthSum = 0
+    activityLog.forEach((log) => {
+      const k = dateKey(log.rawDate || log.date)
+      if (!k) return
+      const [y, m] = k.split('-').map(Number)
+      if (y === currentYear) {
+        yearSum += Number(log.hours || 0)
+        if (m === currentMonthIndex + 1) {
+          monthSum += Number(log.hours || 0)
+        }
+      }
+    })
+    if (yearSum === 0 && (data?.hoursBreakdown || []).length === 12) {
+      yearSum = data.hoursBreakdown.reduce((sum, b) => sum + Number(b.hours || 0), 0)
+      monthSum = Number(data.hoursBreakdown[currentMonthIndex]?.hours || 0)
+    }
+    // Fallback to stats array if available
+    if (yearSum === 0 && data?.stats) {
+      const clockStat = data.stats.find((s) => s.icon === 'clock')
+      if (clockStat) yearSum = parseFloat(String(clockStat.value).replace(/[^0-9.]/g, '')) || 0
+    }
+    return { totalYearHours: yearSum, currentMonthHours: monthSum }
+  }, [activityLog, currentYear, currentMonthIndex, data?.hoursBreakdown, data?.stats])
+
+  const pendingTasksCount = (data?.tasks || []).filter(
+    (t) => t.status !== 'Done' && t.boardColumn !== 'done' && !t.isDone
+  ).length
 
   return (
     <ApiState loading={loading} error={error} onRetry={reload}>
       {data && (
         <>
+          {/* Top Summary Stat Cards */}
           <div className="portal-stats">
-            {(data.stats || []).map((item) => {
-              const Icon = iconMap[item.icon]
-              return (
-                <div key={item.label} className="portal-stat-card">
-                  {Icon && (
-                    <div className="portal-stat-card__icon">
-                      <Icon size={20} />
-                    </div>
-                  )}
-                  <span className="portal-stat-card__value">{item.value}</span>
-                  <span className="portal-stat-card__label">{item.label}</span>
-                </div>
-              )
-            })}
+            <div className="portal-stat-card">
+              <div className="portal-stat-card__icon" style={{ background: '#fef2f2', color: '#AF101A' }}>
+                <Clock size={20} />
+              </div>
+              <span className="portal-stat-card__value">{totalYearHours} hrs</span>
+              <span className="portal-stat-card__label">Total Rendered ({currentYear})</span>
+            </div>
+
+            <div className="portal-stat-card">
+              <div className="portal-stat-card__icon" style={{ background: '#eff6ff', color: '#2563eb' }}>
+                <Calendar size={20} />
+              </div>
+              <span className="portal-stat-card__value">{currentMonthHours} hrs</span>
+              <span className="portal-stat-card__label">This Month ({currentMonthName})</span>
+            </div>
+
+            <div className="portal-stat-card">
+              <div className="portal-stat-card__icon" style={{ background: '#ecfdf5', color: '#059669' }}>
+                <TrendingUp size={20} />
+              </div>
+              <span className="portal-stat-card__value">{activityLog.length || 0}</span>
+              <span className="portal-stat-card__label">Verified Activities</span>
+            </div>
+
+            <div className="portal-stat-card">
+              <div className="portal-stat-card__icon" style={{ background: '#fffbeb', color: '#d97706' }}>
+                <CheckSquare size={20} />
+              </div>
+              <span className="portal-stat-card__value">{pendingTasksCount}</span>
+              <span className="portal-stat-card__label">Active Tasks</span>
+            </div>
           </div>
+
+          {/* Annual Volunteer Target Progress */}
+          <section className="portal-panel" style={{ padding: '1.25rem 1.5rem', marginBottom: '1.25rem' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.65rem' }}>
+              <h3 style={{ margin: 0, fontSize: '1.05rem', fontWeight: 700, color: '#1e293b', display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
+                <Award size={18} style={{ color: '#AF101A' }} />
+                Annual Volunteer Target ({currentYear})
+              </h3>
+              <span style={{ fontWeight: 800, color: '#AF101A', fontSize: '0.95rem' }}>
+                {totalYearHours} / 200 hours
+              </span>
+            </div>
+            <div style={{ height: '10px', background: '#e2e8f0', borderRadius: '999px', overflow: 'hidden' }}>
+              <div
+                style={{
+                  height: '100%',
+                  background: 'linear-gradient(90deg, #AF101A 0%, #059669 100%)',
+                  borderRadius: '999px',
+                  width: `${Math.min((totalYearHours / 200) * 100, 100)}%`,
+                  transition: 'width 0.5s ease',
+                }}
+              />
+            </div>
+            <p style={{ margin: '0.55rem 0 0', fontSize: '0.82rem', color: '#64748b' }}>
+              {totalYearHours >= 200
+                ? `🎉 Congratulations! You have achieved your annual target for ${currentYear}.`
+                : `${Math.max(200 - totalYearHours, 0)} hours remaining to reach the 200-hour goal for ${currentYear}.`}
+            </p>
+          </section>
 
           <section className="portal-panel portal-quick-actions">
             <div className="portal-panel__header">
