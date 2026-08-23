@@ -654,32 +654,32 @@ switch ($user['role']) {
     $rawDists = $distStmt->fetchAll();
 
     $distributions = array_map(static fn($d) => [
-      'id' => (int) $d['id'],
-      'distributionCode' => $d['code'] ?? ('DST-' . $d['id']),
-      'event' => $d['event_name'] ?: ($d['distribution_type'] ?: 'Relief Distribution'),
-      'date' => format_date($d['distribution_date']),
-      'time' => $d['distribution_time'] ?: '9:00 AM',
-      'location' => $d['location'] ?: 'Barangay Hall',
-      'type' => $d['distribution_type'] ?: 'Relief Goods',
-      'status' => $d['status'],
+      'id' => (int) ($d['id'] ?? 0),
+      'distributionCode' => $d['code'] ?? ('DST-' . ($d['id'] ?? '1')),
+      'event' => !empty($d['event_name']) ? $d['event_name'] : (!empty($d['distribution_type']) ? $d['distribution_type'] : 'Relief Distribution'),
+      'date' => format_date($d['distribution_date'] ?? null),
+      'time' => $d['distribution_time'] ?? ($d['time'] ?? '9:00 AM'),
+      'location' => $d['location'] ?? 'Barangay Hall',
+      'type' => $d['distribution_type'] ?? 'Relief Goods',
+      'status' => $d['status'] ?? 'Scheduled',
       'quantity' => $d['quantity'] ?? 0,
-      'items' => $d['items_summary'] ?? 'Assorted Relief Goods',
+      'items' => !empty($d['items_summary']) ? $d['items_summary'] : (!empty($d['items']) ? $d['items'] : 'Assorted Relief Goods'),
     ], $rawDists);
 
     // If no specific distributions, provide available active ones
     if (empty($distributions)) {
       $distGeneral = $pdo->query("SELECT * FROM distributions WHERE status IN ('Planning','Preparing','In Transit','Delivered','Awaiting Proof','Scheduled') ORDER BY distribution_date ASC LIMIT 5");
       $distributions = array_map(static fn($d) => [
-        'id' => (int) $d['id'],
-        'distributionCode' => $d['code'] ?? ('DST-' . $d['id']),
-        'event' => $d['event_name'] ?: ($d['distribution_type'] ?: 'Relief Distribution'),
-        'date' => format_date($d['distribution_date']),
-        'time' => $d['distribution_time'] ?: '9:00 AM',
-        'location' => $d['location'] ?: 'Designated Distribution Site',
-        'type' => $d['distribution_type'] ?: 'Relief Goods',
-        'status' => $d['status'],
+        'id' => (int) ($d['id'] ?? 0),
+        'distributionCode' => $d['code'] ?? ('DST-' . ($d['id'] ?? '1')),
+        'event' => !empty($d['event_name']) ? $d['event_name'] : (!empty($d['distribution_type']) ? $d['distribution_type'] : 'Relief Distribution'),
+        'date' => format_date($d['distribution_date'] ?? null),
+        'time' => $d['distribution_time'] ?? ($d['time'] ?? '9:00 AM'),
+        'location' => $d['location'] ?? 'Designated Distribution Site',
+        'type' => $d['distribution_type'] ?? 'Relief Goods',
+        'status' => $d['status'] ?? 'Scheduled',
         'quantity' => $d['quantity'] ?? 0,
-        'items' => $d['items_summary'] ?? 'Assorted Relief Goods',
+        'items' => !empty($d['items_summary']) ? $d['items_summary'] : (!empty($d['items']) ? $d['items'] : 'Assorted Relief Goods'),
       ], $distGeneral->fetchAll());
     }
 
