@@ -48,10 +48,6 @@ const emptyForm = {
 
 const CLOSED_STATUSES = ['Approved', 'Allocated', 'In Distribution', 'In Progress', 'Completed', 'Rejected', 'Cancelled', 'Done']
 
-function canEditRequest(request) {
-  return Boolean(request) && ['Pending Review', 'Under Review'].includes(request.status)
-}
-
 /** Structured fields from request notes / needs for cards & detail modal. */
 function getRequestPreview(request) {
   const notes = String(request?.notes || '')
@@ -86,7 +82,6 @@ export default function BeneficiaryRequestsPage() {
   const { data, loading, error, reload } = useApiList(() => assistanceRequestsApi.list())
   const [showForm, setShowForm] = useState(false)
   const { showLoading, hideLoading } = useLoading()
-  const [editingRequest, setEditingRequest] = useState(null)
   const [selectedRequest, setSelectedRequest] = useState(null)
   const [form, setForm] = useState(emptyForm)
   const [saving, setSaving] = useState(false)
@@ -209,49 +204,6 @@ export default function BeneficiaryRequestsPage() {
       hideLoading()
       setSaving(false)
     }
-  }
-
-  const handleEdit = (request) => {
-    // Parse the structured notes to populate the form
-    const notes = request.notes || ''
-    
-    // Extract calamity type
-    const calamityMatch = notes.match(/Calamity\/Program: (.+?)(?:\n|$)/i)
-    const calamityType = calamityMatch ? calamityMatch[1].trim() : ''
-    
-    // Check if it's a predefined calamity or custom
-    const isPresetCalamity = [...CALAMITY_TYPES, ...MISSION_TYPES].includes(calamityType)
-    
-    // Extract families affected
-    const familiesMatch = notes.match(/Families Affected: (\d+)/i)
-    const familiesAffected = familiesMatch ? familiesMatch[1] : ''
-    
-    // Prefer structured needs from API; fall back to notes parsing
-    let selectedNeeds = Array.isArray(request.needs) ? request.needs.filter(Boolean) : []
-    if (selectedNeeds.length === 0) {
-      const needsMatch = notes.match(/Type of Needs: (.+?)(?:\n|$)/i)
-        || notes.match(/Goods Required: (.+?)(?:\n|$)/i)
-        || notes.match(/Assistance Type: (.+?)(?:\n|$)/i)
-      const needsString = needsMatch ? needsMatch[1].trim() : (request.type || '')
-      selectedNeeds = needsString ? needsString.split(',').map((n) => n.trim()).filter(Boolean) : []
-    }
-    
-    // Extract additional notes
-    const notesMatch = notes.match(/Additional Notes: (.+)/is)
-    const additionalNotes = notesMatch ? notesMatch[1].trim() : ''
-    
-    setForm({
-      calamityType: isPresetCalamity ? calamityType : (calamityType ? 'Other' : ''),
-      customCalamity: isPresetCalamity ? '' : calamityType,
-      selectedNeeds,
-      familiesAffected: familiesAffected,
-      priority: request.priority || 'Medium',
-      notes: additionalNotes,
-    })
-    
-    setEditingRequest(request)
-    setShowForm(true)
-    setSelectedRequest(null)
   }
 
   const handleCancel = async (requestId) => {
@@ -453,15 +405,6 @@ export default function BeneficiaryRequestsPage() {
                     >
                       View Details
                     </button>
-                    {canEditRequest(r) && (
-                      <button
-                        type="button"
-                        className="btn btn--sm btn--primary"
-                        onClick={() => handleEdit(r)}
-                      >
-                        Edit
-                      </button>
-                    )}
                     {canCancelRequest(r) && (
                       <button
                         type="button"
@@ -490,16 +433,15 @@ export default function BeneficiaryRequestsPage() {
         )}
       </section>
 
-      {/* Create/Edit Request Modal */}
+      {/* Create Request Modal */}
       {showForm && (
         <div className="admin-modal-overlay" onClick={() => !saving && setShowForm(false)}>
           <div className="admin-modal admin-modal--wide" onClick={(e) => e.stopPropagation()}>
             <ModalHeader 
-              title={editingRequest ? 'Edit Request' : 'New Assistance Request'} 
+              title="New Assistance Request" 
               onClose={() => {
                 if (!saving) {
                   setShowForm(false)
-                  setEditingRequest(null)
                   setForm(emptyForm)
                 }
               }} 
@@ -620,14 +562,13 @@ export default function BeneficiaryRequestsPage() {
 
               <div className="admin-modal__actions">
                 <button type="submit" className="btn btn--primary" disabled={saving}>
-                  {saving ? 'Saving…' : (editingRequest ? 'Update Request' : 'Submit Request')}
+                  {saving ? 'Saving…' : 'Submit Request'}
                 </button>
                 <button 
                   type="button" 
                   className="btn btn--ghost" 
                   onClick={() => {
                     setShowForm(false)
-                    setEditingRequest(null)
                     setForm(emptyForm)
                   }} 
                   disabled={saving}
@@ -761,15 +702,6 @@ export default function BeneficiaryRequestsPage() {
 
               {/* Actions */}
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '0.65rem', borderTop: '1px solid #e2e8f0', paddingTop: '1.25rem' }}>
-                {canEditRequest(selectedRequest) && (
-                  <button
-                    type="button"
-                    className="btn btn--primary"
-                    onClick={() => handleEdit(selectedRequest)}
-                  >
-                    Edit Request
-                  </button>
-                )}
                 {canCancelRequest(selectedRequest) && (
                   <button
                     type="button"
