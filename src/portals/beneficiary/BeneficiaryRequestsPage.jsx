@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Search, AlertCircle, CheckCircle, Clock, XCircle } from 'lucide-react'
+import { Search, AlertCircle, CheckCircle, Clock, XCircle, FileText, Package, Users, Calendar } from 'lucide-react'
 import StatusBadge from '../../components/admin/shared/StatusBadge'
 import ApiState from '../../components/admin/shared/ApiState'
 import ModalHeader from '../../components/admin/shared/ModalHeader'
