@@ -645,100 +645,147 @@ export default function BeneficiaryRequestsPage() {
         const preview = getRequestPreview(selectedRequest)
         return (
         <div className="admin-modal-overlay" onClick={() => setSelectedRequest(null)}>
-          <div className="admin-modal admin-modal--wide beneficiary-request-modal" onClick={(e) => e.stopPropagation()}>
-            <ModalHeader title={`Request ${selectedRequest.id}`} onClose={() => setSelectedRequest(null)} />
+          <div className="admin-modal admin-modal--wide beneficiary-request-modal" style={{ maxWidth: '640px', padding: '0', overflow: 'hidden' }} onClick={(e) => e.stopPropagation()}>
+            <ModalHeader title={`Assistance Request · ${selectedRequest.id}`} onClose={() => setSelectedRequest(null)} />
             
-            <div className="beneficiary-request-detail">
-              <div className="beneficiary-request-detail-grid">
-                <div className="beneficiary-request-detail__row">
-                  <label>Request ID</label>
-                  <span className="beneficiary-request-id">{selectedRequest.id}</span>
+            <div style={{ padding: '1.5rem', maxHeight: 'calc(85vh - 70px)', overflowY: 'auto' }}>
+              {/* Header Hero Strip */}
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '1rem 1.25rem', background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '12px', marginBottom: '1.25rem', flexWrap: 'wrap', gap: '0.75rem' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                  <div style={{ width: '42px', height: '42px', borderRadius: '10px', background: '#fef2f2', color: '#AF101A', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800, fontSize: '0.9rem', border: '1px solid #fecaca' }}>
+                    <FileText size={20} />
+                  </div>
+                  <div>
+                    <h3 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 800, color: '#0f172a' }}>
+                      {preview.calamity || selectedRequest.type || 'Relief Assistance'}
+                    </h3>
+                    <span style={{ fontSize: '0.78rem', color: '#64748b' }}>
+                      Reference Code: <strong style={{ fontFamily: 'monospace', color: '#AF101A' }}>{selectedRequest.id}</strong>
+                    </span>
+                  </div>
                 </div>
-                <div className="beneficiary-request-detail__row">
-                  <label>Type</label>
-                  <span>{selectedRequest.type}</span>
-                </div>
-                <div className="beneficiary-request-detail__row">
-                  <label>Status</label>
+
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                  <span className={`beneficiary-priority-badge beneficiary-priority-badge--${selectedRequest.priority?.toLowerCase()}`}>
+                    {selectedRequest.priority} Priority
+                  </span>
                   <StatusBadge status={selectedRequest.status} />
                 </div>
-                <div className="beneficiary-request-detail__row">
-                  <label>Priority</label>
-                  <span className={`beneficiary-priority-badge beneficiary-priority-badge--${selectedRequest.priority?.toLowerCase()}`}>
-                    {selectedRequest.priority}
-                  </span>
-                </div>
-                <div className="beneficiary-request-detail__row">
-                  <label>Submitted</label>
-                  <span>{selectedRequest.date}</span>
-                </div>
-                {preview.calamity && (
-                  <div className="beneficiary-request-detail__row">
-                    <label>Calamity</label>
-                    <span>{preview.calamity}</span>
-                  </div>
-                )}
-                {preview.families && (
-                  <div className="beneficiary-request-detail__row">
-                    <label>Families</label>
-                    <span>{preview.families}</span>
-                  </div>
-                )}
-                {preview.needs.length > 0 && (
-                  <div className="beneficiary-request-detail__row">
-                    <label>Needs</label>
-                    <span>{preview.needs.join(', ')}</span>
-                  </div>
-                )}
-                {selectedRequest.approvedDate && (
-                  <div className="beneficiary-request-detail__row">
-                    <label>Approved</label>
-                    <span>{selectedRequest.approvedDate}</span>
-                  </div>
-                )}
-                {selectedRequest.completedDate && (
-                  <div className="beneficiary-request-detail__row">
-                    <label>Completed</label>
-                    <span>{selectedRequest.completedDate}</span>
-                  </div>
-                )}
               </div>
-              
-              {(preview.extraNotes || (!preview.hasStructured && selectedRequest.notes)) && (
-                <div className="beneficiary-request-detail__notes">
-                  <label>Additional Notes</label>
-                  <p>{preview.extraNotes || selectedRequest.notes}</p>
+
+              {/* 4-Item Quick Stats Grid */}
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: '0.75rem', marginBottom: '1.25rem' }}>
+                <div style={{ padding: '0.85rem 1rem', background: '#ffffff', border: '1px solid #e2e8f0', borderRadius: '10px' }}>
+                  <span style={{ fontSize: '0.72rem', fontWeight: 700, textTransform: 'uppercase', color: '#64748b', display: 'block', letterSpacing: '0.04em' }}>
+                    Date Submitted
+                  </span>
+                  <strong style={{ fontSize: '0.92rem', color: '#0f172a', display: 'block', marginTop: '0.2rem' }}>
+                    {selectedRequest.date || '—'}
+                  </strong>
+                </div>
+
+                <div style={{ padding: '0.85rem 1rem', background: '#ffffff', border: '1px solid #e2e8f0', borderRadius: '10px' }}>
+                  <span style={{ fontSize: '0.72rem', fontWeight: 700, textTransform: 'uppercase', color: '#64748b', display: 'block', letterSpacing: '0.04em' }}>
+                    Target Families
+                  </span>
+                  <strong style={{ fontSize: '0.92rem', color: '#0f172a', display: 'block', marginTop: '0.2rem' }}>
+                    {preview.families ? `${preview.families} Families` : '—'}
+                  </strong>
+                </div>
+
+                <div style={{ padding: '0.85rem 1rem', background: '#ffffff', border: '1px solid #e2e8f0', borderRadius: '10px' }}>
+                  <span style={{ fontSize: '0.72rem', fontWeight: 700, textTransform: 'uppercase', color: '#64748b', display: 'block', letterSpacing: '0.04em' }}>
+                    Calamity / Event
+                  </span>
+                  <strong style={{ fontSize: '0.92rem', color: '#0f172a', display: 'block', marginTop: '0.2rem' }}>
+                    {preview.calamity || 'General Relief'}
+                  </strong>
+                </div>
+
+                <div style={{ padding: '0.85rem 1rem', background: '#ffffff', border: '1px solid #e2e8f0', borderRadius: '10px' }}>
+                  <span style={{ fontSize: '0.72rem', fontWeight: 700, textTransform: 'uppercase', color: '#64748b', display: 'block', letterSpacing: '0.04em' }}>
+                    Review Status
+                  </span>
+                  <strong style={{ fontSize: '0.92rem', color: '#0f172a', display: 'block', marginTop: '0.2rem' }}>
+                    {selectedRequest.status}
+                  </strong>
+                </div>
+              </div>
+
+              {/* Requested Needs Items */}
+              {preview.needs.length > 0 && (
+                <div style={{ padding: '1rem 1.15rem', background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '10px', marginBottom: '1.25rem' }}>
+                  <span style={{ fontSize: '0.75rem', fontWeight: 700, textTransform: 'uppercase', color: '#475569', display: 'flex', alignItems: 'center', gap: '0.35rem', marginBottom: '0.6rem', letterSpacing: '0.04em' }}>
+                    <Package size={14} style={{ color: '#AF101A' }} /> Requested Goods &amp; Needs ({preview.needs.length})
+                  </span>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.45rem' }}>
+                    {preview.needs.map((item, i) => (
+                      <span
+                        key={i}
+                        style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '0.3rem',
+                          padding: '0.3rem 0.75rem',
+                          background: '#ffffff',
+                          border: '1px solid #cbd5e1',
+                          borderRadius: '999px',
+                          fontSize: '0.82rem',
+                          fontWeight: 600,
+                          color: '#1e293b',
+                        }}
+                      >
+                        ✓ {item}
+                      </span>
+                    ))}
+                  </div>
                 </div>
               )}
-            </div>
 
-            <RequestProgressTracker request={selectedRequest} />
+              {/* Additional Notes Block */}
+              {(preview.extraNotes || (!preview.hasStructured && selectedRequest.notes)) && (
+                <div style={{ padding: '1rem 1.15rem', background: '#fffbeb', border: '1px solid #fde68a', borderRadius: '10px', marginBottom: '1.25rem' }}>
+                  <span style={{ fontSize: '0.75rem', fontWeight: 700, textTransform: 'uppercase', color: '#92400e', display: 'block', marginBottom: '0.35rem', letterSpacing: '0.04em' }}>
+                    Additional Remarks &amp; Situation Notes
+                  </span>
+                  <p style={{ margin: 0, fontSize: '0.88rem', color: '#78350f', lineHeight: 1.55 }}>
+                    {preview.extraNotes || selectedRequest.notes}
+                  </p>
+                </div>
+              )}
 
-            <div className="admin-modal__actions">
-              {canEditRequest(selectedRequest) && (
-                <button
-                  type="button"
-                  className="btn btn--primary"
-                  onClick={() => handleEdit(selectedRequest)}
-                >
-                  Edit Request
+              {/* Lifecycle Progress Tracker */}
+              <div style={{ background: '#ffffff', border: '1px solid #e2e8f0', borderRadius: '12px', padding: '1.25rem', marginBottom: '1.25rem' }}>
+                <RequestProgressTracker request={selectedRequest} />
+              </div>
+
+              {/* Actions */}
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '0.65rem', borderTop: '1px solid #e2e8f0', paddingTop: '1.25rem' }}>
+                {canEditRequest(selectedRequest) && (
+                  <button
+                    type="button"
+                    className="btn btn--primary"
+                    onClick={() => handleEdit(selectedRequest)}
+                  >
+                    Edit Request
+                  </button>
+                )}
+                {canCancelRequest(selectedRequest) && (
+                  <button
+                    type="button"
+                    className="btn btn--outline"
+                    onClick={() => {
+                      handleCancel(selectedRequest.dbId)
+                      setSelectedRequest(null)
+                    }}
+                  >
+                    <XCircle size={15} /> Cancel Request
+                  </button>
+                )}
+                <button type="button" className="btn btn--ghost" onClick={() => setSelectedRequest(null)}>
+                  Close
                 </button>
-              )}
-              {canCancelRequest(selectedRequest) && (
-                <button
-                  type="button"
-                  className="btn btn--outline"
-                  onClick={() => {
-                    handleCancel(selectedRequest.dbId)
-                    setSelectedRequest(null)
-                  }}
-                >
-                  <XCircle size={16} /> Cancel Request
-                </button>
-              )}
-              <button type="button" className="btn btn--ghost" onClick={() => setSelectedRequest(null)}>
-                Close
-              </button>
+              </div>
             </div>
           </div>
         </div>
