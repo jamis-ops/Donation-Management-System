@@ -22,10 +22,12 @@ function normalize_need_key(string $s): string
   return trim(preg_replace('/\s+/', ' ', $s) ?? $s);
 }
 
-function decode_needs_list(?string $json, ?string $fallbackCsv = null): array
+function decode_needs_list($json, ?string $fallbackCsv = null): array
 {
   $needs = [];
-  if ($json) {
+  if (is_array($json)) {
+    $needs = $json;
+  } elseif (is_string($json) && trim($json) !== '') {
     $decoded = json_decode($json, true);
     if (is_array($decoded)) {
       $needs = $decoded;
@@ -33,13 +35,18 @@ function decode_needs_list(?string $json, ?string $fallbackCsv = null): array
   }
   if (!$needs && $fallbackCsv) {
     // assistance_type is often "Rice, Hygiene Kits" — split on commas
-    $needs = preg_split('/\s*,\s*/', $fallbackCsv) ?: [];
+    $needs = preg_split('/\s*,\s*/', (string) $fallbackCsv) ?: [];
   }
   $out = [];
   foreach ($needs as $n) {
-    $n = trim((string) $n);
-    if ($n !== '') {
-      $out[] = $n;
+    if (is_array($n)) {
+      $n = $n['item'] ?? $n['name'] ?? $n['category'] ?? $n['label'] ?? $n['title'] ?? (isset($n[0]) && is_scalar($n[0]) ? $n[0] : '');
+    }
+    if (is_scalar($n)) {
+      $n = trim((string) $n);
+      if ($n !== '') {
+        $out[] = $n;
+      }
     }
   }
   return array_values(array_unique($out));
