@@ -4075,6 +4075,101 @@
    Barangay Portal Enhancements
    ========================================================= */
 
+/* Barangay Hero Banner */
+.barangay-hero-banner {
+  display: flex;
+  align-items: center;
+  gap: 1.25rem;
+  padding: 1.5rem 1.75rem;
+  background: linear-gradient(135deg, #ffffff 0%, #fffbfb 100%);
+  border: 1px solid #fecaca;
+  border-radius: 14px;
+  box-shadow: 0 4px 16px rgba(175, 16, 26, 0.05);
+  margin-bottom: 1.5rem;
+  position: relative;
+  overflow: hidden;
+}
+
+.barangay-hero-banner::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 5px;
+  height: 100%;
+  background: linear-gradient(180deg, #AF101A 0%, #e11d48 100%);
+}
+
+.barangay-hero-icon {
+  width: 52px;
+  height: 52px;
+  border-radius: 14px;
+  background: linear-gradient(135deg, #AF101A 0%, #800000 100%);
+  color: #ffffff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  box-shadow: 0 6px 16px rgba(175, 16, 26, 0.25);
+}
+
+.barangay-hero-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.barangay-hero-title-row {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  flex-wrap: wrap;
+}
+
+.barangay-hero-title {
+  margin: 0;
+  font-size: 1.35rem;
+  font-weight: 800;
+  color: #0f172a;
+  letter-spacing: -0.02em;
+}
+
+.barangay-partner-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  font-size: 0.75rem;
+  font-weight: 700;
+  padding: 0.22rem 0.65rem;
+  border-radius: 999px;
+  background: #ecfdf5;
+  color: #047857;
+  border: 1px solid #a7f3d0;
+}
+
+.barangay-hero-meta {
+  margin: 0.35rem 0 0;
+  font-size: 0.85rem;
+  color: #64748b;
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+}
+
+.barangay-hero-meta strong {
+  color: #334155;
+  font-weight: 700;
+}
+
+@media (max-width: 768px) {
+  .barangay-hero-banner {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 1rem;
+    padding: 1.25rem;
+  }
+}
+
 /* Priority Badges */
 .beneficiary-priority-badge {
   display: inline-flex;

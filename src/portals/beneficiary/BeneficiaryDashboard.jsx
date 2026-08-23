@@ -41,45 +41,51 @@ export default function BeneficiaryDashboard() {
       {data && (
         <>
           {/* Barangay Hero Profile Banner */}
-          <div className="volunteer-kpi-card" style={{ padding: '1.25rem 1.5rem', marginBottom: '1.25rem', background: 'linear-gradient(135deg, #fff7f7 0%, #fff 100%)', border: '1px solid #fecaca' }}>
-            <div style={{ width: '48px', height: '48px', borderRadius: '12px', background: 'linear-gradient(135deg, #AF101A, #800000)', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, boxShadow: '0 4px 12px rgba(175, 16, 26, 0.25)' }}>
-              <Building2 size={24} />
+          <div className="barangay-hero-banner">
+            <div className="barangay-hero-icon">
+              <Building2 size={26} />
             </div>
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
-                <h2 style={{ margin: 0, fontSize: '1.3rem', fontWeight: 800, color: '#0f172a' }}>
+            <div className="barangay-hero-info">
+              <div className="barangay-hero-title-row">
+                <h2 className="barangay-hero-title">
                   {profile.barangay || profile.name}
                 </h2>
-                <span style={{ fontSize: '0.75rem', fontWeight: 700, padding: '0.2rem 0.6rem', borderRadius: '999px', background: '#ecfdf5', color: '#047857', border: '1px solid #a7f3d0' }}>
-                  ✓ Official Beneficiary Partner
+                <span className="barangay-partner-badge">
+                  <CheckCircle2 size={13} /> Official Beneficiary Partner
                 </span>
               </div>
-              <p style={{ margin: '0.25rem 0 0', fontSize: '0.84rem', color: '#64748b' }}>
-                {profile.municipality} • Representative: <strong>{profile.representative}</strong> • Registered Families: <strong>{profile.families}</strong>
+              <p className="barangay-hero-meta">
+                <span>📍 {profile.municipality}</span>
+                <span>•</span>
+                <span>Representative: <strong>{profile.representative}</strong></span>
+                <span>•</span>
+                <span>Registered Families: <strong>{profile.families}</strong></span>
               </p>
             </div>
-            <Link to="/beneficiary/requests" className="btn btn--sm btn--primary" style={{ whiteSpace: 'nowrap' }}>
-              <Inbox size={14} /> + New Request
+            <Link to="/beneficiary/requests" className="btn btn--primary" style={{ whiteSpace: 'nowrap' }}>
+              <Inbox size={15} /> + New Request
             </Link>
           </div>
 
-          {/* Stats Cards */}
-          <div className="portal-stats">
+          {/* KPI Stats Grid */}
+          <div className="volunteer-kpi-grid" style={{ marginBottom: '1.5rem' }}>
             {(data.stats || []).map((item) => {
               const Icon = iconMap[item.icon] || Package
-              let cardClass = ''
-              if (item.label.includes('Active Requests')) cardClass = 'volunteer-kpi-card--total'
-              else if (item.label.includes('Approved')) cardClass = 'volunteer-kpi-card--completed'
-              else if (item.label.includes('Deliveries') || item.label.includes('Schedule')) cardClass = 'volunteer-kpi-card--ongoing'
-              else cardClass = 'volunteer-kpi-card--hours'
+              let cardModifier = 'volunteer-kpi-card--total'
+              if (item.label.includes('Active Requests')) cardModifier = 'volunteer-kpi-card--total'
+              else if (item.label.includes('Approved')) cardModifier = 'volunteer-kpi-card--completed'
+              else if (item.label.includes('Deliveries') || item.label.includes('Schedule')) cardModifier = 'volunteer-kpi-card--ongoing'
+              else if (item.label.includes('Completed') || item.label.includes('Received')) cardModifier = 'volunteer-kpi-card--hours'
 
               return (
-                <div key={item.label} className="portal-stat-card">
-                  <div className="portal-stat-card__icon">
+                <div key={item.label} className={`volunteer-kpi-card ${cardModifier}`}>
+                  <div className="volunteer-kpi-card__icon">
                     <Icon size={20} />
                   </div>
-                  <span className="portal-stat-card__value">{item.value}</span>
-                  <span className="portal-stat-card__label">{item.label}</span>
+                  <div>
+                    <div className="volunteer-kpi-card__value">{item.value}</div>
+                    <div className="volunteer-kpi-card__label">{item.label}</div>
+                  </div>
                 </div>
               )
             })}
