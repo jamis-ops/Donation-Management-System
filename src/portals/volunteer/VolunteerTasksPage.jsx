@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import {
   Clock,
   Search,
@@ -13,6 +13,9 @@ import {
   Tag,
   X,
   Check,
+  Award,
+  Sparkles,
+  CheckCircle2,
 } from 'lucide-react'
 import StatusBadge from '../../components/admin/shared/StatusBadge'
 import ApiState from '../../components/admin/shared/ApiState'
@@ -24,7 +27,7 @@ import { notify } from '../../utils/toast'
 import { confirmAction, showSuccessModal } from '../../utils/confirm'
 import { useLoading } from '../../context/LoadingContext'
 
-const STATUS_FILTERS = ['All', 'Ongoing', 'Completed']
+const STATUS_FILTERS = ['All', 'Ongoing', 'Completed', 'Distributions']
 
 function isDistributionTask(task) {
   if (!task) return false
@@ -62,29 +65,51 @@ export default function VolunteerTasksPage() {
   const [selectedTask, setSelectedTask] = useState(null)
   const [saving, setSaving] = useState(false)
 
-  const filteredTasks = data.filter((task) => {
-    const vStatus = getVolunteerTaskStatus(task)
-    const matchesStatus = statusFilter === 'All' || vStatus === statusFilter
-    const q = searchQuery.toLowerCase()
-    const isDist = isDistributionTask(task)
-    const matchesSearch =
-      !q ||
-      task.title?.toLowerCase().includes(q) ||
-      task.module?.toLowerCase().includes(q) ||
-      task.category?.toLowerCase().includes(q) ||
-      (isDist && (
-        task.distributionCode?.toLowerCase().includes(q) ||
-        task.distributionLabel?.toLowerCase().includes(q)
-      ))
-    return matchesStatus && matchesSearch
-  })
+  const stats = useMemo(() => {
+    const list = Array.isArray(data) ? data : []
+    const total = list.length
+    const ongoing = list.filter((t) => getVolunteerTaskStatus(t) === 'Ongoing').length
+    const completed = list.filter((t) => getVolunteerTaskStatus(t) === 'Completed').length
+    const distributions = list.filter(isDistributionTask).length
+    const totalHours = list.reduce((sum, t) => {
+      const hrs = parseFloat(t.dutyHours || t.hours || 0) || 0
+      return sum + hrs
+    }, 0)
+    return { total, ongoing, completed, distributions, totalHours }
+  }, [data])
+
+  const filteredTasks = useMemo(() => {
+    return (data || []).filter((task) => {
+      const vStatus = getVolunteerTaskStatus(task)
+      const isDist = isDistributionTask(task)
+      
+      let matchesStatus = true
+      if (statusFilter === 'Ongoing') matchesStatus = vStatus === 'Ongoing'
+      else if (statusFilter === 'Completed') matchesStatus = vStatus === 'Completed'
+      else if (statusFilter === 'Distributions') matchesStatus = isDist
+
+      const q = searchQuery.toLowerCase().trim()
+      const matchesSearch =
+        !q ||
+        task.title?.toLowerCase().includes(q) ||
+        task.module?.toLowerCase().includes(q) ||
+        task.category?.toLowerCase().includes(q) ||
+        (isDist && (
+          task.distributionCode?.toLowerCase().includes(q) ||
+          task.distributionLabel?.toLowerCase().includes(q) ||
+          task.distributionLocation?.toLowerCase().includes(q)
+        ))
+      return matchesStatus && matchesSearch
+    })
+  }, [data, statusFilter, searchQuery])
 
   const paging = usePagination(filteredTasks, DEFAULT_PAGE_SIZE, `${searchQuery}|${statusFilter}`)
 
   const statusCounts = {
-    All: data.length,
-    Ongoing: data.filter((t) => getVolunteerTaskStatus(t) === 'Ongoing').length,
-    Completed: data.filter((t) => getVolunteerTaskStatus(t) === 'Completed').length,
+    All: stats.total,
+    Ongoing: stats.ongoing,
+    Completed: stats.completed,
+    Distributions: stats.distributions,
   }
 
   const applyTaskUpdate = (updated) => {
@@ -127,10 +152,58 @@ export default function VolunteerTasksPage() {
 
   return (
     <ApiState loading={loading} error={error} onRetry={reload}>
+      {/* Volunteer KPI Header Cards */}
+      <div className="volunteer-kpi-grid">
+        <div className="volunteer-kpi-card volunteer-kpi-card--total">
+          <div className="volunteer-kpi-card__icon">
+            <Layers size={20} />
+          </div>
+          <div>
+            <div className="volunteer-kpi-card__value">{stats.total}</div>
+            <div className="volunteer-kpi-card__label">Assigned Tasks</div>
+          </div>
+        </div>
+
+        <div className="volunteer-kpi-card volunteer-kpi-card--ongoing">
+          <div className="volunteer-kpi-card__icon">
+            <Clock size={20} />
+          </div>
+          <div>
+            <div className="volunteer-kpi-card__value">{stats.ongoing}</div>
+            <div className="volunteer-kpi-card__label">Ongoing Duties</div>
+          </div>
+        </div>
+
+        <div className="volunteer-kpi-card volunteer-kpi-card--completed">
+          <div className="volunteer-kpi-card__icon">
+            <ShieldCheck size={20} />
+          </div>
+          <div>
+            <div className="volunteer-kpi-card__value">{stats.completed}</div>
+            <div className="volunteer-kpi-card__label">Completed Tasks</div>
+          </div>
+        </div>
+
+        <div className="volunteer-kpi-card volunteer-kpi-card--hours">
+          <div className="volunteer-kpi-card__icon">
+            <Award size={20} />
+          </div>
+          <div>
+            <div className="volunteer-kpi-card__value">{stats.totalHours.toFixed(1)}h</div>
+            <div className="volunteer-kpi-card__label">Estimated Duty Hours</div>
+          </div>
+        </div>
+      </div>
+
       <section className="portal-panel">
         <div className="portal-panel__header">
-          <h2>My Tasks</h2>
-          <span className="portal-panel__count">{filteredTasks.length} tasks</span>
+          <div>
+            <h2>My Tasks &amp; Deployments</h2>
+            <p style={{ margin: '0.2rem 0 0', fontSize: '0.825rem', color: '#64748b' }}>
+              Track assigned volunteer duties, distribution operations, and logged volunteer hours.
+            </p>
+          </div>
+          <span className="portal-panel__count">{filteredTasks.length} {filteredTasks.length === 1 ? 'task' : 'tasks'}</span>
         </div>
 
         <div className="portal-filter-bar">
@@ -138,7 +211,7 @@ export default function VolunteerTasksPage() {
             <Search size={18} />
             <input
               type="text"
-              placeholder="Search tasks or distributions..."
+              placeholder="Search tasks, relief operations, or locations..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="portal-search-input"
@@ -175,12 +248,26 @@ export default function VolunteerTasksPage() {
               {paging.pageItems.map((t) => {
                 const taskStatus = getVolunteerTaskStatus(t)
                 const isDist = isDistributionTask(t)
+                const isOngoing = taskStatus === 'Ongoing'
+                const isCompleted = taskStatus === 'Completed'
+
+                let stateClass = ''
+                if (isDist) stateClass = 'portal-task-item--distribution'
+                else if (isCompleted) stateClass = 'portal-task-item--completed'
+                else if (isOngoing) stateClass = 'portal-task-item--ongoing'
 
                 return (
-                  <li key={t.dbId || t.id} className={`portal-task-item portal-task-item--enhanced${isDist ? ' portal-task-item--distribution' : ''}`}>
+                  <li 
+                    key={t.dbId || t.id} 
+                    className={`portal-task-item portal-task-item--enhanced ${stateClass}`}
+                    onClick={() => setSelectedTask(t)}
+                    style={{ cursor: 'pointer' }}
+                  >
                     <div className="portal-task-item__main">
                       <div className="portal-task-item__header">
-                        <strong>{t.title}</strong>
+                        <div className="portal-task-item__title-group">
+                          <strong className="portal-task-item__title">{t.title}</strong>
+                        </div>
                         <div className="portal-task-item__badges">
                           <StatusBadge status={taskStatus} />
                           {isDist && t.distributionStatus && (
@@ -197,15 +284,15 @@ export default function VolunteerTasksPage() {
                         <span>
                           <Clock size={14} /> Due: {t.due || '—'}
                         </span>
-                        <span className="portal-task-item__category">{t.module || t.category || 'General'}</span>
+                        <span className="portal-task-item__category">{t.module || t.category || 'General Duty'}</span>
                         {(t.dutyHours || t.hours) && (
-                          <span className="portal-task-item__hours">{t.dutyHours || t.hours}h estimated</span>
+                          <span className="portal-task-item__hours">{t.dutyHours || t.hours}h credited</span>
                         )}
                         {t.dutyLabel && <span>{t.dutyLabel}</span>}
                       </div>
                       {isDist && (
                         <div className="portal-task-dist">
-                          <MapPin size={14} />
+                          <MapPin size={15} style={{ flexShrink: 0 }} />
                           <span>
                             <strong>{t.distributionCode}</strong>
                             {t.distributionLabel ? ` · ${t.distributionLabel}` : ''}
@@ -214,7 +301,7 @@ export default function VolunteerTasksPage() {
                         </div>
                       )}
                     </div>
-                    <div className="portal-task-item__actions">
+                    <div className="portal-task-item__actions" onClick={(e) => e.stopPropagation()}>
                       {isDist && t.canMarkInTransit && (
                         <button
                           type="button"
@@ -240,7 +327,7 @@ export default function VolunteerTasksPage() {
                         className="btn btn--sm btn--outline"
                         onClick={() => setSelectedTask(t)}
                       >
-                        <Eye size={14} /> Details
+                        <Eye size={14} /> View Details
                       </button>
                     </div>
                   </li>
