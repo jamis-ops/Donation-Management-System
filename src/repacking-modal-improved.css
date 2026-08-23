@@ -37,24 +37,29 @@
   align-items: flex-start;
   justify-content: space-between;
   gap: 1rem;
-  padding: 1.375rem 1.75rem 1.25rem;
-  border-bottom: 1px solid var(--admin-border, #e5e7eb);
-  background: var(--admin-surface, #fff);
+  padding: 1.25rem 1.75rem;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.1);
+  background: linear-gradient(135deg, #AF101A 0%, #8E0D15 100%);
+  color: #ffffff;
+  border-top-left-radius: 12px;
+  border-top-right-radius: 12px;
+  box-shadow: 0 2px 8px rgba(175, 16, 26, 0.15);
 }
 
 .repacking-modal-multi .admin-modal__header-text h2 {
   margin: 0;
   font-size: 1.2rem;
   font-weight: 700;
-  color: var(--admin-text, #1e293b);
+  color: #ffffff !important;
   line-height: 1.3;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.15);
 }
 
 .repacking-modal-multi .admin-modal__subtitle {
   margin: 0.25rem 0 0;
-  font-size: 0.82rem;
-  color: var(--admin-text-muted, #64748b);
-  font-weight: 500;
+  font-size: 0.85rem;
+  color: rgba(255, 255, 255, 0.88);
+  font-weight: 450;
 }
 
 .repacking-modal-multi .admin-modal__close {
@@ -64,19 +69,25 @@
   justify-content: center;
   width: 34px;
   height: 34px;
-  border: 1px solid #e2e8f0;
-  border-radius: 8px;
-  background: #fff;
-  color: #64748b;
+  border: 1px solid rgba(255, 255, 255, 0.28);
+  border-radius: 9px;
+  background: rgba(255, 255, 255, 0.14);
+  color: #ffffff;
   cursor: pointer;
-  transition: background 0.15s, color 0.15s, border-color 0.15s;
+  transition: background 0.15s, color 0.15s, border-color 0.15s, transform 0.15s;
   margin-top: 0.1rem;
+  backdrop-filter: blur(4px);
 }
 
 .repacking-modal-multi .admin-modal__close:hover {
-  background: #fef2f2;
-  border-color: #fecaca;
-  color: #b91c1c;
+  background: rgba(255, 255, 255, 0.28);
+  border-color: rgba(255, 255, 255, 0.55);
+  color: #ffffff;
+  transform: scale(1.06);
+}
+
+.repacking-modal-multi .admin-modal__close:active {
+  transform: scale(0.95);
 }
 
 /* ─── 3. STEP INDICATOR ──────────────────────────────────── */

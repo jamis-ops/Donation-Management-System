@@ -23,7 +23,7 @@ const DOCS = {
  * Scrollable legal policy dialog. Renders via portal so it works above nested forms/modals.
  * @param {'privacy' | 'terms' | null} doc
  */
-export default function LegalPolicyModal({ doc, onClose }) {
+export default function LegalPolicyModal({ doc, onClose, onReviewed }) {
   const active = doc && DOCS[doc] ? DOCS[doc] : null
 
   useEffect(() => {
@@ -31,24 +31,32 @@ export default function LegalPolicyModal({ doc, onClose }) {
     const prev = document.body.style.overflow
     document.body.style.overflow = 'hidden'
     const onKey = (e) => {
-      if (e.key === 'Escape') onClose?.()
+      if (e.key === 'Escape') {
+        onReviewed?.(doc)
+        onClose?.()
+      }
     }
     window.addEventListener('keydown', onKey)
     return () => {
       document.body.style.overflow = prev
       window.removeEventListener('keydown', onKey)
     }
-  }, [active, onClose])
+  }, [active, onClose, onReviewed, doc])
 
   if (!active || typeof document === 'undefined') return null
 
   const Body = active.Body
 
+  const handleClose = () => {
+    onReviewed?.(doc)
+    onClose?.()
+  }
+
   return createPortal(
     <div
       className="legal-modal-overlay"
       role="presentation"
-      onClick={onClose}
+      onClick={handleClose}
     >
       <div
         className="legal-modal"
@@ -66,7 +74,7 @@ export default function LegalPolicyModal({ doc, onClose }) {
           <button
             type="button"
             className="legal-modal__close"
-            onClick={onClose}
+            onClick={handleClose}
             aria-label="Close"
           >
             <X size={18} strokeWidth={2.5} />
@@ -77,9 +85,9 @@ export default function LegalPolicyModal({ doc, onClose }) {
           <Body />
         </div>
 
-        <footer className="legal-modal__footer">
-          <button type="button" className="btn btn--primary" onClick={onClose}>
-            Close
+        <footer className="legal-modal__footer" style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.65rem' }}>
+          <button type="button" className="btn btn--primary" onClick={handleClose}>
+            I Have Read & Reviewed This {doc === 'privacy' ? 'Privacy Policy' : 'Terms & Conditions'}
           </button>
         </footer>
       </div>

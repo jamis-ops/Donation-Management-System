@@ -9,6 +9,8 @@ import { useApiList } from '../../hooks/useApiList'
 import { usePagination, DEFAULT_PAGE_SIZE } from '../../hooks/usePagination'
 import Pagination from '../../components/admin/shared/Pagination'
 import { notify } from '../../utils/toast'
+import { confirmAction, showSuccessModal } from '../../utils/confirm'
+import { useLoading } from '../../context/LoadingContext'
 
 function verifyResultMessage(res) {
   if (!res?.accountCreated) {
@@ -21,6 +23,7 @@ function verifyResultMessage(res) {
 }
 
 export default function StaffVerificationPage() {
+  const { showLoading, hideLoading } = useLoading()
   const { data, loading, error, reload } = useApiList(() => donationsApi.list())
   const [searchQuery, setSearchQuery] = useState('')
   const [priorityFilter, setPriorityFilter] = useState('All')
@@ -63,34 +66,53 @@ export default function StaffVerificationPage() {
       notify.warning('Cannot approve: proof of donation is required.')
       return
     }
-    if (!window.confirm(`Verify donation ${row.trackingCode} from ${row.donor}?`)) return
+    const ok = await confirmAction({
+      title: 'Verify Donation',
+      message: `Verify donation ${row.trackingCode} from ${row.donor}?`,
+      confirmText: 'Verify Donation',
+      type: 'primary',
+    })
+    if (!ok) return
+
     setBusy(true)
+    showLoading('Verifying donation…')
     try {
       const res = await donationsApi.update(row.dbId, { status: 'Verified' })
       const status = res?.data?.status || 'Verified'
       notify.success(`Status successfully updated to: ${status}. ${verifyResultMessage(res)}`)
+      showSuccessModal('Successfully approved.')
       setSelected(null)
       reload()
     } catch (err) {
       notify.error(err.message || 'Failed to verify donation')
     } finally {
+      hideLoading()
       setBusy(false)
     }
   }
 
   const handleReject = async (row) => {
-    const reason = window.prompt('Reason for rejection (optional):')
-    if (reason === null) return
+    const ok = await confirmAction({
+      title: 'Reject Donation',
+      message: `Are you sure you want to reject donation ${row.trackingCode} from ${row.donor}?`,
+      confirmText: 'Reject Donation',
+      type: 'danger',
+    })
+    if (!ok) return
+
     setBusy(true)
+    showLoading('Rejecting donation…')
     try {
-      const res = await donationsApi.update(row.dbId, { status: 'Rejected', notes: reason || undefined })
+      const res = await donationsApi.update(row.dbId, { status: 'Rejected' })
       const status = res?.data?.status || 'Rejected'
       notify.success(`Status successfully updated to: ${status}.`)
+      showSuccessModal('Successfully rejected.')
       setSelected(null)
       reload()
     } catch (err) {
       notify.error(err.message || 'Failed to reject donation')
     } finally {
+      hideLoading()
       setBusy(false)
     }
   }

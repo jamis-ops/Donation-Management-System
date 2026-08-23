@@ -165,7 +165,7 @@ if ($method === 'GET') {
     json_response(['ok' => true, 'data' => map_inventory($row)]);
   }
 
-  $rows = $pdo->query('SELECT * FROM inventory_items ORDER BY item_name ASC')->fetchAll();
+  $rows = $pdo->query('SELECT * FROM inventory_items ORDER BY created_at DESC, id DESC')->fetchAll();
   $mapped = array_map('map_inventory', $rows);
   $summary = [
     'totalItems' => count($mapped),

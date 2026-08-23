@@ -6,50 +6,6 @@ $pdo = db();
 $method = request_method();
 $id = get_id_param();
 
-function format_duty_time(?string $time): string
-{
-  if (!$time) {
-    return '';
-  }
-  $ts = strtotime($time);
-  return $ts ? date('g:i A', $ts) : $time;
-}
-
-function duty_label(?string $start, ?string $end, $hours): string
-{
-  $parts = [];
-  if ($start && $end) {
-    $parts[] = format_duty_time($start) . ' – ' . format_duty_time($end);
-  } elseif ($start) {
-    $parts[] = 'From ' . format_duty_time($start);
-  }
-  if ($hours !== null && (float) $hours > 0) {
-    $h = rtrim(rtrim(number_format((float) $hours, 2), '0'), '.');
-    $parts[] = "{$h} hr" . ((float) $hours == 1.0 ? '' : 's');
-  }
-  return implode(' · ', $parts);
-}
-
-/**
- * Derive total duty hours from a start/end time pair (handles overnight shifts).
- */
-function hours_between(?string $start, ?string $end): ?float
-{
-  if (!$start || !$end) {
-    return null;
-  }
-  $s = strtotime("1970-01-01 {$start}");
-  $e = strtotime("1970-01-01 {$end}");
-  if ($s === false || $e === false) {
-    return null;
-  }
-  $diff = ($e - $s) / 3600;
-  if ($diff <= 0) {
-    $diff += 24;
-  }
-  return round($diff, 2);
-}
-
 function encode_required_skills($skills): ?string
 {
   if ($skills === null || $skills === '') {
@@ -156,20 +112,31 @@ function map_task(PDO $pdo, array $row): array
     }
   }
 
+  $moduleStr = strtolower(trim((string) ($row['module'] ?? '')));
+  $titleStr = strtolower(trim((string) ($row['title'] ?? '')));
+  $isDistType = str_contains($moduleStr, 'distribution') ||
+                str_contains($moduleStr, 'logistics') ||
+                str_contains($moduleStr, 'delivery') ||
+                str_contains($moduleStr, 'relief') ||
+                str_contains($titleStr, 'distribution') ||
+                str_contains($titleStr, 'delivery') ||
+                str_contains($titleStr, 'logistics');
+  $isDistTask = (bool) ($distId && $isDistType);
+
   return [
     'id' => $row['code'],
     'dbId' => (int) $row['id'],
     'title' => $row['title'],
     'assignee' => $row['assignee'],
     'assigneeUserId' => !empty($row['assignee_user_id']) ? (int) $row['assignee_user_id'] : null,
-    'distributionId' => $distId,
-    'distributionCode' => $distCode,
-    'distributionStatus' => $distStatus,
-    'distributionLabel' => $distLabel,
-    'distributionLocation' => $distLocation,
-    'isDistributionTask' => (bool) $distId,
-    'canMarkInTransit' => $distId ? can_volunteer_set_distribution_status($distStatus, 'In Transit') : false,
-    'canMarkDelivered' => $distId ? can_volunteer_set_distribution_status($distStatus, 'Delivered') : false,
+    'distributionId' => $isDistTask ? $distId : null,
+    'distributionCode' => $isDistTask ? $distCode : '',
+    'distributionStatus' => $isDistTask ? $distStatus : '',
+    'distributionLabel' => $isDistTask ? $distLabel : '',
+    'distributionLocation' => $isDistTask ? $distLocation : '',
+    'isDistributionTask' => $isDistTask,
+    'canMarkInTransit' => $isDistTask ? can_volunteer_set_distribution_status($distStatus, 'In Transit') : false,
+    'canMarkDelivered' => $isDistTask ? can_volunteer_set_distribution_status($distStatus, 'Delivered') : false,
     'priority' => $row['priority'],
     'due' => format_date($row['due_date']),
     'dueDate' => $row['due_date'],
@@ -212,7 +179,7 @@ if ($method === 'GET') {
     $vol = $pdo->prepare('SELECT full_name FROM volunteers WHERE user_id = ? LIMIT 1');
     $vol->execute([$user['id']]);
     $name = $vol->fetchColumn() ?: $user['name'];
-    $stmt = $pdo->prepare('SELECT * FROM tasks WHERE assignee = ? OR assignee_user_id = ? ORDER BY due_date ASC');
+    $stmt = $pdo->prepare('SELECT * FROM tasks WHERE assignee = ? OR assignee_user_id = ? ORDER BY created_at DESC, id DESC');
     $stmt->execute([$name, $user['id']]);
     $rows = $stmt->fetchAll();
     json_response(['ok' => true, 'data' => array_map(fn($r) => map_task($pdo, $r), $rows), 'list' => array_map(fn($r) => map_task($pdo, $r), $rows)]);
@@ -220,7 +187,7 @@ if ($method === 'GET') {
 
   // Staff: default to "my tasks" unless mine=0 (admin-style full list not needed in portal).
   if ($user['role'] === 'Staff' && (!isset($_GET['mine']) || $_GET['mine'] !== '0')) {
-    $stmt = $pdo->prepare('SELECT * FROM tasks WHERE assignee_user_id = ? OR assignee = ? ORDER BY due_date ASC');
+    $stmt = $pdo->prepare('SELECT * FROM tasks WHERE assignee_user_id = ? OR assignee = ? ORDER BY created_at DESC, id DESC');
     $stmt->execute([(int) $user['id'], (string) $user['name']]);
     $rows = $stmt->fetchAll();
     json_response(['ok' => true, 'data' => array_map(fn($r) => map_task($pdo, $r), $rows), 'list' => array_map(fn($r) => map_task($pdo, $r), $rows)]);
@@ -242,7 +209,7 @@ if ($method === 'GET') {
     $vol->execute([(int) $_GET['volunteerId']]);
     $volRow = $vol->fetch();
     if ($volRow) {
-      $stmt = $pdo->prepare('SELECT * FROM tasks WHERE assignee = ? OR assignee_user_id = ? ORDER BY due_date ASC');
+      $stmt = $pdo->prepare('SELECT * FROM tasks WHERE assignee = ? OR assignee_user_id = ? ORDER BY created_at DESC, id DESC');
       $stmt->execute([$volRow['full_name'], $volRow['user_id'] ?: 0]);
       $rows = $stmt->fetchAll();
       json_response(['ok' => true, 'data' => array_map(fn($r) => map_task($pdo, $r), $rows), 'list' => array_map(fn($r) => map_task($pdo, $r), $rows)]);
@@ -252,13 +219,13 @@ if ($method === 'GET') {
   // Optional filter by staff/user assignee for Staff Management page.
   if (!empty($_GET['assigneeUserId'])) {
     $uid = (int) $_GET['assigneeUserId'];
-    $stmt = $pdo->prepare('SELECT * FROM tasks WHERE assignee_user_id = ? ORDER BY due_date ASC');
+    $stmt = $pdo->prepare('SELECT * FROM tasks WHERE assignee_user_id = ? ORDER BY created_at DESC, id DESC');
     $stmt->execute([$uid]);
     $rows = $stmt->fetchAll();
     json_response(['ok' => true, 'data' => array_map(fn($r) => map_task($pdo, $r), $rows), 'list' => array_map(fn($r) => map_task($pdo, $r), $rows)]);
   }
 
-  $rows = $pdo->query('SELECT * FROM tasks ORDER BY due_date ASC')->fetchAll();
+  $rows = $pdo->query('SELECT * FROM tasks ORDER BY created_at DESC, id DESC')->fetchAll();
   $grouped = ['todo' => [], 'inProgress' => [], 'review' => [], 'done' => []];
   foreach ($rows as $row) {
     $col = $row['board_column'];
@@ -286,10 +253,17 @@ if ($method === 'POST') {
     $column = 'todo';
   }
 
+  $volunteerIds = [];
+  if (!empty($body['volunteerIds']) && is_array($body['volunteerIds'])) {
+    $volunteerIds = array_values(array_unique(array_filter(array_map('intval', $body['volunteerIds']))));
+  } elseif (!empty($body['volunteerId'])) {
+    $volunteerIds = [(int) $body['volunteerId']];
+  }
+
   $assigneeUserId = !empty($body['assigneeUserId']) ? (int) $body['assigneeUserId'] : null;
   $assignee = trim((string) ($body['assignee'] ?? ''));
 
-  if ($assigneeUserId) {
+  if ($assigneeUserId && empty($volunteerIds)) {
     $vol = $pdo->prepare('SELECT full_name FROM volunteers WHERE user_id = ? LIMIT 1');
     $vol->execute([$assigneeUserId]);
     $volName = $vol->fetchColumn();
@@ -300,9 +274,9 @@ if ($method === 'POST') {
       $uName->execute([$assigneeUserId]);
       $assignee = (string) ($uName->fetchColumn() ?: '');
     }
-  } elseif (!empty($body['volunteerId'])) {
+  } elseif (count($volunteerIds) === 1) {
     $vol = $pdo->prepare('SELECT full_name, user_id FROM volunteers WHERE id = ? LIMIT 1');
-    $vol->execute([(int) $body['volunteerId']]);
+    $vol->execute([$volunteerIds[0]]);
     $volRow = $vol->fetch();
     if ($volRow) {
       $assignee = $volRow['full_name'];
@@ -327,10 +301,57 @@ if ($method === 'POST') {
     }
   }
 
-  $isVolunteerTask = !empty($body['volunteerId']) || strcasecmp((string) $module, 'Volunteer') === 0 || $distributionId;
+  $isVolunteerTask = !empty($volunteerIds) || !empty($body['volunteerId']) || strcasecmp((string) $module, 'Volunteer') === 0 || $distributionId;
   // Duty hours are required for volunteer assignments (hours tracking).
-  if ($isVolunteerTask && ($assignee || $assigneeUserId) && !$dutyStart && ($dutyHours === null || $dutyHours <= 0)) {
+  if ($isVolunteerTask && ($assignee || $assigneeUserId || !empty($volunteerIds)) && !$dutyStart && ($dutyHours === null || $dutyHours <= 0)) {
     json_response(['ok' => false, 'error' => 'Duty hours are required: set a start/end time or total hours.'], 400);
+  }
+
+  if (count($volunteerIds) > 1) {
+    $created = [];
+    foreach ($volunteerIds as $vId) {
+      $tCode = generate_code('TSK');
+      $vol = $pdo->prepare('SELECT full_name, user_id FROM volunteers WHERE id = ? LIMIT 1');
+      $vol->execute([$vId]);
+      $volRow = $vol->fetch();
+      $vAssignee = $volRow ? $volRow['full_name'] : null;
+      $vAssigneeUserId = ($volRow && $volRow['user_id']) ? (int) $volRow['user_id'] : null;
+
+      $stmt = $pdo->prepare('INSERT INTO tasks (code, title, assignee, assignee_user_id, distribution_id, priority, due_date, duty_start, duty_end, duty_hours, module, required_skills_json, board_column) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)');
+      $stmt->execute([
+        $tCode,
+        $title,
+        $vAssignee,
+        $vAssigneeUserId,
+        $distributionId,
+        $body['priority'] ?? 'Medium',
+        $body['dueDate'] ?? null,
+        $dutyStart,
+        $dutyEnd,
+        $dutyHours,
+        $module,
+        encode_required_skills($body['requiredSkills'] ?? $body['skills'] ?? null),
+        $column,
+      ]);
+      $newId = (int) $pdo->lastInsertId();
+      $stmt = $pdo->prepare('SELECT * FROM tasks WHERE id = ?');
+      $stmt->execute([$newId]);
+      $task = map_task($pdo, $stmt->fetch());
+      $created[] = $task;
+
+      if ($vAssigneeUserId) {
+        $duty = duty_label($dutyStart, $dutyEnd, $dutyHours);
+        create_notification(
+          $pdo,
+          'task_assigned',
+          'New task assigned',
+          "You have been assigned: {$title}" . ($duty ? " (Duty: {$duty})" : ''),
+          '/volunteer-portal/tasks',
+          $vAssigneeUserId
+        );
+      }
+    }
+    json_response(['ok' => true, 'data' => $created[0], 'created' => $created, 'count' => count($created)], 201);
   }
 
   $stmt = $pdo->prepare('INSERT INTO tasks (code, title, assignee, assignee_user_id, distribution_id, priority, due_date, duty_start, duty_end, duty_hours, module, required_skills_json, board_column) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)');
@@ -406,15 +427,33 @@ if ($method === 'PUT') {
     }
   }
 
-  $column = $body['boardColumn'] ?? $existing['board_column'];
+  $column = $body['boardColumn'] ?? $body['status'] ?? $existing['board_column'];
+  if (isset(WORKFLOW_TASK_ALIASES[$column])) {
+    $column = WORKFLOW_TASK_ALIASES[$column];
+  }
   if (!in_array($column, ['todo', 'inProgress', 'review', 'done'], true)) {
     $column = $existing['board_column'];
   }
+
+  assert_valid_status_transition(
+    'Task',
+    (string) ($existing['board_column'] ?? 'todo'),
+    $column,
+    WORKFLOW_TASK_STEPS,
+    WORKFLOW_TASK_TERMINAL,
+    [],
+    WORKFLOW_TASK_ALIASES
+  );
 
   // Volunteer / Staff limited to status changes on their own tasks.
   if (in_array($user['role'], ['Volunteer', 'Staff'], true)) {
     $distributionStatus = trim((string) ($body['distributionStatus'] ?? ''));
     $linkedDistId = !empty($existing['distribution_id']) ? (int) $existing['distribution_id'] : null;
+
+    // Volunteers cannot directly mark tasks completed; only administrators can verify and complete tasks.
+    if ($user['role'] === 'Volunteer' && $distributionStatus === '' && ($column === 'done' || $column === 'review')) {
+      json_response(['ok' => false, 'error' => 'Only administrators can mark tasks as completed for volunteers.'], 403);
+    }
 
     // Volunteers (and staff assignees) can advance a linked distribution: In Transit / Delivered.
     if ($distributionStatus !== '' && $linkedDistId) {

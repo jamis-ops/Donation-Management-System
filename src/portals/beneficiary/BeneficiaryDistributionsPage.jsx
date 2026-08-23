@@ -13,6 +13,7 @@ import { useHashScroll, useQueryFocus } from '../../hooks/useDeepLinkFocus'
 import ModalHeader from '../../components/admin/shared/ModalHeader'
 import Pagination from '../../components/admin/shared/Pagination'
 import { notify } from '../../utils/toast'
+import { useLoading } from '../../context/LoadingContext'
 
 const ACTIVE_STATUSES = ['Planning', 'Preparing', 'In Transit', 'Delivered', 'Awaiting Proof']
 
@@ -47,6 +48,7 @@ export default function BeneficiaryDistributionsPage() {
   }))
   const focusDistId = deepLink.distributionId
   const { data, loading, error, reload } = useApiList(() => distributionsApi.list())
+  const { showLoading, hideLoading } = useLoading()
   const [modal, setModal] = useState(null) // { row, mode: 'receive' | 'missing' }
   const [selectedDist, setSelectedDist] = useState(null)
   const [qty, setQty] = useState('')
@@ -75,6 +77,7 @@ export default function BeneficiaryDistributionsPage() {
       return
     }
     setSaving(true)
+    showLoading('Saving…')
     try {
       if (modal.mode === 'receive') {
         await distributionsApi.update(modal.row.dbId, {
@@ -96,6 +99,7 @@ export default function BeneficiaryDistributionsPage() {
     } catch (err) {
       notify.error(err.message)
     } finally {
+      hideLoading()
       setSaving(false)
     }
   }

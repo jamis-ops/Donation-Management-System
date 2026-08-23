@@ -12,9 +12,10 @@ dist
 dist-ssr
 *.local
 
-# Email
+# Email & Secrets
 api/mail_config.php
 api/super_admin_config.php
+api/ai_config.php
 api/logs/mail_outbox/*.html
 mail-service/.env
 

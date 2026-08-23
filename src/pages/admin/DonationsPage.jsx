@@ -1,12 +1,13 @@
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { 
   Eye, CheckCircle2, Download, FileText, Check, Clock, Package, 
   TrendingUp, Users, MapPin, FileCheck, Send, Printer, Heart,
-  Calendar, Mail, Phone, Award, BarChart3
+  Calendar, Mail, Phone, Award, BarChart3, Coins, CreditCard,
+  Banknote, Gift, ShieldAlert, Sparkles, Filter, Layers, DollarSign
 } from 'lucide-react'
 import { donationsApi } from '../../api/resources'
 import { useApiList } from '../../hooks/useApiList'
-import { DONATION_CATEGORIES } from '../../constants/options'
 import { useFilters } from '../../hooks/useFilters'
 import PageHeader from '../../components/admin/shared/PageHeader'
 import DataTable from '../../components/admin/shared/DataTable'
@@ -15,22 +16,81 @@ import ApiState from '../../components/admin/shared/ApiState'
 import FilterBar from '../../components/admin/shared/FilterBar'
 import ModalHeader from '../../components/admin/shared/ModalHeader'
 import DonationUpdatesTimeline from '../../components/shared/DonationUpdatesTimeline'
+import { useBulkSelection } from '../../hooks/useBulkSelection'
 import { notify } from '../../utils/toast'
+import { confirmAction, showSuccessModal } from '../../utils/confirm'
+import { notifyBadgesChanged } from '../../utils/badgeSync'
+import { useLoading } from '../../context/LoadingContext'
 
-const lifecycle = [
-  'Submission', 'Tracking Code', 'Verification', 'Inventory', 'Repacking',
-  'Allocation', 'Distribution Planning', 'Distribution', 'Certificate / OR',
+const IN_KIND_LIFECYCLE = [
+  'Submission', 'Tracking Code', 'Verification', 'Inventory Intake',
+  'Repacking', 'Allocation', 'Distribution', 'Completion',
+]
+
+const MONETARY_LIFECYCLE = [
+  'Submission', 'Tracking Code', 'Proof Verification', 'Fund Allocation',
+  'Official Receipt / Certificate', 'Completed',
+]
+
+const IN_KIND_CATEGORIES = [
+  'Food',
+  'Water',
+  'Clothing',
+  'Medicine',
+  'Hygiene Kits',
+  'Shelter Materials',
+  'Educational Support',
+  'Other Relief Goods',
+]
+
+const MONETARY_CATEGORIES = [
+  'Disaster Relief Fund',
+  'Emergency Support',
+  'Community Kitchen & Feeding',
+  'Medical & Dental Missions',
+  'Educational Sponsorship',
+  'General Fund',
+  'Cash',
+]
+
+const PAYMENT_METHODS = [
+  'GCash',
+  'Bank Transfer (BDO)',
+  'Bank Transfer (BPI)',
+  'Bank Transfer (Metrobank)',
+  'Maya',
+  'Cash',
+  'Check',
+  'Credit / Debit Card',
+  'PayPal',
 ]
 
 const emptyForm = {
-  donorName: '', email: '', type: 'Monetary', category: '', amount: '', items: '', status: 'Pending Verification',
+  donorName: '',
+  email: '',
+  type: 'In-Kind',
+  category: '',
+  amount: '',
+  items: '',
+  paymentMethod: 'GCash',
+  status: 'Pending Verification',
+  notes: '',
 }
 
-const filterConfig = {
-  searchKeys: ['trackingCode', 'donor', 'donorEmail'],
+const inKindFilterConfig = {
+  searchKeys: ['trackingCode', 'donor', 'donorEmail', 'itemsDescription', 'category'],
   filters: [
     { key: 'status', label: 'Status' },
-    { key: 'type', label: 'Type' },
+    { key: 'category', label: 'Category' },
+  ],
+  dateKey: 'date',
+}
+
+const monetaryFilterConfig = {
+  searchKeys: ['trackingCode', 'donor', 'donorEmail', 'paymentMethod', 'category', 'notes'],
+  filters: [
+    { key: 'status', label: 'Status' },
+    { key: 'paymentMethod', label: 'Payment Method' },
     { key: 'category', label: 'Category' },
   ],
   dateKey: 'date',
@@ -49,29 +109,110 @@ function toastVerifyResult(res, status) {
 }
 
 export default function DonationsPage() {
+  const [searchParams, setSearchParams] = useSearchParams()
+  const activeSection = searchParams.get('tab') === 'monetary' ? 'monetary' : 'in-kind'
+
   const { data: donations, loading, error, reload } = useApiList(() => donationsApi.list())
-  const categoryOptions = DONATION_CATEGORIES
   const [selected, setSelected] = useState(null)
+  const { showLoading, hideLoading } = useLoading()
   const [showForm, setShowForm] = useState(false)
   const [form, setForm] = useState(emptyForm)
   const [saving, setSaving] = useState(false)
-  const [activeTab, setActiveTab] = useState('overview')
+  const [modalTab, setModalTab] = useState('overview')
 
-  const filters = useFilters(donations, filterConfig)
+  // Split donations by type
+  const inKindDonations = useMemo(() => (donations || []).filter(d => d.type === 'In-Kind'), [donations])
+  const monetaryDonations = useMemo(() => (donations || []).filter(d => d.type === 'Monetary'), [donations])
 
-  // Get lifecycle stages with completion status
+  // Filter controllers for each section
+  const inKindFilters = useFilters(inKindDonations, inKindFilterConfig)
+  const monetaryFilters = useFilters(monetaryDonations, monetaryFilterConfig)
+
+  const currentFilters = activeSection === 'in-kind' ? inKindFilters : monetaryFilters
+
+  // Bulk selection controller
+  const bulk = useBulkSelection(
+    currentFilters.filtered,
+    (id) => donationsApi.remove(id),
+    reload,
+    activeSection === 'in-kind' ? 'in-kind donations' : 'monetary donations',
+  )
+
+  // Switch sections and sync with URL search params
+  const handleSwitchTab = (tabKey) => {
+    const next = new URLSearchParams(searchParams)
+    if (tabKey === 'in-kind') {
+      next.delete('tab')
+    } else {
+      next.set('tab', tabKey)
+    }
+    setSearchParams(next, { replace: true })
+    bulk.setSelectedIds([])
+  }
+
+  // Open creation modal with tab-appropriate default
+  const handleOpenCreateModal = () => {
+    setForm({
+      ...emptyForm,
+      type: activeSection === 'monetary' ? 'Monetary' : 'In-Kind',
+      category: activeSection === 'monetary' ? (MONETARY_CATEGORIES[0] || '') : (IN_KIND_CATEGORIES[0] || ''),
+      paymentMethod: activeSection === 'monetary' ? 'GCash' : '',
+    })
+    setShowForm(true)
+  }
+
+  // Metric calculations
+  const inKindStats = useMemo(() => {
+    const total = inKindDonations.length
+    const pending = inKindDonations.filter(d => d.status === 'Pending Verification').length
+    const active = inKindDonations.filter(d => ['Verified', 'In Inventory', 'Allocated'].includes(d.status)).length
+    const completed = inKindDonations.filter(d => ['Distributed', 'Completed'].includes(d.status)).length
+    return { total, pending, active, completed }
+  }, [inKindDonations])
+
+  const monetaryStats = useMemo(() => {
+    const totalCount = monetaryDonations.length
+    const totalRaised = monetaryDonations.reduce((sum, d) => {
+      const amt = typeof d.amountRaw === 'number' ? d.amountRaw : (parseFloat(String(d.amount).replace(/[^0-9.]/g, '')) || 0)
+      return sum + amt
+    }, 0)
+    const verifiedSum = monetaryDonations
+      .filter(d => d.status !== 'Pending Verification' && d.status !== 'Rejected' && d.status !== 'Cancelled')
+      .reduce((sum, d) => {
+        const amt = typeof d.amountRaw === 'number' ? d.amountRaw : (parseFloat(String(d.amount).replace(/[^0-9.]/g, '')) || 0)
+        return sum + amt
+      }, 0)
+    const pendingCount = monetaryDonations.filter(d => d.status === 'Pending Verification').length
+    const avgDonation = totalCount > 0 ? totalRaised / totalCount : 0
+    return { totalRaised, verifiedSum, pendingCount, avgDonation }
+  }, [monetaryDonations])
+
+  // Lifecycle stages for modal detail
   const getLifecycleStages = (donation) => {
-    const stages = [
+    if (!donation) return []
+    const isInKind = donation.type === 'In-Kind'
+
+    const inKindStages = [
       { id: 'submission', label: 'Submission', icon: FileText },
       { id: 'tracking', label: 'Tracking', icon: FileCheck },
       { id: 'verification', label: 'Verification', icon: CheckCircle2 },
-      { id: 'inventory', label: 'Inventory', icon: Package },
+      { id: 'inventory', label: 'Inventory Intake', icon: Package },
       { id: 'allocation', label: 'Allocation', icon: TrendingUp },
       { id: 'distribution', label: 'Distribution', icon: MapPin },
-      { id: 'certificate', label: 'Certificate', icon: Award },
+      { id: 'certificate', label: 'Certificate / Completion', icon: Award },
     ]
 
-    const statusMap = {
+    const monetaryStages = [
+      { id: 'submission', label: 'Submission', icon: FileText },
+      { id: 'tracking', label: 'Tracking', icon: FileCheck },
+      { id: 'verification', label: 'Proof Verification', icon: CheckCircle2 },
+      { id: 'allocation', label: 'Fund Allocation', icon: TrendingUp },
+      { id: 'certificate', label: 'Official Receipt / Certificate', icon: Award },
+    ]
+
+    const stages = isInKind ? inKindStages : monetaryStages
+
+    const inKindStatusMap = {
       'Pending Verification': 1,
       'Verified': 3,
       'In Inventory': 4,
@@ -80,7 +221,15 @@ export default function DonationsPage() {
       'Completed': 7,
     }
 
-    const currentStage = statusMap[donation?.status] || 0
+    const monetaryStatusMap = {
+      'Pending Verification': 1,
+      'Verified': 3,
+      'Allocated': 4,
+      'Completed': 5,
+    }
+
+    const statusMap = isInKind ? inKindStatusMap : monetaryStatusMap
+    const currentStage = statusMap[donation.status] || 0
 
     return stages.map((stage, index) => ({
       ...stage,
@@ -89,22 +238,22 @@ export default function DonationsPage() {
     }))
   }
 
-  // Get related donations (mock data for demo)
+  // Get related donations for selected donor
   const getRelatedDonations = (donation) => {
     if (!donation) return []
     return donations
-      .filter(d => d.dbId !== donation.dbId && d.donorEmail === donation.donorEmail)
+      .filter(d => d.dbId !== donation.dbId && d.donorEmail && d.donorEmail === donation.donorEmail)
       .slice(0, 3)
   }
 
-  // Get donor stats (mock calculation)
+  // Get donor stats
   const getDonorStats = (donation) => {
     if (!donation) return { totalDonations: 0, totalAmount: 0, lastDonation: '-' }
-    const donorDonations = donations.filter(d => d.donorEmail === donation.donorEmail)
+    const donorDonations = donations.filter(d => d.donorEmail && d.donorEmail === donation.donorEmail)
     return {
       totalDonations: donorDonations.length,
       totalAmount: donorDonations.reduce((sum, d) => {
-        const amount = parseFloat(String(d.amount).replace(/[^0-9.]/g, '')) || 0
+        const amount = typeof d.amountRaw === 'number' ? d.amountRaw : (parseFloat(String(d.amount).replace(/[^0-9.]/g, '')) || 0)
         return sum + amount
       }, 0),
       lastDonation: donorDonations[donorDonations.length - 1]?.date || '-',
@@ -116,9 +265,19 @@ export default function DonationsPage() {
       notify.warning('Cannot approve: proof of donation is required.')
       return
     }
-    if (!window.confirm(`Verify donation ${row.trackingCode}? This may create a donor account and post in-kind items to inventory.`)) {
-      return
-    }
+    const verifyMessage = row.type === 'In-Kind'
+      ? `Verify in-kind donation ${row.trackingCode}? This will post the relief items to inventory and provision a donor account if needed.`
+      : `Verify monetary donation ${row.trackingCode} (${row.amount})? This will confirm receipt of funds and provision a donor account if needed.`
+
+    const confirmed = await confirmAction({
+      title: 'Verify Donation',
+      message: verifyMessage,
+      confirmText: 'Verify & Confirm',
+      type: 'primary',
+    })
+    if (!confirmed) return
+
+    showLoading('Verifying donation…')
     try {
       const res = await donationsApi.update(row.dbId, { status: 'Verified' })
       const status = res?.data?.status || 'Verified'
@@ -129,16 +288,29 @@ export default function DonationsPage() {
       } else {
         notify.success(`Status successfully updated to: ${status}.`)
       }
+      showSuccessModal('Successfully approved.')
       reload()
+      notifyBadgesChanged()
       setSelected(null)
     } catch (err) {
       notify.error(err.message || 'Failed to verify donation')
+    } finally {
+      hideLoading()
     }
   }
 
   const handleSave = async (e) => {
     e.preventDefault()
+    const confirmed = await confirmAction({
+      title: `Record ${form.type} Donation`,
+      message: `Confirm recording ${form.type.toLowerCase()} donation for donor "${form.donorName || 'Anonymous'}"?`,
+      confirmText: 'Record Donation',
+      type: 'primary',
+    })
+    if (!confirmed) return
+
     setSaving(true)
+    showLoading('Saving…')
     try {
       await donationsApi.create({
         donorName: form.donorName,
@@ -147,38 +319,105 @@ export default function DonationsPage() {
         category: form.category,
         amount: form.type === 'Monetary' ? Number(form.amount) : undefined,
         items: form.type === 'In-Kind' ? form.items : undefined,
+        paymentMethod: form.type === 'Monetary' ? form.paymentMethod : undefined,
+        notes: form.notes,
         status: form.status,
       })
       setShowForm(false)
       setForm(emptyForm)
-      notify.success('Donation recorded.')
+      notify.success(`${form.type} donation recorded successfully.`)
+      showSuccessModal('Successfully added.')
       reload()
+      notifyBadgesChanged()
     } catch (err) {
-      notify.error(err.message)
+      notify.error(err.message || 'Failed to record donation')
     } finally {
+      hideLoading()
       setSaving(false)
     }
   }
 
   const handleDelete = async (row) => {
-    if (!confirm(`Delete donation ${row.trackingCode}?`)) return
+    const confirmed = await confirmAction({
+      title: 'Delete Donation',
+      message: `Permanently delete donation ${row.trackingCode} from ${row.donor}? This cannot be undone.`,
+      confirmText: 'Delete Donation',
+      type: 'danger',
+    })
+    if (!confirmed) return
+
+    showLoading('Deleting donation…')
     try {
       await donationsApi.remove(row.dbId)
-      notify.success('Donation deleted.')
+      notify.success(`Donation ${row.trackingCode} deleted.`)
+      showSuccessModal('Successfully deleted.')
       reload()
-      setSelected(null)
+      notifyBadgesChanged()
+      if (selected?.dbId === row.dbId) setSelected(null)
     } catch (err) {
-      notify.error(err.message)
+      notify.error(err.message || 'Failed to delete donation')
+    } finally {
+      hideLoading()
     }
   }
 
-  const columns = [
-    { key: 'trackingCode', label: 'Tracking Code' },
-    { key: 'donor', label: 'Donor' },
-    { key: 'type', label: 'Type' },
-    { key: 'category', label: 'Category', render: (row) => row.category || '—' },
-    { key: 'amount', label: 'Amount / Items' },
-    { key: 'date', label: 'Date' },
+  // Payment method badge styling helper
+  const renderPaymentMethod = (method) => {
+    if (!method) return <span className="text-muted">—</span>
+    const lower = String(method).toLowerCase()
+    let variant = ''
+    if (lower.includes('gcash')) variant = 'payment-method-pill--gcash'
+    else if (lower.includes('bank') || lower.includes('bdo') || lower.includes('bpi')) variant = 'payment-method-pill--bank'
+    else if (lower.includes('cash')) variant = 'payment-method-pill--cash'
+
+    return (
+      <span className={`payment-method-pill ${variant}`}>
+        <CreditCard size={12} />
+        {method}
+      </span>
+    )
+  }
+
+  // Columns for In-Kind Donations
+  const inKindColumns = [
+    { 
+      key: 'trackingCode', 
+      label: 'Tracking Code',
+      render: (row) => (
+        <span className="font-mono font-semibold" style={{ color: 'var(--admin-brand)' }}>
+          {row.trackingCode}
+        </span>
+      ),
+    },
+    { 
+      key: 'donor', 
+      label: 'Donor',
+      render: (row) => (
+        <div className="donor-cell">
+          <span className="donor-cell__name">{row.donor}</span>
+          {row.donorEmail && <span className="donor-cell__email">{row.donorEmail}</span>}
+        </div>
+      ),
+    },
+    { 
+      key: 'category', 
+      label: 'Relief Category', 
+      render: (row) => (
+        <span className="in-kind-category-pill">
+          {row.category || 'Relief Goods'}
+        </span>
+      ),
+    },
+    { 
+      key: 'itemsDescription', 
+      label: 'Items Description / Quantity',
+      render: (row) => (
+        <div className="in-kind-items-desc" title={row.itemsDescription || row.amount}>
+          {row.itemsDescription || row.amount || '—'}
+        </div>
+      ),
+    },
+    { key: 'date', label: 'Date Received' },
     { key: 'status', label: 'Status', render: (row) => <StatusBadge status={row.status} /> },
     {
       key: 'actions',
@@ -189,8 +428,8 @@ export default function DonationsPage() {
             <button
               type="button"
               className="icon-btn icon-btn--success"
-              title="Verify"
-              aria-label="Verify"
+              title="Verify Donation & Post to Inventory"
+              aria-label="Verify Donation"
               onClick={(e) => { e.stopPropagation(); handleVerify(row) }}
             >
               <CheckCircle2 size={15} />
@@ -199,9 +438,9 @@ export default function DonationsPage() {
           <button
             type="button"
             className="icon-btn"
-            title="View"
-            aria-label="View"
-            onClick={(e) => { e.stopPropagation(); setSelected(row) }}
+            title="View Details"
+            aria-label="View Details"
+            onClick={(e) => { e.stopPropagation(); setSelected(row); setModalTab('overview') }}
           >
             <Eye size={15} />
           </button>
@@ -210,86 +449,468 @@ export default function DonationsPage() {
     },
   ]
 
+  // Columns for Monetary Donations
+  const monetaryColumns = [
+    { 
+      key: 'trackingCode', 
+      label: 'Tracking Code',
+      render: (row) => (
+        <span className="font-mono font-semibold" style={{ color: 'var(--admin-brand)' }}>
+          {row.trackingCode}
+        </span>
+      ),
+    },
+    { 
+      key: 'donor', 
+      label: 'Donor',
+      render: (row) => (
+        <div className="donor-cell">
+          <span className="donor-cell__name">{row.donor}</span>
+          {row.donorEmail && <span className="donor-cell__email">{row.donorEmail}</span>}
+        </div>
+      ),
+    },
+    { 
+      key: 'category', 
+      label: 'Fund / Program', 
+      render: (row) => (
+        <span className="in-kind-category-pill">
+          {row.category || 'General Fund'}
+        </span>
+      ),
+    },
+    { 
+      key: 'paymentMethod', 
+      label: 'Payment Method',
+      render: (row) => renderPaymentMethod(row.paymentMethod),
+    },
+    { 
+      key: 'amount', 
+      label: 'Amount (PHP)',
+      render: (row) => (
+        <span className="donation-amount-value">
+          {typeof row.amountRaw === 'number'
+            ? `₱${row.amountRaw.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+            : row.amount}
+        </span>
+      ),
+    },
+    { key: 'date', label: 'Date Received' },
+    { key: 'status', label: 'Status', render: (row) => <StatusBadge status={row.status} /> },
+    {
+      key: 'actions',
+      label: 'Actions',
+      render: (row) => (
+        <div className="table-actions">
+          {row.status === 'Pending Verification' && (
+            <button
+              type="button"
+              className="icon-btn icon-btn--success"
+              title="Verify Donation & Confirm Receipt"
+              aria-label="Verify Donation"
+              onClick={(e) => { e.stopPropagation(); handleVerify(row) }}
+            >
+              <CheckCircle2 size={15} />
+            </button>
+          )}
+          <button
+            type="button"
+            className="icon-btn"
+            title="View Details"
+            aria-label="View Details"
+            onClick={(e) => { e.stopPropagation(); setSelected(row); setModalTab('overview') }}
+          >
+            <Eye size={15} />
+          </button>
+        </div>
+      ),
+    },
+  ]
+
+  const activeColumns = activeSection === 'in-kind' ? inKindColumns : monetaryColumns
+  const activeExportConfig = activeSection === 'in-kind'
+    ? { filename: 'in-kind-donations-report', title: 'In-Kind Donations Report', columns: inKindColumns, rows: inKindFilters.filtered }
+    : { filename: 'monetary-donations-report', title: 'Monetary Donations Report', columns: monetaryColumns, rows: monetaryFilters.filtered }
+
   return (
     <>
       <PageHeader
-        title="Inbound Donations (Received)"
-        description="Verify inbound donations, review uploaded proof, and manage the donation lifecycle."
+        title="Donations Management"
+        description="Verify inbound physical relief items and monetary contributions, review uploaded proofs, and track lifecycle stages."
         actions={
-          <button type="button" className="btn btn--primary" onClick={() => setShowForm(true)}>
+          <button type="button" className="btn btn--primary" onClick={handleOpenCreateModal}>
             + Record Donation
           </button>
         }
       />
 
+      {/* Sub-Navigation Switcher */}
+      <div className="donation-subnav" role="tablist" aria-label="Donation Types">
+        <button
+          type="button"
+          role="tab"
+          aria-selected={activeSection === 'in-kind'}
+          className={`donation-subnav__tab${activeSection === 'in-kind' ? ' donation-subnav__tab--active' : ''}`}
+          onClick={() => handleSwitchTab('in-kind')}
+        >
+          <Package size={17} />
+          <span>In-Kind Donations</span>
+          <span className="donation-subnav__badge">{inKindDonations.length}</span>
+          {inKindStats.pending > 0 && (
+            <span className="donation-subnav__pending-tag" title={`${inKindStats.pending} pending verification`}>
+              <Clock size={11} />
+              {inKindStats.pending} pending
+            </span>
+          )}
+        </button>
+
+        <button
+          type="button"
+          role="tab"
+          aria-selected={activeSection === 'monetary'}
+          className={`donation-subnav__tab${activeSection === 'monetary' ? ' donation-subnav__tab--active' : ''}`}
+          onClick={() => handleSwitchTab('monetary')}
+        >
+          <Coins size={17} />
+          <span>Monetary Donations</span>
+          <span className="donation-subnav__badge">{monetaryDonations.length}</span>
+          {monetaryStats.pendingCount > 0 && (
+            <span className="donation-subnav__pending-tag" title={`${monetaryStats.pendingCount} pending verification`}>
+              <Clock size={11} />
+              {monetaryStats.pendingCount} pending
+            </span>
+          )}
+        </button>
+      </div>
+
+      {/* Metric Cards tailored per active section */}
+      {activeSection === 'in-kind' ? (
+        <div className="donation-metrics-row">
+          <div className="donation-metric-card">
+            <div className="donation-metric-card__header">
+              <span className="donation-metric-card__label">Total In-Kind</span>
+              <div className="donation-metric-card__icon">
+                <Package size={16} />
+              </div>
+            </div>
+            <div className="donation-metric-card__value">{inKindStats.total}</div>
+            <div className="donation-metric-card__subtext">Physical relief items received</div>
+          </div>
+
+          <div className="donation-metric-card">
+            <div className="donation-metric-card__header">
+              <span className="donation-metric-card__label">Pending Verification</span>
+              <div className="donation-metric-card__icon donation-metric-card__icon--warning">
+                <Clock size={16} />
+              </div>
+            </div>
+            <div className="donation-metric-card__value">{inKindStats.pending}</div>
+            <div className="donation-metric-card__subtext">Awaiting proof & inspection</div>
+          </div>
+
+          <div className="donation-metric-card">
+            <div className="donation-metric-card__header">
+              <span className="donation-metric-card__label">In Inventory / Active</span>
+              <div className="donation-metric-card__icon donation-metric-card__icon--info">
+                <TrendingUp size={16} />
+              </div>
+            </div>
+            <div className="donation-metric-card__value">{inKindStats.active}</div>
+            <div className="donation-metric-card__subtext">Ready / allocated for packs</div>
+          </div>
+
+          <div className="donation-metric-card">
+            <div className="donation-metric-card__header">
+              <span className="donation-metric-card__label">Distributed / Done</span>
+              <div className="donation-metric-card__icon donation-metric-card__icon--success">
+                <CheckCircle2 size={16} />
+              </div>
+            </div>
+            <div className="donation-metric-card__value">{inKindStats.completed}</div>
+            <div className="donation-metric-card__subtext">Delivered to beneficiaries</div>
+          </div>
+        </div>
+      ) : (
+        <div className="donation-metrics-row">
+          <div className="donation-metric-card">
+            <div className="donation-metric-card__header">
+              <span className="donation-metric-card__label">Total Funds Raised</span>
+              <div className="donation-metric-card__icon">
+                <Coins size={16} />
+              </div>
+            </div>
+            <div className="donation-metric-card__value">
+              ₱{monetaryStats.totalRaised.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+            </div>
+            <div className="donation-metric-card__subtext">{monetaryDonations.length} total donations recorded</div>
+          </div>
+
+          <div className="donation-metric-card">
+            <div className="donation-metric-card__header">
+              <span className="donation-metric-card__label">Verified Funds</span>
+              <div className="donation-metric-card__icon donation-metric-card__icon--success">
+                <CheckCircle2 size={16} />
+              </div>
+            </div>
+            <div className="donation-metric-card__value">
+              ₱{monetaryStats.verifiedSum.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+            </div>
+            <div className="donation-metric-card__subtext">Cleared & available for relief</div>
+          </div>
+
+          <div className="donation-metric-card">
+            <div className="donation-metric-card__header">
+              <span className="donation-metric-card__label">Pending Verification</span>
+              <div className="donation-metric-card__icon donation-metric-card__icon--warning">
+                <Clock size={16} />
+              </div>
+            </div>
+            <div className="donation-metric-card__value">{monetaryStats.pendingCount}</div>
+            <div className="donation-metric-card__subtext">Awaiting bank/GCash receipt check</div>
+          </div>
+
+          <div className="donation-metric-card">
+            <div className="donation-metric-card__header">
+              <span className="donation-metric-card__label">Average Donation</span>
+              <div className="donation-metric-card__icon donation-metric-card__icon--info">
+                <TrendingUp size={16} />
+              </div>
+            </div>
+            <div className="donation-metric-card__value">
+              ₱{monetaryStats.avgDonation.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+            </div>
+            <div className="donation-metric-card__subtext">Per donor transaction</div>
+          </div>
+        </div>
+      )}
+
+      {/* Lifecycle Progress Bar */}
       <div className="admin-lifecycle">
-        {lifecycle.map((step, i) => (
+        {(activeSection === 'in-kind' ? IN_KIND_LIFECYCLE : MONETARY_LIFECYCLE).map((step, i, arr) => (
           <span key={step} className="admin-lifecycle__step">
             {step}
-            {i < lifecycle.length - 1 && <span className="admin-lifecycle__arrow">›</span>}
+            {i < arr.length - 1 && <span className="admin-lifecycle__arrow">›</span>}
           </span>
         ))}
       </div>
 
+      {/* Filter and Search Bar */}
       <FilterBar
-        controller={filters}
-        searchPlaceholder="Search by tracking code, donor, or email..."
-        exportConfig={{ filename: 'donation-report', title: 'Donation Report', columns, rows: filters.filtered }}
+        controller={currentFilters}
+        searchPlaceholder={activeSection === 'in-kind' ? 'Search in-kind by tracking code, donor, item description...' : 'Search monetary by tracking code, donor, payment method...'}
+        exportConfig={activeExportConfig}
       />
 
+      {/* Data Table */}
       <ApiState loading={loading} error={error} onRetry={reload}>
         <DataTable
-          columns={columns}
-          data={filters.filtered}
-          onRowClick={setSelected}
+          columns={activeColumns}
+          data={currentFilters.filtered}
+          onRowClick={(row) => { setSelected(row); setModalTab('overview') }}
           pageSize={10}
-          resetKey={`${filters.search}|${JSON.stringify(filters.values)}`}
+          resetKey={`${activeSection}|${currentFilters.search}|${JSON.stringify(currentFilters.values)}`}
+          selectable
+          selectedIds={bulk.selectedIds}
+          onSelectionChange={bulk.setSelectedIds}
+          onBulkDelete={bulk.handleBulkDelete}
+          deleting={bulk.deleting}
+          bulkDeleteLabel={`Delete Selected ${activeSection === 'in-kind' ? 'In-Kind' : 'Monetary'}`}
         />
       </ApiState>
 
+      {/* Record Donation Modal */}
       {showForm && (
         <div className="admin-modal-overlay" onClick={() => setShowForm(false)}>
           <div className="admin-modal" onClick={(e) => e.stopPropagation()}>
-            <ModalHeader title="Record Donation" onClose={() => setShowForm(false)} />
+            <ModalHeader 
+              title={`Record ${form.type} Donation`} 
+              onClose={() => setShowForm(false)} 
+            />
+            
             <form onSubmit={handleSave}>
-              <label>Donor Name<input required value={form.donorName} onChange={(e) => setForm({ ...form, donorName: e.target.value })} /></label>
-              <label>Email<input type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} /></label>
-              <div className="form-row">
-                <label>Type
-                  <select value={form.type} onChange={(e) => setForm({ ...form, type: e.target.value })}>
-                    <option value="Monetary">Monetary</option>
-                    <option value="In-Kind">In-Kind</option>
-                  </select>
+              {/* Type Switcher in Form */}
+              <div className="form-group" style={{ marginBottom: '1rem' }}>
+                <label style={{ display: 'block', marginBottom: '0.4rem', fontWeight: 600, fontSize: '0.85rem' }}>
+                  Donation Classification
                 </label>
-                <label>Category
-                  <select value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value })}>
-                    <option value="">Uncategorized</option>
-                    {categoryOptions.map((c) => <option key={c} value={c}>{c}</option>)}
-                  </select>
+                <div className="type-toggle-group">
+                  <button
+                    type="button"
+                    className={`type-toggle-btn${form.type === 'In-Kind' ? ' type-toggle-btn--active' : ''}`}
+                    onClick={() => setForm({ 
+                      ...form, 
+                      type: 'In-Kind', 
+                      category: IN_KIND_CATEGORIES[0] || '',
+                      items: form.items || '',
+                    })}
+                  >
+                    <Package size={16} />
+                    In-Kind (Physical Items)
+                  </button>
+                  <button
+                    type="button"
+                    className={`type-toggle-btn${form.type === 'Monetary' ? ' type-toggle-btn--active' : ''}`}
+                    onClick={() => setForm({ 
+                      ...form, 
+                      type: 'Monetary', 
+                      category: MONETARY_CATEGORIES[0] || '',
+                      paymentMethod: form.paymentMethod || 'GCash',
+                    })}
+                  >
+                    <Coins size={16} />
+                    Monetary (Cash / Funds)
+                  </button>
+                </div>
+              </div>
+
+              <div className="form-row">
+                <label>
+                  Donor Name
+                  <input 
+                    required 
+                    placeholder="e.g. Maria Santos"
+                    value={form.donorName} 
+                    onChange={(e) => setForm({ ...form, donorName: e.target.value })} 
+                  />
+                </label>
+                <label>
+                  Donor Email
+                  <input 
+                    type="email" 
+                    placeholder="e.g. maria@example.com"
+                    value={form.email} 
+                    onChange={(e) => setForm({ ...form, email: e.target.value })} 
+                  />
                 </label>
               </div>
-              {form.type === 'Monetary' ? (
-                <label>Amount (PHP)<input type="number" required value={form.amount} onChange={(e) => setForm({ ...form, amount: e.target.value })} /></label>
+
+              {form.type === 'In-Kind' ? (
+                <>
+                  <div className="form-row">
+                    <label>
+                      Relief Category
+                      <select 
+                        value={form.category} 
+                        onChange={(e) => setForm({ ...form, category: e.target.value })}
+                      >
+                        {IN_KIND_CATEGORIES.map((c) => (
+                          <option key={c} value={c}>{c}</option>
+                        ))}
+                      </select>
+                    </label>
+                    <label>
+                      Initial Status
+                      <select 
+                        value={form.status} 
+                        onChange={(e) => setForm({ ...form, status: e.target.value })}
+                      >
+                        <option value="Pending Verification">Pending Verification</option>
+                        <option value="Verified">Verified (Post to Inventory)</option>
+                      </select>
+                    </label>
+                  </div>
+
+                  <label>
+                    Items Description & Quantity
+                    <textarea 
+                      required 
+                      rows={3}
+                      placeholder="e.g. 50 sacks of 25kg premium rice, 100 boxes canned tuna and sardines"
+                      value={form.items} 
+                      onChange={(e) => setForm({ ...form, items: e.target.value })} 
+                    />
+                  </label>
+                </>
               ) : (
-                <label>Items Description<input required value={form.items} onChange={(e) => setForm({ ...form, items: e.target.value })} /></label>
+                <>
+                  <div className="form-row">
+                    <label>
+                      Fund / Program
+                      <select 
+                        value={form.category} 
+                        onChange={(e) => setForm({ ...form, category: e.target.value })}
+                      >
+                        {MONETARY_CATEGORIES.map((c) => (
+                          <option key={c} value={c}>{c}</option>
+                        ))}
+                      </select>
+                    </label>
+                    <label>
+                      Payment Method
+                      <select 
+                        value={form.paymentMethod} 
+                        onChange={(e) => setForm({ ...form, paymentMethod: e.target.value })}
+                      >
+                        {PAYMENT_METHODS.map((m) => (
+                          <option key={m} value={m}>{m}</option>
+                        ))}
+                      </select>
+                    </label>
+                  </div>
+
+                  <div className="form-row">
+                    <label>
+                      Amount (PHP ₱)
+                      <input 
+                        type="number" 
+                        step="0.01"
+                        min="1"
+                        required 
+                        placeholder="e.g. 5000.00"
+                        value={form.amount} 
+                        onChange={(e) => setForm({ ...form, amount: e.target.value })} 
+                      />
+                    </label>
+                    <label>
+                      Initial Status
+                      <select 
+                        value={form.status} 
+                        onChange={(e) => setForm({ ...form, status: e.target.value })}
+                      >
+                        <option value="Pending Verification">Pending Verification</option>
+                        <option value="Verified">Verified</option>
+                      </select>
+                    </label>
+                  </div>
+                </>
               )}
+
+              <label>
+                Notes / Reference
+                <input 
+                  placeholder="Optional reference number or logistics notes"
+                  value={form.notes} 
+                  onChange={(e) => setForm({ ...form, notes: e.target.value })} 
+                />
+              </label>
+
               <div className="admin-modal__actions">
-                <button type="submit" className="btn btn--primary" disabled={saving}>{saving ? 'Saving...' : 'Save'}</button>
-                <button type="button" className="btn btn--ghost" onClick={() => setShowForm(false)}>Cancel</button>
+                <button type="submit" className="btn btn--primary" disabled={saving}>
+                  {saving ? 'Saving...' : `Save ${form.type} Donation`}
+                </button>
+                <button type="button" className="btn btn--ghost" onClick={() => setShowForm(false)}>
+                  Cancel
+                </button>
               </div>
             </form>
           </div>
         </div>
       )}
 
+      {/* Donation Details Modal */}
       {selected && (
         <div className="admin-modal-overlay" onClick={() => setSelected(null)}>
           <div className="admin-modal admin-modal--wide" onClick={(e) => e.stopPropagation()}>
-            <ModalHeader title="Donation Details" onClose={() => setSelected(null)} />
+            <ModalHeader 
+              title={`${selected.type} Donation: ${selected.trackingCode}`} 
+              onClose={() => setSelected(null)} 
+            />
 
-            {/* Donation Lifecycle Tracker */}
+            {/* Donation Lifecycle Progress Stepper */}
             <div className="donation-lifecycle-tracker">
-              <h4 className="donation-lifecycle-tracker__title">Donation Progress</h4>
+              <h4 className="donation-lifecycle-tracker__title">
+                {selected.type} Lifecycle Progress
+              </h4>
               <div className="donation-lifecycle-tracker__steps">
                 {getLifecycleStages(selected).map((stage) => {
                   const Icon = stage.icon
@@ -308,45 +929,44 @@ export default function DonationsPage() {
               </div>
             </div>
 
-            {/* Tabs */}
+            {/* Tabs inside modal */}
             <div className="donation-tabs">
               <button
-                className={`donation-tab${activeTab === 'overview' ? ' donation-tab--active' : ''}`}
-                onClick={() => setActiveTab('overview')}
+                className={`donation-tab${modalTab === 'overview' ? ' donation-tab--active' : ''}`}
+                onClick={() => setModalTab('overview')}
               >
                 <BarChart3 size={16} />
                 Overview
               </button>
               <button
-                className={`donation-tab${activeTab === 'donor' ? ' donation-tab--active' : ''}`}
-                onClick={() => setActiveTab('donor')}
+                className={`donation-tab${modalTab === 'donor' ? ' donation-tab--active' : ''}`}
+                onClick={() => setModalTab('donor')}
               >
                 <Heart size={16} />
                 Donor Info
               </button>
               {selected.hasProof && (
                 <button
-                  className={`donation-tab${activeTab === 'proof' ? ' donation-tab--active' : ''}`}
-                  onClick={() => setActiveTab('proof')}
+                  className={`donation-tab${modalTab === 'proof' ? ' donation-tab--active' : ''}`}
+                  onClick={() => setModalTab('proof')}
                 >
                   <FileText size={16} />
-                  Proof
+                  Proof of Donation
                   <span className="donation-tab__badge">1</span>
                 </button>
               )}
               <button
-                className={`donation-tab${activeTab === 'timeline' ? ' donation-tab--active' : ''}`}
-                onClick={() => setActiveTab('timeline')}
+                className={`donation-tab${modalTab === 'timeline' ? ' donation-tab--active' : ''}`}
+                onClick={() => setModalTab('timeline')}
               >
                 <Clock size={16} />
-                Timeline
+                Timeline & Updates
               </button>
             </div>
 
-            {/* Tab Content */}
-            {activeTab === 'overview' && (
+            {/* Tab Content: Overview */}
+            {modalTab === 'overview' && (
               <>
-                {/* Overview Cards */}
                 <div className="donation-overview">
                   <div className="donation-overview-card">
                     <div className="donation-overview-card__label">
@@ -356,30 +976,50 @@ export default function DonationsPage() {
                     <div className="donation-overview-card__value donation-overview-card__value--primary">
                       {selected.trackingCode}
                     </div>
+                    <div className="donation-overview-card__subtitle">{selected.type} Donation</div>
                   </div>
-                  <div className="donation-overview-card">
-                    <div className="donation-overview-card__label">
-                      <TrendingUp size={14} />
-                      Amount / Value
+
+                  {selected.type === 'In-Kind' ? (
+                    <div className="donation-overview-card">
+                      <div className="donation-overview-card__label">
+                        <Package size={14} />
+                        Items Description
+                      </div>
+                      <div className="donation-overview-card__value" style={{ fontSize: '1rem', whiteSpace: 'normal', lineHeight: 1.4 }}>
+                        {selected.itemsDescription || selected.amount || '—'}
+                      </div>
+                      <div className="donation-overview-card__subtitle">{selected.category || 'Relief Goods'}</div>
                     </div>
-                    <div className="donation-overview-card__value">
-                      {selected.amount}
+                  ) : (
+                    <div className="donation-overview-card">
+                      <div className="donation-overview-card__label">
+                        <TrendingUp size={14} />
+                        Monetary Amount
+                      </div>
+                      <div className="donation-overview-card__value" style={{ color: '#047857' }}>
+                        {typeof selected.amountRaw === 'number'
+                          ? `₱${selected.amountRaw.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+                          : selected.amount}
+                      </div>
+                      <div className="donation-overview-card__subtitle">{selected.paymentMethod || 'Financial Transfer'}</div>
                     </div>
-                    <div className="donation-overview-card__subtitle">{selected.type}</div>
-                  </div>
+                  )}
+
                   <div className="donation-overview-card">
                     <div className="donation-overview-card__label">
                       <Calendar size={14} />
                       Date Received
                     </div>
-                    <div className="donation-overview-card__value" style={{ fontSize: '1.25rem' }}>
+                    <div className="donation-overview-card__value" style={{ fontSize: '1.15rem' }}>
                       {selected.date}
                     </div>
+                    <div className="donation-overview-card__subtitle">{selected.donor}</div>
                   </div>
+
                   <div className="donation-overview-card">
                     <div className="donation-overview-card__label">
                       <Package size={14} />
-                      Status
+                      Current Status
                     </div>
                     <div style={{ marginTop: '0.5rem' }}>
                       <StatusBadge status={selected.status} />
@@ -395,12 +1035,14 @@ export default function DonationsPage() {
                       className="donation-quick-action"
                       onClick={() => handleVerify(selected)}
                       disabled={!selected.hasProof}
-                      title={!selected.hasProof ? 'Proof of donation is required' : undefined}
+                      title={!selected.hasProof ? 'Proof of donation is required before verification' : undefined}
                     >
                       <div className="donation-quick-action__icon">
                         <CheckCircle2 size={20} />
                       </div>
-                      <span className="donation-quick-action__label">Verify</span>
+                      <span className="donation-quick-action__label">
+                        {selected.type === 'In-Kind' ? 'Verify & Post to Inventory' : 'Verify & Clear Funds'}
+                      </span>
                     </button>
                   )}
                   <button type="button" className="donation-quick-action">
@@ -413,7 +1055,7 @@ export default function DonationsPage() {
                     <div className="donation-quick-action__icon">
                       <Send size={20} />
                     </div>
-                    <span className="donation-quick-action__label">Send Receipt</span>
+                    <span className="donation-quick-action__label">Send Receipt / Acknowledgement</span>
                   </button>
                   <button type="button" className="donation-quick-action">
                     <div className="donation-quick-action__icon">
@@ -423,12 +1065,12 @@ export default function DonationsPage() {
                   </button>
                 </div>
 
-                {/* Impact Visualization (if verified) */}
+                {/* Impact Visualization */}
                 {selected.status !== 'Pending Verification' && (
                   <div className="donation-impact">
                     <h3 className="donation-impact__title">
                       <Heart size={20} />
-                      Donation Impact
+                      {selected.type} Community Impact
                     </h3>
                     <div className="donation-impact__stats">
                       <div className="donation-impact-stat">
@@ -436,44 +1078,55 @@ export default function DonationsPage() {
                           <Users size={24} />
                         </div>
                         <div className="donation-impact-stat__value">
-                          {Math.floor(Math.random() * 50) + 10}
+                          {selected.type === 'Monetary' ? '25+' : '40+'}
                         </div>
-                        <div className="donation-impact-stat__label">Beneficiaries Helped</div>
+                        <div className="donation-impact-stat__label">Beneficiaries Reached</div>
                       </div>
                       <div className="donation-impact-stat">
                         <div className="donation-impact-stat__icon">
                           <Package size={24} />
                         </div>
                         <div className="donation-impact-stat__value">
-                          {Math.floor(Math.random() * 20) + 5}
+                          {selected.type === 'In-Kind' ? '15+ Packs' : 'Direct Assistance'}
                         </div>
-                        <div className="donation-impact-stat__label">Items Distributed</div>
+                        <div className="donation-impact-stat__label">Relief Distributed</div>
                       </div>
                       <div className="donation-impact-stat">
                         <div className="donation-impact-stat__icon">
                           <MapPin size={24} />
                         </div>
-                        <div className="donation-impact-stat__value">
-                          {Math.floor(Math.random() * 5) + 1}
-                        </div>
-                        <div className="donation-impact-stat__label">Barangays Reached</div>
+                        <div className="donation-impact-stat__value">Partner LGUs</div>
+                        <div className="donation-impact-stat__label">Cebu Province</div>
                       </div>
                     </div>
                   </div>
                 )}
 
                 {/* Details List */}
-                <dl className="detail-list">
-                  <dt>Category</dt><dd>{selected.category || '—'}</dd>
-                  <dt>Payment Method</dt><dd>{selected.paymentMethod || '—'}</dd>
-                  <dt>Notes</dt><dd>{selected.notes || '—'}</dd>
+                <dl className="detail-list" style={{ marginTop: '1rem' }}>
+                  <dt>Category</dt>
+                  <dd>{selected.category || '—'}</dd>
+                  {selected.type === 'Monetary' && (
+                    <>
+                      <dt>Payment Method</dt>
+                      <dd>{selected.paymentMethod || '—'}</dd>
+                    </>
+                  )}
+                  {selected.type === 'In-Kind' && (
+                    <>
+                      <dt>Physical Goods</dt>
+                      <dd>{selected.itemsDescription || selected.amount || '—'}</dd>
+                    </>
+                  )}
+                  <dt>Notes / Remarks</dt>
+                  <dd>{selected.notes || '—'}</dd>
                 </dl>
               </>
             )}
 
-            {activeTab === 'donor' && (
+            {/* Tab Content: Donor Info */}
+            {modalTab === 'donor' && (
               <>
-                {/* Donor Info Card */}
                 <div className="donor-info-card">
                   <div className="donor-info-card__header">
                     <div className="donor-info-card__avatar">
@@ -492,27 +1145,26 @@ export default function DonationsPage() {
                       <div className="donor-info-card__stat-value">
                         {getDonorStats(selected).totalDonations}
                       </div>
-                      <div className="donor-info-card__stat-label">Total Donations</div>
+                      <div className="donor-info-card__stat-label">Total Contributions</div>
                     </div>
                     <div className="donor-info-card__stat">
                       <div className="donor-info-card__stat-value">
                         ₱{getDonorStats(selected).totalAmount.toLocaleString()}
                       </div>
-                      <div className="donor-info-card__stat-label">Total Amount</div>
+                      <div className="donor-info-card__stat-label">Total Monetary Contributed</div>
                     </div>
                     <div className="donor-info-card__stat">
                       <div className="donor-info-card__stat-value" style={{ fontSize: '1rem' }}>
                         {getDonorStats(selected).lastDonation}
                       </div>
-                      <div className="donor-info-card__stat-label">Last Donation</div>
+                      <div className="donor-info-card__stat-label">Latest Contribution</div>
                     </div>
                   </div>
                 </div>
 
-                {/* Related Donations */}
                 {getRelatedDonations(selected).length > 0 && (
                   <div className="related-donations">
-                    <h3 className="related-donations__title">Previous Donations</h3>
+                    <h3 className="related-donations__title">Previous Donations by this Donor</h3>
                     <div className="related-donations__list">
                       {getRelatedDonations(selected).map((d) => (
                         <div
@@ -528,7 +1180,9 @@ export default function DonationsPage() {
                               <StatusBadge status={d.status} />
                             </div>
                           </div>
-                          <div className="related-donation-item__amount">{d.amount}</div>
+                          <div className="related-donation-item__amount">
+                            {d.type === 'In-Kind' ? (d.itemsDescription || d.amount) : d.amount}
+                          </div>
                         </div>
                       ))}
                     </div>
@@ -537,7 +1191,8 @@ export default function DonationsPage() {
               </>
             )}
 
-            {activeTab === 'proof' && selected.hasProof && (
+            {/* Tab Content: Proof of Donation */}
+            {modalTab === 'proof' && selected.hasProof && (
               <div className="donation-proof-gallery">
                 <h3 className="donation-proof-gallery__title">
                   <FileText size={20} />
@@ -587,13 +1242,14 @@ export default function DonationsPage() {
                     className="btn btn--outline"
                     download={selected.proofFileName}
                   >
-                    <Download size={16} /> Download Proof
+                    <Download size={16} /> Download Proof File
                   </a>
                 </div>
               </div>
             )}
 
-            {activeTab === 'timeline' && (
+            {/* Tab Content: Timeline */}
+            {modalTab === 'timeline' && (
               <DonationUpdatesTimeline
                 donationId={selected.dbId}
                 canPost
@@ -602,8 +1258,20 @@ export default function DonationsPage() {
             )}
 
             <div className="admin-modal__actions">
-              <button type="button" className="btn btn--outline" onClick={() => handleDelete(selected)}>Delete</button>
-              <button type="button" className="btn btn--ghost" onClick={() => setSelected(null)}>Close</button>
+              <button 
+                type="button" 
+                className="btn btn--outline" 
+                onClick={() => handleDelete(selected)}
+              >
+                Delete
+              </button>
+              <button 
+                type="button" 
+                className="btn btn--ghost" 
+                onClick={() => setSelected(null)}
+              >
+                Close
+              </button>
             </div>
           </div>
         </div>

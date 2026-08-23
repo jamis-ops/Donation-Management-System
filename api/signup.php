@@ -34,8 +34,9 @@ if ($name === '' || $email === '' || $password === '') {
 if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
   json_response(['ok' => false, 'error' => 'Please enter a valid email address.'], 400);
 }
-if (strlen($password) < 6) {
-  json_response(['ok' => false, 'error' => 'Password must be at least 6 characters.'], 400);
+$pwErr = validate_password_policy($password, 'Password');
+if ($pwErr !== null) {
+  json_response(['ok' => false, 'error' => $pwErr], 400);
 }
 if (empty($body['acceptedPolicies']) && empty($body['termsAccepted'])) {
   json_response(['ok' => false, 'error' => 'You must accept the Data Privacy Policy and Terms & Conditions.'], 400);

@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import { Link } from 'react-router-dom'
-import { HeartHandshake, UserCheck, Users, Package, Truck, UserCog } from 'lucide-react'
+import { HeartHandshake, UserCheck, Users, Package, Truck, UserCog, Layers } from 'lucide-react'
 import { getDashboard, needsStockApi } from '../../api/resources'
 import { useApiObject } from '../../hooks/useApiList'
 import PageHeader from '../../components/admin/shared/PageHeader'
@@ -8,6 +8,15 @@ import ApiState from '../../components/admin/shared/ApiState'
 import LineChart from '../../components/admin/charts/LineChart'
 import DonutChart from '../../components/admin/charts/DonutChart'
 import BarChart from '../../components/admin/charts/BarChart'
+
+const STAT_ICONS = {
+  'Total Cash Donations': HeartHandshake,
+  'Active Beneficiaries': Users,
+  'Items in Inventory': Package,
+  'Repacked Inventory': Layers,
+  'Active Deliveries': Truck,
+  'Beneficiaries Served': UserCheck,
+}
 import StockLevelBar from '../../components/admin/shared/StockLevelBar'
 import { useSeeMore } from '../../hooks/useSeeMore'
 import { SeeMoreToggle } from '../../components/admin/shared/SeeMoreList'
@@ -178,13 +187,21 @@ export default function DashboardPage() {
         {data && (
           <>
             <div className="admin-stats-grid">
-              {data.stats.map((stat) => (
-                <div key={stat.label} className={`admin-stat-card admin-stat-card--${stat.trend}`}>
-                  <span className="admin-stat-card__value">{stat.value}</span>
-                  <span className="admin-stat-card__label">{stat.label}</span>
-                  <span className="admin-stat-card__change">{stat.change}</span>
-                </div>
-              ))}
+              {data.stats.map((stat) => {
+                const IconComponent = STAT_ICONS[stat.label]
+                return (
+                  <div key={stat.label} className={`admin-stat-card admin-stat-card--${stat.trend}`}>
+                    <div className="admin-stat-card__header">
+                      <span className="admin-stat-card__label" title={stat.label}>{stat.label}</span>
+                      {IconComponent && <IconComponent className="admin-stat-card__icon" size={15} />}
+                    </div>
+                    <div className="admin-stat-card__body">
+                      <span className="admin-stat-card__value">{stat.value}</span>
+                      {stat.change && <span className="admin-stat-card__change">{stat.change}</span>}
+                    </div>
+                  </div>
+                )
+              })}
             </div>
 
             <div className="admin-charts-grid">

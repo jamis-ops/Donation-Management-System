@@ -12,8 +12,19 @@ import FilterBar from '../../components/admin/shared/FilterBar'
 import ModalHeader from '../../components/admin/shared/ModalHeader'
 import RowActionsMenu from '../../components/admin/shared/RowActionsMenu'
 import { useSeeMore } from '../../hooks/useSeeMore'
-import { SeeMoreToggle } from '../../components/admin/shared/SeeMoreList'
+import { useBulkSelection } from '../../hooks/useBulkSelection'
 import { notify } from '../../utils/toast'
+import { confirmAction, showSuccessModal } from '../../utils/confirm'
+import { notifyBadgesChanged } from '../../utils/badgeSync'
+import {
+  ALLOCATION_WORKFLOW,
+  ALLOCATION_TERMINAL,
+  ALLOCATION_BRANCHES,
+  getAvailableNextStatuses,
+  validateStatusTransition,
+  isTerminalStatus,
+} from '../../utils/workflow'
+import { useLoading } from '../../context/LoadingContext'
 
 const STATUS_OPTIONS = ['Pending', 'Reserved', 'Allocated', 'Delivered', 'Cancelled']
 const PRIORITY_OPTIONS = ['Low', 'Medium', 'High', 'Critical']
@@ -105,7 +116,14 @@ export default function AllocationPage() {
   const { data: requests } = useApiList(() => assistanceRequestsApi.list())
   const { data: inventoryData } = useApiList(() => inventoryApi.list())
   const filters = useFilters(data, filterConfig)
+  const bulk = useBulkSelection(
+    filters.filtered,
+    (id) => allocationsApi.remove(id),
+    reload,
+    'allocations',
+  )
   const [detailRow, setDetailRow] = useState(null)
+  const { showLoading, hideLoading } = useLoading()
   const [editRow, setEditRow] = useState(null)
   const [statusRow, setStatusRow] = useState(null)
   const [statusValue, setStatusValue] = useState('')
@@ -258,6 +276,10 @@ export default function AllocationPage() {
   }
 
   const openStatus = (row) => {
+    if (isTerminalStatus(row.status, ALLOCATION_TERMINAL)) {
+      notify.info(`Allocation ${row.id || ''} is already ${row.status} (final stage) and locked from status changes.`)
+      return
+    }
     setStatusRow(row)
     setStatusValue(row.status)
     setDetailRow(null)
@@ -339,15 +361,28 @@ export default function AllocationPage() {
     }
 
     setSaving(true)
+    showLoading('Saving…')
     try {
       const ben = barangays.find((b) => Number(b.dbId) === Number(form.beneficiaryId))
       const benName = ben?.barangay || ben?.name || ben?.fullName || ''
-
       if (editRow) {
-        const line = lines[0]
-        const payload = {
-          resource: line.resource.trim(),
-          quantity: Number(line.quantity),
+        if (form.status !== editRow.status) {
+          const check = validateStatusTransition({
+            entityName: 'Allocation',
+            currentStatus: editRow.status,
+            nextStatus: form.status,
+            workflowOrder: ALLOCATION_WORKFLOW,
+            terminalStatuses: ALLOCATION_TERMINAL,
+            branches: ALLOCATION_BRANCHES,
+          })
+          if (!check.valid) {
+            notify.error(check.message)
+            return
+          }
+        }
+        const res = await allocationsApi.update(editRow.dbId, {
+          resource: lines[0]?.resource?.trim() || form.lines[0]?.resource?.trim(),
+          quantity: Number(lines[0]?.quantity || form.lines[0]?.quantity || 0),
           program: form.program,
           beneficiaryId: form.beneficiaryId ? Number(form.beneficiaryId) : null,
           beneficiary: benName,
@@ -355,8 +390,7 @@ export default function AllocationPage() {
           status: form.status,
           priority: form.priority,
           notes: form.notes,
-        }
-        const res = await allocationsApi.update(editRow.dbId, payload)
+        })
         setEditRow(null)
         if (res?.draftDistributionCreated) {
           setDraftNotice({
@@ -394,10 +428,13 @@ export default function AllocationPage() {
       }
 
       reload()
+      notifyBadgesChanged()
       notify.success(editRow ? 'Allocation updated.' : 'Allocation saved.')
+      showSuccessModal(editRow ? 'Successfully updated.' : 'Successfully added.')
     } catch (err) {
       notify.error(err.message)
     } finally {
+      hideLoading()
       setSaving(false)
     }
   }
@@ -405,7 +442,20 @@ export default function AllocationPage() {
   const handleUpdateStatus = async (e) => {
     e.preventDefault()
     if (!statusRow) return
+    const check = validateStatusTransition({
+      entityName: 'Allocation',
+      currentStatus: statusRow.status,
+      nextStatus: statusValue,
+      workflowOrder: ALLOCATION_WORKFLOW,
+      terminalStatuses: ALLOCATION_TERMINAL,
+      branches: ALLOCATION_BRANCHES,
+    })
+    if (!check.valid) {
+      notify.error(check.message)
+      return
+    }
     setSaving(true)
+    showLoading('Saving…')
     try {
       const res = await allocationsApi.update(statusRow.dbId, { status: statusValue })
       if (res?.draftDistributionCreated) {
@@ -419,24 +469,38 @@ export default function AllocationPage() {
       setStatusRow(null)
       setDetailRow(null)
       reload()
+      notifyBadgesChanged()
       notify.success(`Status successfully updated to: ${status}.`)
+      showSuccessModal('Successfully updated.')
     } catch (err) {
       notify.error(err.message)
     } finally {
+      hideLoading()
       setSaving(false)
     }
   }
 
   const handleDelete = async (row) => {
-    if (!confirm(`Delete this allocation? This cannot be undone.`)) return
+    const ok = await confirmAction({
+      title: 'Delete Allocation',
+      message: `Permanently delete allocation ${row.id} for "${row.resource}"? This cannot be undone.`,
+      confirmText: 'Delete Allocation',
+      type: 'danger',
+    })
+    if (!ok) return
+
+    showLoading('Deleting allocation…')
     try {
       await allocationsApi.remove(row.dbId)
-      setDetailRow(null)
-      setEditRow(null)
+      notify.success(`Allocation ${row.id} deleted.`)
+      showSuccessModal('Successfully deleted.')
       reload()
-      notify.success('Allocation deleted.')
+      notifyBadgesChanged()
+      if (detailRow?.dbId === row.dbId) setDetailRow(null)
     } catch (err) {
       notify.error(err.message || 'Failed to delete allocation')
+    } finally {
+      hideLoading()
     }
   }
 
@@ -731,9 +795,24 @@ export default function AllocationPage() {
         </label>
         <label>
           Status
-          <select value={form.status} onChange={(e) => setForm({ ...form, status: e.target.value })}>
-            {STATUS_OPTIONS.map((s) => <option key={s} value={s}>{s}</option>)}
+          <select
+            value={form.status}
+            disabled={editRow && isTerminalStatus(editRow.status, ALLOCATION_TERMINAL)}
+            onChange={(e) => setForm({ ...form, status: e.target.value })}
+          >
+            {getAvailableNextStatuses({
+              currentStatus: editRow ? editRow.status : form.status,
+              allStatuses: STATUS_OPTIONS,
+              workflowOrder: ALLOCATION_WORKFLOW,
+              terminalStatuses: ALLOCATION_TERMINAL,
+              branches: ALLOCATION_BRANCHES,
+            }).map((s) => <option key={s} value={s}>{s}</option>)}
           </select>
+          {editRow && isTerminalStatus(editRow.status, ALLOCATION_TERMINAL) && (
+            <small style={{ display: 'block', color: 'var(--admin-text-muted)', marginTop: '4px' }}>
+              🔒 Status is finalized and locked.
+            </small>
+          )}
         </label>
       </div>
       <label>
@@ -926,6 +1005,12 @@ export default function AllocationPage() {
           onRowClick={setDetailRow}
           pageSize={10}
           resetKey={`${filters.search}|${JSON.stringify(filters.values)}`}
+          selectable
+          selectedIds={bulk.selectedIds}
+          onSelectionChange={bulk.setSelectedIds}
+          onBulkDelete={bulk.handleBulkDelete}
+          deleting={bulk.deleting}
+          bulkDeleteLabel="Delete Selected"
         />
       </ApiState>
 
@@ -1002,7 +1087,13 @@ export default function AllocationPage() {
               <label>
                 Status
                 <select required value={statusValue} onChange={(e) => setStatusValue(e.target.value)}>
-                  {STATUS_OPTIONS.map((s) => <option key={s} value={s}>{s}</option>)}
+                  {getAvailableNextStatuses({
+                    currentStatus: statusRow.status,
+                    allStatuses: STATUS_OPTIONS,
+                    workflowOrder: ALLOCATION_WORKFLOW,
+                    terminalStatuses: ALLOCATION_TERMINAL,
+                    branches: ALLOCATION_BRANCHES,
+                  }).map((s) => <option key={s} value={s}>{s}</option>)}
                 </select>
               </label>
               <div className="admin-modal__actions">

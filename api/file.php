@@ -15,6 +15,7 @@ $name = basename((string) ($_GET['name'] ?? ''));
 $allowed = [
   'donation_proofs' => ['Admin', 'Staff', 'Donor'],
   'proofs' => ['Admin', 'Staff', 'Beneficiary', 'Volunteer'],
+  'volunteer_resumes' => ['Admin', 'Staff', 'Volunteer'],
 ];
 
 if ($kind === '' || $name === '' || !isset($allowed[$kind])) {
@@ -31,8 +32,15 @@ if (!is_file($path)) {
 }
 
 $mime = mime_content_type($path) ?: 'application/octet-stream';
+$downloadName = isset($_GET['download']) && trim((string) $_GET['download']) !== ''
+  ? basename((string) $_GET['download'])
+  : $name;
+
+$disposition = isset($_GET['download']) ? 'attachment' : 'inline';
+
 header('Content-Type: ' . $mime);
 header('Content-Length: ' . (string) filesize($path));
+header('Content-Disposition: ' . $disposition . '; filename="' . rawurlencode($downloadName) . '"');
 header('X-Content-Type-Options: nosniff');
 header('Cache-Control: private, max-age=3600');
 readfile($path);

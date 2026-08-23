@@ -83,6 +83,11 @@ export const volunteerMatchApi = {
     return apiFetch(`/api/volunteer_match.php${qs ? `?${qs}` : ''}`)
   },
 }
+export const internAiMatchApi = {
+  getRecommendations: (volunteerId) =>
+    apiFetch(`/api/volunteer_ai_match.php?volunteerId=${encodeURIComponent(volunteerId)}`),
+}
+export const volunteerAiMatchApi = internAiMatchApi
 export const tasksApi = resourceApi('/api/tasks.php')
 export const distributionsApi = {
   ...resourceApi('/api/distributions.php'),
@@ -153,6 +158,10 @@ export function updateStaff(id, body) {
   return apiFetch(`/api/staff.php?id=${id}`, { method: 'PUT', body: JSON.stringify(body) })
 }
 
+export function deleteStaff(id) {
+  return apiFetch(`/api/staff.php?id=${id}`, { method: 'DELETE' })
+}
+
 export function submitPublicDonation(bodyOrFormData) {
   if (bodyOrFormData instanceof FormData) {
     if (!bodyOrFormData.has('public')) bodyOrFormData.append('public', '1')
@@ -179,10 +188,22 @@ export function submitPublicAssistance(body) {
   })
 }
 
-export function submitPublicVolunteer(body) {
+export function submitPublicVolunteer(bodyOrFormData) {
+  if (bodyOrFormData instanceof FormData) {
+    if (!bodyOrFormData.has('public')) bodyOrFormData.append('public', '1')
+    return fetch('/api/volunteers.php', {
+      method: 'POST',
+      credentials: 'include',
+      body: bodyOrFormData,
+    }).then(async (res) => {
+      const data = await res.json().catch(() => null)
+      if (!res.ok) throw new Error(data?.error || `Request failed (${res.status})`)
+      return data
+    })
+  }
   return apiFetch('/api/volunteers.php', {
     method: 'POST',
-    body: JSON.stringify({ ...body, public: true }),
+    body: JSON.stringify({ ...bodyOrFormData, public: true }),
   })
 }
 
@@ -283,4 +304,12 @@ export const repackingApi = {
   create: (body) => apiFetch('/api/inventory.php?tab=repacking', { method: 'POST', body: JSON.stringify(body) }),
   update: (id, body) => apiFetch(`/api/inventory.php?id=${id}&tab=repacking`, { method: 'PUT', body: JSON.stringify(body) }),
   remove: (id) => apiFetch(`/api/inventory.php?id=${id}&tab=repacking`, { method: 'DELETE', body: '{}' }),
+}
+
+export const adminBadgesApi = {
+  get: () => apiFetch('/api/admin_badges.php'),
+  markSeen: (section) => apiFetch('/api/admin_badges.php', {
+    method: 'POST',
+    body: JSON.stringify({ section }),
+  }),
 }

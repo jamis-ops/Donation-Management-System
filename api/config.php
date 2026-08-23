@@ -18,6 +18,18 @@ $DB_NAME = 'donation_system';
 $DB_USER = 'root';   // MySQL username (NOT your admin email)
 $DB_PASS = '';       // MySQL password (XAMPP default is empty)
 
+/**
+ * GOOGLE GEMINI AI CONFIGURATION (ai.google.dev)
+ * 
+ * Google AI Studio API key for AI Resume/CV matching and program recommendations.
+ * Configure via GEMINI_API_KEY environment variable or local api/ai_config.php
+ */
+$GEMINI_API_KEY = getenv('GEMINI_API_KEY') ?: '';
+if (file_exists(__DIR__ . '/ai_config.php')) {
+  require_once __DIR__ . '/ai_config.php';
+}
+
+
 function db(): PDO {
   global $DB_HOST, $DB_NAME, $DB_USER, $DB_PASS;
 

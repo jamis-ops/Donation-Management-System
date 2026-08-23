@@ -6,10 +6,13 @@ import { useApiObject } from '../../hooks/useApiList'
 import { usePagination, DEFAULT_PAGE_SIZE } from '../../hooks/usePagination'
 import Pagination from '../../components/admin/shared/Pagination'
 import { notify } from '../../utils/toast'
+import { confirmAction, showSuccessModal } from '../../utils/confirm'
+import { useLoading } from '../../context/LoadingContext'
 
 export default function StaffTasksPage() {
   const { data: portalData, loading, error, reload } = useApiObject(() => getPortalData())
   const [filterStatus, setFilterStatus] = useState('all')
+  const { showLoading, hideLoading } = useLoading()
   const [filterPriority, setFilterPriority] = useState('all')
   const [filterCategory, setFilterCategory] = useState('all')
   const [searchQuery, setSearchQuery] = useState('')
@@ -90,17 +93,26 @@ export default function StaffTasksPage() {
 
   const handleComplete = async (task) => {
     if (!task?.dbId) return
-    if (!window.confirm(`Mark "${task.title}" as Done?`)) return
+    const ok = await confirmAction({
+      title: 'Complete Task',
+      message: `Mark "${task.title}" as Done?`,
+      confirmText: 'Mark as Done',
+      type: 'primary',
+    })
+    if (!ok) return
     setSaving(true)
+    showLoading('Saving…')
     try {
       const res = await tasksApi.update(task.dbId, { boardColumn: 'done' })
       const status = res?.data?.status || 'Done'
       notify.success(`Status successfully updated to: ${status}.`)
+      showSuccessModal('Successfully updated.')
       setSelectedTask(null)
       reload()
     } catch (err) {
       notify.error(err.message || 'Failed to update task')
     } finally {
+      hideLoading()
       setSaving(false)
     }
   }
@@ -348,13 +360,14 @@ export default function StaffTasksPage() {
                         <CheckCircle2 size={16} />
                         {saving ? 'Saving...' : 'Mark as Completed'}
                       </button>
-                      {selectedTask.boardColumn !== 'inProgress' && (
+                      {(selectedTask.boardColumn === 'todo' || selectedTask.status === 'To Do') && (
                         <button
                           type="button"
                           className="btn btn--outline"
                           disabled={saving}
                           onClick={async () => {
                             setSaving(true)
+                            showLoading('Saving…')
                             try {
                               const res = await tasksApi.update(selectedTask.dbId, { boardColumn: 'inProgress' })
                               const status = res?.data?.status || 'In Progress'
@@ -364,6 +377,7 @@ export default function StaffTasksPage() {
                             } catch (err) {
                               notify.error(err.message || 'Failed to update task')
                             } finally {
+                              hideLoading()
                               setSaving(false)
                             }
                           }}

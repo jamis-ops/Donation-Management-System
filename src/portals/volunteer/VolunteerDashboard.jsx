@@ -102,7 +102,7 @@ export default function VolunteerDashboard() {
                         <strong>{t.title}</strong>
                         <span>Due: {t.due} · {t.category || 'General'}</span>
                       </div>
-                      <StatusBadge status={t.status} />
+                      <StatusBadge status={t.isDone || t.boardColumn === 'done' || t.status === 'Done' || t.status === 'Completed' ? 'Completed' : 'Ongoing'} />
                     </li>
                   ))}
                 {(data.tasks || []).filter((t) => t.status !== 'Done' && t.boardColumn !== 'done').length === 0 && (

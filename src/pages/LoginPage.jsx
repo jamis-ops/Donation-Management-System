@@ -5,6 +5,7 @@ import { getHomeForRole } from '../utils/roleRoutes'
 import Logo from '../components/shared/Logo'
 import Req from '../components/shared/Req'
 import { heroBg } from '../assets'
+import { useLoading } from '../context/LoadingContext'
 
 export default function LoginPage() {
   const [email, setEmail] = useState(() =>
@@ -14,6 +15,7 @@ export default function LoginPage() {
   const [remember, setRemember] = useState(() => localStorage.getItem('raf_remember') === '1')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
+  const { showLoading, hideLoading } = useLoading()
   const { login } = useAuth()
   const navigate = useNavigate()
   const [params] = useSearchParams()
@@ -23,6 +25,7 @@ export default function LoginPage() {
     e.preventDefault()
     setError('')
     setLoading(true)
+    showLoading('Please wait…')
     try {
       const result = await login(email, password, { remember })
       if (remember) {
@@ -40,6 +43,7 @@ export default function LoginPage() {
     } catch (err) {
       setError(err.message || 'Login failed')
     } finally {
+      hideLoading()
       setLoading(false)
     }
   }

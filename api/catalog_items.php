@@ -31,6 +31,35 @@ $CATALOGS = [
       'Donations', 'Inventory', 'Distributions', 'Volunteer',
     ],
   ],
+  'volunteer_programs' => [
+    'table' => 'volunteer_programs',
+    'label' => 'Volunteer Programs',
+    'defaults' => [
+      'Disaster Relief and House Building Project',
+      'Community Feeding & Nutrition Program',
+      'Educational Sponsorship & Youth Development',
+      'Medical and Dental Missions',
+      'Family Hygiene & Preventive Health',
+      'Livelihood & Skills Training',
+    ],
+  ],
+  'volunteer_skills' => [
+    'table' => 'volunteer_skills',
+    'label' => 'Volunteer Skills',
+    'defaults' => [
+      'First Aid & Medical',
+      'Relief Goods Packing',
+      'Teaching & Tutoring',
+      'Driving & Logistics',
+      'Cooking & Food Prep',
+      'Community Engagement',
+      'Documentation & Photos',
+      'Warehouse Sorting',
+      'Heavy Lifting & Loading',
+      'Counseling & Social Work',
+      'Administrative Support',
+    ],
+  ],
 ];
 
 function resolve_catalog_key(array $catalogs): string
@@ -55,7 +84,7 @@ function ensure_catalog_table(PDO $pdo, string $table, array $defaults): void
     return;
   }
 
-  $allowed = ['need_types', 'barangay_types', 'task_types'];
+  $allowed = ['need_types', 'barangay_types', 'task_types', 'volunteer_programs', 'volunteer_skills'];
   if (!in_array($table, $allowed, true)) {
     throw new InvalidArgumentException('Invalid catalog table.');
   }
@@ -113,7 +142,7 @@ try {
   if ($catalog === '' || !isset($CATALOGS[$catalog])) {
     json_response([
       'ok' => false,
-      'error' => 'Unknown catalog. Use needs, barangay_types, or task_types.',
+      'error' => 'Unknown catalog. Use volunteer_programs, volunteer_skills, needs, barangay_types, or task_types.',
     ], 400);
   }
 
@@ -122,13 +151,14 @@ try {
   ensure_catalog_table($pdo, $table, $meta['defaults']);
 
   if ($method === 'GET') {
-    $user = require_auth(['Admin', 'Staff', 'Beneficiary', 'Donor', 'Volunteer', 'SuperAdmin']);
+    $user = current_user();
     $wantAll = isset($_GET['all']) && $_GET['all'] === '1';
     $role = (string) ($user['role'] ?? '');
     $isOps = in_array($role, ['Admin', 'Staff', 'SuperAdmin'], true)
-      || (function_exists('is_super_admin_user') && is_super_admin_user($user));
+      || (function_exists('is_super_admin_user') && $user && is_super_admin_user($user));
 
     if ($wantAll && !$isOps) {
+      require_auth(['Admin', 'Staff', 'SuperAdmin']);
       json_response(['ok' => false, 'error' => 'You do not have permission to manage this catalog.'], 403);
     }
 

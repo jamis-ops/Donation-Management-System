@@ -11,6 +11,9 @@ import Pagination from '../../components/admin/shared/Pagination'
 import Req from '../../components/shared/Req'
 import NeedsPicker from '../../components/shared/NeedsPicker'
 import { notify } from '../../utils/toast'
+import { confirmAction, showSuccessModal } from '../../utils/confirm'
+import { notifyBadgesChanged } from '../../utils/badgeSync'
+import { useLoading } from '../../context/LoadingContext'
 
 // Calamity/Event types
 const CALAMITY_TYPES = [
@@ -43,10 +46,10 @@ const emptyForm = {
   notes: '',
 }
 
-const CLOSED_STATUSES = ['Completed', 'Rejected', 'Cancelled', 'Done']
+const CLOSED_STATUSES = ['Approved', 'Allocated', 'In Distribution', 'In Progress', 'Completed', 'Rejected', 'Cancelled', 'Done']
 
 function canEditRequest(request) {
-  return Boolean(request) && !CLOSED_STATUSES.includes(request.status)
+  return Boolean(request) && ['Pending Review', 'Under Review'].includes(request.status)
 }
 
 /** Structured fields from request notes / needs for cards & detail modal. */
@@ -82,6 +85,7 @@ function canCancelRequest(request) {
 export default function BeneficiaryRequestsPage() {
   const { data, loading, error, reload } = useApiList(() => assistanceRequestsApi.list())
   const [showForm, setShowForm] = useState(false)
+  const { showLoading, hideLoading } = useLoading()
   const [editingRequest, setEditingRequest] = useState(null)
   const [selectedRequest, setSelectedRequest] = useState(null)
   const [form, setForm] = useState(emptyForm)
@@ -169,6 +173,7 @@ export default function BeneficiaryRequestsPage() {
     ].filter(Boolean).join('\n\n')
     
     setSaving(true)
+    showLoading('Saving…')
     try {
       if (editingRequest) {
         // Update existing request
@@ -181,6 +186,7 @@ export default function BeneficiaryRequestsPage() {
         })
         setEditingRequest(null)
         notify.success('Request updated.')
+        showSuccessModal('Successfully updated.')
       } else {
         // Create new request
         await assistanceRequestsApi.create({
@@ -191,13 +197,16 @@ export default function BeneficiaryRequestsPage() {
           needs,
         })
         notify.success('Request submitted.')
+        showSuccessModal('Successfully added.')
       }
       setForm(emptyForm)
       setShowForm(false)
       reload()
+      notifyBadgesChanged()
     } catch (err) {
       setSubmitError(err.message || 'Failed to save request')
     } finally {
+      hideLoading()
       setSaving(false)
     }
   }
@@ -246,16 +255,27 @@ export default function BeneficiaryRequestsPage() {
   }
 
   const handleCancel = async (requestId) => {
-    if (!window.confirm('Cancel this assistance request? This action cannot be undone.')) return
+    const ok = await confirmAction({
+      title: 'Cancel Assistance Request',
+      message: 'Cancel this assistance request? This action cannot be undone.',
+      confirmText: 'Cancel Request',
+      type: 'danger',
+    })
+    if (!ok) return
+
     setSaving(true)
+    showLoading('Saving…')
     try {
       await assistanceRequestsApi.remove(requestId)
       notify.success('Status successfully updated to: Cancelled.')
+      showSuccessModal('Successfully updated.')
       setSelectedRequest(null)
       reload()
+      notifyBadgesChanged()
     } catch (err) {
       notify.error(err.message)
     } finally {
+      hideLoading()
       setSaving(false)
     }
   }

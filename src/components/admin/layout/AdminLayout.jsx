@@ -1,9 +1,12 @@
 import { useEffect, useState } from 'react'
-import { Outlet, useLocation } from 'react-router-dom'
+import { Outlet, useLocation, Navigate } from 'react-router-dom'
 import { Menu, PanelLeft } from 'lucide-react'
+import { useAuth } from '../../../context/AuthContext'
+import { isSuperAdminRole } from '../../../utils/roleRoutes'
 import AdminSidebar from './AdminSidebar'
 import AdminSecondarySidebar from './AdminSecondarySidebar'
 import NotificationBell from '../shared/NotificationBell'
+import UserProfileMenu from '../../shared/UserProfileMenu'
 
 const pageTitles = {
   '/admin': 'Dashboard',
@@ -14,7 +17,7 @@ const pageTitles = {
   '/admin/inventory': 'Inventory Tracking',
   '/admin/allocation': 'Resource Allocation',
   '/admin/distributions': 'Logistics & Distribution',
-  '/admin/volunteers': 'Volunteer Management',
+  '/admin/volunteers': 'Volunteer & Intern Management',
   '/admin/staff': 'Staff Management',
   '/admin/admins': 'Admin Management',
   '/admin/reports': 'Reports & Analytics',
@@ -30,6 +33,8 @@ function useBarangayModule(pathname) {
 }
 
 export default function AdminLayout() {
+  const { user } = useAuth()
+  const isSuperAdmin = isSuperAdminRole(user?.role, user)
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [secondaryMobileOpen, setSecondaryMobileOpen] = useState(false)
   const [secondaryCollapsed, setSecondaryCollapsed] = useState(() => {
@@ -40,7 +45,7 @@ export default function AdminLayout() {
     }
   })
   const location = useLocation()
-  const showSecondary = useBarangayModule(location.pathname)
+  const showSecondary = !isSuperAdmin && useBarangayModule(location.pathname)
 
   useEffect(() => {
     try {
@@ -54,6 +59,10 @@ export default function AdminLayout() {
     setSidebarOpen(false)
     setSecondaryMobileOpen(false)
   }, [location.pathname])
+
+  if (isSuperAdmin && location.pathname !== '/admin/admins') {
+    return <Navigate to="/admin/admins" replace />
+  }
 
   let title = pageTitles[location.pathname]
   if (!title) {
@@ -114,18 +123,10 @@ export default function AdminLayout() {
 
           <div className="admin-topbar__right">
             <NotificationBell linkPrefix="/admin" />
-            <span className="admin-topbar__badge">
-              <span
-                style={{
-                  width: 7,
-                  height: 7,
-                  borderRadius: '50%',
-                  background: 'var(--admin-brand)',
-                  display: 'inline-block',
-                }}
-              />
-              System Admin
-            </span>
+            <UserProfileMenu
+              settingsPath="/admin/settings"
+              roleLabel={isSuperAdmin ? 'Super Admin' : 'System Admin'}
+            />
           </div>
         </header>
 

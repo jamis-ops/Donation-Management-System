@@ -6,8 +6,11 @@ import { useApiObject } from '../../hooks/useApiList'
 import { usePagination, DEFAULT_PAGE_SIZE } from '../../hooks/usePagination'
 import Pagination from '../../components/admin/shared/Pagination'
 import { notify } from '../../utils/toast'
+import { confirmAction, showSuccessModal } from '../../utils/confirm'
+import { useLoading } from '../../context/LoadingContext'
 
 export default function StaffInventoryPage() {
+  const { showLoading, hideLoading } = useLoading()
   const { data: portalData, loading, error, reload } = useApiObject(() => getPortalData())
   const [filterCategory, setFilterCategory] = useState('all')
   const [filterStatus, setFilterStatus] = useState('all')
@@ -30,27 +33,22 @@ export default function StaffInventoryPage() {
     })
   }, [inventory, filterCategory, filterStatus, searchQuery])
 
-  const paging = usePagination(
-    filteredInventory,
-    DEFAULT_PAGE_SIZE,
-    `${searchQuery}|${filterCategory}|${filterStatus}`,
-  )
+  const paging = usePagination(filteredInventory, DEFAULT_PAGE_SIZE, `${filterCategory}|${filterStatus}|${searchQuery}`)
 
-  const categories = [...new Set(inventory.map(i => i.category))]
-  const statuses = ['Critical', 'Low Stock', 'Adequate']
-
-  const categorySummary = portalData?.inventoryByCategory || []
-
-  const totalValue = inventory.reduce((sum, item) => {
-    return sum + (item.currentStock * item.costPerUnit)
-  }, 0)
+  const totalValue = useMemo(() => {
+    return inventory.reduce((sum, item) => sum + (item.quantity * 50), 0)
+  }, [inventory])
 
   const getStatusColor = (status) => {
     switch (status) {
-      case 'Critical': return '#dc2626'
-      case 'Low Stock': return '#f59e0b'
-      case 'Adequate': return '#16a34a'
-      default: return '#6b7280'
+      case 'Normal':
+        return '#10b981'
+      case 'Low':
+        return '#f59e0b'
+      case 'Critical':
+        return '#dc2626'
+      default:
+        return '#6b7280'
     }
   }
 
@@ -86,16 +84,22 @@ export default function StaffInventoryPage() {
     }
 
     const actionLabel = stockAction === 'add' ? 'Add' : 'Remove'
-    if (!window.confirm(`${actionLabel} ${amount} unit(s) for "${selectedItem.name || selectedItem.item}"?`)) {
-      return
-    }
+    const ok = await confirmAction({
+      title: `${actionLabel} Stock`,
+      message: `${actionLabel} ${amount} unit(s) for "${selectedItem.name || selectedItem.item}"?`,
+      confirmText: `${actionLabel} Stock`,
+      type: stockAction === 'remove' ? 'warning' : 'primary',
+    })
+    if (!ok) return
 
+    showLoading(stockAction === 'add' ? 'Adding stock…' : 'Removing stock…')
     try {
       await inventoryApi.update(selectedItem.dbId, {
         quantity: newStock,
         notes: stockNotes || undefined,
       })
       notify.success('Stock updated.')
+      showSuccessModal('Successfully updated.')
       setShowStockModal(false)
       setStockAmount('')
       setStockNotes('')
@@ -103,6 +107,8 @@ export default function StaffInventoryPage() {
       reload()
     } catch (err) {
       notify.error(err.message || 'Failed to update stock')
+    } finally {
+      hideLoading()
     }
   }
 

@@ -58,12 +58,13 @@
   gap: 1rem;
   height: var(--portal-topbar-height);
   padding: 0 2rem;
-  background: #ffffff;
-  border-bottom: 1px solid #e5e7eb;
+  background: #AF101A;
+  background: linear-gradient(135deg, #AF101A 0%, #8C0C14 100%);
+  border-bottom: 1px solid rgba(0, 0, 0, 0.12);
   position: sticky;
   top: 0;
   z-index: 50;
-  box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+  box-shadow: 0 2px 8px -1px rgba(175, 16, 26, 0.25), 0 1px 3px rgba(0, 0, 0, 0.08);
 }
 
 .portal-topbar__menu {
@@ -72,16 +73,16 @@
   justify-content: center;
   width: 38px;
   height: 38px;
-  background: rgba(175, 16, 26, 0.08);
-  border: none;
+  background: rgba(255, 255, 255, 0.16);
+  border: 1px solid rgba(255, 255, 255, 0.24);
   border-radius: 8px;
   cursor: pointer;
-  color: #AF101A;
+  color: #ffffff;
   transition: background 0.15s;
   flex-shrink: 0;
 }
 
-.portal-topbar__menu:hover { background: rgba(175, 16, 26, 0.14); }
+.portal-topbar__menu:hover { background: rgba(255, 255, 255, 0.28); }
 
 .portal-topbar__info { flex: 1; }
 
@@ -90,27 +91,47 @@
   font-size: 1.05rem;
   font-weight: 700;
   margin: 0 0 0.1rem;
-  color: #111827;
+  color: #ffffff;
 }
 
 .portal-topbar p {
   margin: 0;
   font-size: 0.8rem;
-  color: #6b7280;
+  color: rgba(255, 255, 255, 0.85);
 }
 
 .portal-topbar__badge {
   display: inline-flex;
   align-items: center;
-  gap: 0.35rem;
-  padding: 0.3rem 0.85rem;
-  background: rgba(175, 16, 26, 0.08);
-  color: #AF101A;
+  gap: 0.45rem;
+  padding: 0.35rem 0.85rem;
+  background: rgba(255, 255, 255, 0.18);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  color: #ffffff !important;
   border-radius: 999px;
   font-size: 0.75rem;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
+  font-weight: 600;
+  backdrop-filter: blur(4px);
+}
+
+.portal-topbar .notif-bell__btn {
+  background: rgba(255, 255, 255, 0.16);
+  border: 1px solid rgba(255, 255, 255, 0.28);
+  color: #ffffff;
+  transition: background 0.15s, border-color 0.15s;
+}
+
+.portal-topbar .notif-bell__btn:hover {
+  background: rgba(255, 255, 255, 0.28);
+  border-color: rgba(255, 255, 255, 0.45);
+  color: #ffffff;
+}
+
+.portal-topbar .notif-bell__badge {
+  background: #ffffff;
+  color: #AF101A;
+  font-weight: 800;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.25);
 }
 
 /* =========================================================
@@ -129,39 +150,56 @@
   left: 0;
   height: 100vh;
   overflow-y: auto;
+  overflow-x: hidden;
   z-index: 100;
   box-shadow: 1px 0 0 #e5e7eb;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.portal-sidebar::-webkit-scrollbar {
+  display: none;
 }
 
 .portal-sidebar__brand {
   display: flex;
-  flex-direction: column;
-  padding: 1.25rem;
+  flex-direction: row;
+  align-items: center;
+  gap: 0.65rem;
+  padding: 0.75rem 1rem;
   border-bottom: 1px solid #e5e7eb;
-  min-height: var(--portal-topbar-height);
-  justify-content: center;
+  min-height: 56px;
+  justify-content: flex-start;
 }
 
 .portal-sidebar__portal-name {
   display: inline-flex;
   align-items: center;
   gap: 0.35rem;
-  margin-top: 0.6rem;
-  font-size: 0.7rem;
+  margin-top: 0;
+  font-size: 0.72rem;
   font-weight: 700;
   text-transform: uppercase;
-  letter-spacing: 0.08em;
+  letter-spacing: 0.05em;
   color: #AF101A;
   background: rgba(175, 16, 26, 0.08);
-  padding: 0.2rem 0.6rem;
+  padding: 0.22rem 0.6rem;
   border-radius: 999px;
   width: fit-content;
+  white-space: nowrap;
 }
 
 .portal-sidebar__nav {
   flex: 1;
-  padding: 0.75rem 0;
+  padding: 0.4rem 0.55rem 0.5rem;
   overflow-y: auto;
+  overflow-x: hidden;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.portal-sidebar__nav::-webkit-scrollbar {
+  display: none;
 }
 
 .portal-sidebar__nav ul {
@@ -173,20 +211,30 @@
 .portal-sidebar__link {
   display: flex;
   align-items: center;
-  gap: 0.65rem;
-  padding: 0.62rem 1.25rem;
-  color: #6b7280;
+  gap: 0.6rem;
+  padding: 0.42rem 0.65rem;
+  margin: 1.5px 0;
+  border-radius: 7px;
+  color: #4b5563;
   text-decoration: none;
-  font-size: 0.875rem;
+  font-size: 0.845rem;
   font-weight: 500;
+  line-height: 1.3;
   border-left: 3px solid transparent;
-  transition: background 0.15s, color 0.15s, border-color 0.15s;
+  transition: background 0.15s, color 0.15s, border-color 0.15s, transform 0.15s;
+}
+
+.portal-sidebar__link svg {
+  width: 17px;
+  height: 17px;
+  flex-shrink: 0;
 }
 
 .portal-sidebar__link:hover {
-  background: #f4f5f7;
+  background: rgba(175, 16, 26, 0.06);
   color: #111827;
   border-left-color: #d1d5db;
+  transform: translateX(2px);
 }
 
 .portal-sidebar__link--active {
@@ -198,6 +246,7 @@
 
 .portal-sidebar__link--active:hover {
   background: rgba(175, 16, 26, 0.12);
+  transform: translateX(2px);
 }
 
 /* Footer */
@@ -7426,39 +7475,55 @@
   align-items: center;
   justify-content: space-between;
   gap: 1rem;
-  padding: 1.5rem 2rem;
-  border-bottom: 1px solid #e5e7eb;
+  padding: 1.25rem 1.75rem;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.1);
+  background: linear-gradient(135deg, #AF101A 0%, #8E0D15 100%);
+  border-top-left-radius: 16px;
+  border-top-right-radius: 16px;
+  color: #ffffff;
+  box-shadow: 0 2px 8px rgba(175, 16, 26, 0.15);
 }
 
 .staff-modal__header h2,
 .staff-task-modal__header h2 {
   margin: 0;
   font-size: 1.25rem;
-  font-weight: 600;
-  color: #111827;
+  font-weight: 700;
+  color: #ffffff;
+  letter-spacing: -0.01em;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.15);
 }
 
 .staff-modal__close,
 .staff-task-modal__close {
-  width: 32px;
-  height: 32px;
+  width: 34px;
+  height: 34px;
   display: flex;
   align-items: center;
   justify-content: center;
-  background: #f4f5f7;
-  border: none;
-  border-radius: 8px;
-  font-size: 1.5rem;
-  color: #6b7280;
+  background: rgba(255, 255, 255, 0.14);
+  border: 1px solid rgba(255, 255, 255, 0.28);
+  border-radius: 9px;
+  font-size: 1.25rem;
+  line-height: 1;
+  color: #ffffff;
   cursor: pointer;
-  transition: all 0.15s;
+  transition: all 0.15s ease;
   flex-shrink: 0;
+  backdrop-filter: blur(4px);
 }
 
 .staff-modal__close:hover,
 .staff-task-modal__close:hover {
-  background: #e5e7eb;
-  color: #111827;
+  background: rgba(255, 255, 255, 0.28);
+  border-color: rgba(255, 255, 255, 0.55);
+  color: #ffffff;
+  transform: scale(1.06);
+}
+
+.staff-modal__close:active,
+.staff-task-modal__close:active {
+  transform: scale(0.95);
 }
 
 .staff-modal__content {

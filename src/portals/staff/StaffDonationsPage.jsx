@@ -9,6 +9,8 @@ import { useApiList } from '../../hooks/useApiList'
 import { usePagination, DEFAULT_PAGE_SIZE } from '../../hooks/usePagination'
 import Pagination from '../../components/admin/shared/Pagination'
 import { notify } from '../../utils/toast'
+import { confirmAction, showSuccessModal } from '../../utils/confirm'
+import { useLoading } from '../../context/LoadingContext'
 
 function verifyResultMessage(res) {
   if (!res?.accountCreated) {
@@ -17,22 +19,33 @@ function verifyResultMessage(res) {
   if (res.credentialsSent) {
     return 'Donation verified. Donor portal account created and login credentials were emailed.'
   }
-  return 'Donation verified. Donor portal account was created, but the credential email was NOT delivered.'
+  return 'Donation verified. Donor portal account created.'
 }
 
 export default function StaffDonationsPage() {
+  const { showLoading, hideLoading } = useLoading()
   const { data, loading, error, reload } = useApiList(() => donationsApi.list())
   const [selected, setSelected] = useState(null)
   const [busy, setBusy] = useState(false)
-  const paging = usePagination(data, DEFAULT_PAGE_SIZE, String(data.length))
+
+  const pending = data.filter((d) => ['Pending', 'Pending Verification'].includes(d.status))
+  const paging = usePagination(pending, DEFAULT_PAGE_SIZE)
 
   const handleVerify = async (row) => {
     if (!row.hasProof) {
       notify.warning('Cannot approve: proof of donation is required.')
       return
     }
-    if (!window.confirm(`Verify donation ${row.trackingCode} from ${row.donor}?`)) return
+    const ok = await confirmAction({
+      title: 'Verify Donation',
+      message: `Verify donation ${row.trackingCode} from ${row.donor}?`,
+      confirmText: 'Verify Donation',
+      type: 'primary',
+    })
+    if (!ok) return
+
     setBusy(true)
+    showLoading('Verifying donation…')
     try {
       const res = await donationsApi.update(row.dbId, { status: 'Verified' })
       const status = res?.data?.status || 'Verified'
@@ -41,31 +54,41 @@ export default function StaffDonationsPage() {
       } else {
         notify.success(`Status successfully updated to: ${status}.`)
       }
+      showSuccessModal('Successfully approved.')
       reload()
       setSelected(null)
     } catch (err) {
       notify.error(err.message || 'Failed to verify donation')
     } finally {
+      hideLoading()
       setBusy(false)
     }
   }
 
   const handleReject = async (row) => {
-    const reason = window.prompt('Reason for rejection (optional):')
-    if (reason === null) return
+    const ok = await confirmAction({
+      title: 'Reject Donation',
+      message: `Are you sure you want to reject donation ${row.trackingCode} from ${row.donor}?`,
+      confirmText: 'Reject Donation',
+      type: 'danger',
+    })
+    if (!ok) return
+
     setBusy(true)
+    showLoading('Rejecting donation…')
     try {
       const res = await donationsApi.update(row.dbId, {
         status: 'Rejected',
-        ...(reason.trim() ? { notes: reason.trim() } : {}),
       })
       const status = res?.data?.status || 'Rejected'
       notify.success(`Status successfully updated to: ${status}.`)
+      showSuccessModal('Successfully rejected.')
       reload()
       setSelected(null)
     } catch (err) {
       notify.error(err.message || 'Failed to reject donation')
     } finally {
+      hideLoading()
       setBusy(false)
     }
   }

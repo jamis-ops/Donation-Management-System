@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Award, Download, Eye, Pencil, Printer, Trash2 } from 'lucide-react'
+import { Award, Download, Eye, Pencil, Printer, Trash2, FileCheck, Clock } from 'lucide-react'
 import { certificatesApi, volunteersApi, donorsApi, donationsApi } from '../../api/resources'
 import { useApiList } from '../../hooks/useApiList'
 import { useFilters } from '../../hooks/useFilters'
@@ -12,6 +12,16 @@ import CertificateView from '../../components/shared/CertificateView'
 import { printCertificate } from '../../components/shared/printCertificate'
 import ModalHeader from '../../components/admin/shared/ModalHeader'
 import { notify } from '../../utils/toast'
+import { confirmAction, showSuccessModal } from '../../utils/confirm'
+import { notifyBadgesChanged } from '../../utils/badgeSync'
+import {
+  CERTIFICATE_WORKFLOW,
+  CERTIFICATE_TERMINAL,
+  getAvailableNextStatuses,
+  validateStatusTransition,
+  isTerminalStatus,
+} from '../../utils/workflow'
+import { useLoading } from '../../context/LoadingContext'
 
 const CERT_TYPES = [
   'Certificate of Donation',
@@ -20,7 +30,7 @@ const CERT_TYPES = [
   'Certificate of Appreciation',
 ]
 
-const STATUS_OPTIONS = ['Requested', 'Pending', 'Generated', 'Released']
+const STATUS_OPTIONS = CERTIFICATE_WORKFLOW
 
 const filterConfig = {
   searchKeys: ['id', 'recipient', 'reference', 'type'],
@@ -52,6 +62,7 @@ export default function CertificatesPage() {
   const { data: donations } = useApiList(() => donationsApi.list())
 
   const [showForm, setShowForm] = useState(false)
+  const { showLoading, hideLoading } = useLoading()
   const [editRow, setEditRow] = useState(null)
   const [preview, setPreview] = useState(null)
   const [form, setForm] = useState(emptyForm)
@@ -124,6 +135,7 @@ export default function CertificatesPage() {
       return
     }
     setSaving(true)
+    showLoading('Saving…')
     try {
       const payload = {
         type: form.type,
@@ -137,29 +149,59 @@ export default function CertificatesPage() {
         status: form.status,
       }
       if (editRow) {
+        if (form.status !== editRow.status) {
+          const check = validateStatusTransition({
+            entityName: 'Certificate',
+            currentStatus: editRow.status,
+            nextStatus: form.status,
+            workflowOrder: CERTIFICATE_WORKFLOW,
+            terminalStatuses: CERTIFICATE_TERMINAL,
+          })
+          if (!check.valid) {
+            notify.error(check.message)
+            return
+          }
+        }
         await certificatesApi.update(editRow.dbId, payload)
         notify.success('Certificate updated.')
+        showSuccessModal('Successfully updated.')
       } else {
         await certificatesApi.create(payload)
         notify.success('Certificate created.')
+        showSuccessModal('Successfully added.')
       }
       setShowForm(false)
       reload()
+      notifyBadgesChanged()
     } catch (err) {
       notify.error(err.message)
     } finally {
+      hideLoading()
       setSaving(false)
     }
   }
 
   const handleDelete = async (row) => {
-    if (!window.confirm(`Delete certificate ${row.id} for ${row.recipient}?`)) return
+    const ok = await confirmAction({
+      title: 'Delete Certificate',
+      message: `Permanently delete certificate ${row.id} for ${row.recipient}? This cannot be undone.`,
+      confirmText: 'Delete Certificate',
+      type: 'danger',
+    })
+    if (!ok) return
+
+    showLoading('Deleting certificate…')
     try {
       await certificatesApi.remove(row.dbId)
       notify.success('Certificate deleted.')
+      showSuccessModal('Successfully deleted.')
       reload()
+      notifyBadgesChanged()
+      if (preview?.dbId === row.dbId) setPreview(null)
     } catch (err) {
       notify.error(err.message)
+    } finally {
+      hideLoading()
     }
   }
 
@@ -204,9 +246,33 @@ export default function CertificatesPage() {
       />
 
       <div className="admin-stats-grid admin-stats-grid--compact">
-        <div className="admin-stat-card"><span className="admin-stat-card__value">{data.length}</span><span className="admin-stat-card__label">Total Certificates</span></div>
-        <div className="admin-stat-card"><span className="admin-stat-card__value">{data.filter((c) => c.status === 'Generated').length}</span><span className="admin-stat-card__label">Generated</span></div>
-        <div className="admin-stat-card"><span className="admin-stat-card__value">{requestedCount}</span><span className="admin-stat-card__label">Pending Requests</span></div>
+        <div className="admin-stat-card">
+          <div className="admin-stat-card__header">
+            <span className="admin-stat-card__label">Total Certificates</span>
+            <Award className="admin-stat-card__icon" size={15} />
+          </div>
+          <div className="admin-stat-card__body">
+            <span className="admin-stat-card__value">{data.length}</span>
+          </div>
+        </div>
+        <div className="admin-stat-card">
+          <div className="admin-stat-card__header">
+            <span className="admin-stat-card__label">Generated</span>
+            <FileCheck className="admin-stat-card__icon" size={15} />
+          </div>
+          <div className="admin-stat-card__body">
+            <span className="admin-stat-card__value">{data.filter((c) => c.status === 'Generated').length}</span>
+          </div>
+        </div>
+        <div className="admin-stat-card">
+          <div className="admin-stat-card__header">
+            <span className="admin-stat-card__label">Pending Requests</span>
+            <Clock className="admin-stat-card__icon" size={15} />
+          </div>
+          <div className="admin-stat-card__body">
+            <span className="admin-stat-card__value">{requestedCount}</span>
+          </div>
+        </div>
       </div>
 
       <FilterBar controller={filters} searchPlaceholder="Search by ID, recipient, or reference..." />
@@ -285,9 +351,23 @@ export default function CertificatesPage() {
               </div>
 
               <label>Status
-                <select value={form.status} onChange={(e) => setForm({ ...form, status: e.target.value })}>
-                  {STATUS_OPTIONS.map((s) => <option key={s}>{s}</option>)}
+                <select
+                  value={form.status}
+                  disabled={editRow && isTerminalStatus(editRow.status, CERTIFICATE_TERMINAL)}
+                  onChange={(e) => setForm({ ...form, status: e.target.value })}
+                >
+                  {getAvailableNextStatuses({
+                    currentStatus: editRow ? editRow.status : form.status,
+                    allStatuses: STATUS_OPTIONS,
+                    workflowOrder: CERTIFICATE_WORKFLOW,
+                    terminalStatuses: CERTIFICATE_TERMINAL,
+                  }).map((s) => <option key={s} value={s}>{s}</option>)}
                 </select>
+                {editRow && isTerminalStatus(editRow.status, CERTIFICATE_TERMINAL) && (
+                  <small style={{ display: 'block', color: 'var(--admin-text-muted)', marginTop: '4px' }}>
+                    🔒 Certificate is Released and locked from further changes.
+                  </small>
+                )}
               </label>
 
               <div className="admin-modal__actions">

@@ -6,7 +6,9 @@ import { useApiObject } from '../../hooks/useApiList'
 import { usePagination, DEFAULT_PAGE_SIZE } from '../../hooks/usePagination'
 import Pagination from '../../components/admin/shared/Pagination'
 import { notify } from '../../utils/toast'
+import { confirmAction, showSuccessModal } from '../../utils/confirm'
 import { DISTRIBUTION_STATUSES } from '../../constants/options'
+import { useLoading } from '../../context/LoadingContext'
 
 const STAFF_ADVANCE = {
   Planning: 'Preparing',
@@ -17,6 +19,7 @@ const STAFF_ADVANCE = {
 export default function StaffDistributionsPage() {
   const { data: portalData, loading, error, reload } = useApiObject(() => getPortalData())
   const [filterStatus, setFilterStatus] = useState('all')
+  const { showLoading, hideLoading } = useLoading()
   const [filterProgram, setFilterProgram] = useState('all')
   const [searchQuery, setSearchQuery] = useState('')
   const [selectedDistribution, setSelectedDistribution] = useState(null)
@@ -78,17 +81,27 @@ export default function StaffDistributionsPage() {
       notify.info('After Delivered, barangay must confirm receipt and submit proof before Completed.')
       return
     }
-    if (!window.confirm(`Advance "${dist.location || dist.program}" to ${next}?`)) return
+    const ok = await confirmAction({
+      title: 'Advance Distribution Status',
+      message: `Advance "${dist.location || dist.program}" to ${next}?`,
+      confirmText: `Advance to ${next}`,
+      type: 'primary',
+    })
+    if (!ok) return
+
     setSaving(true)
+    showLoading('Saving…')
     try {
       const res = await distributionsApi.update(dist.dbId, { status: next })
       const status = res?.data?.status || next
       notify.success(`Status successfully updated to: ${status}.`)
+      showSuccessModal('Successfully updated.')
       setSelectedDistribution(null)
       reload()
     } catch (err) {
       notify.error(err.message || 'Failed to update distribution')
     } finally {
+      hideLoading()
       setSaving(false)
     }
   }

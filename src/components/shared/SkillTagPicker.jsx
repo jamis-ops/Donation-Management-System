@@ -1,55 +1,37 @@
+import { Sparkles } from 'lucide-react'
 import { VOLUNTEER_SKILLS } from '../../constants/options'
+import MultiSelectBox from './MultiSelectBox'
 
 /**
- * Multi-select skill checkboxes — same layout as Preferred Programs.
+ * Multi-select skill picker inside a clean box/card layout with live CMS synchronization.
  */
 export default function SkillTagPicker({
   value = [],
   other = '',
   onChange,
   onOtherChange,
-  label = 'Skills',
+  label = 'Skills & Expertise',
+  placeholder = 'Select a skill to add…',
   required = false,
   showOther = true,
+  hint = 'Select skills you can contribute to volunteer activities.',
 }) {
-  const selected = Array.isArray(value) ? value : []
-
-  const toggle = (skill) => {
-    const next = selected.includes(skill)
-      ? selected.filter((s) => s !== skill)
-      : [...selected, skill]
-    onChange?.(next)
-  }
-
   return (
-    <fieldset>
-      <legend>
-        {label}
-        {required ? <span className="req" aria-hidden> *</span> : null}
-      </legend>
-      <div className="checkbox-grid">
-        {VOLUNTEER_SKILLS.map((skill) => (
-          <label key={skill} className="checkbox-label">
-            <input
-              type="checkbox"
-              checked={selected.includes(skill)}
-              onChange={() => toggle(skill)}
-            />
-            {skill}
-          </label>
-        ))}
-      </div>
-      {showOther && (
-        <label style={{ marginTop: '0.75rem' }}>
-          Other (optional)
-          <input
-            type="text"
-            value={other}
-            placeholder="e.g. Forklift license, scuba certified…"
-            onChange={(e) => onOtherChange?.(e.target.value)}
-          />
-        </label>
-      )}
-    </fieldset>
+    <MultiSelectBox
+      catalog="volunteer_skills"
+      fallback={VOLUNTEER_SKILLS}
+      value={value}
+      onChange={onChange}
+      other={other}
+      onOtherChange={onOtherChange}
+      label={label}
+      placeholder={placeholder}
+      required={required}
+      showOther={showOther}
+      otherLabel="Other skills (optional)"
+      otherPlaceholder="e.g. Scuba certified, Forklift operator, Licensed drone pilot…"
+      icon={Sparkles}
+      hint={hint}
+    />
   )
 }

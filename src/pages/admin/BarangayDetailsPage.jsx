@@ -21,14 +21,18 @@ import ApiState from '../../components/admin/shared/ApiState'
 import ModalHeader from '../../components/admin/shared/ModalHeader'
 import Req from '../../components/shared/Req'
 import NeedsPicker from '../../components/shared/NeedsPicker'
+import PolicyConsentBox from '../../components/shared/PolicyConsentBox'
 import { usePagination, DEFAULT_PAGE_SIZE } from '../../hooks/usePagination'
 import Pagination from '../../components/admin/shared/Pagination'
 import { notifyBeneficiariesChanged } from '../../utils/beneficiariesSync'
 import { canInviteBarangay, isAwaitingBarangayApproval } from '../../utils/barangayInvite'
 import { notify, suppressNotificationToast } from '../../utils/toast'
+import { confirmAction, showSuccessModal } from '../../utils/confirm'
 import { useHashScroll, useQueryFocus } from '../../hooks/useDeepLinkFocus'
 import PhoneInput from '../../components/shared/PhoneInput'
-import { phoneError } from '../../utils/validation'
+import PasswordRequirements from '../../components/shared/PasswordRequirements'
+import { phoneError, passwordError } from '../../utils/validation'
+import { useLoading } from '../../context/LoadingContext'
 
 function normalizeNeeds(value) {
   if (Array.isArray(value)) return value.filter(Boolean)
@@ -87,6 +91,7 @@ export default function BarangayDetailsPage() {
   const [searchParams, setSearchParams] = useSearchParams()
   const tabFromUrl = (searchParams.get('tab') || '').toLowerCase().replace(/\s+/g, '-')
   const [activeTab, setActiveTab] = useState(tabFromUrl || 'overview')
+  const { showLoading, hideLoading } = useLoading()
   const [reqFilter, setReqFilter] = useState('All')
   const tabKey = (tab) => tab.toLowerCase().replace(/\s+/g, '-')
   const [isEditModalOpen, setIsEditModalOpen] = useState(false)
@@ -97,6 +102,8 @@ export default function BarangayDetailsPage() {
   const [rejectConfirm, setRejectConfirm] = useState(false)
   const [useCustomPass, setUseCustomPass] = useState(false)
   const [customPassword, setCustomPassword] = useState('')
+  const [approveAcceptedTerms, setApproveAcceptedTerms] = useState(false)
+  const [approveAcceptedPrivacy, setApproveAcceptedPrivacy] = useState(false)
   const [editForm, setEditForm] = useState({})
   const { options: barangayTypeOptions, applyList: applyBarangayTypes } = useCatalogOptions(
     'barangay_types',
@@ -186,6 +193,7 @@ export default function BarangayDetailsPage() {
       return
     }
     setSaving(true)
+    showLoading('Saving…')
     try {
       // Status is not editable here — Approve / Reject on Overview controls partnership status.
       const { status: _status, ...profileFields } = editForm
@@ -195,25 +203,38 @@ export default function BarangayDetailsPage() {
       })
       await reloadBen()
       notify.success('Beneficiary updated.')
+      showSuccessModal('Successfully updated.')
       setIsEditModalOpen(false)
     } catch (err) {
       notify.error(err.message)
     } finally {
+      hideLoading()
       setSaving(false)
     }
   }
 
   const handleDelete = async () => {
     const name = beneficiary.barangay || beneficiary.name || 'this barangay'
-    if (!window.confirm(`Permanently delete "${name}"? This removes the barangay and its linked requests. This cannot be undone.`)) return
+    const ok = await confirmAction({
+      title: 'Delete Barangay',
+      message: `Permanently delete "${name}"? This removes the barangay and its linked requests. This cannot be undone.`,
+      confirmText: 'Delete Barangay',
+      type: 'danger',
+    })
+    if (!ok) return
+
     try {
+      showLoading('Deleting barangay…')
       const removedId = beneficiary.dbId
       await beneficiariesApi.remove(removedId)
       notifyBeneficiariesChanged({ removedId })
       notify.success('Barangay deleted.')
+      showSuccessModal('Successfully deleted.')
       navigate('/admin/beneficiaries', { replace: true, state: { beneficiariesRefresh: Date.now() } })
     } catch (err) {
       notify.error(err.message || 'Failed to delete barangay')
+    } finally {
+      hideLoading()
     }
   }
 
@@ -222,6 +243,16 @@ export default function BarangayDetailsPage() {
       notify.warning('Add a representative email before sending an invite.')
       return
     }
+    const name = beneficiary.barangay || beneficiary.name || 'this barangay'
+    const ok = await confirmAction({
+      title: 'Send Barangay Invitation',
+      message: `Send partnership invitation email to ${beneficiary.representativeEmail} for ${name}?`,
+      confirmText: 'Send Invitation',
+      type: 'primary',
+    })
+    if (!ok) return
+
+    showLoading('Sending invitation…')
     try {
       const res = await beneficiariesApi.reinvite(beneficiary.dbId, {
         email: beneficiary.representativeEmail,
@@ -230,29 +261,47 @@ export default function BarangayDetailsPage() {
       })
       if (res?.invitationSent) {
         notify.success(res?.message || `Invitation emailed to ${beneficiary.representativeEmail}.`)
+        showSuccessModal('Credentials successfully sent.')
       } else {
         notify.warning(res?.mailError || res?.message || 'Invitation saved, but email could not be delivered.')
         if (res?.inviteUrl) notify.info(`Invite link: ${res.inviteUrl}`, 8000)
+        showSuccessModal('Successfully updated.')
       }
       await reloadBen()
     } catch (err) {
       notify.error(err.message || 'Failed to send invitation')
+    } finally {
+      hideLoading()
     }
   }
 
   const handleApprove = async () => {
-    if (useCustomPass && customPassword.trim().length < 6) {
-      notify.warning('Custom password must be at least 6 characters long.')
+    if (!approveAcceptedTerms || !approveAcceptedPrivacy) {
+      notify.warning('Please accept both the Terms & Conditions and Data Privacy Policy before approving.')
       return
+    }
+    if (useCustomPass) {
+      const pwErr = passwordError(customPassword, { fieldLabel: 'Custom password' })
+      if (pwErr) {
+        notify.warning(pwErr)
+        return
+      }
     }
     setApproveConfirm(false)
     setActionBusy(true)
+    showLoading('Approving partnership…')
     try {
-      const payload = useCustomPass && customPassword.trim() ? { password: customPassword.trim() } : {}
+      const payload = {
+        acceptedTerms: true,
+        acceptedPrivacy: true,
+        acceptedPolicies: true,
+        ...(useCustomPass && customPassword.trim() ? { password: customPassword.trim() } : {}),
+      }
       const res = await beneficiariesApi.approve(beneficiary.dbId, payload)
       if (res?.credentialsSent) {
         suppressNotificationToast('beneficiary_credentials')
         notify.success(res?.message || 'Login credentials have been successfully sent to the approved Barangay.')
+        showSuccessModal('Credentials successfully sent.')
       } else if (res?.accountCreated) {
         notify.warning(
           [
@@ -261,15 +310,18 @@ export default function BarangayDetailsPage() {
             res?.mailError ? `Email note: ${res.mailError}` : 'Credential email was not delivered.',
           ].filter(Boolean).join(' '),
         )
+        showSuccessModal('Successfully approved.')
       } else {
         notify.success(res?.message || 'Barangay approved.')
         if (res?.mailError) notify.warning(res.mailError)
+        showSuccessModal('Successfully approved.')
       }
       notifyBeneficiariesChanged()
       await reloadBen()
     } catch (err) {
       notify.error(err.message || 'Failed to approve barangay')
     } finally {
+      hideLoading()
       setActionBusy(false)
     }
   }
@@ -277,14 +329,17 @@ export default function BarangayDetailsPage() {
   const handleReject = async () => {
     setRejectConfirm(false)
     setActionBusy(true)
+    showLoading('Rejecting…')
     try {
       const res = await beneficiariesApi.reject(beneficiary.dbId)
       notify.success(res?.message || 'Application rejected.')
+      showSuccessModal('Successfully rejected.')
       notifyBeneficiariesChanged()
       await reloadBen()
     } catch (err) {
       notify.error(err.message || 'Failed to reject application')
     } finally {
+      hideLoading()
       setActionBusy(false)
     }
   }
@@ -326,32 +381,42 @@ export default function BarangayDetailsPage() {
                 <div style={{ marginTop: '0.4rem' }}>
                   <input
                     type="password"
-                    minLength={6}
+                    minLength={8}
                     value={customPassword}
                     onChange={(e) => setCustomPassword(e.target.value)}
-                    placeholder="Enter custom password (min 6 chars)"
+                    placeholder="Enter custom password (min 8 chars, upper, lower, number, symbol)"
                   />
+                  <PasswordRequirements password={customPassword} />
                 </div>
               )}
             </div>
-            <div className="approval-confirm__actions">
-              <button
-                type="button"
-                className="btn approval-overlay__btn-approve"
-                onClick={handleApprove}
-                disabled={actionBusy}
-              >
-                {actionBusy ? 'Approving…' : 'Yes, Approve'}
-              </button>
-              <button
-                type="button"
-                className="btn btn--ghost"
-                onClick={() => setApproveConfirm(false)}
-                disabled={actionBusy}
-              >
-                Cancel
-              </button>
-            </div>
+              <PolicyConsentBox
+                acceptedTerms={approveAcceptedTerms}
+                onTermsChange={setApproveAcceptedTerms}
+                acceptedPrivacy={approveAcceptedPrivacy}
+                onPrivacyChange={setApproveAcceptedPrivacy}
+                entityLabel="Barangay representative"
+              />
+
+              <div className="approval-confirm__actions">
+                <button
+                  type="button"
+                  className="btn approval-overlay__btn-approve"
+                  onClick={handleApprove}
+                  disabled={actionBusy || !approveAcceptedTerms || !approveAcceptedPrivacy}
+                  title={!approveAcceptedTerms || !approveAcceptedPrivacy ? 'Please accept both agreements above to create credentials' : ''}
+                >
+                  {actionBusy ? 'Approving…' : 'Yes, Approve & Send Credentials'}
+                </button>
+                <button
+                  type="button"
+                  className="btn btn--ghost"
+                  onClick={() => setApproveConfirm(false)}
+                  disabled={actionBusy}
+                >
+                  Cancel
+                </button>
+              </div>
           </div>
         </div>
       )}

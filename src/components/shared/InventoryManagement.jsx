@@ -11,7 +11,10 @@ import ApiState from '../admin/shared/ApiState'
 import FilterBar from '../admin/shared/FilterBar'
 import ModalHeader from '../admin/shared/ModalHeader'
 import MultiSourceRepackingModal from './MultiSourceRepackingModal'
+import { useBulkSelection } from '../../hooks/useBulkSelection'
 import { notify } from '../../utils/toast'
+import { confirmAction, showSuccessModal } from '../../utils/confirm'
+import { useLoading } from '../../context/LoadingContext'
 
 const inventoryFilterConfig = {
   searchKeys: ['item', 'category'],
@@ -49,6 +52,7 @@ const emptyBatchForm = {
 
 export default function InventoryManagement() {
   const [tab, setTab] = useState('inventory')
+  const { showLoading, hideLoading } = useLoading()
   const [invSummary, setInvSummary] = useState(null)
   const [rpkSummary, setRpkSummary] = useState(null)
 
@@ -85,6 +89,19 @@ export default function InventoryManagement() {
 
   const invFilters = useFilters(items, inventoryFilterConfig)
   const rpkFilters = useFilters(batches, repackingFilterConfig)
+
+  const invBulk = useBulkSelection(
+    invFilters.filtered,
+    (id) => inventoryApi.remove(id),
+    reload,
+    'inventory items',
+  )
+  const rpkBulk = useBulkSelection(
+    rpkFilters.filtered,
+    (id) => repackingApi.remove(id),
+    reloadRpk,
+    'repacking batches',
+  )
 
   // Load staff and volunteers for assignment dropdown
   useEffect(() => {
@@ -132,6 +149,7 @@ export default function InventoryManagement() {
   const handleItemSave = async (e) => {
     e.preventDefault()
     setSaving(true)
+    showLoading('Saving…')
     try {
       const payload = {
         item: itemForm.item.trim(),
@@ -146,27 +164,41 @@ export default function InventoryManagement() {
       if (itemModal === 'create') {
         await inventoryApi.create(payload)
         notify.success(`${payload.item} added to inventory.`)
+        showSuccessModal('Successfully added.')
       } else {
         await inventoryApi.update(itemModal.dbId, payload)
         notify.success(`${payload.item} updated.`)
+        showSuccessModal('Successfully updated.')
       }
       setItemModal(null)
       reload()
     } catch (err) {
       notify.error(err.message)
     } finally {
+      hideLoading()
       setSaving(false)
     }
   }
 
   const handleItemDelete = async (row) => {
-    if (!window.confirm(`Delete "${row.item}" from inventory?`)) return
+    const ok = await confirmAction({
+      title: 'Delete Inventory Item',
+      message: `Permanently delete "${row.item}" from inventory? This cannot be undone.`,
+      confirmText: 'Delete Item',
+      type: 'danger',
+    })
+    if (!ok) return
+
+    showLoading('Deleting item…')
     try {
       await inventoryApi.remove(row.dbId)
       notify.success(`${row.item} removed from inventory.`)
+      showSuccessModal('Successfully deleted.')
       reload()
     } catch (err) {
       notify.error(err.message)
+    } finally {
+      hideLoading()
     }
   }
 
@@ -217,6 +249,7 @@ export default function InventoryManagement() {
   const handleBatchSave = async (e) => {
     e.preventDefault()
     setSaving(true)
+    showLoading('Saving…')
     try {
       if (batchModal === 'create') {
         await repackingApi.create({
@@ -230,6 +263,7 @@ export default function InventoryManagement() {
           notes: batchForm.notes,
         })
         notify.success('Repacking batch created — source stock has been deducted from inventory.')
+        showSuccessModal('Successfully added.')
       } else {
         await repackingApi.update(batchModal.dbId, {
           output: batchForm.output.trim(),
@@ -240,25 +274,31 @@ export default function InventoryManagement() {
           notes: batchForm.notes,
         })
         notify.success('Repacking batch updated.')
+        showSuccessModal('Successfully updated.')
       }
       setBatchModal(null)
       reloadAll()
     } catch (err) {
       notify.error(err.message)
     } finally {
+      hideLoading()
       setSaving(false)
     }
   }
 
   // Handle multi-source repacking batch submission
   const handleMultiSourceSubmit = async (batchData) => {
+    showLoading('Creating repacking batch…')
     try {
       const result = await repackingApi.create(batchData)
       reloadAll()
+      showSuccessModal('Successfully added.')
       return result.data
     } catch (err) {
       console.error('Multi-source batch creation failed:', err)
       throw err
+    } finally {
+      hideLoading()
     }
   }
 
@@ -268,7 +308,18 @@ export default function InventoryManagement() {
       Completed: `Complete batch ${row.id}? ${row.quantity} ${row.outputUnit} of "${row.output}" will be added to inventory.`,
       Cancelled: `Cancel batch ${row.id}? Source stock will be returned to inventory.`,
     }[status]
-    if (confirmMsg && !window.confirm(confirmMsg)) return
+
+    if (confirmMsg) {
+      const ok = await confirmAction({
+        title: `${status} Repacking Batch`,
+        message: confirmMsg,
+        confirmText: status === 'Cancelled' ? 'Cancel Batch' : 'Complete Batch',
+        type: status === 'Cancelled' ? 'danger' : 'primary',
+      })
+      if (!ok) return
+    }
+
+    showLoading('Updating batch status…')
     try {
       await repackingApi.update(row.dbId, { status })
       notify.success(
@@ -278,20 +329,34 @@ export default function InventoryManagement() {
             ? `Batch ${row.id} cancelled — source stock restored.`
             : `Batch ${row.id} is now in progress.`
       )
+      showSuccessModal('Successfully updated.')
       reloadAll()
     } catch (err) {
       notify.error(err.message)
+    } finally {
+      hideLoading()
     }
   }
 
   const handleBatchDelete = async (row) => {
-    if (!window.confirm(`Delete batch ${row.id}?${row.status === 'Scheduled' || row.status === 'In Progress' ? ' Source stock will be returned to inventory.' : ''}`)) return
+    const ok = await confirmAction({
+      title: 'Delete Repacking Batch',
+      message: `Delete batch ${row.id}?${row.status === 'Scheduled' || row.status === 'In Progress' ? ' Source stock will be returned to inventory.' : ''}`,
+      confirmText: 'Delete Batch',
+      type: 'danger',
+    })
+    if (!ok) return
+
+    showLoading('Deleting repacking batch…')
     try {
       await repackingApi.remove(row.dbId)
       notify.success(`Batch ${row.id} deleted.`)
+      showSuccessModal('Successfully deleted.')
       reloadAll()
     } catch (err) {
       notify.error(err.message)
+    } finally {
+      hideLoading()
     }
   }
 
@@ -442,6 +507,12 @@ export default function InventoryManagement() {
               onRowClick={openItemEdit}
               pageSize={10}
               resetKey={`${invFilters.search}|${JSON.stringify(invFilters.values)}`}
+              selectable
+              selectedIds={invBulk.selectedIds}
+              onSelectionChange={invBulk.setSelectedIds}
+              onBulkDelete={invBulk.handleBulkDelete}
+              deleting={invBulk.deleting}
+              bulkDeleteLabel="Delete Selected Items"
             />
           </ApiState>
         </>
@@ -499,6 +570,12 @@ export default function InventoryManagement() {
               data={rpkFilters.filtered}
               pageSize={10}
               resetKey={`${rpkFilters.search}|${JSON.stringify(rpkFilters.values)}`}
+              selectable
+              selectedIds={rpkBulk.selectedIds}
+              onSelectionChange={rpkBulk.setSelectedIds}
+              onBulkDelete={rpkBulk.handleBulkDelete}
+              deleting={rpkBulk.deleting}
+              bulkDeleteLabel="Delete Selected Batches"
             />
           </ApiState>
         </>

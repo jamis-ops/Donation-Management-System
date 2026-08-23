@@ -65,7 +65,22 @@ function map_request(array $row, string $beneficiaryName, ?array $extra = null):
   if (!empty($row['needs_json'])) {
     $decodedNeeds = json_decode((string) $row['needs_json'], true);
     if (is_array($decodedNeeds)) {
-      $mapped['needs'] = array_values(array_filter(array_map('strval', $decodedNeeds)));
+      $extractedNeeds = [];
+      foreach ($decodedNeeds as $item) {
+        if (is_string($item)) {
+          $val = trim($item);
+          if ($val !== '') {
+            $extractedNeeds[] = $val;
+          }
+        } elseif (is_array($item)) {
+          $itemName = trim((string) ($item['item'] ?? $item['name'] ?? ''));
+          if ($itemName !== '') {
+            $qtyStr = !empty($item['quantity']) ? " ({$item['quantity']}" . (!empty($item['unit']) ? " {$item['unit']}" : '') . ')' : '';
+            $extractedNeeds[] = $itemName . $qtyStr;
+          }
+        }
+      }
+      $mapped['needs'] = array_values(array_unique($extractedNeeds));
     }
   }
   // SLA status computation
@@ -271,7 +286,7 @@ if ($method === 'GET') {
       FROM assistance_requests ar
       JOIN beneficiaries b ON b.id = ar.beneficiary_id
       WHERE ar.beneficiary_id = ?
-      ORDER BY FIELD(ar.priority,"Critical","High","Medium","Low"), ar.request_date DESC
+      ORDER BY ar.created_at DESC, ar.request_date DESC, ar.id DESC
     ');
     $stmt->execute([$benId]);
   } else {
@@ -294,7 +309,7 @@ if ($method === 'GET') {
       SELECT ar.*, b.full_name AS beneficiary_name
       FROM assistance_requests ar
       JOIN beneficiaries b ON b.id = ar.beneficiary_id
-      ORDER BY FIELD(ar.priority,"Critical","High","Medium","Low"), ar.request_date ASC
+      ORDER BY ar.created_at DESC, ar.request_date DESC, ar.id DESC
     ');
   }
 
@@ -552,6 +567,18 @@ if ($method === 'PUT') {
   $newStatus = $isBeneficiary
     ? $existing['status']
     : ($body['status'] ?? $existing['status']);
+
+  if (!$isBeneficiary) {
+    assert_valid_status_transition(
+      'Assistance request',
+      (string) ($existing['status'] ?? ''),
+      $newStatus,
+      WORKFLOW_REQUEST_STEPS,
+      WORKFLOW_REQUEST_TERMINAL,
+      WORKFLOW_REQUEST_BRANCHES,
+      WORKFLOW_REQUEST_ALIASES
+    );
+  }
   $newEmergency = $isBeneficiary
     ? ($existing['is_emergency'] ?? 0)
     : (isset($body['isEmergency']) ? ($body['isEmergency'] ? 1 : 0) : ($existing['is_emergency'] ?? 0));

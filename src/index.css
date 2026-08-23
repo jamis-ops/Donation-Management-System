@@ -2767,10 +2767,14 @@ legend {
   align-items: flex-start;
   justify-content: space-between;
   gap: 1rem;
-  padding: 1.15rem 1.25rem 1rem;
-  border-bottom: 1px solid #e2e8f0;
-  background: linear-gradient(180deg, #fff 0%, #f8fafc 100%);
+  padding: 1.25rem 1.5rem;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.1);
+  background: linear-gradient(135deg, #AF101A 0%, #8E0D15 100%);
+  color: #ffffff;
+  border-top-left-radius: 16px;
+  border-top-right-radius: 16px;
   flex-shrink: 0;
+  box-shadow: 0 2px 8px rgba(175, 16, 26, 0.15);
 }
 
 .legal-modal__eyebrow {
@@ -2779,39 +2783,49 @@ legend {
   font-weight: 700;
   letter-spacing: 0.08em;
   text-transform: uppercase;
-  color: #AF101A;
+  color: rgba(255, 255, 255, 0.85);
 }
 
 .legal-modal__heading h2 {
   margin: 0;
-  font-size: 1.2rem;
+  font-size: 1.25rem;
   line-height: 1.3;
-  color: #0f172a;
+  color: #ffffff;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.15);
 }
 
 .legal-modal__subtitle {
   margin: 0.4rem 0 0;
   font-size: 0.88rem;
   line-height: 1.45;
-  color: #64748b;
+  color: rgba(255, 255, 255, 0.88);
 }
 
 .legal-modal__close {
   flex-shrink: 0;
-  width: 36px;
-  height: 36px;
+  width: 34px;
+  height: 34px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  border: 1px solid #e2e8f0;
-  border-radius: 10px;
-  background: #fff;
-  color: #475569;
+  border: 1px solid rgba(255, 255, 255, 0.28);
+  border-radius: 9px;
+  background: rgba(255, 255, 255, 0.14);
+  color: #ffffff;
   cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease, transform 0.15s ease;
+  backdrop-filter: blur(4px);
 }
 .legal-modal__close:hover {
-  background: #f1f5f9;
-  color: #0f172a;
+  background: rgba(255, 255, 255, 0.28);
+  border-color: rgba(255, 255, 255, 0.55);
+  color: #ffffff;
+  transform: scale(1.06);
+}
+.legal-modal__close:active {
+  transform: scale(0.95);
 }
 
 .legal-modal__body {

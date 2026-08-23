@@ -60,7 +60,7 @@ if ($method === 'GET') {
     $stmt = $pdo->prepare('SELECT * FROM certificates WHERE recipient_name = ? AND (recipient_type = \'Volunteer\' OR recipient_type IS NULL OR recipient_type = \'\') ORDER BY id DESC');
     $stmt->execute([$user['name']]);
   } else {
-    $stmt = $pdo->query('SELECT * FROM certificates ORDER BY id DESC');
+    $stmt = $pdo->query('SELECT * FROM certificates ORDER BY created_at DESC, id DESC');
   }
 
   $rows = $stmt->fetchAll();
@@ -192,6 +192,15 @@ if ($method === 'PUT') {
   if (!$existing) {
     json_response(['ok' => false, 'error' => 'Certificate not found'], 404);
   }
+  $newStatus = $body['status'] ?? $existing['status'];
+  assert_valid_status_transition(
+    'Certificate',
+    (string) ($existing['status'] ?? 'Requested'),
+    (string) $newStatus,
+    WORKFLOW_CERTIFICATE_STEPS,
+    WORKFLOW_CERTIFICATE_TERMINAL
+  );
+
   $update = $pdo->prepare('UPDATE certificates SET cert_type = ?, recipient_type = ?, recipient_name = ?, reference_code = ?, details = ?, signatory_name = ?, signatory_title = ?, cert_date = ?, status = ? WHERE id = ?');
   $update->execute([
     $body['type'] ?? $existing['cert_type'],
@@ -202,7 +211,7 @@ if ($method === 'PUT') {
     array_key_exists('signatoryName', $body) ? (trim((string) $body['signatoryName']) ?: null) : ($existing['signatory_name'] ?? null),
     array_key_exists('signatoryTitle', $body) ? (trim((string) $body['signatoryTitle']) ?: null) : ($existing['signatory_title'] ?? null),
     $body['certDate'] ?? $existing['cert_date'],
-    $body['status'] ?? $existing['status'],
+    $newStatus,
     $id,
   ]);
 

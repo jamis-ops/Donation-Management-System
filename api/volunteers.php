@@ -6,6 +6,11 @@ $pdo = db();
 $method = request_method();
 $id = get_id_param();
 
+try { $pdo->exec("ALTER TABLE volunteers ADD COLUMN resume_path VARCHAR(255) NULL AFTER required_hours"); } catch (Throwable $e) {}
+try { $pdo->exec("ALTER TABLE volunteers ADD COLUMN resume_file_name VARCHAR(255) NULL AFTER resume_path"); } catch (Throwable $e) {}
+try { $pdo->exec("ALTER TABLE volunteers ADD COLUMN resume_file_type VARCHAR(80) NULL AFTER resume_file_name"); } catch (Throwable $e) {}
+try { $pdo->exec("ALTER TABLE volunteers ADD COLUMN resume_file_size INT UNSIGNED NULL AFTER resume_file_type"); } catch (Throwable $e) {}
+
 function map_volunteer(PDO $pdo, array $row): array
 {
   $taskCount = $pdo->prepare('SELECT COUNT(*) FROM tasks WHERE assignee = ? OR assignee_user_id = ?');
@@ -26,6 +31,9 @@ function map_volunteer(PDO $pdo, array $row): array
   $openCount = $pdo->prepare("SELECT COUNT(*) FROM tasks WHERE (assignee = ? OR assignee_user_id = ?) AND board_column <> 'done'");
   $openCount->execute([$row['full_name'], $row['user_id'] ? (int) $row['user_id'] : 0]);
 
+  $applicantType = !empty($row['applicant_type']) && strcasecmp((string)$row['applicant_type'], 'Intern') === 0 ? 'Intern' : 'Volunteer';
+  $hasResume = !empty($row['resume_path']) && $applicantType === 'Intern';
+
   return [
     'id' => $row['code'],
     'dbId' => (int) $row['id'],
@@ -34,6 +42,9 @@ function map_volunteer(PDO $pdo, array $row): array
     'lastName' => $row['last_name'] ?? '',
     'middleInitial' => $row['middle_initial'] ?? '',
     'email' => $row['email'],
+    'phone' => $row['phone'] ?? '',
+    'applicantType' => $applicantType,
+    'institution' => $row['institution'] ?? null,
     'userId' => $row['user_id'] ? (int) $row['user_id'] : null,
     'programs' => decode_programs($row['programs_json']),
     'skills' => $skills,
@@ -45,6 +56,66 @@ function map_volunteer(PDO $pdo, array $row): array
     'remainingHours' => max(0, (int) ($row['required_hours'] ?? 0) - (int) $row['hours']),
     'assignedTasks' => (int) $taskCount->fetchColumn(),
     'openTasks' => (int) $openCount->fetchColumn(),
+    'hasResume' => $hasResume,
+    'resumePath' => $hasResume ? ($row['resume_path'] ?? null) : null,
+    'resumeFileName' => $hasResume ? ($row['resume_file_name'] ?? null) : null,
+    'resumeFileType' => $hasResume ? ($row['resume_file_type'] ?? null) : null,
+    'resumeFileSize' => $hasResume && isset($row['resume_file_size']) ? (int) $row['resume_file_size'] : null,
+    'resumeUrl' => $hasResume
+      ? ('/api/file.php?kind=volunteer_resumes&name=' . rawurlencode(basename((string) $row['resume_path'])))
+      : null,
+  ];
+}
+
+function save_volunteer_resume_upload(): ?array
+{
+  $fileKey = isset($_FILES['resume']) ? 'resume' : (isset($_FILES['cv']) ? 'cv' : null);
+  if (!$fileKey || !isset($_FILES[$fileKey]) || $_FILES[$fileKey]['error'] === UPLOAD_ERR_NO_FILE) {
+    return null;
+  }
+  if ($_FILES[$fileKey]['error'] !== UPLOAD_ERR_OK) {
+    json_response(['ok' => false, 'error' => 'CV/Resume upload failed. Please try again.'], 400);
+  }
+
+  $file = $_FILES[$fileKey];
+  $origName = (string) ($file['name'] ?? 'resume.pdf');
+  $ext = strtolower(pathinfo($origName, PATHINFO_EXTENSION) ?: '');
+  $allowedExts = ['pdf', 'doc', 'docx'];
+  if (!in_array($ext, $allowedExts, true)) {
+    json_response(['ok' => false, 'error' => 'CV/Resume must be a PDF or Word document (.pdf, .doc, .docx)'], 400);
+  }
+
+  // 10 MB limit
+  if ($file['size'] > 10 * 1024 * 1024) {
+    json_response(['ok' => false, 'error' => 'CV/Resume file size must be under 10MB'], 400);
+  }
+
+  $dir = __DIR__ . '/uploads/volunteer_resumes';
+  if (!is_dir($dir)) {
+    mkdir($dir, 0755, true);
+  }
+
+  $mime = mime_content_type($file['tmp_name']) ?: ($file['type'] ?? '');
+  if (!$mime || $mime === 'application/octet-stream') {
+    if ($ext === 'pdf') $mime = 'application/pdf';
+    elseif ($ext === 'doc') $mime = 'application/msword';
+    elseif ($ext === 'docx') $mime = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+  }
+
+  $safeExt = $ext ?: 'pdf';
+  $safeName = 'resume_' . time() . '_' . bin2hex(random_bytes(4)) . '.' . $safeExt;
+  $moved = is_uploaded_file($file['tmp_name'])
+    ? move_uploaded_file($file['tmp_name'], $dir . '/' . $safeName)
+    : copy($file['tmp_name'], $dir . '/' . $safeName);
+  if (!$moved) {
+    json_response(['ok' => false, 'error' => 'Failed to save CV/Resume file on the server.'], 500);
+  }
+
+  return [
+    'path' => $safeName,
+    'name' => $origName,
+    'type' => $mime,
+    'size' => (int) $file['size'],
   ];
 }
 
@@ -84,12 +155,28 @@ if ($method === 'GET') {
     json_response(['ok' => true, 'data' => map_volunteer($pdo, $row)]);
   }
 
-  $rows = $pdo->query('SELECT * FROM volunteers ORDER BY full_name ASC')->fetchAll();
+  $rows = $pdo->query('SELECT * FROM volunteers ORDER BY created_at DESC, id DESC')->fetchAll();
   json_response(['ok' => true, 'data' => array_map(fn($r) => map_volunteer($pdo, $r), $rows)]);
 }
 
-$body = read_json_body();
-$public = !empty($body['public']);
+$isMultipart = isset($_SERVER['CONTENT_TYPE'])
+  && stripos((string) $_SERVER['CONTENT_TYPE'], 'multipart/form-data') !== false;
+
+if ($isMultipart) {
+  $body = $_POST;
+  if (isset($body['programs']) && is_string($body['programs'])) {
+    $decoded = json_decode($body['programs'], true);
+    $body['programs'] = is_array($decoded) ? $decoded : (preg_split('/[,;\n]+/', $body['programs']) ?: []);
+  }
+  if (isset($body['skills']) && is_string($body['skills'])) {
+    $decoded = json_decode($body['skills'], true);
+    $body['skills'] = is_array($decoded) ? $decoded : (preg_split('/[,;\n]+/', $body['skills']) ?: []);
+  }
+  $public = !empty($body['public']);
+} else {
+  $body = read_json_body();
+  $public = !empty($body['public']);
+}
 
 if ($method === 'POST') {
   $user = $public ? null : require_auth(['Admin', 'Staff']);
@@ -107,8 +194,10 @@ if ($method === 'POST') {
   }
   if ($public) {
     $email = require_valid_email($email, 'Email');
-    if (empty($body['acceptedPolicies']) && empty($body['termsAccepted'])) {
-      json_response(['ok' => false, 'error' => 'Please accept the Data Privacy Policy and Terms & Conditions'], 400);
+    $hasTerms = !empty($body['acceptedTerms']) || !empty($body['termsAccepted']) || !empty($body['acceptedPolicies']);
+    $hasPrivacy = !empty($body['acceptedPrivacy']) || !empty($body['privacyAccepted']) || !empty($body['acceptedPolicies']);
+    if (!$hasTerms || !$hasPrivacy) {
+      json_response(['ok' => false, 'error' => 'You must accept both the Data Privacy Policy and Terms & Conditions before submitting your application.'], 400);
     }
   } elseif ($email !== '') {
     $email = require_valid_email($email, 'Email');
@@ -123,6 +212,11 @@ if ($method === 'POST') {
     }
   }
 
+  $applicantType = !empty($body['applicantType']) && strcasecmp((string) $body['applicantType'], 'Intern') === 0
+    ? 'Intern'
+    : (!empty($body['applicant_type']) && strcasecmp((string) $body['applicant_type'], 'Intern') === 0 ? 'Intern' : 'Volunteer');
+  $institution = trim((string) ($body['institution'] ?? ''));
+
   $programs = $body['programs'] ?? [];
   if (!is_array($programs)) {
     $programs = [];
@@ -130,13 +224,24 @@ if ($method === 'POST') {
   $skillsJson = encode_skills($body['skills'] ?? null);
   $skillsOther = trim((string) ($body['skillsOther'] ?? $body['skills_other'] ?? ''));
   $availability = trim((string) ($body['availability'] ?? ''));
-  $code = generate_code('VOL');
+  $code = generate_code($applicantType === 'Intern' ? 'INT' : 'VOL');
   $status = $public ? 'Pending Review' : (string) ($body['status'] ?? 'Pending Review');
   $miDb = $middleInitial !== ''
     ? strtoupper(substr(preg_replace('/[^a-zA-Z]/', '', $middleInitial) ?: '', 0, 1))
     : null;
 
-  $stmt = $pdo->prepare('INSERT INTO volunteers (code, full_name, first_name, last_name, middle_initial, email, programs_json, skills_json, skills_other, availability, status, hours, required_hours) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)');
+  if ($applicantType === 'Intern') {
+    $resume = save_volunteer_resume_upload();
+    if ($public && !$resume) {
+      json_response(['ok' => false, 'error' => 'CV / Resume document is required for Intern applications.'], 400);
+    }
+  } else {
+    // Volunteers do not upload CV
+    $resume = null;
+    $institution = '';
+  }
+
+  $stmt = $pdo->prepare('INSERT INTO volunteers (code, full_name, first_name, last_name, middle_initial, email, phone, applicant_type, institution, programs_json, skills_json, skills_other, availability, status, hours, required_hours, resume_path, resume_file_name, resume_file_type, resume_file_size) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)');
   $stmt->execute([
     $code,
     $name,
@@ -144,6 +249,9 @@ if ($method === 'POST') {
     $lastName !== '' ? $lastName : null,
     $miDb,
     $email !== '' ? $email : null,
+    !empty($body['phone']) ? trim((string) $body['phone']) : null,
+    $applicantType,
+    $institution !== '' ? $institution : null,
     json_encode($programs),
     $skillsJson,
     $skillsOther !== '' ? $skillsOther : null,
@@ -151,15 +259,21 @@ if ($method === 'POST') {
     $status,
     $public ? 0 : (int) ($body['hours'] ?? 0),
     $public ? 0 : (int) ($body['requiredHours'] ?? $body['required_hours'] ?? 0),
+    $resume ? $resume['path'] : null,
+    $resume ? $resume['name'] : null,
+    $resume ? $resume['type'] : null,
+    $resume ? $resume['size'] : null,
   ]);
   $newId = (int) $pdo->lastInsertId();
 
   if ($public) {
+    $entityTitle = $applicantType === 'Intern' ? 'intern' : 'volunteer';
+    $appLabel = $applicantType === 'Intern' ? 'Internship application' : 'Volunteer application';
     notify_admins(
       $pdo,
       'volunteer',
-      'New volunteer application',
-      "{$name} applied to volunteer ({$code})",
+      "New {$entityTitle} application",
+      "{$name} applied for {$appLabel} ({$code})" . ($resume ? ' [CV attached]' : ''),
       '/admin/volunteers'
     );
   }
@@ -174,21 +288,32 @@ if ($method === 'POST') {
   ], 201);
 }
 
-$user = require_auth(['Admin', 'Staff']);
-if ($user['role'] === 'Volunteer') {
-  json_response(['ok' => false, 'error' => 'Access denied'], 403);
-}
+$user = require_auth(['Admin', 'Staff', 'Volunteer']);
 
 if ($method === 'PUT') {
   if (!$id) {
-    json_response(['ok' => false, 'error' => 'Volunteer id is required'], 400);
+    if ($user['role'] === 'Volunteer') {
+      $lookup = $pdo->prepare('SELECT id FROM volunteers WHERE user_id = ? LIMIT 1');
+      $lookup->execute([$user['id']]);
+      $id = $lookup->fetchColumn();
+    }
+    if (!$id) {
+      json_response(['ok' => false, 'error' => 'Volunteer id is required'], 400);
+    }
   }
+
   $stmt = $pdo->prepare('SELECT * FROM volunteers WHERE id = ? LIMIT 1');
   $stmt->execute([$id]);
   $existing = $stmt->fetch();
   if (!$existing) {
     json_response(['ok' => false, 'error' => 'Volunteer not found'], 404);
   }
+
+  $isVolunteerOwner = ($user['role'] === 'Volunteer' && (int) ($existing['user_id'] ?? 0) === (int) $user['id']);
+  if ($user['role'] === 'Volunteer' && !$isVolunteerOwner) {
+    json_response(['ok' => false, 'error' => 'Access denied: you can only update your own volunteer profile.'], 403);
+  }
+
   $programs = isset($body['programs']) ? json_encode($body['programs']) : $existing['programs_json'];
   $skillsJson = array_key_exists('skills', $body)
     ? encode_skills($body['skills'])
@@ -199,7 +324,27 @@ if ($method === 'PUT') {
   $availability = array_key_exists('availability', $body)
     ? (trim((string) $body['availability']) ?: null)
     : ($existing['availability'] ?? null);
-  $newStatus = (string) ($body['status'] ?? $existing['status']);
+  $applicantType = array_key_exists('applicantType', $body) || array_key_exists('applicant_type', $body)
+    ? (strcasecmp((string) ($body['applicantType'] ?? $body['applicant_type']), 'Intern') === 0 ? 'Intern' : 'Volunteer')
+    : ($existing['applicant_type'] ?? 'Volunteer');
+  $institution = array_key_exists('institution', $body)
+    ? (trim((string) $body['institution']) ?: null)
+    : ($existing['institution'] ?? null);
+
+  if ($isVolunteerOwner) {
+    // Keep volunteer status and hours unchanged when updated by volunteer themselves
+    $newStatus = (string) ($existing['status'] ?? 'Pending Review');
+  } else {
+    $newStatus = (string) ($body['status'] ?? $existing['status']);
+    assert_valid_status_transition(
+      'Volunteer application',
+      (string) ($existing['status'] ?? 'Pending Review'),
+      $newStatus,
+      WORKFLOW_VOLUNTEER_STEPS,
+      WORKFLOW_VOLUNTEER_TERMINAL,
+      WORKFLOW_VOLUNTEER_BRANCHES
+    );
+  }
 
   $hasNameParts = array_key_exists('lastName', $body) || array_key_exists('firstName', $body)
     || array_key_exists('last_name', $body) || array_key_exists('first_name', $body);
@@ -220,13 +365,15 @@ if ($method === 'PUT') {
 
   $email = require_valid_email((string) ($body['email'] ?? $existing['email'] ?? ''), 'Email');
 
-  $update = $pdo->prepare('UPDATE volunteers SET full_name = ?, first_name = ?, last_name = ?, middle_initial = ?, email = ?, programs_json = ?, skills_json = ?, skills_other = ?, availability = ?, status = ?, hours = ?, required_hours = ? WHERE id = ?');
+  $update = $pdo->prepare('UPDATE volunteers SET full_name = ?, first_name = ?, last_name = ?, middle_initial = ?, email = ?, applicant_type = ?, institution = ?, programs_json = ?, skills_json = ?, skills_other = ?, availability = ?, status = ?, hours = ?, required_hours = ? WHERE id = ?');
   $update->execute([
     $name,
     $firstName !== '' ? $firstName : null,
     $lastName !== '' ? $lastName : null,
     $miDb,
     $email,
+    $applicantType,
+    $institution,
     $programs,
     $skillsJson,
     $skillsOther,

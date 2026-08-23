@@ -2,14 +2,18 @@ import { useState } from 'react'
 import { Link, Navigate, useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { getHomeForRole } from '../utils/roleRoutes'
+import { passwordError } from '../utils/validation'
 import Logo from '../components/shared/Logo'
 import Req from '../components/shared/Req'
+import PasswordRequirements from '../components/shared/PasswordRequirements'
 import { heroBg } from '../assets'
+import { useLoading } from '../context/LoadingContext'
 
 export default function ChangePasswordPage() {
   const { user, loading: authLoading, isAuthenticated, changePassword, refreshUser } = useAuth()
   const navigate = useNavigate()
   const [currentPassword, setCurrentPassword] = useState('')
+  const { showLoading, hideLoading } = useLoading()
   const [newPassword, setNewPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
   const [error, setError] = useState('')
@@ -31,8 +35,9 @@ export default function ChangePasswordPage() {
   const handleSubmit = async (e) => {
     e.preventDefault()
     setError('')
-    if (newPassword.length < 6) {
-      setError('New password must be at least 6 characters.')
+    const pwValidationErr = passwordError(newPassword, { fieldLabel: 'New password' })
+    if (pwValidationErr) {
+      setError(pwValidationErr)
       return
     }
     if (newPassword !== confirmPassword) {
@@ -40,6 +45,7 @@ export default function ChangePasswordPage() {
       return
     }
     setLoading(true)
+    showLoading('Please wait…')
     try {
       await changePassword({ currentPassword, newPassword })
       await refreshUser()
@@ -47,6 +53,7 @@ export default function ChangePasswordPage() {
     } catch (err) {
       setError(err.message || 'Failed to change password')
     } finally {
+      hideLoading()
       setLoading(false)
     }
   }
@@ -90,13 +97,15 @@ export default function ChangePasswordPage() {
               <input
                 type="password"
                 required
-                minLength={6}
+                minLength={8}
                 value={newPassword}
                 onChange={(e) => setNewPassword(e.target.value)}
-                placeholder="Min. 6 characters"
+                placeholder="Min. 8 chars (upper, lower, digit, symbol)"
                 autoComplete="new-password"
               />
             </label>
+
+            <PasswordRequirements password={newPassword} />
 
             <label>
               <Req required>Confirm new password</Req>

@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { MUNICIPALITIES } from '../constants/locations'
 import PhoneInput from '../components/shared/PhoneInput'
 import { phoneError } from '../utils/validation'
+import { useLoading } from '../context/LoadingContext'
 
 const emptyForm = {
   name: '',
@@ -14,6 +15,7 @@ const emptyForm = {
 
 export default function AssistancePage() {
   const [submitted, setSubmitted] = useState(false)
+  const { showLoading, hideLoading } = useLoading()
   const [reference, setReference] = useState('')
   const [submitError, setSubmitError] = useState('')
   const [submitting, setSubmitting] = useState(false)
@@ -28,6 +30,7 @@ export default function AssistancePage() {
       return
     }
     setSubmitting(true)
+    showLoading('Submitting…')
     try {
       const data = {
         name: form.name,
@@ -63,6 +66,7 @@ export default function AssistancePage() {
     } catch (err) {
       setSubmitError(err.message || 'Failed to submit nomination')
     } finally {
+      hideLoading()
       setSubmitting(false)
     }
   }

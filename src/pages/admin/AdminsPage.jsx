@@ -13,12 +13,14 @@ import ApiState from '../../components/admin/shared/ApiState'
 import FilterBar from '../../components/admin/shared/FilterBar'
 import ModalHeader from '../../components/admin/shared/ModalHeader'
 import Req from '../../components/shared/Req'
-import PolicyLinks from '../../components/shared/PolicyLinks'
+import PolicyConsentBox from '../../components/shared/PolicyConsentBox'
 import NameFields from '../../components/shared/NameFields'
 import { emptyNameParts, formatFullName } from '../../utils/personName'
 import { notify } from '../../utils/toast'
+import { confirmAction, showSuccessModal } from '../../utils/confirm'
 import PhoneInput from '../../components/shared/PhoneInput'
 import { phoneError, emailError } from '../../utils/validation'
+import { useLoading } from '../../context/LoadingContext'
 
 const filterConfig = {
   searchKeys: ['id', 'name', 'email', 'firstName', 'lastName'],
@@ -32,6 +34,8 @@ const emptyForm = {
   email: '',
   phone: '',
   role: 'Admin',
+  acceptedTerms: false,
+  acceptedPrivacy: false,
   acceptedPolicies: false,
 }
 
@@ -48,6 +52,7 @@ export default function AdminsPage() {
   )
   const filters = useFilters(adminData, filterConfig)
   const [showForm, setShowForm] = useState(false)
+  const { showLoading, hideLoading } = useLoading()
   const [form, setForm] = useState(emptyForm)
   const [saving, setSaving] = useState(false)
   const [selected, setSelected] = useState(null)
@@ -87,7 +92,20 @@ export default function AdminsPage() {
       notify.warning(phoneMsg)
       return
     }
+    if (!form.acceptedTerms || !form.acceptedPrivacy) {
+      notify.warning('Please accept both the Terms & Conditions and Data Privacy Policy.')
+      return
+    }
+    const ok = await confirmAction({
+      title: 'Create Admin Account',
+      message: `Create a database Admin account for ${formatFullName(form)} (${form.email}) and email their temporary password?`,
+      confirmText: 'Create & Email Credentials',
+      type: 'primary',
+    })
+    if (!ok) return
+
     setSaving(true)
+    showLoading('Saving…')
     try {
       const res = await createStaffAccount({
         lastName: form.lastName,
@@ -97,7 +115,9 @@ export default function AdminsPage() {
         email: form.email,
         phone: form.phone,
         role: 'Admin',
-        acceptedPolicies: form.acceptedPolicies,
+        acceptedTerms: form.acceptedTerms,
+        acceptedPrivacy: form.acceptedPrivacy,
+        acceptedPolicies: true,
       })
       if (!res?.ok && !res?.data) {
         throw new Error(res?.error || 'Failed to create admin account.')
@@ -106,6 +126,7 @@ export default function AdminsPage() {
         const msg = res.message || 'Admin account created and credentials emailed successfully.'
         setSuccessMsg(msg)
         notify.success(msg)
+        showSuccessModal('Credentials successfully sent.')
       } else {
         const temp = res?.temporaryPassword
           ? `\n\nTemporary password (share securely): ${res.temporaryPassword}`
@@ -125,6 +146,7 @@ export default function AdminsPage() {
             'Share the temporary password securely, or fix mail settings and recreate/resend later.',
           ].filter(Boolean).join('. '),
         )
+        showSuccessModal('Successfully added.')
       }
       setShowForm(false)
       setForm(emptyForm)
@@ -132,6 +154,7 @@ export default function AdminsPage() {
     } catch (err) {
       notify.error(err.message)
     } finally {
+      hideLoading()
       setSaving(false)
     }
   }
@@ -145,6 +168,7 @@ export default function AdminsPage() {
       return
     }
     setSaving(true)
+    showLoading('Saving…')
     try {
       await updateStaff(selected.dbId, {
         lastName: editForm.lastName,
@@ -156,22 +180,33 @@ export default function AdminsPage() {
       })
       setSuccessMsg('Admin profile updated.')
       notify.success('Admin profile updated.')
+      showSuccessModal('Successfully updated.')
       reload()
       setSelected(null)
     } catch (err) {
       notify.error(err.message)
     } finally {
+      hideLoading()
       setSaving(false)
     }
   }
 
   const toggleStatus = async (row) => {
     const next = row.status === 'Active' ? 'Inactive' : 'Active'
-    if (!window.confirm(`Set ${row.name} to ${next}?`)) return
+    const ok = await confirmAction({
+      title: `${next === 'Inactive' ? 'Deactivate' : 'Activate'} Admin Account`,
+      message: `Are you sure you want to set ${row.name} to ${next}?`,
+      confirmText: next === 'Inactive' ? 'Deactivate' : 'Activate',
+      type: next === 'Inactive' ? 'warning' : 'primary',
+    })
+    if (!ok) return
+
+    showLoading('Updating status…')
     try {
       const res = await updateStaff(row.dbId, { status: next })
       const status = res?.data?.status || next
       notify.success(`Status successfully updated to: ${status}.`)
+      showSuccessModal('Successfully updated.')
       reload()
       if (selected?.dbId === row.dbId) {
         setSelected({ ...row, status })
@@ -179,6 +214,8 @@ export default function AdminsPage() {
       }
     } catch (err) {
       notify.error(err.message)
+    } finally {
+      hideLoading()
     }
   }
 
@@ -317,24 +354,22 @@ export default function AdminsPage() {
               <p className="field-hint">
                 Creates a database <strong>Admin</strong> account (separate from Super Admin and Staff). Credentials are emailed after creation.
               </p>
-              <label className="need-check">
-                <input
-                  type="checkbox"
-                  required
-                  checked={form.acceptedPolicies}
-                  onChange={(e) => setForm({ ...form, acceptedPolicies: e.target.checked })}
-                />
-                <span>
-                  User accepts the{' '}
-                  <PolicyLinks />
-                  <Req required />
-                </span>
-              </label>
-              <p className="field-hint">
-                Temporary login credentials are emailed when the mail service is running. If email delivery fails, the account is still created and the temporary password is shown so you can share it securely.
-              </p>
+
+              <PolicyConsentBox
+                acceptedTerms={form.acceptedTerms}
+                onTermsChange={(acceptedTerms) => setForm({ ...form, acceptedTerms })}
+                acceptedPrivacy={form.acceptedPrivacy}
+                onPrivacyChange={(acceptedPrivacy) => setForm({ ...form, acceptedPrivacy })}
+                entityLabel="Admin user"
+              />
+
               <div className="admin-modal__actions">
-                <button type="submit" className="btn btn--primary" disabled={saving}>
+                <button
+                  type="submit"
+                  className="btn btn--primary"
+                  disabled={saving || !form.acceptedTerms || !form.acceptedPrivacy}
+                  title={!form.acceptedTerms || !form.acceptedPrivacy ? 'Please read and accept both agreements above to create credentials' : ''}
+                >
                   {saving ? 'Creating & emailing…' : 'Create & Email Credentials'}
                 </button>
                 <button type="button" className="btn btn--ghost" onClick={() => setShowForm(false)}>Cancel</button>

@@ -6,8 +6,10 @@ import ModalHeader from './ModalHeader'
 import { usePagination, DEFAULT_PAGE_SIZE } from '../../../hooks/usePagination'
 import Pagination from './Pagination'
 import { notify } from '../../../utils/toast'
+import { confirmAction, showSuccessModal } from '../../../utils/confirm'
 import { notifyCatalogChanged } from '../../../utils/catalogSync'
 import { sortCatalogItemsAz } from '../../../utils/sortLabels'
+import { useLoading } from '../../../context/LoadingContext'
 
 /**
  * Full CRUD modal for a Settings-managed catalog (Add / Edit / Delete / View).
@@ -21,6 +23,7 @@ export default function CatalogManageModal({
   description,
   onChanged,
 }) {
+  const { showLoading, hideLoading } = useLoading()
   const [items, setItems] = useState([])
   const [loading, setLoading] = useState(true)
   const [busy, setBusy] = useState(false)
@@ -71,6 +74,7 @@ export default function CatalogManageModal({
     const next = label.trim()
     if (!next || !catalog) return
     setBusy(true)
+    showLoading('Saving…')
     try {
       const res = await catalogItemsApi.create(catalog, { label: next, catalog })
       if (!res?.ok && !res?.data) {
@@ -78,10 +82,12 @@ export default function CatalogManageModal({
       }
       setLabel('')
       notify.success(`“${next}” saved.`)
+      showSuccessModal('Successfully added.')
       await load()
     } catch (err) {
       notify.error(err.message || 'Could not add item.')
     } finally {
+      hideLoading()
       setBusy(false)
     }
   }
@@ -104,6 +110,7 @@ export default function CatalogManageModal({
       return
     }
     setBusy(true)
+    showLoading('Updating…')
     try {
       await catalogItemsApi.update(catalog, row.dbId || row.id, {
         label: next,
@@ -111,23 +118,32 @@ export default function CatalogManageModal({
         catalog,
       })
       notify.success('Item updated.')
+      showSuccessModal('Successfully updated.')
       cancelEdit()
       await load()
     } catch (err) {
       notify.error(err.message || 'Could not update item.')
     } finally {
+      hideLoading()
       setBusy(false)
     }
   }
 
   const handleDelete = async (row) => {
-    if (!window.confirm(`Delete “${row.label}”? It will no longer appear in forms across the system.`)) {
-      return
-    }
+    const ok = await confirmAction({
+      title: 'Delete Option',
+      message: `Delete “${row.label}”? It will no longer appear in dropdowns across the system.`,
+      confirmText: 'Delete Option',
+      type: 'danger',
+    })
+    if (!ok) return
+
     setBusy(true)
+    showLoading('Deleting…')
     try {
       await catalogItemsApi.remove(catalog, row.dbId || row.id)
       notify.success(`“${row.label}” deleted.`)
+      showSuccessModal('Successfully deleted.')
       if (viewItem && (viewItem.dbId || viewItem.id) === (row.dbId || row.id)) {
         setViewItem(null)
       }
@@ -135,6 +151,7 @@ export default function CatalogManageModal({
     } catch (err) {
       notify.error(err.message || 'Could not delete item.')
     } finally {
+      hideLoading()
       setBusy(false)
     }
   }

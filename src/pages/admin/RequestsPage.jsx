@@ -10,12 +10,24 @@ import {
   Utensils, Droplets, Shirt, Pill, Sparkles, Home, Banknote, GraduationCap, Package, Tag
 } from 'lucide-react';
 import PageHeader from '../../components/admin/shared/PageHeader';
+import ModalHeader from '../../components/admin/shared/ModalHeader';
 import StatusBadge from '../../components/admin/shared/StatusBadge';
 import FilterBar from '../../components/admin/shared/FilterBar';
 import ApiState from '../../components/admin/shared/ApiState';
 import { usePagination, DEFAULT_PAGE_SIZE } from '../../hooks/usePagination'
 import Pagination from '../../components/admin/shared/Pagination'
 import { notify } from '../../utils/toast';
+import { confirmAction, showSuccessModal } from '../../utils/confirm';
+import { notifyBadgesChanged } from '../../utils/badgeSync';
+import {
+  REQUEST_WORKFLOW,
+  REQUEST_TERMINAL,
+  REQUEST_BRANCHES,
+  REQUEST_ALIASES,
+  validateStatusTransition,
+  isTerminalStatus,
+} from '../../utils/workflow';
+import { useLoading } from '../../context/LoadingContext';
 
 const styles = `
 .requests-page {
@@ -461,6 +473,7 @@ function iconForNeed(label) {
 
 export default function RequestsPage() {
   const navigate = useNavigate();
+  const { showLoading, hideLoading } = useLoading();
   const { data: requestsData, loading: reqLoading, error: reqError, reload: reqReload } = useApiList(() => assistanceRequestsApi.list());
   const { data: beneficiariesData } = useApiList(() => beneficiariesApi.list());
   
@@ -520,12 +533,12 @@ export default function RequestsPage() {
         const pA = priorityConfig[a.priority]?.weight || 0;
         const pB = priorityConfig[b.priority]?.weight || 0;
         if (pA !== pB) return pB - pA;
-        return new Date(a.date || a.requestDate) - new Date(b.date || b.requestDate);
+        return (new Date(b.createdAt || b.date || b.requestDate || 0) - new Date(a.createdAt || a.date || a.requestDate || 0)) || (b.dbId - a.dbId);
       }
-      if (sortBy === 'date') return new Date(b.date || b.requestDate) - new Date(a.date || a.requestDate);
+      if (sortBy === 'date') return (new Date(b.createdAt || b.date || b.requestDate || 0) - new Date(a.createdAt || a.date || a.requestDate || 0)) || (b.dbId - a.dbId);
       if (sortBy === 'barangay') return (a.beneficiary || '').localeCompare(b.beneficiary || '');
       if (sortBy === 'status') return (a.status || '').localeCompare(b.status || '');
-      return 0;
+      return (b.dbId - a.dbId);
     });
   }, [filterController.filtered, emergencyIds, sortBy]);
 
@@ -558,18 +571,64 @@ export default function RequestsPage() {
   };
 
   const handleUpdateStatus = async (dbId, updates) => {
+    const existing = (enrichedData || []).find((r) => r.dbId === dbId);
+    if (updates?.status) {
+      if (existing) {
+        const check = validateStatusTransition({
+          entityName: 'Assistance request',
+          currentStatus: existing.status,
+          nextStatus: updates.status,
+          workflowOrder: REQUEST_WORKFLOW,
+          terminalStatuses: REQUEST_TERMINAL,
+          branches: REQUEST_BRANCHES,
+          aliases: REQUEST_ALIASES,
+        });
+        if (!check.valid) {
+          notify.error(check.message);
+          return;
+        }
+      }
+
+      if (updates.status === 'Approved') {
+        const ok = await confirmAction({
+          title: 'Approve Relief Request',
+          message: `Approve relief request from ${existing?.beneficiary || 'barangay'} for ${existing?.type || 'relief assistance'} (${existing?.affectedFamilies || 0} families)?`,
+          confirmText: 'Approve Request',
+          type: 'primary',
+        });
+        if (!ok) return;
+      } else if (updates.status === 'Rejected') {
+        const ok = await confirmAction({
+          title: 'Reject Relief Request',
+          message: `Reject relief request from ${existing?.beneficiary || 'barangay'}? This action is final.`,
+          confirmText: 'Reject Request',
+          type: 'danger',
+        });
+        if (!ok) return;
+      }
+    }
     try {
       setIsUpdating(true);
+      showLoading('Updating…');
       const res = await assistanceRequestsApi.update(dbId, updates);
       const status = res?.data?.status || updates.status || 'Updated'
       await reqReload();
+      notifyBadgesChanged();
       notify.success(`Status successfully updated to: ${status}.`);
+      if (updates?.status === 'Approved') {
+        showSuccessModal('Successfully approved.')
+      } else if (updates?.status === 'Rejected') {
+        showSuccessModal('Successfully rejected.')
+      } else {
+        showSuccessModal('Successfully updated.')
+      }
       if (selectedRequest && selectedRequest.dbId === dbId) {
         setSelectedRequest(prev => ({ ...prev, ...updates }));
       }
-    } catch {
-      notify.error('Failed to update request');
+    } catch (err) {
+      notify.error(err?.message || 'Failed to update request');
     } finally {
+      hideLoading();
       setIsUpdating(false);
     }
   };
@@ -753,10 +812,10 @@ function ReviewModal({ request, allRequests, onClose, onUpdate, isUpdating, navi
   return (
     <div className="admin-modal-overlay" onClick={onClose}>
       <div className="admin-modal admin-modal--wide" onClick={e => e.stopPropagation()}>
-        <div className="admin-modal__header">
-          <h2>Review Request: {request.id}</h2>
-          <button className="admin-modal__close" onClick={onClose}><X size={24} /></button>
-        </div>
+        <ModalHeader
+          title={`Review Request: ${request.id}`}
+          onClose={onClose}
+        />
         
         <div className="admin-modal__body" style={{ gap: '2rem', padding: '1.5rem' }}>
           <div className="admin-modal__left" style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>

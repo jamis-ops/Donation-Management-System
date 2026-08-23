@@ -270,7 +270,7 @@ if ($method === 'GET') {
     $params[] = $like;
   }
 
-  $sql = 'SELECT * FROM cms_items WHERE ' . implode(' AND ', $where) . ' ORDER BY type ASC, sort_order ASC, id ASC';
+  $sql = 'SELECT * FROM cms_items WHERE ' . implode(' AND ', $where) . ' ORDER BY created_at DESC, id DESC';
   $stmt = $pdo->prepare($sql);
   $stmt->execute($params);
   json_response(['ok' => true, 'data' => array_map('map_cms_item', $stmt->fetchAll())]);

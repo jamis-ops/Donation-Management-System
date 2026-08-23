@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Download, FileText, FileSpreadsheet, Printer } from 'lucide-react'
+import { Download, FileText, FileSpreadsheet, Printer, HeartHandshake, Users, Truck, Clock, TrendingUp } from 'lucide-react'
 import { getReports } from '../../api/resources'
 import { useApiObject } from '../../hooks/useApiList'
 import { exportCsv, exportExcel, printPdf } from '../../utils/exportData'
@@ -137,25 +137,50 @@ export default function ReportsPage() {
           <>
             <div className="admin-stats-grid admin-stats-grid--compact">
               <div className="admin-stat-card">
-                <span className="admin-stat-card__value">{summary.donationsThisMonth}</span>
-                <span className="admin-stat-card__label">Donations This Month</span>
-                <span className="admin-stat-card__change">{changeLabel}</span>
+                <div className="admin-stat-card__header">
+                  <span className="admin-stat-card__label">Donations This Month</span>
+                  <HeartHandshake className="admin-stat-card__icon" size={15} />
+                </div>
+                <div className="admin-stat-card__body">
+                  <span className="admin-stat-card__value">{summary.donationsThisMonth}</span>
+                  <span className="admin-stat-card__change">{changeLabel}</span>
+                </div>
               </div>
               <div className="admin-stat-card">
-                <span className="admin-stat-card__value">{summary.beneficiariesServed.toLocaleString()}</span>
-                <span className="admin-stat-card__label">Beneficiaries Served (YTD)</span>
+                <div className="admin-stat-card__header">
+                  <span className="admin-stat-card__label">Beneficiaries Served (YTD)</span>
+                  <Users className="admin-stat-card__icon" size={15} />
+                </div>
+                <div className="admin-stat-card__body">
+                  <span className="admin-stat-card__value">{summary.beneficiariesServed.toLocaleString()}</span>
+                </div>
               </div>
               <div className="admin-stat-card">
-                <span className="admin-stat-card__value">{summary.distributionsCompleted}</span>
-                <span className="admin-stat-card__label">Distributions Completed (YTD)</span>
+                <div className="admin-stat-card__header">
+                  <span className="admin-stat-card__label">Distributions Completed</span>
+                  <Truck className="admin-stat-card__icon" size={15} />
+                </div>
+                <div className="admin-stat-card__body">
+                  <span className="admin-stat-card__value">{summary.distributionsCompleted}</span>
+                </div>
               </div>
               <div className="admin-stat-card">
-                <span className="admin-stat-card__value">{summary.volunteerHours.toLocaleString()}</span>
-                <span className="admin-stat-card__label">Volunteer Hours</span>
+                <div className="admin-stat-card__header">
+                  <span className="admin-stat-card__label">Volunteer Hours</span>
+                  <Clock className="admin-stat-card__icon" size={15} />
+                </div>
+                <div className="admin-stat-card__body">
+                  <span className="admin-stat-card__value">{summary.volunteerHours.toLocaleString()}</span>
+                </div>
               </div>
               <div className="admin-stat-card">
-                <span className="admin-stat-card__value">{summary.inventoryTurnover}</span>
-                <span className="admin-stat-card__label">Inventory Turnover</span>
+                <div className="admin-stat-card__header">
+                  <span className="admin-stat-card__label">Inventory Turnover</span>
+                  <TrendingUp className="admin-stat-card__icon" size={15} />
+                </div>
+                <div className="admin-stat-card__body">
+                  <span className="admin-stat-card__value">{summary.inventoryTurnover}</span>
+                </div>
               </div>
             </div>
 

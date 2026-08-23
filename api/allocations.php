@@ -195,7 +195,7 @@ if ($method === 'GET') {
     json_response(['ok' => true, 'data' => array_map(fn($r) => map_allocation($pdo, $r), $rows)]);
   }
 
-  $rows = $pdo->query('SELECT * FROM allocations ORDER BY FIELD(priority,"Critical","High","Medium","Low"), allocation_date DESC')->fetchAll();
+  $rows = $pdo->query('SELECT * FROM allocations ORDER BY created_at DESC, allocation_date DESC, id DESC')->fetchAll();
   json_response(['ok' => true, 'data' => array_map(fn($r) => map_allocation($pdo, $r), $rows)]);
 }
 
@@ -277,6 +277,14 @@ if ($method === 'PUT') {
     ? ($body['priority'] ?? $existing['priority'])
     : 'Medium';
   $newStatus = $body['status'] ?? $existing['status'];
+  assert_valid_status_transition(
+    'Allocation',
+    (string) ($existing['status'] ?? 'Pending'),
+    (string) $newStatus,
+    WORKFLOW_ALLOCATION_STEPS,
+    WORKFLOW_ALLOCATION_TERMINAL,
+    WORKFLOW_ALLOCATION_BRANCHES
+  );
   $oldStatus = $existing['status'];
 
   $update = $pdo->prepare('UPDATE allocations SET resource_name = ?, quantity = ?, program = ?, beneficiary_target = ?, beneficiary_id = ?, assistance_request_id = ?, status = ?, priority = ?, notes = ?, allocation_date = ? WHERE id = ?');

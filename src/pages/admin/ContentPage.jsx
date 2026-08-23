@@ -21,6 +21,8 @@ import { useAuth } from '../../context/AuthContext'
 import { useSeeMore } from '../../hooks/useSeeMore'
 import { SeeMoreToggle } from '../../components/admin/shared/SeeMoreList'
 import { notify } from '../../utils/toast'
+import { confirmAction, showSuccessModal } from '../../utils/confirm'
+import { useLoading } from '../../context/LoadingContext'
 
 const TYPES = [
   { key: 'programs', label: 'Programs' },
@@ -84,6 +86,7 @@ export default function ContentPage() {
   const canEdit = user?.role === 'Admin' || user?.role === 'SuperAdmin' || !!user?.isSuperAdmin
 
   const [type, setType] = useState('programs')
+  const { showLoading, hideLoading } = useLoading()
   const [statusFilter, setStatusFilter] = useState('')
   const [search, setSearch] = useState('')
   const [items, setItems] = useState([])
@@ -96,6 +99,7 @@ export default function ContentPage() {
 
   const load = async () => {
     setLoading(true)
+    showLoading('Please wait…')
     setError('')
     try {
       const params = new URLSearchParams()
@@ -109,6 +113,7 @@ export default function ContentPage() {
       setError(err.message || 'Failed to load content')
       setItems([])
     } finally {
+      hideLoading()
       setLoading(false)
     }
   }
@@ -147,6 +152,7 @@ export default function ContentPage() {
     e.preventDefault()
     if (!canEdit) return
     setSaving(true)
+    showLoading('Saving…')
     try {
       const payload = {
         type,
@@ -168,16 +174,19 @@ export default function ContentPage() {
       setEditRow(null)
       setForm(emptyForm)
       notify.success(editRow ? 'Content updated.' : 'Content created.')
+      showSuccessModal(editRow ? 'Successfully updated.' : 'Successfully added.')
       await load()
     } catch (err) {
       notify.error(err.message)
     } finally {
+      hideLoading()
       setSaving(false)
     }
   }
 
   const runAction = async (row, action, extra = {}) => {
     if (!canEdit) return
+    showLoading('Updating…')
     try {
       await contentApi.action(row.id, action, extra)
       const actionMessages = {
@@ -191,18 +200,31 @@ export default function ContentPage() {
       await load()
     } catch (err) {
       notify.error(err.message)
+    } finally {
+      hideLoading()
     }
   }
 
   const handleDelete = async (row) => {
     if (!canEdit) return
-    if (!window.confirm(`Delete “${row.title}”? This cannot be undone.`)) return
+    const ok = await confirmAction({
+      title: 'Delete Website Content',
+      message: `Permanently delete “${row.title}”? This cannot be undone.`,
+      confirmText: 'Delete Content',
+      type: 'danger',
+    })
+    if (!ok) return
+
+    showLoading('Deleting…')
     try {
       await contentApi.remove(row.id)
       notify.success('Content deleted.')
+      showSuccessModal('Successfully deleted.')
       await load()
     } catch (err) {
       notify.error(err.message)
+    } finally {
+      hideLoading()
     }
   }
 
@@ -431,81 +453,10 @@ export default function ContentPage() {
                   <input
                     value={form.linkUrl}
                     onChange={(e) => setForm({ ...form, linkUrl: e.target.value })}
-                    placeholder="Optional external or internal link"
+                    placeholder="/donate, /volunteer, https://…"
                   />
                 </label>
               </div>
-
-              {form.imageUrl && (
-                <div className="cms-image-preview">
-                  <img src={form.imageUrl} alt="Preview" onError={(e) => { e.currentTarget.style.display = 'none' }} />
-                </div>
-              )}
-
-              <div className="form-row">
-                {(type === 'announcements' || type === 'stories' || type === 'faqs') && (
-                  <label>
-                    Category
-                    <input
-                      value={form.metaCategory}
-                      onChange={(e) => setForm({ ...form, metaCategory: e.target.value })}
-                      placeholder="e.g. Education"
-                    />
-                  </label>
-                )}
-                {type === 'partners' && (
-                  <label>
-                    Location
-                    <input
-                      value={form.metaLocation}
-                      onChange={(e) => setForm({ ...form, metaLocation: e.target.value })}
-                      placeholder="e.g. Cebu"
-                    />
-                  </label>
-                )}
-                {(type === 'announcements' || type === 'stories') && (
-                  <label>
-                    Date
-                    <input
-                      type="date"
-                      value={form.metaDate}
-                      onChange={(e) => setForm({ ...form, metaDate: e.target.value })}
-                    />
-                  </label>
-                )}
-                {type === 'programs' && (
-                  <label>
-                    Program slug
-                    <input
-                      value={form.metaSlug}
-                      onChange={(e) => setForm({ ...form, metaSlug: e.target.value })}
-                      placeholder="e.g. community-center"
-                    />
-                  </label>
-                )}
-                {type === 'impact' && (
-                  <label>
-                    Value
-                    <input
-                      value={form.metaValue || form.summary}
-                      onChange={(e) => setForm({ ...form, metaValue: e.target.value, summary: e.target.value })}
-                      placeholder="e.g. 45,000+"
-                    />
-                  </label>
-                )}
-              </div>
-
-              {type === 'stories' && (
-                <label>
-                  Testimonial
-                  <textarea
-                    rows={2}
-                    value={form.metaTestimonial}
-                    onChange={(e) => setForm({ ...form, metaTestimonial: e.target.value })}
-                    placeholder="Quoted testimonial"
-                  />
-                </label>
-              )}
 
               <div className="form-row">
                 <label>
@@ -526,12 +477,87 @@ export default function ContentPage() {
                 </label>
               </div>
 
+              {type === 'programs' && (
+                <div className="form-row">
+                  <label>
+                    Category
+                    <input
+                      value={form.metaCategory}
+                      onChange={(e) => setForm({ ...form, metaCategory: e.target.value })}
+                      placeholder="e.g. Health, Nutrition, Education"
+                    />
+                  </label>
+                  <label>
+                    Location
+                    <input
+                      value={form.metaLocation}
+                      onChange={(e) => setForm({ ...form, metaLocation: e.target.value })}
+                      placeholder="e.g. Cebu City, Sambag II"
+                    />
+                  </label>
+                </div>
+              )}
+
+              {type === 'stories' && (
+                <div className="form-row">
+                  <label>
+                    Date
+                    <input
+                      type="date"
+                      value={form.metaDate}
+                      onChange={(e) => setForm({ ...form, metaDate: e.target.value })}
+                    />
+                  </label>
+                  <label>
+                    Slug
+                    <input
+                      value={form.metaSlug}
+                      onChange={(e) => setForm({ ...form, metaSlug: e.target.value })}
+                      placeholder="story-title-slug"
+                    />
+                  </label>
+                </div>
+              )}
+
+              {type === 'partners' && (
+                <label>
+                  Testimonial quote
+                  <textarea
+                    rows={2}
+                    value={form.metaTestimonial}
+                    onChange={(e) => setForm({ ...form, metaTestimonial: e.target.value })}
+                    placeholder="Partner quote or feedback"
+                  />
+                </label>
+              )}
+
+              {type === 'impact' && (
+                <div className="form-row">
+                  <label>
+                    Metric Value
+                    <input
+                      value={form.metaValue}
+                      onChange={(e) => setForm({ ...form, metaValue: e.target.value })}
+                      placeholder="e.g. 50,000+ or 100%"
+                    />
+                  </label>
+                  <label>
+                    Category
+                    <input
+                      value={form.metaCategory}
+                      onChange={(e) => setForm({ ...form, metaCategory: e.target.value })}
+                      placeholder="e.g. Meals, Children, Hygiene"
+                    />
+                  </label>
+                </div>
+              )}
+
               <div className="admin-modal__actions">
-                <button type="submit" className="btn btn--primary" disabled={saving || !canEdit}>
-                  {saving ? 'Saving…' : editRow ? 'Save changes' : 'Create item'}
-                </button>
-                <button type="button" className="btn btn--ghost" onClick={() => setShowForm(false)}>
+                <button type="button" className="btn btn--outline" onClick={() => setShowForm(false)}>
                   Cancel
+                </button>
+                <button type="submit" className="btn btn--primary" disabled={saving}>
+                  {saving ? 'Saving…' : editRow ? 'Save changes' : 'Create item'}
                 </button>
               </div>
             </form>

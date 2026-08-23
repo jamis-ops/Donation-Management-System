@@ -9,6 +9,7 @@ import { useApiList } from '../../hooks/useApiList'
 import { usePagination, DEFAULT_PAGE_SIZE } from '../../hooks/usePagination'
 import Pagination from '../../components/admin/shared/Pagination'
 import { notify } from '../../utils/toast'
+import { useLoading } from '../../context/LoadingContext'
 
 const CERT_TYPE_CONFIG = {
   'Certificate of Appreciation': { color: 'gold', icon: Award },
@@ -27,6 +28,7 @@ function displayCertType(type) {
 }
 
 export default function DonorCertificatesPage() {
+  const { showLoading, hideLoading } = useLoading()
   const { data, loading, error, reload } = useApiList(() => certificatesApi.list())
   const { data: donations } = useApiList(() => donationsApi.list())
   const [preview, setPreview] = useState(null)
@@ -67,6 +69,7 @@ export default function DonorCertificatesPage() {
   const handleRequest = async (e) => {
     e.preventDefault()
     setBusy(true)
+    showLoading('Requesting certificate…')
     try {
       await certificatesApi.create({ type: form.type, reference: form.reference || undefined })
       setShowRequest(false)
@@ -76,6 +79,7 @@ export default function DonorCertificatesPage() {
     } catch (err) {
       notify.error(err.message)
     } finally {
+      hideLoading()
       setBusy(false)
     }
   }
@@ -298,10 +302,10 @@ export default function DonorCertificatesPage() {
       {shareModalOpen && (
         <div className="admin-modal-overlay" onClick={() => setShareModalOpen(null)}>
           <div className="admin-modal admin-modal--share" onClick={(e) => e.stopPropagation()}>
-            <div className="admin-modal__header">
-              <h3>Share Certificate</h3>
-              <button type="button" onClick={() => setShareModalOpen(null)} className="admin-modal__close">×</button>
-            </div>
+            <ModalHeader
+              title="Share Certificate"
+              onClose={() => setShareModalOpen(null)}
+            />
             <div className="admin-modal__body">
               <div className="share-modal-content">
                 <div className="share-modal-cert-info">

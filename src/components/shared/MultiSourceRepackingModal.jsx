@@ -6,6 +6,7 @@ import PackContentBuilder from './PackContentBuilder'
 import RepackingSummaryCard from './RepackingSummaryCard'
 import StatusBadge from '../admin/shared/StatusBadge'
 import { notify } from '../../utils/toast'
+import { useLoading } from '../../context/LoadingContext'
 
 const STEPS = ['barangay', 'builder', 'summary', 'confirmation']
 const STEP_TITLES = {
@@ -25,6 +26,7 @@ export default function MultiSourceRepackingModal({
   loadingTeam,
 }) {
   const [currentStep, setCurrentStep] = useState('barangay')
+  const { showLoading, hideLoading } = useLoading()
   const [loading, setLoading] = useState(false)
 
   // Barangay analysis data
@@ -110,6 +112,7 @@ export default function MultiSourceRepackingModal({
     if (!canSubmit) return
 
     setLoading(true)
+    showLoading('Please wait…')
     try {
       // Prepare submission data
       const sources = selectedSources.map((src) => ({
@@ -121,6 +124,7 @@ export default function MultiSourceRepackingModal({
       const invalidSource = selectedSources.find((s) => !s.quantity || s.quantity <= 0)
       if (invalidSource) {
         notify.error(`Please enter a valid quantity for ${invalidSource.itemName}`)
+        hideLoading()
         setLoading(false)
         return
       }
@@ -148,6 +152,7 @@ export default function MultiSourceRepackingModal({
       console.error('Failed to create batch:', error)
       notify.error(error.message || 'Failed to create repacking batch')
     } finally {
+      hideLoading()
       setLoading(false)
     }
   }

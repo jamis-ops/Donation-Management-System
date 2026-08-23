@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState, useCallback } from 'react'
 import { NavLink, useLocation } from 'react-router-dom'
 import {
   LayoutDashboard,
@@ -15,20 +15,43 @@ import {
   BarChart3,
   FileBadge,
   Globe,
-  Settings,
-  LogOut,
-  ExternalLink,
   ChevronDown,
 } from 'lucide-react'
 import { useAuth } from '../../../context/AuthContext'
 import Logo from '../../shared/Logo'
+import { adminBadgesApi } from '../../../api/resources'
+import { BADGES_CHANGED } from '../../../utils/badgeSync'
 
 function buildNav(isSuperAdmin) {
+  // Super Admin: strictly Admin Management only
+  if (isSuperAdmin) {
+    return [
+      {
+        type: 'section',
+        label: 'Administration',
+        items: [
+          { to: '/admin/admins', label: 'Admin Management', icon: Shield },
+        ],
+      },
+    ]
+  }
+
   const overview = {
     type: 'section',
     label: 'Overview',
     items: [
       { to: '/admin', label: 'Dashboard', icon: LayoutDashboard, end: true },
+    ],
+  }
+
+  const peopleAndPartners = {
+    type: 'section',
+    label: 'People & Partners',
+    items: [
+      { to: '/admin/staff', label: 'Staff', icon: UserCog },
+      { to: '/admin/donors', label: 'Donors', icon: HeartHandshake },
+      { to: '/admin/volunteers', label: 'Volunteers & Interns', icon: UserCheck },
+      { to: '/admin/beneficiaries', label: 'Barangays', icon: Building2 },
     ],
   }
 
@@ -51,45 +74,12 @@ function buildNav(isSuperAdmin) {
       { to: '/admin/reports', label: 'Reports', icon: BarChart3 },
       { to: '/admin/certificates', label: 'Certificates', icon: FileBadge },
       { to: '/admin/content', label: 'Content Management', icon: Globe },
-      { to: '/admin/settings', label: 'Settings', icon: Settings },
     ],
   }
 
-  // Super Admin: User Management dropdown (Admin + people accounts)
-  if (isSuperAdmin) {
-    return [
-      overview,
-      {
-        type: 'dropdown',
-        id: 'user-management',
-        label: 'User Management',
-        icon: Users,
-        children: [
-          { to: '/admin/admins', path: '/admin/admins', label: 'Admin Accounts', icon: Shield },
-          { to: '/admin/staff', path: '/admin/staff', label: 'Staff Accounts', icon: UserCog },
-          { to: '/admin/donors', path: '/admin/donors', label: 'Donors', icon: HeartHandshake },
-          { to: '/admin/volunteers', path: '/admin/volunteers', label: 'Volunteers', icon: UserCheck },
-          { to: '/admin/beneficiaries', path: '/admin/beneficiaries', label: 'Barangays', icon: Building2 },
-        ],
-      },
-      operations,
-      management,
-    ]
-  }
-
-  // Admin: original flat People & Partners (no dropdown)
   return [
     overview,
-    {
-      type: 'section',
-      label: 'People & Partners',
-      items: [
-        { to: '/admin/staff', label: 'Staff', icon: UserCog },
-        { to: '/admin/donors', label: 'Donors', icon: HeartHandshake },
-        { to: '/admin/volunteers', label: 'Volunteers', icon: UserCheck },
-        { to: '/admin/beneficiaries', label: 'Barangays', icon: Building2 },
-      ],
-    },
+    peopleAndPartners,
     operations,
     management,
   ]
@@ -125,6 +115,67 @@ export default function AdminSidebar({ open, onClose }) {
   const nav = useMemo(() => buildNav(isSuperAdmin), [isSuperAdmin])
 
   const [openMenus, setOpenMenus] = useState(() => ({ 'user-management': true }))
+  const [badges, setBadges] = useState({})
+
+  const fetchBadges = useCallback(async () => {
+    try {
+      const res = await adminBadgesApi.get()
+      if (res?.ok && res?.data) {
+        setBadges(res.data)
+      }
+    } catch {
+      // ignore badge fetch error in background
+    }
+  }, [])
+
+  useEffect(() => {
+    fetchBadges()
+    const interval = setInterval(fetchBadges, 15000)
+    const handleBadgeRefresh = () => {
+      fetchBadges()
+    }
+    const handleFocus = () => {
+      fetchBadges()
+    }
+
+    window.addEventListener(BADGES_CHANGED, handleBadgeRefresh)
+    window.addEventListener('focus', handleFocus)
+    return () => {
+      clearInterval(interval)
+      window.removeEventListener(BADGES_CHANGED, handleBadgeRefresh)
+      window.removeEventListener('focus', handleFocus)
+    }
+  }, [fetchBadges])
+
+  // Automatically mark section as seen when Admin visits it
+  useEffect(() => {
+    const knownSections = [
+      '/admin/volunteers',
+      '/admin/beneficiaries',
+      '/admin/requests',
+      '/admin/donations',
+      '/admin/certificates',
+      '/admin/distributions',
+      '/admin/allocation',
+    ]
+
+    const matched = knownSections.find((route) => {
+      if (route === '/admin/beneficiaries') {
+        return pathname.startsWith('/admin/beneficiaries') || pathname.startsWith('/admin/barangays')
+      }
+      return pathname === route || pathname.startsWith(`${route}/`)
+    })
+
+    if (matched) {
+      // Clear badge locally immediately
+      setBadges((prev) => {
+        if (!prev[matched]) return prev
+        return { ...prev, [matched]: 0 }
+      })
+      // Persist seen timestamp in backend
+      adminBadgesApi.markSeen(matched).catch(() => {})
+    }
+  }, [pathname, badges])
 
   useEffect(() => {
     nav.forEach((group) => {
@@ -134,11 +185,6 @@ export default function AdminSidebar({ open, onClose }) {
       }
     })
   }, [pathname, nav])
-
-  const handleLogout = async () => {
-    await logout()
-    window.location.href = '/admin/login'
-  }
 
   const toggleMenu = (id) => {
     setOpenMenus((prev) => ({ ...prev, [id]: !prev[id] }))
@@ -155,7 +201,7 @@ export default function AdminSidebar({ open, onClose }) {
       )}
       <aside className={`admin-sidebar${open ? ' admin-sidebar--open' : ''}`}>
         <div className="admin-sidebar__brand">
-          <Logo to="/admin" size="sm" />
+          <Logo to={isSuperAdmin ? '/admin/admins' : '/admin'} size="sm" />
         </div>
 
         <nav className="admin-sidebar__nav" aria-label="Admin navigation">
@@ -180,7 +226,7 @@ export default function AdminSidebar({ open, onClose }) {
                       {group.label}
                     </span>
                     <ChevronDown
-                      size={16}
+                      size={15}
                       className={`admin-sidebar__chevron${expanded ? ' admin-sidebar__chevron--open' : ''}`}
                       aria-hidden="true"
                     />
@@ -194,6 +240,7 @@ export default function AdminSidebar({ open, onClose }) {
                     <ul className="admin-sidebar__submenu-list">
                       {group.children.map((child) => {
                         const Icon = child.icon
+                        const count = badges[child.to] || 0
                         return (
                           <li key={`${child.to}-${child.label}`}>
                             <NavLink
@@ -203,8 +250,15 @@ export default function AdminSidebar({ open, onClose }) {
                               }
                               onClick={onClose}
                             >
-                              <Icon size={15} strokeWidth={2} />
-                              {child.label}
+                              <span className="admin-sidebar__link-main">
+                                <Icon size={15} strokeWidth={2} />
+                                <span>{child.label}</span>
+                              </span>
+                              {count > 0 && (
+                                <span className="admin-sidebar__badge admin-sidebar__badge--sub" aria-label={`${count} pending items`}>
+                                  {count > 99 ? '99+' : count}
+                                </span>
+                              )}
                             </NavLink>
                           </li>
                         )
@@ -222,6 +276,7 @@ export default function AdminSidebar({ open, onClose }) {
                 <ul>
                   {group.items.map((item) => {
                     const Icon = item.icon
+                    const count = badges[item.to] || 0
                     return (
                       <li key={item.to}>
                         <NavLink
@@ -232,8 +287,15 @@ export default function AdminSidebar({ open, onClose }) {
                           }
                           onClick={onClose}
                         >
-                          <Icon size={17} strokeWidth={2} />
-                          {item.label}
+                          <span className="admin-sidebar__link-main">
+                            <Icon size={17} strokeWidth={2} />
+                            <span>{item.label}</span>
+                          </span>
+                          {count > 0 && (
+                            <span className="admin-sidebar__badge" aria-label={`${count} pending items`}>
+                              {count > 99 ? '99+' : count}
+                            </span>
+                          )}
                         </NavLink>
                       </li>
                     )
@@ -244,38 +306,6 @@ export default function AdminSidebar({ open, onClose }) {
           })}
         </nav>
 
-        <div className="admin-sidebar__footer">
-          <div className="admin-sidebar__user">
-            <div className="admin-sidebar__avatar">
-              {user?.name?.charAt(0)?.toUpperCase() || 'A'}
-            </div>
-            <div>
-              <strong>{user?.name || 'Admin'}</strong>
-              <span>
-                {isSuperAdmin ? 'Super Admin' : (user?.role || 'Administrator')}
-              </span>
-            </div>
-          </div>
-
-          <a
-            href="/"
-            className="admin-sidebar__link-btn"
-            target="_blank"
-            rel="noreferrer"
-          >
-            <ExternalLink size={14} />
-            View Public Site
-          </a>
-
-          <button
-            type="button"
-            className="admin-sidebar__logout"
-            onClick={handleLogout}
-          >
-            <LogOut size={15} />
-            Sign Out
-          </button>
-        </div>
       </aside>
     </>
   )

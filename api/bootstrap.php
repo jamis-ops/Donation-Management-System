@@ -83,6 +83,50 @@ function format_date(?string $date): string
   return $ts ? date('Y-m-d', $ts) : '—';
 }
 
+function format_duty_time(?string $time): string
+{
+  if (!$time) {
+    return '';
+  }
+  $ts = strtotime($time);
+  return $ts ? date('g:i A', $ts) : $time;
+}
+
+function duty_label(?string $start, ?string $end, $hours): string
+{
+  $parts = [];
+  if ($start && $end) {
+    $parts[] = format_duty_time($start) . ' – ' . format_duty_time($end);
+  } elseif ($start) {
+    $parts[] = 'From ' . format_duty_time($start);
+  }
+  if ($hours !== null && (float) $hours > 0) {
+    $h = rtrim(rtrim(number_format((float) $hours, 2), '0'), '.');
+    $parts[] = "{$h} hr" . ((float) $hours == 1.0 ? '' : 's');
+  }
+  return implode(' · ', $parts);
+}
+
+function hours_between(?string $start, ?string $end): ?float
+{
+  if (!$start || !$end) {
+    return null;
+  }
+  $ts1 = strtotime("2000-01-01 {$start}");
+  $ts2 = strtotime("2000-01-01 {$end}");
+  if ($ts1 === false || $ts2 === false) {
+    return null;
+  }
+  if ($ts2 < $ts1) {
+    $ts2 = strtotime("2000-01-02 {$end}");
+  }
+  $diffSeconds = $ts2 - $ts1;
+  if ($diffSeconds <= 0) {
+    return null;
+  }
+  return round($diffSeconds / 3600, 2);
+}
+
 function decode_programs(?string $json): array
 {
   if (!$json) {
@@ -918,9 +962,17 @@ function provision_beneficiary_account(PDO $pdo, array $benRow, ?string $customP
         ];
       }
       
-      // The same email is allowed because it belongs to the same Barangay registration flow.
-      // Generate new credentials and resend the email to ensure they receive it.
-      $tempPassword = ($customPassword !== null && strlen(trim($customPassword)) >= 6) ? trim($customPassword) : generate_temp_password();
+      if ($customPassword !== null && trim($customPassword) !== '') {
+        $customTrimmed = trim($customPassword);
+        $pwErr = validate_password_policy($customTrimmed, 'Custom password');
+        if ($pwErr !== null) {
+          $pdo->rollBack();
+          return ['created' => false, 'userId' => null, 'mail' => null, 'error' => $pwErr];
+        }
+        $tempPassword = $customTrimmed;
+      } else {
+        $tempPassword = generate_temp_password();
+      }
       $hash = password_hash($tempPassword, PASSWORD_DEFAULT);
       $pdo->prepare('UPDATE users SET password_hash = ? WHERE id = ?')->execute([$hash, $uid]);
 
@@ -940,7 +992,17 @@ function provision_beneficiary_account(PDO $pdo, array $benRow, ?string $customP
       ];
     }
 
-    $tempPassword = ($customPassword !== null && strlen(trim($customPassword)) >= 6) ? trim($customPassword) : generate_temp_password();
+    if ($customPassword !== null && trim($customPassword) !== '') {
+      $customTrimmed = trim($customPassword);
+      $pwErr = validate_password_policy($customTrimmed, 'Custom password');
+      if ($pwErr !== null) {
+        $pdo->rollBack();
+        return ['created' => false, 'userId' => null, 'mail' => null, 'error' => $pwErr];
+      }
+      $tempPassword = $customTrimmed;
+    } else {
+      $tempPassword = generate_temp_password();
+    }
     $userId = create_user_account($pdo, 'Beneficiary', $name, $email, $tempPassword, 'ACTIVE', true, [
       'lastName' => (string) ($benRow['representative_last_name'] ?? ''),
       'firstName' => (string) ($benRow['representative_first_name'] ?? ''),
@@ -1238,13 +1300,13 @@ function send_account_credentials(string $toEmail, string $name, string $loginEm
       $heading = 'Welcome to Rise Above Foundation Cebu!';
     }
 
-    $intro = "Hi {$safeName}, an administrator created a <strong style=\"color:#0f172a\">{$safeRole}</strong> account for you on the Rise Above Foundation Cebu portal. Use the one-time sign-in details below, then choose a new password after your first login.";
+    $intro = "Hi {$safeName}, an administrator created a <strong style=\"color:#0f172a\">{$safeRole}</strong> account for you on the Rise Above Foundation Cebu portal. Use the temporary password below to sign in, then choose a new password after your first login.";
     if (strcasecmp($role, 'Staff') === 0) {
-      $intro = "Hi {$safeName}, welcome to the Rise Above Foundation Cebu team! Your Staff Portal account is ready for managing assigned tasks and supporting operations. Use the one-time sign-in details below, then choose a new password after your first login.";
+      $intro = "Hi {$safeName}, welcome to the Rise Above Foundation Cebu team! Your Staff Portal account is ready for managing assigned tasks and supporting operations. Use the temporary password below to sign in, then choose a new password after your first login.";
     } elseif (strcasecmp($role, 'Donor') === 0) {
-      $intro = "Hi {$safeName}, welcome and thank you for being a valued donor and partner! Your Donor Portal allows you to manage and track your donations. Use the one-time sign-in details below, then choose a new password after your first login.";
+      $intro = "Hi {$safeName}, welcome and thank you for being a valued donor and partner! Your Donor Portal allows you to manage and track your donations. Use the temporary password below to sign in, then choose a new password after your first login.";
     } elseif (strcasecmp($role, 'Volunteer') === 0) {
-      $intro = "Hi {$safeName}, welcome as a volunteer! Your Volunteer Portal allows you to view assigned tasks, schedules, and support relief operations. Use the one-time sign-in details below, then choose a new password after your first login.";
+      $intro = "Hi {$safeName}, welcome as a volunteer! Your Volunteer Portal allows you to view assigned tasks, schedules, and support relief operations. Use the temporary password below to sign in, then choose a new password after your first login.";
     }
 
     $html = '<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">'
@@ -1271,7 +1333,7 @@ function send_account_credentials(string $toEmail, string $name, string $loginEm
       . '<div style="font-size:0.7rem;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:#94a3b8;margin-bottom:6px">Sign-in email</div>'
       . "<div style=\"font-size:1rem;font-weight:650;color:#0f172a;word-break:break-all\">{$safeEmail}</div></td></tr>"
       . '<tr><td style="padding:16px 18px">'
-      . '<div style="font-size:0.7rem;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:#94a3b8;margin-bottom:6px">One-time sign-in code</div>'
+      . '<div style="font-size:0.7rem;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:#94a3b8;margin-bottom:6px">Temporary password</div>'
       . "<div style=\"font-size:1.15rem;font-weight:750;font-family:Consolas,Monaco,monospace;color:#AF101A;letter-spacing:0.04em\">{$safePassword}</div></td></tr>"
       . '</table></td></tr>'
       . '<tr><td style="padding:22px 28px 8px;text-align:center">'
@@ -1281,7 +1343,7 @@ function send_account_credentials(string $toEmail, string $name, string $loginEm
       . '<a href="' . $recoveryUrl . '" style="display:inline-block;background:#ffffff;color:#AF101A;padding:12px 22px;border-radius:10px;text-decoration:none;font-weight:700;border:2px solid #AF101A">Add recovery number</a>'
       . '</td></tr>'
       . '<tr><td style="padding:8px 28px 20px;text-align:center;font-size:0.78rem;color:#94a3b8;word-break:break-all">Or open: <a href="' . $loginUrl . '" style="color:#2563eb">' . $loginUrl . '</a></td></tr>'
-      . '<tr><td style="padding:0 28px 26px"><div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:14px 16px;font-size:0.85rem;line-height:1.55;color:#475569"><strong style="color:#0f172a">Security note:</strong> This one-time code is only for your Rise Above Foundation Cebu portal account. Sign in soon, set your own password, and never forward this email.</div></td></tr>'
+      . '<tr><td style="padding:0 28px 26px"><div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:14px 16px;font-size:0.85rem;line-height:1.55;color:#475569"><strong style="color:#0f172a">Security note:</strong> This temporary password is only for your Rise Above Foundation Cebu portal account. Sign in soon, set your own password, and never forward this email.</div></td></tr>'
       . '<tr><td style="padding:16px 28px 22px;background:#f8fafc;border-top:1px solid #e2e8f0;text-align:center;font-size:0.75rem;line-height:1.55;color:#94a3b8"><strong style="color:#475569">Rise Above Foundation Cebu</strong><br>© ' . $year . ' Rise Above Foundation Cebu. All rights reserved.<br>This transactional message was sent because an administrator created a portal account for you.'
       . ($safeSupport !== '' ? '<br>Questions? Contact <a href="mailto:' . $safeSupport . '" style="color:#2563eb">' . $safeSupport . '</a>.' : '')
       . '</td></tr>'
@@ -1422,6 +1484,27 @@ function generate_temp_password(int $length = 14): string
   return implode('', $chars);
 }
 
+function validate_password_policy(?string $password, string $fieldLabel = 'Password'): ?string
+{
+  $pass = (string) ($password ?? '');
+  if (strlen($pass) < 8) {
+    return "{$fieldLabel} must be at least 8 characters long.";
+  }
+  if (!preg_match('/[A-Z]/', $pass)) {
+    return "{$fieldLabel} must contain at least one uppercase letter (A-Z).";
+  }
+  if (!preg_match('/[a-z]/', $pass)) {
+    return "{$fieldLabel} must contain at least one lowercase letter (a-z).";
+  }
+  if (!preg_match('/[0-9]/', $pass)) {
+    return "{$fieldLabel} must contain at least one number (0-9).";
+  }
+  if (!preg_match('/[^a-zA-Z0-9]/', $pass)) {
+    return "{$fieldLabel} must contain at least one special character.";
+  }
+  return null;
+}
+
 function accept_privacy_terms(PDO $pdo, int $userId): void
 {
   $pdo->prepare('UPDATE users SET terms_accepted_at = NOW(), privacy_accepted_at = NOW() WHERE id = ?')
@@ -1431,6 +1514,122 @@ function accept_privacy_terms(PDO $pdo, int $userId): void
 function distribution_workflow_steps(): array
 {
   return ['Planning', 'Preparing', 'In Transit', 'Delivered', 'Awaiting Proof', 'Completed'];
+}
+
+const WORKFLOW_DISTRIBUTION_STEPS = ['Planning', 'Preparing', 'In Transit', 'Delivered', 'Awaiting Proof', 'Completed'];
+const WORKFLOW_DISTRIBUTION_TERMINAL = ['Completed'];
+const WORKFLOW_DISTRIBUTION_ALIASES = [
+  'Scheduled' => 'Planning',
+  'Pending' => 'Planning',
+  'In Progress' => 'Preparing',
+];
+
+const WORKFLOW_DONATION_STEPS = ['Pending Verification', 'Verified', 'In Inventory', 'Allocated', 'Distributed', 'Completed'];
+const WORKFLOW_DONATION_TERMINAL = ['Completed', 'Rejected', 'Cancelled'];
+const WORKFLOW_DONATION_BRANCHES = [
+  'Pending Verification' => ['Rejected', 'Cancelled'],
+  'Verified' => ['Cancelled'],
+];
+
+const WORKFLOW_REQUEST_STEPS = ['Pending Review', 'Under Review', 'Approved', 'Allocated', 'In Distribution', 'Completed'];
+const WORKFLOW_REQUEST_TERMINAL = ['Completed', 'Rejected', 'Cancelled'];
+const WORKFLOW_REQUEST_BRANCHES = [
+  'Pending Review' => ['Under Review', 'Approved', 'Rejected', 'Cancelled'],
+  'Under Review' => ['Approved', 'Rejected', 'Cancelled'],
+];
+const WORKFLOW_REQUEST_ALIASES = [
+  'In Progress' => 'In Distribution',
+];
+
+const WORKFLOW_TASK_STEPS = ['todo', 'inProgress', 'review', 'done'];
+const WORKFLOW_TASK_TERMINAL = ['done'];
+const WORKFLOW_TASK_ALIASES = [
+  'To Do' => 'todo',
+  'In Progress' => 'inProgress',
+  'In Review' => 'review',
+  'Done' => 'done',
+  'Completed' => 'done',
+  'Ongoing' => 'inProgress',
+];
+
+const WORKFLOW_ALLOCATION_STEPS = ['Pending', 'Reserved', 'Allocated', 'Delivered'];
+const WORKFLOW_ALLOCATION_TERMINAL = ['Delivered', 'Cancelled'];
+const WORKFLOW_ALLOCATION_BRANCHES = [
+  'Pending' => ['Cancelled'],
+  'Reserved' => ['Cancelled'],
+];
+
+const WORKFLOW_VOLUNTEER_STEPS = ['Pending Review', 'Approved', 'Active', 'Assigned', 'Completed'];
+const WORKFLOW_VOLUNTEER_TERMINAL = ['Completed', 'Rejected'];
+const WORKFLOW_VOLUNTEER_BRANCHES = [
+  'Pending Review' => ['Rejected'],
+];
+
+const WORKFLOW_CERTIFICATE_STEPS = ['Requested', 'Pending', 'Generated', 'Released'];
+const WORKFLOW_CERTIFICATE_TERMINAL = ['Released'];
+
+/**
+ * Enforce one-way status workflows and lock finalized states.
+ */
+function assert_valid_status_transition(
+  string $entityName,
+  ?string $currentStatus,
+  string $nextStatus,
+  array $workflowOrder,
+  array $terminalStatuses = [],
+  array $allowedBranches = [],
+  array $aliases = []
+): void {
+  $curr = trim((string) $currentStatus);
+  $next = trim((string) $nextStatus);
+
+  if (isset($aliases[$curr])) {
+    $curr = $aliases[$curr];
+  }
+  if (isset($aliases[$next])) {
+    $next = $aliases[$next];
+  }
+
+  // Unset or empty initial status is allowed
+  if ($curr === '') {
+    return;
+  }
+
+  // No change in status is always valid
+  if ($curr === $next) {
+    return;
+  }
+
+  // If already in a terminal/completed state, lock from modifications or reverts
+  if (in_array($curr, $terminalStatuses, true)) {
+    json_response([
+      'ok' => false,
+      'error' => "{$entityName} is already {$curr} (final status) and cannot be changed or reverted.",
+    ], 400);
+  }
+
+  // Check if valid alternative branch
+  if (!empty($allowedBranches[$curr]) && in_array($next, $allowedBranches[$curr], true)) {
+    return;
+  }
+
+  $currIndex = array_search($curr, $workflowOrder, true);
+  $nextIndex = array_search($next, $workflowOrder, true);
+
+  if ($currIndex !== false && $nextIndex !== false) {
+    if ($nextIndex < $currIndex) {
+      json_response([
+        'ok' => false,
+        'error' => "Cannot revert {$entityName} status from \"{$curr}\" back to previous status \"{$next}\". The status workflow is one-way.",
+      ], 400);
+    }
+    return;
+  }
+
+  json_response([
+    'ok' => false,
+    'error' => "Invalid status transition for {$entityName} from \"{$curr}\" to \"{$next}\".",
+  ], 400);
 }
 
 /**

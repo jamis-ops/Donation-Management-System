@@ -19,9 +19,20 @@ import RowActionsMenu from '../../components/admin/shared/RowActionsMenu'
 import { useSeeMore } from '../../hooks/useSeeMore'
 import { SeeMoreToggle } from '../../components/admin/shared/SeeMoreList'
 import { notify } from '../../utils/toast'
+import { confirmAction, showSuccessModal } from '../../utils/confirm'
+import { notifyBadgesChanged } from '../../utils/badgeSync'
 import { useHashScroll, useQueryFocus } from '../../hooks/useDeepLinkFocus'
+import {
+  DISTRIBUTION_WORKFLOW,
+  DISTRIBUTION_TERMINAL,
+  DISTRIBUTION_ALIASES,
+  getAvailableNextStatuses,
+  validateStatusTransition,
+  isTerminalStatus,
+} from '../../utils/workflow'
+import { useLoading } from '../../context/LoadingContext'
 
-const WORKFLOW = ['Planning', 'Preparing', 'In Transit', 'Delivered', 'Awaiting Proof', 'Completed']
+const WORKFLOW = DISTRIBUTION_WORKFLOW
 const PROOF_STATUS = ['Not Required', 'Awaiting Proof', 'Proof Submitted', 'Proof Verified', 'Proof Rejected']
 
 const filterConfig = {
@@ -75,6 +86,7 @@ export default function DistributionsPage() {
   const { data, loading, error, reload } = useApiList(() => distributionsApi.list())
   const { data: barangays } = useApiList(() => beneficiariesApi.list())
   const filters = useFilters(data, filterConfig)
+  const { showLoading, hideLoading } = useLoading()
   const [detailRow, setDetailRow] = useState(null)
   const [editRow, setEditRow] = useState(null)
   const [statusRow, setStatusRow] = useState(null)
@@ -198,7 +210,7 @@ export default function DistributionsPage() {
       location: row.location || '',
       beneficiaryId: row.beneficiaryId || '',
       program: row.program || '',
-      distributionDate: row.distributionDate || '',
+      distributionDate: row.distributionDate || (row.date && row.date !== '—' ? row.date : '') || '',
       scheduleTime: row.scheduleTime || '',
       beneficiaries: row.beneficiaries || '',
       volunteers: row.volunteers || '',
@@ -215,6 +227,10 @@ export default function DistributionsPage() {
   }
 
   const openStatus = (row) => {
+    if (isTerminalStatus(row.status, DISTRIBUTION_TERMINAL)) {
+      notify.info(`Distribution ${row.id || ''} is already Completed (final stage) and locked from status changes.`)
+      return
+    }
     setStatusRow(row)
     setStatusValue(row.status)
     setDetailRow(null)
@@ -232,7 +248,22 @@ export default function DistributionsPage() {
       notify.warning('Please select a barangay for this delivery.')
       return
     }
+    if (editRow && form.status !== editRow.status) {
+      const check = validateStatusTransition({
+        entityName: 'Distribution',
+        currentStatus: editRow.status,
+        nextStatus: form.status,
+        workflowOrder: DISTRIBUTION_WORKFLOW,
+        terminalStatuses: DISTRIBUTION_TERMINAL,
+        aliases: DISTRIBUTION_ALIASES,
+      })
+      if (!check.valid) {
+        notify.error(check.message)
+        return
+      }
+    }
     setSaving(true)
+    showLoading('Saving…')
     try {
       const payload = {
         eventName: form.eventName,
@@ -265,10 +296,13 @@ export default function DistributionsPage() {
       }
       setShowVolunteerHelp(false)
       reload()
+      notifyBadgesChanged()
       notify.success(editRow ? 'Delivery updated.' : 'Delivery created.')
+      showSuccessModal(editRow ? 'Successfully updated.' : 'Successfully added.')
     } catch (err) {
       notify.error(err.message)
     } finally {
+      hideLoading()
       setSaving(false)
     }
   }
@@ -276,31 +310,59 @@ export default function DistributionsPage() {
   const handleUpdateStatus = async (e) => {
     e.preventDefault()
     if (!statusRow) return
+    const check = validateStatusTransition({
+      entityName: 'Distribution',
+      currentStatus: statusRow.status,
+      nextStatus: statusValue,
+      workflowOrder: DISTRIBUTION_WORKFLOW,
+      terminalStatuses: DISTRIBUTION_TERMINAL,
+      aliases: DISTRIBUTION_ALIASES,
+    })
+    if (!check.valid) {
+      notify.error(check.message)
+      return
+    }
     setSaving(true)
+    showLoading('Saving…')
     try {
       const res = await distributionsApi.update(statusRow.dbId, { status: statusValue })
       const status = res?.data?.status || statusValue
       setStatusRow(null)
       setDetailRow(null)
       reload()
+      notifyBadgesChanged()
       notify.success(`Status successfully updated to: ${status}.`)
+      showSuccessModal('Successfully updated.')
     } catch (err) {
       notify.error(err.message)
     } finally {
+      hideLoading()
       setSaving(false)
     }
   }
 
   const handleDelete = async (row) => {
-    if (!confirm('Delete this delivery? This cannot be undone.')) return
+    const ok = await confirmAction({
+      title: 'Delete Delivery',
+      message: `Permanently delete delivery "${row.eventName || row.distributionCode || 'this delivery'}"? This cannot be undone.`,
+      confirmText: 'Delete Delivery',
+      type: 'danger',
+    })
+    if (!ok) return
+
+    showLoading('Deleting delivery…')
     try {
       await distributionsApi.remove(row.dbId)
       setDetailRow(null)
       setEditRow(null)
       reload()
+      notifyBadgesChanged()
       notify.success('Delivery deleted.')
+      showSuccessModal('Successfully deleted.')
     } catch (err) {
       notify.error(err.message || 'Failed to delete distribution')
+    } finally {
+      hideLoading()
     }
   }
 
@@ -757,7 +819,13 @@ export default function DistributionsPage() {
               <label>
                 Current progress
                 <select required value={statusValue} onChange={(e) => setStatusValue(e.target.value)}>
-                  {WORKFLOW.map((s) => <option key={s} value={s}>{s}</option>)}
+                  {getAvailableNextStatuses({
+                    currentStatus: statusRow.status,
+                    allStatuses: WORKFLOW,
+                    workflowOrder: DISTRIBUTION_WORKFLOW,
+                    terminalStatuses: DISTRIBUTION_TERMINAL,
+                    aliases: DISTRIBUTION_ALIASES,
+                  }).map((s) => <option key={s} value={s}>{s}</option>)}
                 </select>
               </label>
               <div className="admin-modal__actions">
@@ -923,9 +991,24 @@ export default function DistributionsPage() {
                 <div className="form-row">
                   <label>
                     Workflow status
-                    <select value={form.status} onChange={(e) => setForm({ ...form, status: e.target.value })}>
-                      {WORKFLOW.map((s) => <option key={s} value={s}>{s}</option>)}
+                    <select
+                      value={form.status}
+                      disabled={editRow && isTerminalStatus(editRow.status, DISTRIBUTION_TERMINAL)}
+                      onChange={(e) => setForm({ ...form, status: e.target.value })}
+                    >
+                      {getAvailableNextStatuses({
+                        currentStatus: editRow ? editRow.status : form.status,
+                        allStatuses: WORKFLOW,
+                        workflowOrder: DISTRIBUTION_WORKFLOW,
+                        terminalStatuses: DISTRIBUTION_TERMINAL,
+                        aliases: DISTRIBUTION_ALIASES,
+                      }).map((s) => <option key={s} value={s}>{s}</option>)}
                     </select>
+                    {editRow && isTerminalStatus(editRow.status, DISTRIBUTION_TERMINAL) && (
+                      <small style={{ display: 'block', color: 'var(--admin-text-muted)', marginTop: '4px' }}>
+                        🔒 Status is finalized and locked.
+                      </small>
+                    )}
                   </label>
                   <label>
                     Proof requirement

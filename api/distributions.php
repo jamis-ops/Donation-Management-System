@@ -232,7 +232,7 @@ if ($method === 'GET') {
     json_response(['ok' => true, 'data' => map_distribution($pdo, $row)]);
   }
 
-  $rows = $pdo->query('SELECT * FROM distributions ORDER BY distribution_date DESC')->fetchAll();
+  $rows = $pdo->query('SELECT * FROM distributions ORDER BY created_at DESC, distribution_date DESC, id DESC')->fetchAll();
   json_response(['ok' => true, 'data' => array_map(fn($r) => map_distribution($pdo, $r), $rows)]);
 }
 
@@ -580,6 +580,16 @@ if ($method === 'PUT') {
       'error' => 'Invalid distribution status. Use: ' . implode(', ', distribution_workflow_steps()),
     ], 400);
   }
+
+  assert_valid_status_transition(
+    'Distribution',
+    (string) ($existing['status'] ?? ''),
+    $newStatus,
+    WORKFLOW_DISTRIBUTION_STEPS,
+    WORKFLOW_DISTRIBUTION_TERMINAL,
+    [],
+    WORKFLOW_DISTRIBUTION_ALIASES
+  );
   $proofStatus = $body['proofStatus'] ?? $existing['proof_status'];
   $allowedProof = ['Not Required', 'Awaiting Proof', 'Proof Submitted', 'Proof Verified', 'Proof Rejected'];
   if (!in_array((string) $proofStatus, $allowedProof, true)) {

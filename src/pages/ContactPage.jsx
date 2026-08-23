@@ -2,11 +2,13 @@ import { useState } from 'react'
 import { foundation } from '../data/mockData'
 import { MapPin, Phone, Mail, Clock, Share2 } from 'lucide-react'
 import { submitContactMessage } from '../api/resources'
+import { useLoading } from '../context/LoadingContext'
 
 const emptyForm = { name: '', email: '', subject: '', message: '' }
 
 export default function ContactPage() {
   const [submitted, setSubmitted] = useState(false)
+  const { showLoading, hideLoading } = useLoading()
   const [trackingCode, setTrackingCode] = useState('')
   const [submitError, setSubmitError] = useState('')
   const [submitting, setSubmitting] = useState(false)
@@ -16,6 +18,7 @@ export default function ContactPage() {
     e.preventDefault()
     setSubmitError('')
     setSubmitting(true)
+    showLoading('Submitting…')
     try {
       const res = await submitContactMessage(form)
       const code = res.trackingCode || res.data?.code
@@ -28,6 +31,7 @@ export default function ContactPage() {
     } catch (err) {
       setSubmitError(err.message || 'Failed to send message')
     } finally {
+      hideLoading()
       setSubmitting(false)
     }
   }

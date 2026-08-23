@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react'
 import { Navigate, useSearchParams } from 'react-router-dom'
-import { ListTodo, Mail, UserCog } from 'lucide-react'
-import { createStaffAccount, getStaff, updateStaff, tasksApi } from '../../api/resources'
+import { ListTodo, Mail, UserCog, Trash2 } from 'lucide-react'
+import { createStaffAccount, getStaff, updateStaff, deleteStaff, tasksApi } from '../../api/resources'
 import { useApiList } from '../../hooks/useApiList'
 import { useFilters } from '../../hooks/useFilters'
 import PageHeader from '../../components/admin/shared/PageHeader'
@@ -14,14 +14,17 @@ import Req from '../../components/shared/Req'
 import PolicyLinks from '../../components/shared/PolicyLinks'
 import { useSeeMore } from '../../hooks/useSeeMore'
 import { SeeMoreToggle } from '../../components/admin/shared/SeeMoreList'
+import PolicyConsentBox from '../../components/shared/PolicyConsentBox'
 import NameFields from '../../components/shared/NameFields'
 import { emptyNameParts, formatFullName } from '../../utils/personName'
 import { notify } from '../../utils/toast'
+import { confirmAction, showSuccessModal } from '../../utils/confirm'
 import { emailError, phoneError } from '../../utils/validation'
 import PhoneInput from '../../components/shared/PhoneInput'
 import { useCatalogOptions } from '../../hooks/useCatalogOptions'
 import { CatalogFieldLabel } from '../../components/admin/shared/CatalogQuickAdd'
 import { TASK_TYPES as FALLBACK_TASK_TYPES } from '../../constants/options'
+import { useLoading } from '../../context/LoadingContext'
 
 const filterConfig = {
   searchKeys: ['id', 'name', 'email', 'firstName', 'lastName'],
@@ -36,6 +39,8 @@ const emptyForm = {
   email: '',
   phone: '',
   role: 'Staff',
+  acceptedTerms: false,
+  acceptedPrivacy: false,
   acceptedPolicies: false,
 }
 
@@ -62,6 +67,7 @@ export default function StaffPage() {
   const filters = useFilters(staffData, filterConfig)
   const { options: taskTypeOptions, applyList: applyTaskTypes } = useCatalogOptions('task_types', FALLBACK_MODULES)
   const [showForm, setShowForm] = useState(false)
+  const { showLoading, hideLoading } = useLoading()
   const [form, setForm] = useState(emptyForm)
   const [saving, setSaving] = useState(false)
   const [selected, setSelected] = useState(null)
@@ -128,7 +134,20 @@ export default function StaffPage() {
       notify.warning(phoneMsg)
       return
     }
+    if (!form.acceptedTerms || !form.acceptedPrivacy) {
+      notify.warning('Please accept both the Terms & Conditions and Data Privacy Policy.')
+      return
+    }
+    const ok = await confirmAction({
+      title: 'Create Staff Account',
+      message: `Create a staff portal account for ${formatFullName(form)} (${form.email}) and email their temporary password?`,
+      confirmText: 'Create & Email Credentials',
+      type: 'primary',
+    })
+    if (!ok) return
+
     setSaving(true)
+    showLoading('Saving…')
     try {
       const res = await createStaffAccount({
         lastName: form.lastName,
@@ -138,7 +157,9 @@ export default function StaffPage() {
         email: form.email,
         phone: form.phone,
         role: 'Staff',
-        acceptedPolicies: form.acceptedPolicies,
+        acceptedTerms: form.acceptedTerms,
+        acceptedPrivacy: form.acceptedPrivacy,
+        acceptedPolicies: true,
       })
       if (!res?.ok && !res?.data) {
         throw new Error(res?.error || 'Failed to create staff account.')
@@ -147,6 +168,7 @@ export default function StaffPage() {
         const msg = res.message || 'Staff account created and credentials emailed successfully.'
         setSuccessMsg(msg)
         notify.success(msg)
+        showSuccessModal('Credentials successfully sent.')
       } else {
         const temp = res?.temporaryPassword
           ? `\n\nTemporary password (share securely): ${res.temporaryPassword}`
@@ -166,6 +188,7 @@ export default function StaffPage() {
             'Share the temporary password securely, or fix mail settings and recreate/resend later.',
           ].filter(Boolean).join('. '),
         )
+        showSuccessModal('Successfully added.')
       }
       setShowForm(false)
       setForm(emptyForm)
@@ -173,6 +196,7 @@ export default function StaffPage() {
     } catch (err) {
       notify.error(err.message)
     } finally {
+      hideLoading()
       setSaving(false)
     }
   }
@@ -186,6 +210,7 @@ export default function StaffPage() {
       return
     }
     setSaving(true)
+    showLoading('Saving…')
     try {
       await updateStaff(selected.dbId, {
         lastName: editForm.lastName,
@@ -197,29 +222,39 @@ export default function StaffPage() {
       })
       setSuccessMsg('Staff profile updated.')
       notify.success('Staff profile updated.')
+      showSuccessModal('Successfully updated.')
       reload()
       setSelected(null)
     } catch (err) {
       notify.error(err.message)
     } finally {
+      hideLoading()
       setSaving(false)
     }
   }
 
-  const toggleStatus = async (row) => {
-    const next = row.status === 'Active' ? 'Inactive' : 'Active'
-    if (!window.confirm(`Set ${row.name} to ${next}?`)) return
+  const handleDelete = async (row) => {
+    const ok = await confirmAction({
+      title: 'Delete Staff Account',
+      message: `Are you sure you want to permanently delete staff account "${row.name}" (${row.email})? This action removes the account from the system and database and cannot be undone.`,
+      confirmText: 'Delete Staff',
+      type: 'danger',
+    })
+    if (!ok) return
+
+    showLoading('Deleting staff…')
     try {
-      const res = await updateStaff(row.dbId, { status: next })
-      const status = res?.data?.status || next
-      notify.success(`Status successfully updated to: ${status}.`)
-      reload()
+      await deleteStaff(row.dbId)
+      notify.success(`Staff account "${row.name}" deleted.`)
+      showSuccessModal('Successfully deleted.')
       if (selected?.dbId === row.dbId) {
-        setSelected({ ...row, status })
-        setEditForm((f) => (f ? { ...f, status } : f))
+        setSelected(null)
       }
+      reload()
     } catch (err) {
-      notify.error(err.message)
+      notify.error(err.message || 'Failed to delete staff account')
+    } finally {
+      hideLoading()
     }
   }
 
@@ -227,6 +262,7 @@ export default function StaffPage() {
     e.preventDefault()
     if (!selected) return
     setSaving(true)
+    showLoading('Saving…')
     try {
       await tasksApi.create({
         title: taskForm.title,
@@ -241,9 +277,11 @@ export default function StaffPage() {
       setTaskForm(emptyTaskForm)
       loadTasks(selected)
       notify.success('Task assigned successfully.')
+      showSuccessModal('Successfully added.')
     } catch (err) {
       notify.error(err.message)
     } finally {
+      hideLoading()
       setSaving(false)
     }
   }
@@ -260,8 +298,8 @@ export default function StaffPage() {
       render: (row) => (
         <div className="table-actions" onClick={(e) => e.stopPropagation()}>
           <button type="button" className="btn btn--sm btn--outline" onClick={() => openStaff(row)}>Manage</button>
-          <button type="button" className="btn btn--sm btn--ghost" onClick={() => toggleStatus(row)}>
-            {row.status === 'Active' ? 'Deactivate' : 'Activate'}
+          <button type="button" className="btn btn--sm btn--danger" onClick={() => handleDelete(row)}>
+            <Trash2 size={14} /> Delete
           </button>
         </div>
       ),
@@ -395,7 +433,14 @@ export default function StaffPage() {
               </p>
             </section>
 
-            <div className="admin-modal__actions">
+            <div className="admin-modal__actions" style={{ justifyContent: 'space-between' }}>
+              <button
+                type="button"
+                className="btn btn--danger"
+                onClick={() => handleDelete(selected)}
+              >
+                <Trash2 size={14} /> Delete Staff Account
+              </button>
               <button type="button" className="btn btn--ghost" onClick={() => setSelected(null)}>Close</button>
             </div>
           </div>
@@ -472,24 +517,22 @@ export default function StaffPage() {
               <p className="field-hint">
                 Creates a <strong>Staff</strong> account. Admin accounts are managed separately under Admin Management (Super Admin only).
               </p>
-              <label className="need-check">
-                <input
-                  type="checkbox"
-                  required
-                  checked={form.acceptedPolicies}
-                  onChange={(e) => setForm({ ...form, acceptedPolicies: e.target.checked })}
-                />
-                <span>
-                  User accepts the{' '}
-                  <PolicyLinks />
-                  <Req required />
-                </span>
-              </label>
-              <p className="field-hint">
-                Temporary login credentials are emailed when the mail service is running. If email delivery fails, the account is still created and the temporary password is shown so you can share it securely.
-              </p>
+
+              <PolicyConsentBox
+                acceptedTerms={form.acceptedTerms}
+                onTermsChange={(acceptedTerms) => setForm({ ...form, acceptedTerms })}
+                acceptedPrivacy={form.acceptedPrivacy}
+                onPrivacyChange={(acceptedPrivacy) => setForm({ ...form, acceptedPrivacy })}
+                entityLabel="Staff member"
+              />
+
               <div className="admin-modal__actions">
-                <button type="submit" className="btn btn--primary" disabled={saving}>
+                <button
+                  type="submit"
+                  className="btn btn--primary"
+                  disabled={saving || !form.acceptedTerms || !form.acceptedPrivacy}
+                  title={!form.acceptedTerms || !form.acceptedPrivacy ? 'Please read and accept both agreements above to create credentials' : ''}
+                >
                   {saving ? 'Creating & emailing…' : 'Create & Email Credentials'}
                 </button>
                 <button type="button" className="btn btn--ghost" onClick={() => setShowForm(false)}>Cancel</button>

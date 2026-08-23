@@ -1,18 +1,26 @@
 import { useEffect, useState } from 'react'
+import { Award, Clock, HeartHandshake, Sparkles } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
-import { apiFetch, uploadProfilePhoto } from '../api/resources'
+import { apiFetch, uploadProfilePhoto, volunteersApi } from '../api/resources'
 import PageHeader from '../components/admin/shared/PageHeader'
 import MasterDataSettings from '../components/admin/shared/MasterDataSettings'
+import MultiSelectBox from '../components/shared/MultiSelectBox'
 import Req from '../components/shared/Req'
+import PasswordRequirements from '../components/shared/PasswordRequirements'
 import { notify } from '../utils/toast'
 import { isSuperAdminRole } from '../utils/roleRoutes'
 import PhoneInput from '../components/shared/PhoneInput'
-import { phoneError } from '../utils/validation'
+import { phoneError, passwordError } from '../utils/validation'
+import { VOLUNTEER_PROGRAMS, VOLUNTEER_SKILLS } from '../constants/options'
+import { useLoading } from '../context/LoadingContext'
 
 export default function AccountSettingsPage() {
   const { user, updateAccount, changePassword, refreshUser } = useAuth()
   const canManageLists = user?.role === 'Admin' || isSuperAdminRole(user?.role, user)
+  const isVolunteer = user?.role === 'Volunteer'
+
   const [name, setName] = useState('')
+  const { showLoading, hideLoading } = useLoading()
   const [phone, setPhone] = useState('')
   const [recoveryPhone, setRecoveryPhone] = useState('')
   const [email, setEmail] = useState('')
@@ -24,6 +32,17 @@ export default function AccountSettingsPage() {
   const [savingProfile, setSavingProfile] = useState(false)
   const [savingPassword, setSavingPassword] = useState(false)
   const [uploadingPhoto, setUploadingPhoto] = useState(false)
+
+  // Volunteer-specific state
+  const [volunteerDbId, setVolunteerDbId] = useState(null)
+  const [volPrograms, setVolPrograms] = useState([])
+  const [volSkills, setVolSkills] = useState([])
+  const [volSkillsOther, setVolSkillsOther] = useState('')
+  const [volAvailability, setVolAvailability] = useState('')
+  const [volHours, setVolHours] = useState(0)
+  const [volRequiredHours, setVolRequiredHours] = useState(0)
+  const [volStatus, setVolStatus] = useState('')
+  const [savingVolDetails, setSavingVolDetails] = useState(false)
 
   useEffect(() => {
     let cancelled = false
@@ -45,8 +64,28 @@ export default function AccountSettingsPage() {
         setRecoveryPhone(user.recoveryPhone || '')
         setPhotoPreview(user.profilePhoto || null)
       })
+
+    if (isVolunteer) {
+      volunteersApi.list()
+        .then((res) => {
+          if (cancelled || !res?.data) return
+          const volData = Array.isArray(res.data) ? res.data[0] : res.data
+          if (volData) {
+            setVolunteerDbId(volData.dbId)
+            setVolPrograms(volData.programs || [])
+            setVolSkills(volData.skills || [])
+            setVolSkillsOther(volData.skillsOther || '')
+            setVolAvailability(volData.availability || '')
+            setVolHours(volData.hours || 0)
+            setVolRequiredHours(volData.requiredHours || 0)
+            setVolStatus(volData.status || 'Active')
+          }
+        })
+        .catch(() => {})
+    }
+
     return () => { cancelled = true }
-  }, [user])
+  }, [user, isVolunteer])
 
   const handleSaveProfile = async (e) => {
     e.preventDefault()
@@ -61,6 +100,7 @@ export default function AccountSettingsPage() {
       return
     }
     setSavingProfile(true)
+    showLoading('Saving profile…')
     try {
       await updateAccount({ name, phone, recoveryPhone })
       notify.success('Profile updated.')
@@ -68,14 +108,16 @@ export default function AccountSettingsPage() {
     } catch (err) {
       notify.error(err.message || 'Failed to update profile')
     } finally {
+      hideLoading()
       setSavingProfile(false)
     }
   }
 
   const handleChangePassword = async (e) => {
     e.preventDefault()
-    if (newPassword.length < 6) {
-      notify.warning('New password must be at least 6 characters.')
+    const pwValidationErr = passwordError(newPassword, { fieldLabel: 'New password' })
+    if (pwValidationErr) {
+      notify.warning(pwValidationErr)
       return
     }
     if (newPassword !== confirmPassword) {
@@ -83,6 +125,7 @@ export default function AccountSettingsPage() {
       return
     }
     setSavingPassword(true)
+    showLoading('Updating password…')
     try {
       await changePassword({ currentPassword, newPassword })
       setCurrentPassword('')
@@ -92,7 +135,32 @@ export default function AccountSettingsPage() {
     } catch (err) {
       notify.error(err.message || 'Failed to change password')
     } finally {
+      hideLoading()
       setSavingPassword(false)
+    }
+  }
+
+  const handleSaveVolunteerDetails = async (e) => {
+    e.preventDefault()
+    if (!volunteerDbId) {
+      notify.error('Volunteer profile not found.')
+      return
+    }
+    setSavingVolDetails(true)
+    showLoading('Saving volunteer details…')
+    try {
+      await volunteersApi.update(volunteerDbId, {
+        programs: volPrograms,
+        skills: volSkills,
+        skillsOther: volSkillsOther,
+        availability: volAvailability,
+      })
+      notify.success('Volunteer programs & skills updated successfully.')
+    } catch (err) {
+      notify.error(err.message || 'Failed to update volunteer details')
+    } finally {
+      hideLoading()
+      setSavingVolDetails(false)
     }
   }
 
@@ -110,6 +178,7 @@ export default function AccountSettingsPage() {
       return
     }
     setUploadingPhoto(true)
+    showLoading('Uploading photo…')
     try {
       const fd = new FormData()
       fd.append('photo', photoFile)
@@ -121,8 +190,9 @@ export default function AccountSettingsPage() {
       notify.success('Profile photo updated.')
       await refreshUser()
     } catch (err) {
-      notify.error(err.message || 'Photo upload failed')
+      notify.error(err.message || 'Failed to upload photo')
     } finally {
+      hideLoading()
       setUploadingPhoto(false)
     }
   }
@@ -133,12 +203,91 @@ export default function AccountSettingsPage() {
         title="Account Settings"
         description={
           canManageLists
-            ? 'Update your profile and manage shared system lists (Barangay types, Needs, Tasks).'
+            ? 'Update your profile and manage shared system lists (Volunteer Programs, Skills, Barangay types, Needs, Tasks).'
+            : isVolunteer
+            ? 'Update your personal profile, preferred programs, skills, availability, and password.'
             : 'Update your profile details, recovery phone, password, and photo.'
         }
       />
 
       {canManageLists && <MasterDataSettings />}
+
+      {isVolunteer && (
+        <section className="portal-panel settings-panel settings-panel--wide volunteer-settings-panel">
+          <div className="portal-panel__header">
+            <div className="volunteer-settings-panel__header-group">
+              <span className="volunteer-settings-panel__icon" aria-hidden="true">
+                <HeartHandshake size={22} />
+              </span>
+              <div>
+                <h2>Volunteer Profile & Skills</h2>
+                <p className="portal-panel__sub">
+                  Select your preferred foundation programs and skills. These are synchronized with the admin catalog and help coordinators match you with relevant activities and relief tasks.
+                </p>
+              </div>
+            </div>
+            {volHours > 0 && (
+              <div className="volunteer-hours-badge">
+                <Clock size={15} />
+                <span>{volHours} verified hrs {volRequiredHours > 0 ? `/ ${volRequiredHours} target` : ''}</span>
+              </div>
+            )}
+          </div>
+
+          <form onSubmit={handleSaveVolunteerDetails} className="volunteer-settings-form">
+            <div className="volunteer-settings-grid">
+              <MultiSelectBox
+                catalog="volunteer_programs"
+                fallback={VOLUNTEER_PROGRAMS}
+                value={volPrograms}
+                onChange={setVolPrograms}
+                label="Preferred Programs"
+                placeholder="Select a volunteer program to add…"
+                icon={HeartHandshake}
+                hint="Choose the foundation outreach programs you are passionate about."
+              />
+
+              <MultiSelectBox
+                catalog="volunteer_skills"
+                fallback={VOLUNTEER_SKILLS}
+                value={volSkills}
+                onChange={setVolSkills}
+                other={volSkillsOther}
+                onOtherChange={setVolSkillsOther}
+                label="Skills & Expertise"
+                placeholder="Select a volunteer skill to add…"
+                showOther={true}
+                otherLabel="Other skills (optional)"
+                otherPlaceholder="e.g. Scuba diving, Licensed electrician, Language translation…"
+                icon={Sparkles}
+                hint="Select skills and certifications you can contribute to volunteer activities."
+              />
+            </div>
+
+            <div className="volunteer-settings-row">
+              <label>
+                Availability
+                <input
+                  type="text"
+                  value={volAvailability}
+                  onChange={(e) => setVolAvailability(e.target.value)}
+                  placeholder="e.g. Weekends, Weekday afternoons, Flexible on-call…"
+                />
+              </label>
+            </div>
+
+            <div className="volunteer-settings-actions">
+              <button
+                type="submit"
+                className="btn btn--primary"
+                disabled={savingVolDetails}
+              >
+                {savingVolDetails ? 'Saving volunteer details…' : 'Save volunteer profile'}
+              </button>
+            </div>
+          </form>
+        </section>
+      )}
 
       <div className="settings-grid">
         <section className="portal-panel settings-panel">
@@ -220,9 +369,10 @@ export default function AccountSettingsPage() {
               <input
                 type="password"
                 required
-                minLength={6}
+                minLength={8}
                 value={newPassword}
                 onChange={(e) => setNewPassword(e.target.value)}
+                placeholder="Min. 8 chars (upper, lower, digit, symbol)"
                 autoComplete="new-password"
               />
             </label>
@@ -231,12 +381,14 @@ export default function AccountSettingsPage() {
               <input
                 type="password"
                 required
-                minLength={6}
+                minLength={8}
                 value={confirmPassword}
                 onChange={(e) => setConfirmPassword(e.target.value)}
+                placeholder="Re-enter new password"
                 autoComplete="new-password"
               />
             </label>
+            <PasswordRequirements password={newPassword} />
             <button type="submit" className="btn btn--primary" disabled={savingPassword}>
               {savingPassword ? 'Updating…' : 'Update password'}
             </button>

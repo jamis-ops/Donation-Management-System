@@ -1,8 +1,22 @@
 import { useState } from 'react'
-import { Building2, ClipboardList, Package } from 'lucide-react'
+import { Building2, ClipboardList, HeartHandshake, Package, Sparkles } from 'lucide-react'
 import CatalogManageModal from './CatalogManageModal'
 
 const SECTIONS = [
+  {
+    key: 'volunteer_programs',
+    title: 'Volunteer Programs',
+    short: 'Disaster Relief, Community Feeding, Education, Medical Missions, and other volunteer programs.',
+    description: 'Managed volunteer programs that volunteers can choose during registration and profile updates.',
+    icon: HeartHandshake,
+  },
+  {
+    key: 'volunteer_skills',
+    title: 'Volunteer Skills',
+    short: 'First Aid, Logistics, Packing, Teaching, Cooking, and other volunteer skill tags.',
+    description: 'Skill tags used for volunteer profiles, task assignments, and manpower matching.',
+    icon: Sparkles,
+  },
   {
     key: 'barangay_types',
     title: 'Type of Barangay',

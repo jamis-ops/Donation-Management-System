@@ -61,7 +61,7 @@ if ($method === 'GET') {
       FROM users u
       JOIN roles r ON r.id = u.role_id
       WHERE r.name IN ('Staff', 'Admin')
-      ORDER BY r.name ASC, u.full_name ASC
+      ORDER BY u.created_at DESC, u.id DESC
     ")->fetchAll();
   } else {
     // Database Admin / Staff: Staff directory only (no Admin accounts).
@@ -70,7 +70,7 @@ if ($method === 'GET') {
       FROM users u
       JOIN roles r ON r.id = u.role_id
       WHERE r.name = 'Staff'
-      ORDER BY u.full_name ASC
+      ORDER BY u.created_at DESC, u.id DESC
     ")->fetchAll();
   }
 
@@ -110,8 +110,10 @@ if ($method === 'POST') {
   if ($name === '') {
     json_response(['ok' => false, 'error' => 'Name is required'], 400);
   }
-  if (empty($body['acceptedPolicies']) && empty($body['termsAccepted'])) {
-    json_response(['ok' => false, 'error' => 'User must accept the Data Privacy Policy and Terms & Conditions'], 400);
+  $hasTerms = !empty($body['acceptedTerms']) || !empty($body['termsAccepted']) || !empty($body['acceptedPolicies']);
+  $hasPrivacy = !empty($body['acceptedPrivacy']) || !empty($body['privacyAccepted']) || !empty($body['acceptedPolicies']);
+  if (!$hasTerms || !$hasPrivacy) {
+    json_response(['ok' => false, 'error' => 'You must accept both the Data Privacy Policy and Terms & Conditions before creating credentials.'], 400);
   }
   if (email_taken($pdo, $email)) {
     json_response(['ok' => false, 'error' => 'An account with this email already exists'], 409);
@@ -257,12 +259,12 @@ if ($method === 'PUT') {
 }
 
 if ($method === 'DELETE') {
-  require_super_admin();
+  $auth = require_auth(['SuperAdmin', 'Admin']);
   if (!$id) {
     json_response(['ok' => false, 'error' => 'Account id is required'], 400);
   }
   $stmt = $pdo->prepare("
-    SELECT u.id, r.name AS role_name
+    SELECT u.id, u.full_name, r.name AS role_name
     FROM users u
     JOIN roles r ON r.id = u.role_id
     WHERE u.id = ? AND r.name IN ('Staff', 'Admin')
@@ -273,8 +275,16 @@ if ($method === 'DELETE') {
   if (!$existing) {
     json_response(['ok' => false, 'error' => 'Account not found'], 404);
   }
+  $existingRole = (string) ($existing['role_name'] ?? 'Staff');
+  if ($existingRole === 'Admin' && !is_super_admin_user($auth)) {
+    json_response(['ok' => false, 'error' => 'Only the Super Admin can delete Admin accounts'], 403);
+  }
+  if ((int) ($auth['id'] ?? 0) === (int) $id) {
+    json_response(['ok' => false, 'error' => 'You cannot delete your own logged-in account'], 400);
+  }
   $pdo->prepare('DELETE FROM users WHERE id = ?')->execute([$id]);
-  json_response(['ok' => true, 'message' => 'Account deleted']);
+  audit_log($pdo, 'delete', 'staff', (string) $id, "Deleted {$existingRole} account: {$existing['full_name']}");
+  json_response(['ok' => true, 'message' => "{$existingRole} account deleted successfully"]);
 }
 
 json_response(['ok' => false, 'error' => 'Method not allowed'], 405);

@@ -2,6 +2,8 @@ import { createBrowserRouter, RouterProvider, Navigate, useSearchParams } from '
 import { useEffect } from 'react'
 import { AuthProvider } from './context/AuthContext'
 import { ToastProvider } from './context/ToastContext'
+import { ConfirmProvider } from './context/ConfirmContext'
+import { LoadingProvider } from './context/LoadingContext'
 import PublicLayout from './components/layout/PublicLayout'
 import AdminLayout from './components/admin/layout/AdminLayout'
 import ProtectedRoute from './components/admin/ProtectedRoute'
@@ -205,7 +207,11 @@ export default function App() {
   return (
     <AuthProvider>
       <ToastProvider>
-        <RouterProvider router={router} />
+        <ConfirmProvider>
+          <LoadingProvider>
+            <RouterProvider router={router} />
+          </LoadingProvider>
+        </ConfirmProvider>
       </ToastProvider>
     </AuthProvider>
   )

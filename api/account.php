@@ -72,8 +72,9 @@ if ($method === 'PUT') {
   if (!empty($body['newPassword']) || !empty($body['changePassword'])) {
     $current = (string) ($body['currentPassword'] ?? '');
     $new = (string) ($body['newPassword'] ?? '');
-    if (strlen($new) < 6) {
-      json_response(['ok' => false, 'error' => 'New password must be at least 6 characters'], 400);
+    $pwErr = validate_password_policy($new, 'New password');
+    if ($pwErr !== null) {
+      json_response(['ok' => false, 'error' => $pwErr], 400);
     }
     $stmt = $pdo->prepare('SELECT password_hash, must_change_password FROM users WHERE id = ? LIMIT 1');
     $stmt->execute([$uid]);

@@ -1,9 +1,11 @@
 import { useEffect, useMemo, useState } from 'react'
 import {
   Clock3, ListTodo, Mail, UserCheck, Pencil, Trash2,
-  CheckCircle2, XCircle, CalendarDays, Briefcase,
+  CheckCircle2, XCircle, CalendarDays, Briefcase, Truck, Users, Plus,
+  FileText, Download, ExternalLink, GraduationCap, Sparkles, RefreshCw,
+  Award, School, Check, Phone, Info, Lock, Unlock, AlertTriangle, Quote, User,
 } from 'lucide-react'
-import { volunteersApi, tasksApi, volunteerMatchApi, distributionsApi } from '../../api/resources'
+import { volunteersApi, tasksApi, volunteerMatchApi, distributionsApi, internAiMatchApi } from '../../api/resources'
 import { useApiList } from '../../hooks/useApiList'
 import { useFilters } from '../../hooks/useFilters'
 import PageHeader from '../../components/admin/shared/PageHeader'
@@ -13,18 +15,18 @@ import ApiState from '../../components/admin/shared/ApiState'
 import FilterBar from '../../components/admin/shared/FilterBar'
 import ModalHeader from '../../components/admin/shared/ModalHeader'
 import Req from '../../components/shared/Req'
-import SkillTagPicker from '../../components/shared/SkillTagPicker'
 import { useSeeMore } from '../../hooks/useSeeMore'
 import { SeeMoreToggle } from '../../components/admin/shared/SeeMoreList'
+import { useBulkSelection } from '../../hooks/useBulkSelection'
 import { notify } from '../../utils/toast'
+import { confirmAction, showSuccessModal } from '../../utils/confirm'
+import { notifyBadgesChanged } from '../../utils/badgeSync'
 import { useCatalogOptions } from '../../hooks/useCatalogOptions'
-import { CatalogFieldLabel } from '../../components/admin/shared/CatalogQuickAdd'
-import { TASK_TYPES as FALLBACK_TASK_TYPES } from '../../constants/options'
-
-const VOLUNTEER_TASK_FALLBACK = ['Volunteer', ...FALLBACK_TASK_TYPES]
+import { VOLUNTEER_PROGRAMS, VOLUNTEER_SKILLS } from '../../constants/options'
+import { useLoading } from '../../context/LoadingContext'
 
 const filterConfig = {
-  searchKeys: ['id', 'name', 'email', 'skills', 'programs'],
+  searchKeys: ['id', 'name', 'email', 'institution', 'skills', 'programs'],
   filters: [
     { key: 'status', label: 'Status' },
     {
@@ -37,19 +39,44 @@ const filterConfig = {
   ],
 }
 
-const emptyTaskForm = {
+const emptyGeneralTaskForm = {
   title: '',
   priority: 'Medium',
   dueDate: '',
   dutyStart: '',
   dutyEnd: '',
   dutyHours: '',
-  module: 'Volunteer',
+  module: '',
   requiredSkills: [],
   distributionId: '',
 }
 
+const emptyDirectTaskForm = {
+  title: '',
+  priority: 'Medium',
+  dueDate: '',
+  dutyStart: '',
+  dutyEnd: '',
+  dutyHours: '',
+  module: '',
+  distributionId: '',
+}
+
 const ACTIVE_DIST_STATUSES = ['Planning', 'Preparing', 'In Transit', 'Scheduled', 'In Progress', 'Pending']
+
+function isDistributionProgram(module, title = '') {
+  const m = String(module || '').toLowerCase()
+  const t = String(title || '').toLowerCase()
+  return (
+    m.includes('distribution') ||
+    m.includes('logistics') ||
+    m.includes('delivery') ||
+    m.includes('relief') ||
+    t.includes('distribution') ||
+    t.includes('delivery') ||
+    t.includes('logistics')
+  )
+}
 
 function ChipList({ items, empty = '—' }) {
   const list = (items || []).filter(Boolean)
@@ -64,36 +91,90 @@ function ChipList({ items, empty = '—' }) {
 }
 
 export default function VolunteersPage() {
-  const { data: volunteers, loading, error, reload } = useApiList(() => volunteersApi.list())
+  const [activeTab, setActiveTab] = useState('Volunteer') // 'Volunteer' | 'Intern'
+  const { showLoading, hideLoading } = useLoading()
+  const { data: allVolunteers, loading, error, reload } = useApiList(() => volunteersApi.list())
   const { data: distributions } = useApiList(() => distributionsApi.list())
-  const filters = useFilters(volunteers, filterConfig)
-  const { options: taskTypeOptions, applyList: applyTaskTypes } = useCatalogOptions(
-    'task_types',
-    VOLUNTEER_TASK_FALLBACK,
+
+  // Tab for Intern View Details modal: 'details' | 'ai_matching' | 'tasks'
+  const [internModalTab, setInternModalTab] = useState('details')
+
+  // Separate volunteers and interns
+  const tabFilteredData = useMemo(() => {
+    const list = allVolunteers || []
+    return list.filter((v) => (v.applicantType || 'Volunteer') === activeTab)
+  }, [allVolunteers, activeTab])
+
+  const filters = useFilters(tabFilteredData, filterConfig)
+  const bulk = useBulkSelection(
+    filters.filtered,
+    (id) => volunteersApi.remove(id),
+    reload,
+    activeTab === 'Intern' ? 'interns' : 'volunteers',
   )
+  
+  const { options: programOptions } = useCatalogOptions(
+    'volunteer_programs',
+    VOLUNTEER_PROGRAMS,
+  )
+  const { options: volunteerSkillOptions } = useCatalogOptions(
+    'volunteer_skills',
+    VOLUNTEER_SKILLS,
+  )
+
   const [selected, setSelected] = useState(null)
   const [tasks, setTasks] = useState([])
   const [tasksLoading, setTasksLoading] = useState(false)
-  const tasksSeeMore = useSeeMore(tasks, 3)
-  const [showTaskForm, setShowTaskForm] = useState(false)
-  const [taskForm, setTaskForm] = useState(emptyTaskForm)
-  const [saving, setSaving] = useState(false)
-  const [hoursForm, setHoursForm] = useState({ hours: 0, requiredHours: 0 })
+  const tasksSeeMore = useSeeMore(tasks, 4)
+
+  // AI Recommendations State (Interns)
+  const [aiRecs, setAiRecs] = useState([])
+  const [aiLoading, setAiLoading] = useState(false)
+  const [aiError, setAiError] = useState(null)
+  const [aiSource, setAiSource] = useState('')
+  const [hasRecommendedPrograms, setHasRecommendedPrograms] = useState(true)
+
+  // 1. General Task Assignment modal state (Outside Manage)
+  const [showGeneralTaskModal, setShowGeneralTaskModal] = useState(false)
+  const [generalTaskForm, setGeneralTaskForm] = useState(emptyGeneralTaskForm)
+  const [generalSelectedVolunteerIds, setGeneralSelectedVolunteerIds] = useState([])
+  const [selectedSkillToAdd, setSelectedSkillToAdd] = useState('')
   const [suggestions, setSuggestions] = useState([])
   const [suggestionsLoading, setSuggestionsLoading] = useState(false)
+
+  // 2. Direct Task Assignment Form state (Inside Manage)
+  const [showDirectTaskModal, setShowDirectTaskModal] = useState(false)
+  const [directTaskForm, setDirectTaskForm] = useState(emptyDirectTaskForm)
+  const [saving, setSaving] = useState(false)
+  const [hoursForm, setHoursForm] = useState({ hours: 0, requiredHours: 0 })
+  const [selectedProgramToEnroll, setSelectedProgramToEnroll] = useState('')
 
   const linkableDistributions = useMemo(
     () => (distributions || []).filter((d) => ACTIVE_DIST_STATUSES.includes(d.status)),
     [distributions],
   )
 
+  const volunteerCount = useMemo(
+    () => (allVolunteers || []).filter((v) => (v.applicantType || 'Volunteer') === 'Volunteer').length,
+    [allVolunteers],
+  )
+  const internCount = useMemo(
+    () => (allVolunteers || []).filter((v) => (v.applicantType || 'Volunteer') === 'Intern').length,
+    [allVolunteers],
+  )
+
   const pendingCount = useMemo(
-    () => (volunteers || []).filter((v) => v.status === 'Pending Review').length,
-    [volunteers],
+    () => tabFilteredData.filter((v) => v.status === 'Pending Review').length,
+    [tabFilteredData],
   )
   const activeCount = useMemo(
-    () => (volunteers || []).filter((v) => ['Approved', 'Active', 'Assigned'].includes(v.status)).length,
-    [volunteers],
+    () => tabFilteredData.filter((v) => ['Approved', 'Active', 'Assigned'].includes(v.status)).length,
+    [tabFilteredData],
+  )
+
+  const activeAssigneesList = useMemo(
+    () => (allVolunteers || []).filter((v) => ['Approved', 'Active', 'Assigned'].includes(v.status)),
+    [allVolunteers],
   )
 
   const loadTasks = async (volunteer) => {
@@ -112,10 +193,45 @@ export default function VolunteersPage() {
     }
   }
 
-  // Keep selected row fresh after reloads, without wiping in-progress hour edits.
+  // Load AI recommendations for Intern (Strict & Evidence-Based)
+  const loadAiRecommendations = async (volRow) => {
+    if (!volRow?.dbId) return
+    setAiLoading(true)
+    showLoading('Analyzing CV…')
+    setAiError(null)
+    try {
+      const res = await internAiMatchApi.getRecommendations(volRow.dbId)
+      if (res?.ok) {
+        if (res.cvExtractionStatus === 'failed' || res.cvExtractionError) {
+          setAiError(res.cvExtractionError || 'CV could not be analyzed')
+          setAiRecs([])
+        } else {
+          setAiRecs(Array.isArray(res.data) ? res.data : [])
+          setAiSource(res.source || 'strict_evidence_ai')
+          setHasRecommendedPrograms(Boolean(res.hasRecommendedPrograms))
+        }
+      } else {
+        setAiError(res?.error || 'CV could not be analyzed')
+        setAiRecs([])
+      }
+    } catch (err) {
+      setAiError(err.message || 'Failed to analyze CV with AI')
+      setAiRecs([])
+    } finally {
+      hideLoading()
+      setAiLoading(false)
+    }
+  }
+
+  // Check if current volunteer is tasked with any distribution
+  const hasDistributionTasks = useMemo(() => {
+    return (tasks || []).some((t) => Boolean(t.distributionId || t.distributionCode))
+  }, [tasks])
+
+  // Keep selected row fresh after reloads
   useEffect(() => {
     if (!selected?.dbId) return
-    const fresh = (volunteers || []).find((v) => Number(v.dbId) === Number(selected.dbId))
+    const fresh = (allVolunteers || []).find((v) => Number(v.dbId) === Number(selected.dbId))
     if (!fresh) {
       setSelected(null)
       return
@@ -124,21 +240,45 @@ export default function VolunteersPage() {
       if (!prev || Number(prev.dbId) !== Number(fresh.dbId)) return prev
       return fresh
     })
-  }, [volunteers]) // eslint-disable-line react-hooks/exhaustive-deps -- only sync when list reloads
+  }, [allVolunteers]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const openVolunteer = (row) => {
     setSelected(row)
+    setInternModalTab('details')
     setHoursForm({ hours: row.hours || 0, requiredHours: row.requiredHours || 0 })
+    setSelectedProgramToEnroll('')
+    setAiRecs([])
+    setAiError(null)
+    setAiSource('')
+    setHasRecommendedPrograms(true)
+    const initialProg = row.programs?.[0] || programOptions[0] || (row.applicantType === 'Intern' ? 'Internship' : 'Volunteer')
+    setDirectTaskForm({ ...emptyDirectTaskForm, module: initialProg })
     loadTasks(row)
+
+    // Auto-fetch AI recommendations for Interns with CV
+    if (row.applicantType === 'Intern') {
+      loadAiRecommendations(row)
+    }
   }
 
   const closeVolunteer = () => {
     setSelected(null)
-    setShowTaskForm(false)
     setSuggestions([])
+    setAiRecs([])
   }
 
   const handleApprove = async (row) => {
+    const isIntern = row.applicantType === 'Intern'
+    const typeLabel = isIntern ? 'Intern' : 'Volunteer'
+    const ok = await confirmAction({
+      title: `Approve ${typeLabel} Application`,
+      message: `Approve application for "${row.name}" and provision their portal account?`,
+      confirmText: `Approve ${typeLabel}`,
+      type: 'primary',
+    })
+    if (!ok) return
+
+    showLoading(`Approving ${typeLabel.toLowerCase()}…`)
     try {
       const res = await volunteersApi.update(row.dbId, { status: 'Approved' })
       const status = res?.data?.status || 'Approved'
@@ -149,53 +289,82 @@ export default function VolunteersPage() {
           notify.warning(
             [
               `Status successfully updated to: ${status}. Account was created.`,
-              res?.temporaryPassword ? `Temporary password (share securely): ${res.temporaryPassword}` : '',
+              res?.temporaryPassword ? `Temporary password: ${res.temporaryPassword}` : '',
               res?.mailError ? `Email note: ${res.mailError}` : 'Credential email was not delivered.',
-              'Tip: run `npm run mail` with a valid Gmail App Password for automatic emails.',
             ].filter(Boolean).join('. '),
           )
         }
-      } else if (res?.mailError) {
-        notify.success(`Status successfully updated to: ${status}.`)
-        notify.warning(`Note: ${res.mailError}`)
       } else {
         notify.success(`Status successfully updated to: ${status}.`)
       }
+      showSuccessModal(`Successfully approved ${typeLabel.toLowerCase()}.`)
       reload()
+      notifyBadgesChanged()
     } catch (err) {
-      notify.error(err.message || 'Failed to approve volunteer')
+      notify.error(err.message || `Failed to approve ${typeLabel.toLowerCase()}`)
+    } finally {
+      hideLoading()
     }
   }
 
   const handleReject = async (row) => {
-    if (!window.confirm(`Reject volunteer application for "${row.name}"?`)) return
+    const isIntern = row.applicantType === 'Intern'
+    const typeLabel = isIntern ? 'Intern' : 'Volunteer'
+    const ok = await confirmAction({
+      title: `Reject ${typeLabel} Application`,
+      message: `Reject application for "${row.name}"? This action is final.`,
+      confirmText: 'Reject Application',
+      type: 'danger',
+    })
+    if (!ok) return
+
+    showLoading(`Rejecting application…`)
     try {
       const res = await volunteersApi.update(row.dbId, { status: 'Rejected' })
       const status = res?.data?.status || 'Rejected'
       notify.success(`Status successfully updated to: ${status}.`)
+      showSuccessModal('Successfully rejected.')
       reload()
+      notifyBadgesChanged()
       if (selected?.dbId === row.dbId) closeVolunteer()
     } catch (err) {
-      notify.error(err.message || 'Failed to reject volunteer')
+      notify.error(err.message || 'Failed to reject application')
+    } finally {
+      hideLoading()
     }
   }
 
   const handleDelete = async (row) => {
-    if (!window.confirm(`Permanently delete volunteer "${row.name}"? This cannot be undone.`)) return
+    const isIntern = row.applicantType === 'Intern'
+    const typeLabel = isIntern ? 'Intern' : 'Volunteer'
+    const ok = await confirmAction({
+      title: `Delete ${typeLabel}`,
+      message: `Permanently delete record for "${row.name}"? This cannot be undone.`,
+      confirmText: `Delete ${typeLabel}`,
+      type: 'danger',
+    })
+    if (!ok) return
+
+    showLoading(`Deleting ${typeLabel.toLowerCase()}…`)
     try {
       await volunteersApi.remove(row.dbId)
-      notify.success('Volunteer deleted.')
+      notify.success(`${typeLabel} deleted.`)
+      showSuccessModal('Successfully deleted.')
       reload()
+      notifyBadgesChanged()
       if (selected?.dbId === row.dbId) closeVolunteer()
     } catch (err) {
-      notify.error(err.message || 'Failed to delete volunteer')
+      notify.error(err.message || `Failed to delete ${typeLabel.toLowerCase()}`)
+    } finally {
+      hideLoading()
     }
   }
 
   const handleSaveHours = async (e) => {
-    e.preventDefault()
+    if (e?.preventDefault) e.preventDefault()
     if (!selected) return
     setSaving(true)
+    showLoading('Saving…')
     try {
       const res = await volunteersApi.update(selected.dbId, {
         hours: Number(hoursForm.hours) || 0,
@@ -207,10 +376,89 @@ export default function VolunteersPage() {
         setSelected(data)
       }
       reload()
-      notify.success('Hours updated.')
+      notify.success('Hours updated successfully.')
+      showSuccessModal('Hours successfully updated.')
     } catch (err) {
       notify.error(err.message)
     } finally {
+      hideLoading()
+      setSaving(false)
+    }
+  }
+
+  // 1-Program Rule: Assign single enrolled program (replaces any previous program and locks it)
+  const handleSetSingleProgram = async (progToEnroll, isOverride = false) => {
+    const targetProgram = typeof progToEnroll === 'string' ? progToEnroll : selectedProgramToEnroll
+    if (!selected || !targetProgram) return
+
+    const isCurrent = (selected.programs || [])[0] === targetProgram
+    if (isCurrent) {
+      notify.info(`Already enrolled in "${targetProgram}".`)
+      return
+    }
+
+    const typeLabel = selected.applicantType === 'Intern' ? 'Intern' : 'Volunteer'
+    const hasExisting = (selected.programs || []).length > 0
+    if (hasExisting) {
+      const ok = await confirmAction({
+        title: `Change Enrolled Program`,
+        message: `Change ${typeLabel.toLowerCase()} program from "${selected.programs[0]}" to "${targetProgram}"? Each ${typeLabel.toLowerCase()} is assigned to exactly one program.`,
+        confirmText: `Set to ${targetProgram}`,
+        type: 'primary',
+      })
+      if (!ok) return
+    } else if (isOverride) {
+      const ok = await confirmAction({
+        title: `Manual Program Assignment`,
+        message: `Assign "${targetProgram}" to ${selected.name}? (Admin Override: AI indicated limited direct evidence in CV).`,
+        confirmText: `Assign to ${targetProgram}`,
+        type: 'primary',
+      })
+      if (!ok) return
+    }
+
+    setSaving(true)
+    showLoading('Saving…')
+    try {
+      const res = await volunteersApi.update(selected.dbId, { programs: [targetProgram] })
+      if (res?.data) {
+        setSelected(res.data)
+        setDirectTaskForm((prev) => ({ ...prev, module: targetProgram }))
+      }
+      setSelectedProgramToEnroll('')
+      reload()
+      notify.success(`Enrolled ${selected.name} in "${targetProgram}".`)
+      showSuccessModal(`Successfully assigned to ${targetProgram}.`)
+    } catch (err) {
+      notify.error(err.message || 'Failed to set program')
+    } finally {
+      hideLoading()
+      setSaving(false)
+    }
+  }
+
+  const handleRemoveSingleProgram = async () => {
+    if (!selected) return
+    const typeLabel = selected.applicantType === 'Intern' ? 'Intern' : 'Volunteer'
+    const ok = await confirmAction({
+      title: `Remove Enrolled Program`,
+      message: `Remove the assigned program for ${selected.name}?`,
+      confirmText: `Remove Program`,
+      type: 'danger',
+    })
+    if (!ok) return
+
+    setSaving(true)
+    showLoading('Saving…')
+    try {
+      const res = await volunteersApi.update(selected.dbId, { programs: [] })
+      if (res?.data) setSelected(res.data)
+      reload()
+      notify.success(`Program removed.`)
+    } catch (err) {
+      notify.error(err.message || 'Failed to remove program')
+    } finally {
+      hideLoading()
       setSaving(false)
     }
   }
@@ -236,48 +484,144 @@ export default function VolunteersPage() {
     }
   }
 
-  const openAssignTask = () => {
-    setTaskForm(emptyTaskForm)
+  // 1. Open General Assign Task modal (Outside Manage)
+  const openGeneralAssignTask = () => {
+    const firstVolId = activeAssigneesList[0]?.dbId ? String(activeAssigneesList[0].dbId) : ''
+    setGeneralSelectedVolunteerIds(firstVolId ? [firstVolId] : [])
+    setGeneralTaskForm({ ...emptyGeneralTaskForm, module: programOptions[0] || 'Volunteer' })
+    setSelectedSkillToAdd('')
     setSuggestions([])
-    setShowTaskForm(true)
+    setShowGeneralTaskModal(true)
   }
 
-  const handleCreateTask = async (e, assigneeVolunteerId = null) => {
+  // 2. Open Direct Assign Task modal (Inside Manage)
+  const openAssignTaskForSelected = () => {
+    if (!selected) return
+    const initialProg = selected.programs?.[0] || programOptions[0] || (selected.applicantType === 'Intern' ? 'Internship' : 'Volunteer')
+    setDirectTaskForm({ ...emptyDirectTaskForm, module: initialProg })
+    setShowDirectTaskModal(true)
+  }
+
+  const handleCreateGeneralTask = async (e) => {
     if (e?.preventDefault) e.preventDefault()
-    if (!selected && !assigneeVolunteerId) return
-    const volunteerId = assigneeVolunteerId || selected.dbId
+    if (!generalSelectedVolunteerIds.length) {
+      notify.error('Please select at least one active member to assign this task to.')
+      return
+    }
+    if (!generalTaskForm.title.trim()) {
+      notify.error('Task title is required.')
+      return
+    }
     setSaving(true)
+    showLoading('Saving…')
     try {
-      const distId = taskForm.distributionId ? Number(taskForm.distributionId) : null
+      const isDist = isDistributionProgram(generalTaskForm.module, generalTaskForm.title)
+      const distId = isDist && generalTaskForm.distributionId ? Number(generalTaskForm.distributionId) : null
       const module = distId
-        ? (taskForm.module && !['Volunteer'].includes(taskForm.module) ? taskForm.module : 'Distribution')
-        : (taskForm.module || 'Volunteer')
+        ? (generalTaskForm.module && !['Volunteer', 'Internship'].includes(generalTaskForm.module) ? generalTaskForm.module : 'Distribution')
+        : (generalTaskForm.module || 'Volunteer')
       await tasksApi.create({
-        title: taskForm.title,
-        priority: taskForm.priority,
-        dueDate: taskForm.dueDate || null,
-        dutyStart: taskForm.dutyStart || null,
-        dutyEnd: taskForm.dutyEnd || null,
-        dutyHours: taskForm.dutyHours !== '' ? Number(taskForm.dutyHours) : null,
+        title: generalTaskForm.title,
+        priority: generalTaskForm.priority,
+        dueDate: generalTaskForm.dueDate || null,
+        dutyStart: generalTaskForm.dutyStart || null,
+        dutyEnd: generalTaskForm.dutyEnd || null,
+        dutyHours: generalTaskForm.dutyHours !== '' ? Number(generalTaskForm.dutyHours) : null,
         module,
-        requiredSkills: taskForm.requiredSkills || [],
-        volunteerId,
+        requiredSkills: generalTaskForm.requiredSkills || [],
+        volunteerIds: generalSelectedVolunteerIds.map(Number),
         distributionId: distId || undefined,
         boardColumn: 'todo',
       })
-      setShowTaskForm(false)
-      setTaskForm(emptyTaskForm)
+      setShowGeneralTaskModal(false)
+      setGeneralTaskForm(emptyGeneralTaskForm)
+      setGeneralSelectedVolunteerIds([])
       setSuggestions([])
       if (selected) loadTasks(selected)
       reload()
-      if (assigneeVolunteerId && selected && assigneeVolunteerId !== selected.dbId) {
-        notify.success('Task assigned to the selected suggested volunteer.')
-      } else {
-        notify.success('Task assigned successfully.')
-      }
+      notifyBadgesChanged()
+      notify.success(
+        generalSelectedVolunteerIds.length === 1
+          ? 'Task created and assigned successfully.'
+          : `Task created and assigned to ${generalSelectedVolunteerIds.length} assignees successfully.`
+      )
+      showSuccessModal('Task successfully created and assigned.')
     } catch (err) {
       notify.error(err.message)
     } finally {
+      hideLoading()
+      setSaving(false)
+    }
+  }
+
+  const handleCreateDirectTask = async (e) => {
+    if (e?.preventDefault) e.preventDefault()
+    if (!selected?.dbId) {
+      notify.error('No record selected.')
+      return
+    }
+    if (!directTaskForm.title.trim()) {
+      notify.error('Task title is required.')
+      return
+    }
+    setSaving(true)
+    showLoading('Saving…')
+    try {
+      const isDist = isDistributionProgram(directTaskForm.module, directTaskForm.title)
+      const distId = isDist && directTaskForm.distributionId ? Number(directTaskForm.distributionId) : null
+      const module = distId
+        ? (directTaskForm.module && !['Volunteer', 'Internship'].includes(directTaskForm.module) ? directTaskForm.module : 'Distribution')
+        : (directTaskForm.module || selected.programs?.[0] || 'Volunteer')
+      await tasksApi.create({
+        title: directTaskForm.title,
+        priority: directTaskForm.priority,
+        dueDate: directTaskForm.dueDate || null,
+        dutyStart: directTaskForm.dutyStart || null,
+        dutyEnd: directTaskForm.dutyEnd || null,
+        dutyHours: directTaskForm.dutyHours !== '' ? Number(directTaskForm.dutyHours) : null,
+        module,
+        volunteerId: Number(selected.dbId),
+        distributionId: distId || undefined,
+        boardColumn: 'todo',
+      })
+      setShowDirectTaskModal(false)
+      setDirectTaskForm({ ...emptyDirectTaskForm, module: selected.programs?.[0] || programOptions[0] || 'Volunteer' })
+      loadTasks(selected)
+      reload()
+      notifyBadgesChanged()
+      notify.success(`Task assigned to ${selected.name} successfully.`)
+      showSuccessModal(`Task successfully assigned to ${selected.name}.`)
+    } catch (err) {
+      notify.error(err.message)
+    } finally {
+      hideLoading()
+      setSaving(false)
+    }
+  }
+
+  const handleAdminCompleteTask = async (task) => {
+    if (!task?.dbId) return
+    const ok = await confirmAction({
+      title: 'Complete Duty Task',
+      message: `Mark task "${task.title}" as completed for ${selected.name}? This will verify duty hours and credit them to the profile record.`,
+      confirmText: 'Mark Completed',
+      type: 'primary',
+    })
+    if (!ok) return
+
+    setSaving(true)
+    showLoading('Saving…')
+    try {
+      await tasksApi.update(task.dbId, { boardColumn: 'done', status: 'Completed' })
+      notify.success(`Task "${task.title}" marked as completed.`)
+      showSuccessModal('Task successfully completed.')
+      if (selected) loadTasks(selected)
+      reload()
+      notifyBadgesChanged()
+    } catch (err) {
+      notify.error(err.message || 'Failed to complete task')
+    } finally {
+      hideLoading()
       setSaving(false)
     }
   }
@@ -287,7 +631,18 @@ export default function VolunteersPage() {
     return Math.max(0, (Number(hoursForm.requiredHours) || 0) - (Number(hoursForm.hours) || 0))
   }, [selected, hoursForm])
 
-  const columns = [
+  // Single enrolled program for currently selected
+  const singleEnrolledProgram = useMemo(() => {
+    return (selected?.programs || [])[0] || null
+  }, [selected])
+
+  // Check if any recommendation is suitable
+  const hasMatchedSuitableProgram = useMemo(() => {
+    return aiRecs.some((r) => Boolean(r.isRecommended) || (Number(r.matchPercentage) || 0) >= 55)
+  }, [aiRecs])
+
+  // Table columns for Volunteers: NO Hours column, NO CV badge
+  const volunteerColumns = [
     { key: 'id', label: 'ID' },
     {
       key: 'name',
@@ -295,25 +650,99 @@ export default function VolunteersPage() {
       render: (row) => (
         <div className="volunteer-cell-primary">
           <strong>{row.name}</strong>
-          <span>{row.email || 'No email'}</span>
+          <span className="volunteer-cell-sub">{row.email || 'No email'}</span>
         </div>
       ),
     },
     {
       key: 'programs',
-      label: 'Programs',
+      label: 'Enrolled Program',
       render: (row) => (
         <span className="volunteer-table-clip">
-          {(row.programs || []).slice(0, 2).join(', ') || '—'}
-          {(row.programs || []).length > 2 ? ` +${row.programs.length - 2}` : ''}
+          {(row.programs || [])[0] || '—'}
+        </span>
+      ),
+    },
+    { key: 'status', label: 'Status', render: (row) => <StatusBadge status={row.status} /> },
+    {
+      key: 'assignedTasks',
+      label: 'Tasks',
+      render: (row) => (
+        <span title={`${row.openTasks || 0} open`}>
+          {row.assignedTasks || 0}
+          {row.openTasks ? <small className="volunteer-open-tasks"> · {row.openTasks} open</small> : null}
+        </span>
+      ),
+    },
+    {
+      key: 'actions',
+      label: 'Actions',
+      render: (row) => (
+        <div className="table-actions">
+          <button
+            type="button"
+            className="btn btn--sm btn--outline"
+            onClick={(e) => { e.stopPropagation(); openVolunteer(row) }}
+          >
+            <Pencil size={13} /> Manage
+          </button>
+          {row.status === 'Pending Review' && (
+            <button
+              type="button"
+              className="btn btn--sm btn--primary"
+              onClick={(e) => { e.stopPropagation(); handleApprove(row) }}
+            >
+              Approve
+            </button>
+          )}
+        </div>
+      ),
+    },
+  ]
+
+  // Table columns for Interns: Has CV badge, School, and Hours tracking
+  const internColumns = [
+    { key: 'id', label: 'ID' },
+    {
+      key: 'name',
+      label: 'Intern Applicant',
+      render: (row) => (
+        <div className="volunteer-cell-primary">
+          <strong>{row.name}</strong>
+          <span className="volunteer-cell-sub">
+            {row.email || 'No email'}
+            {row.hasResume ? (
+              <span className="volunteer-cv-pill" title="CV/Resume document attached">
+                <FileText size={11} aria-hidden /> CV
+              </span>
+            ) : null}
+          </span>
+        </div>
+      ),
+    },
+    {
+      key: 'institution',
+      label: 'School / Institution',
+      render: (row) => (
+        <span style={{ fontSize: '0.84rem', color: '#334155' }}>
+          {row.institution || '—'}
+        </span>
+      ),
+    },
+    {
+      key: 'programs',
+      label: 'Enrolled Program',
+      render: (row) => (
+        <span className="volunteer-table-clip">
+          {(row.programs || [])[0] || '—'}
         </span>
       ),
     },
     { key: 'status', label: 'Status', render: (row) => <StatusBadge status={row.status} /> },
     {
       key: 'hours',
-      label: 'Hours',
-      render: (row) => `${row.hours || 0} / ${row.requiredHours || 0}`,
+      label: 'Duty Hours',
+      render: (row) => `${row.hours || 0} / ${row.requiredHours || 0} hrs`,
     },
     {
       key: 'assignedTasks',
@@ -351,49 +780,114 @@ export default function VolunteersPage() {
     },
   ]
 
+  const activeColumns = activeTab === 'Intern' ? internColumns : volunteerColumns
+
   return (
     <>
       <PageHeader
-        title="Volunteer Management"
-        description="Review applications, track required vs rendered hours, and assign duty tasks."
+        title={activeTab === 'Intern' ? 'Intern Management' : 'Volunteer Management'}
+        description={
+          activeTab === 'Intern'
+            ? 'Review student internship applications, examine evidence-based AI CV matching, track duty hours, and assign tasks.'
+            : 'Review community volunteer applications, manage single program placement, and assign field and outreach tasks.'
+        }
+        actions={
+          <button
+            type="button"
+            className="btn btn--primary"
+            onClick={openGeneralAssignTask}
+          >
+            + Assign Task
+          </button>
+        }
       />
+
+      {/* Main Tab Switcher */}
+      <div className="admin-applicant-tabs" role="tablist">
+        <button
+          type="button"
+          role="tab"
+          aria-selected={activeTab === 'Volunteer'}
+          className={`admin-applicant-tab ${activeTab === 'Volunteer' ? 'admin-applicant-tab--active' : ''}`}
+          onClick={() => {
+            setActiveTab('Volunteer')
+            bulk.setSelectedIds([])
+          }}
+        >
+          <Users size={16} />
+          <span>Volunteers</span>
+          <span className="admin-applicant-tab__count">{volunteerCount}</span>
+        </button>
+
+        <button
+          type="button"
+          role="tab"
+          aria-selected={activeTab === 'Intern'}
+          className={`admin-applicant-tab ${activeTab === 'Intern' ? 'admin-applicant-tab--active' : ''}`}
+          onClick={() => {
+            setActiveTab('Intern')
+            bulk.setSelectedIds([])
+          }}
+        >
+          <GraduationCap size={16} />
+          <span>Interns</span>
+          <span className="admin-applicant-tab__count">{internCount}</span>
+        </button>
+      </div>
 
       <div className="volunteer-stats">
         <div className="volunteer-stat">
-          <strong>{(volunteers || []).length}</strong>
-          <span>Total volunteers</span>
+          <strong>{tabFilteredData.length}</strong>
+          <span>Total {activeTab === 'Intern' ? 'Interns' : 'Volunteers'}</span>
         </div>
         <div className="volunteer-stat">
           <strong>{pendingCount}</strong>
-          <span>Pending review</span>
+          <span>Pending Review</span>
         </div>
         <div className="volunteer-stat">
           <strong>{activeCount}</strong>
-          <span>Approved / active</span>
+          <span>Approved / Active</span>
         </div>
       </div>
 
       <FilterBar
         controller={filters}
-        searchPlaceholder="Search by ID, name, email, skill, or program..."
-        exportConfig={{ filename: 'volunteer-report', title: 'Volunteer Report', columns, rows: filters.filtered }}
+        searchPlaceholder={
+          activeTab === 'Intern'
+            ? 'Search by ID, name, email, school, skill, or program...'
+            : 'Search by ID, name, email, skill, or program...'
+        }
+        exportConfig={{
+          filename: `${activeTab.toLowerCase()}-report`,
+          title: `${activeTab} Report`,
+          columns: activeColumns,
+          rows: filters.filtered,
+        }}
       />
+
       <ApiState loading={loading} error={error} onRetry={reload}>
         <DataTable
-          columns={columns}
+          columns={activeColumns}
           data={filters.filtered}
           onRowClick={openVolunteer}
           pageSize={10}
-          resetKey={`${filters.search}|${JSON.stringify(filters.values)}`}
+          resetKey={`${activeTab}|${filters.search}|${JSON.stringify(filters.values)}`}
+          selectable
+          selectedIds={bulk.selectedIds}
+          onSelectionChange={bulk.setSelectedIds}
+          onBulkDelete={bulk.handleBulkDelete}
+          deleting={bulk.deleting}
+          bulkDeleteLabel="Delete Selected"
         />
       </ApiState>
 
+      {/* Volunteer / Intern Manage Modal */}
       {selected && (
         <div className="admin-modal-overlay" onClick={closeVolunteer}>
           <div className="admin-modal admin-modal--xl volunteer-manage-modal" onClick={(e) => e.stopPropagation()}>
             <ModalHeader
-              title={selected.name}
-              subtitle={`${selected.id} · ${selected.email || 'No email'}`}
+              title={`${selected.name}`}
+              subtitle={`${selected.applicantType === 'Intern' ? 'Intern' : 'Volunteer'} · ${selected.id} · ${selected.email || 'No email'}${selected.institution ? ` · ${selected.institution}` : ''}`}
               onClose={closeVolunteer}
             />
 
@@ -401,11 +895,33 @@ export default function VolunteersPage() {
               <header className="volunteer-detail__hero">
                 <div className="volunteer-detail__hero-main">
                   <div className="volunteer-detail__meta">
+                    <span className="volunteer-type-badge">
+                      {selected.applicantType === 'Intern' ? (
+                        <><GraduationCap size={13} /> Intern</>
+                      ) : (
+                        <><Users size={13} /> Volunteer</>
+                      )}
+                    </span>
+                    {selected.institution ? (
+                      <span><School size={14} aria-hidden /> {selected.institution}</span>
+                    ) : null}
                     <span><Mail size={14} aria-hidden /> {selected.email || '—'}</span>
-                    <span><Briefcase size={14} aria-hidden /> {(selected.programs || []).length || 0} programs</span>
+                    {singleEnrolledProgram ? (
+                      <span><Briefcase size={14} aria-hidden /> {singleEnrolledProgram}</span>
+                    ) : null}
                     <span><ListTodo size={14} aria-hidden /> {selected.assignedTasks || tasks.length} tasks</span>
                     {selected.availability ? (
                       <span><CalendarDays size={14} aria-hidden /> {selected.availability}</span>
+                    ) : null}
+                    {selected.hasResume && selected.applicantType === 'Intern' ? (
+                      <span className="volunteer-detail__cv-tag">
+                        <FileText size={14} aria-hidden /> CV Attached
+                      </span>
+                    ) : null}
+                    {hasDistributionTasks ? (
+                      <span style={{ color: 'var(--admin-brand, #0f766e)', fontWeight: 600 }}>
+                        <Truck size={14} aria-hidden /> Distribution Tasked
+                      </span>
                     ) : null}
                   </div>
                 </div>
@@ -415,132 +931,981 @@ export default function VolunteersPage() {
                 </div>
               </header>
 
-              <div className="volunteer-hours-summary">
-                <div className="volunteer-hours-card">
-                  <Clock3 size={16} aria-hidden />
-                  <div>
-                    <strong>{hoursForm.hours || 0}</strong>
-                    <span>Rendered hours</span>
-                  </div>
-                </div>
-                <div className="volunteer-hours-card">
-                  <ListTodo size={16} aria-hidden />
-                  <div>
-                    <strong>{hoursForm.requiredHours || 0}</strong>
-                    <span>Required hours</span>
-                  </div>
-                </div>
-                <div className="volunteer-hours-card volunteer-hours-card--accent">
-                  <UserCheck size={16} aria-hidden />
-                  <div>
-                    <strong>{remaining}</strong>
-                    <span>Remaining hours</span>
-                  </div>
-                </div>
-              </div>
-
-              <div className="volunteer-detail__grid">
-                <section className="volunteer-detail__card">
-                  <h4>Profile</h4>
-                  <dl className="volunteer-detail__list">
-                    <div>
-                      <dt>Programs</dt>
-                      <dd><ChipList items={selected.programs} empty="No programs listed" /></dd>
-                    </div>
-                    <div>
-                      <dt>Skills</dt>
-                      <dd>
-                        <ChipList items={selected.skills} empty="No skills listed" />
-                        {selected.skillsOther ? (
-                          <p className="volunteer-detail__note">Other: {selected.skillsOther}</p>
-                        ) : null}
-                      </dd>
-                    </div>
-                    <div>
-                      <dt>Availability</dt>
-                      <dd>{selected.availability || '—'}</dd>
-                    </div>
-                  </dl>
-                </section>
-
-                <section className="volunteer-detail__card">
-                  <h4>Hours tracking</h4>
-                  <form className="volunteer-hours-form" onSubmit={handleSaveHours}>
-                    <label>
-                      Rendered hours
-                      <input
-                        type="number"
-                        min="0"
-                        step="0.25"
-                        value={hoursForm.hours}
-                        onChange={(e) => setHoursForm({ ...hoursForm, hours: e.target.value })}
-                      />
-                    </label>
-                    <label>
-                      Required hours
-                      <input
-                        type="number"
-                        min="0"
-                        step="0.25"
-                        value={hoursForm.requiredHours}
-                        onChange={(e) => setHoursForm({ ...hoursForm, requiredHours: e.target.value })}
-                      />
-                    </label>
-                    <button type="submit" className="btn btn--sm btn--primary" disabled={saving}>
-                      {saving ? 'Saving…' : 'Save hours'}
+              {/* ==============================================================
+                  INTERN MODAL: 3 CLEAN TABS (Details, AI CV Matching, Assign Task)
+                  ============================================================== */}
+              {selected.applicantType === 'Intern' ? (
+                <>
+                  {/* Modal Tab Selector */}
+                  <div className="intern-modal-tabs" role="tablist" aria-label="Intern View Tabs">
+                    <button
+                      type="button"
+                      role="tab"
+                      aria-selected={internModalTab === 'details'}
+                      className={`intern-modal-tab ${internModalTab === 'details' ? 'intern-modal-tab--active' : ''}`}
+                      onClick={() => setInternModalTab('details')}
+                    >
+                      <Info size={15} />
+                      <span>Details</span>
                     </button>
-                  </form>
-                </section>
 
-                <section className="volunteer-detail__card volunteer-detail__card--wide">
-                  <div className="volunteer-panel-section__head">
-                    <h4>Assigned tasks</h4>
-                    <button type="button" className="btn btn--sm btn--primary" onClick={openAssignTask}>
-                      + Assign task
+                    <button
+                      type="button"
+                      role="tab"
+                      aria-selected={internModalTab === 'ai_matching'}
+                      className={`intern-modal-tab ${internModalTab === 'ai_matching' ? 'intern-modal-tab--active' : ''}`}
+                      onClick={() => setInternModalTab('ai_matching')}
+                    >
+                      <Sparkles size={15} className="ai-sparkle-icon" />
+                      <span>AI CV Matching</span>
+                      {singleEnrolledProgram ? (
+                        <span className="intern-modal-tab__badge" title={`Enrolled in ${singleEnrolledProgram}`}>
+                          <Lock size={10} />
+                        </span>
+                      ) : !hasMatchedSuitableProgram && aiRecs.length > 0 ? (
+                        <span className="intern-modal-tab__badge intern-modal-tab__badge--alert" title="No matching program found in CV">
+                          !
+                        </span>
+                      ) : null}
+                    </button>
+
+                    <button
+                      type="button"
+                      role="tab"
+                      aria-selected={internModalTab === 'tasks'}
+                      className={`intern-modal-tab ${internModalTab === 'tasks' ? 'intern-modal-tab--active' : ''}`}
+                      onClick={() => setInternModalTab('tasks')}
+                    >
+                      <ListTodo size={15} />
+                      <span>Assign Task</span>
+                      <span className="intern-modal-tab__badge">{tasks.length}</span>
                     </button>
                   </div>
-                  {tasksLoading ? (
-                    <p className="beneficiary-view-empty">Loading tasks…</p>
-                  ) : tasks.length === 0 ? (
-                    <p className="beneficiary-view-empty">No tasks assigned to this volunteer yet.</p>
-                  ) : (
-                    <div className="see-more-wrap">
-                      <div className="volunteer-task-list">
-                        {tasksSeeMore.visible.map((t) => (
-                          <article key={t.dbId || t.id} className="volunteer-task-card">
-                            <div className="volunteer-task-card__top">
-                              <strong>{t.title}</strong>
-                              <StatusBadge status={t.status || t.boardColumn} />
+
+                  {/* TAB 1: DETAILS ONLY (Personal & Academic Info, Resume, Program) */}
+                  {internModalTab === 'details' && (
+                    <div className="volunteer-detail__two-col intern-tab-pane">
+                      {/* Left Column: Profile & Academic Info */}
+                      <div className="volunteer-detail__col">
+                        <section className="volunteer-detail__card volunteer-detail__card--fullheight">
+                          <h4>
+                            <Info size={15} aria-hidden /> Intern Profile & Academic Info
+                          </h4>
+                          <dl className="volunteer-detail__list">
+                            <div>
+                              <dt>Full Name</dt>
+                              <dd><strong>{selected.name}</strong></dd>
                             </div>
-                            <div className="volunteer-task-card__meta">
-                              <span>Priority: {t.priority}</span>
-                              <span>Due: {t.due || '—'}</span>
-                              {t.dutyLabel ? <span>Duty: {t.dutyLabel}</span> : null}
-                              {t.distributionCode ? (
-                                <span>
-                                  Distribution: {t.distributionCode}
-                                  {t.distributionStatus ? ` · ${t.distributionStatus}` : ''}
-                                </span>
-                              ) : null}
-                              {(t.requiredSkills || []).length ? (
-                                <span>Skills: {(t.requiredSkills || []).join(', ')}</span>
-                              ) : null}
-                              {t.completedAtLabel ? <span>Completed: {t.completedAtLabel}</span> : null}
+                            <div>
+                              <dt>School / University / Institution</dt>
+                              <dd>
+                                <strong style={{ color: '#0f172a' }}>
+                                  {selected.institution || 'Not specified'}
+                                </strong>
+                              </dd>
                             </div>
-                          </article>
-                        ))}
+                            <div className="volunteer-detail__list-row">
+                              <div>
+                                <dt>Email Address</dt>
+                                <dd style={{ wordBreak: 'break-word' }}>{selected.email || '—'}</dd>
+                              </div>
+                              <div>
+                                <dt>Phone Number</dt>
+                                <dd>{selected.phone || '—'}</dd>
+                              </div>
+                            </div>
+                            <div className="volunteer-detail__list-row">
+                              <div>
+                                <dt>Availability & Schedule</dt>
+                                <dd>{selected.availability || '—'}</dd>
+                              </div>
+                              <div>
+                                <dt>Application Status</dt>
+                                <dd><StatusBadge status={selected.status} /></dd>
+                              </div>
+                            </div>
+                          </dl>
+                        </section>
                       </div>
-                      {tasksSeeMore.needsToggle && (
-                        <SeeMoreToggle
-                          expanded={tasksSeeMore.expanded}
-                          onToggle={tasksSeeMore.toggle}
-                          hiddenCount={tasksSeeMore.hiddenCount}
-                        />
-                      )}
+
+                      {/* Right Column: CV Document & Program Enrollment */}
+                      <div className="volunteer-detail__col">
+                        {/* Uploaded CV Document Card */}
+                        <section className="volunteer-detail__card">
+                          <h4>
+                            <FileText size={15} aria-hidden /> Uploaded CV / Resume
+                          </h4>
+                          {selected.hasResume ? (
+                            <div className="admin-resume-card">
+                              <div className="admin-resume-card__preview">
+                                <div className="admin-resume-card__icon-wrap">
+                                  <FileText size={22} aria-hidden />
+                                </div>
+                                <div className="admin-resume-card__info">
+                                  <strong className="admin-resume-card__title" title={selected.resumeFileName || 'Intern_Resume.pdf'}>
+                                    {selected.resumeFileName || 'Intern_Resume.pdf'}
+                                  </strong>
+                                  <div className="admin-resume-card__meta-row">
+                                    <span className="admin-resume-card__meta">
+                                      {selected.resumeFileType || 'PDF'}
+                                      {selected.resumeFileSize ? ` · ${(selected.resumeFileSize / (1024 * 1024)).toFixed(1)} MB` : ''}
+                                    </span>
+                                    <span className="admin-resume-card__status-pill">
+                                      <CheckCircle2 size={11} aria-hidden /> Attached
+                                    </span>
+                                  </div>
+                                </div>
+                              </div>
+                              <div className="admin-resume-card__actions">
+                                <a
+                                  href={selected.resumeUrl}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  className="btn btn--sm btn--primary admin-resume-card__btn"
+                                >
+                                  <ExternalLink size={13} aria-hidden /> View CV
+                                </a>
+                                <a
+                                  href={`${selected.resumeUrl}&download=${encodeURIComponent(selected.resumeFileName || 'intern-resume.pdf')}`}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  download={selected.resumeFileName || 'intern-resume.pdf'}
+                                  className="btn btn--sm btn--outline admin-resume-card__btn"
+                                >
+                                  <Download size={13} aria-hidden /> Download
+                                </a>
+                              </div>
+                            </div>
+                          ) : (
+                            <div className="admin-resume-empty">
+                              <FileText size={20} className="admin-resume-empty__icon" aria-hidden />
+                              <span>No CV / Resume document attached.</span>
+                            </div>
+                          )}
+                        </section>
+
+                        {/* Program Enrollment Status Card */}
+                        <section className="volunteer-detail__card">
+                          <h4>
+                            <Briefcase size={15} aria-hidden /> Program Enrollment (1 per Intern)
+                          </h4>
+                          {singleEnrolledProgram ? (
+                            <div className="volunteer-program-enrolled-box">
+                              <div className="volunteer-program-enrolled-info">
+                                <span className="volunteer-program-label">Currently Enrolled:</span>
+                                <div className="volunteer-program-name-wrap">
+                                  <strong>{singleEnrolledProgram}</strong>
+                                  <span className="volunteer-program-lock-pill">
+                                    <Lock size={10} /> Locked
+                                  </span>
+                                </div>
+                              </div>
+                              <button
+                                type="button"
+                                className="btn btn--sm btn--outline"
+                                onClick={handleRemoveSingleProgram}
+                                disabled={saving}
+                              >
+                                <Unlock size={12} /> Change / Remove
+                              </button>
+                            </div>
+                          ) : (
+                            <div className="volunteer-program-unassigned">
+                              <p className="volunteer-program-hint">
+                                No program enrolled yet. Select one via AI Matching tab or below.
+                              </p>
+                              <button
+                                type="button"
+                                className="btn btn--sm btn--primary"
+                                onClick={() => setInternModalTab('ai_matching')}
+                                style={{ alignSelf: 'flex-start', display: 'inline-flex', alignItems: 'center', gap: '0.4rem' }}
+                              >
+                                <Sparkles size={13} /> Open AI CV Matching
+                              </button>
+                            </div>
+                          )}
+                        </section>
+                      </div>
                     </div>
                   )}
-                </section>
-              </div>
+
+                  {/* TAB 2: AI CV MATCHING (Strict & Evidence-Based) */}
+                  {internModalTab === 'ai_matching' && (
+                    <div className="intern-tab-pane">
+                      {/* 1. Uploaded CV Document Card */}
+                      <section className="volunteer-detail__card volunteer-detail__card--wide" style={{ marginBottom: '1.25rem' }}>
+                        <h4>
+                          <FileText size={16} aria-hidden /> Uploaded CV / Resume Document
+                        </h4>
+                        {selected.hasResume ? (
+                          <div className="admin-resume-card">
+                            <div className="admin-resume-card__preview">
+                              <div className="admin-resume-card__icon-wrap">
+                                <FileText size={22} aria-hidden />
+                              </div>
+                              <div className="admin-resume-card__info">
+                                <strong className="admin-resume-card__title" title={selected.resumeFileName || 'Intern_Resume.pdf'}>
+                                  {selected.resumeFileName || 'Intern_Resume.pdf'}
+                                </strong>
+                                <div className="admin-resume-card__meta-row">
+                                  <span className="admin-resume-card__meta">
+                                    {selected.resumeFileType || 'PDF'}
+                                    {selected.resumeFileSize ? ` · ${(selected.resumeFileSize / (1024 * 1024)).toFixed(1)} MB` : ''}
+                                  </span>
+                                  <span className="admin-resume-card__status-pill">
+                                    <CheckCircle2 size={11} aria-hidden /> Attached
+                                  </span>
+                                </div>
+                              </div>
+                            </div>
+                            <div className="admin-resume-card__actions">
+                              <a
+                                href={selected.resumeUrl}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="btn btn--sm btn--primary admin-resume-card__btn"
+                              >
+                                <ExternalLink size={13} aria-hidden /> View CV / Resume
+                              </a>
+                              <a
+                                href={`${selected.resumeUrl}&download=${encodeURIComponent(selected.resumeFileName || 'intern-resume.pdf')}`}
+                                target="_blank"
+                                rel="noreferrer"
+                                download={selected.resumeFileName || 'intern-resume.pdf'}
+                                className="btn btn--sm btn--outline admin-resume-card__btn"
+                              >
+                                <Download size={13} aria-hidden /> Download File
+                              </a>
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="admin-resume-empty">
+                            <FileText size={20} className="admin-resume-empty__icon" aria-hidden />
+                            <span>No CV / Resume document was found for this intern record.</span>
+                          </div>
+                        )}
+                      </section>
+
+                      {/* 2. Enrolled Program Status Banner */}
+                      <section className="volunteer-detail__card volunteer-detail__card--wide" style={{ marginBottom: '1.25rem', background: singleEnrolledProgram ? '#f0fdf4' : '#fffbeb', border: singleEnrolledProgram ? '1.5px solid #86efac' : '1.5px solid #fde68a' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '0.75rem' }}>
+                          <div>
+                            <span style={{ fontSize: '0.75rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: singleEnrolledProgram ? '#166534' : '#92400e' }}>
+                              Enrolled Program Status (1 Program per Intern)
+                            </span>
+                            <div style={{ marginTop: '0.2rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                              {singleEnrolledProgram ? (
+                                <>
+                                  <strong style={{ fontSize: '1.05rem', color: '#14532d' }}>{singleEnrolledProgram}</strong>
+                                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.25rem', padding: '0.15rem 0.5rem', background: '#dcfce7', color: '#15803d', borderRadius: '999px', fontSize: '0.72rem', fontWeight: 700 }}>
+                                    <Lock size={11} /> Locked
+                                  </span>
+                                </>
+                              ) : (
+                                <span style={{ color: '#78350f', fontSize: '0.92rem' }}>
+                                  No program enrolled yet. Select a recommended program below.
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                          {singleEnrolledProgram && (
+                            <button
+                              type="button"
+                              className="btn btn--sm btn--outline"
+                              onClick={handleRemoveSingleProgram}
+                              disabled={saving}
+                              style={{ fontSize: '0.78rem' }}
+                            >
+                              <Unlock size={13} /> Change / Remove Program
+                            </button>
+                          )}
+                        </div>
+                      </section>
+
+                      {/* 3. Strict Evidence-Based AI Analysis Header & Warning Banner */}
+                      <section className="volunteer-detail__card volunteer-detail__card--wide ai-recs-section">
+                        <div className="ai-recs-header">
+                          <div className="ai-recs-header__title">
+                            <Sparkles size={20} className="ai-sparkle-icon" />
+                            <div>
+                              <h4>Strict Evidence-Based AI CV Matching</h4>
+                              <p>
+                                Only matches programs when qualifications, education, and skills are explicitly verified in the CV. Does not assume unstated credentials.
+                              </p>
+                            </div>
+                          </div>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                            {aiSource ? (
+                              <span className="ai-source-badge">
+                                {aiSource === 'gemini_strict_ai' ? 'Google Gemini AI (Strict Evidence)' : 'Strict Evidence AI'}
+                              </span>
+                            ) : null}
+                            <button
+                              type="button"
+                              className="btn btn--sm btn--outline"
+                              onClick={() => loadAiRecommendations(selected)}
+                              disabled={aiLoading}
+                            >
+                              <RefreshCw size={13} className={aiLoading ? 'spin' : ''} />
+                              {aiLoading ? 'Analyzing…' : 'Re-analyze CV'}
+                            </button>
+                          </div>
+                        </div>
+
+                        {/* CV Analysis Error Banner */}
+                        {aiError && !aiLoading && (
+                          <div className="ai-error-banner">
+                            <AlertTriangle size={24} className="ai-error-banner__icon" />
+                            <div>
+                              <strong>CV could not be analyzed</strong>
+                              <p>{aiError}. The AI matching engine requires searchable, verifiable text to generate accurate recommendations.</p>
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Banner if No Suitable Program is Found */}
+                        {!aiLoading && !aiError && aiRecs.length > 0 && !hasMatchedSuitableProgram && (
+                          <div className="ai-no-match-banner">
+                            <div className="ai-no-match-banner__icon">
+                              <AlertTriangle size={24} />
+                            </div>
+                            <div className="ai-no-match-banner__content">
+                              <strong>No Suitable Program Found in CV</strong>
+                              <p>
+                                The AI evaluated the uploaded CV and found insufficient verifiable evidence matching the core requirements of any available foundation program. No program has been assigned automatically. Admin retains the authority to review the CV or manually select a program below if desired.
+                              </p>
+                            </div>
+                          </div>
+                        )}
+
+                        {aiLoading ? (
+                          <div className="ai-loading-box">
+                            <Sparkles size={26} className="ai-sparkle-icon spin" />
+                            <strong>Analyzing CV credentials with strict evidence matching…</strong>
+                            <span>Extracting authentic document text, verifying credentials, and checking program requirements</span>
+                          </div>
+                        ) : aiRecs.length === 0 && !aiError ? (
+                          <div className="ai-empty-box">
+                            <Sparkles size={24} style={{ color: '#94a3b8', marginBottom: '0.5rem' }} />
+                            <p>Click "Re-analyze CV" to evaluate this intern against all available programs.</p>
+                          </div>
+                        ) : (
+                          <div className="ai-recs-grid">
+                            {aiRecs.map((rec) => {
+                              const isEnrolled = singleEnrolledProgram === rec.program
+                              const score = Number(rec.matchPercentage) || 0
+                              const isStrong = rec.matchStatus === 'Strong Match' || score >= 80
+                              const isModerate = rec.matchStatus === 'Moderate Match' || (score >= 55 && score < 80)
+                              const isNoMatch = rec.matchStatus === 'No Match' || (!isStrong && !isModerate)
+
+                              const scoreColor = isStrong ? '#16a34a' : isModerate ? '#2563eb' : '#94a3b8'
+                              const statusLabel = isStrong ? 'Strong Match' : isModerate ? 'Moderate Match' : 'No Match'
+                              const scoreClass = isStrong ? 'ai-match-badge--high' : isModerate ? 'ai-match-badge--medium' : 'ai-match-badge--nomatch'
+
+                              // Matched Evidence items
+                              const matchedItems = Array.isArray(rec.matchedEvidence)
+                                ? rec.matchedEvidence.filter((e) => e && e !== 'None found in CV')
+                                : (rec.evidenceQuote && rec.evidenceQuote !== 'No relevant evidence found in CV' ? [rec.evidenceQuote] : [])
+
+                              // Missing Requirements items
+                              const missingItems = Array.isArray(rec.missingRequirements)
+                                ? rec.missingRequirements.filter((m) => m && m !== 'None')
+                                : (Array.isArray(rec.missingSkills) ? rec.missingSkills : [])
+
+                              return (
+                                <article
+                                  key={rec.program}
+                                  className={`ai-rec-card ${isEnrolled ? 'ai-rec-card--selected' : ''} ${isNoMatch ? 'ai-rec-card--nomatch' : ''}`}
+                                  style={isEnrolled ? { border: '2px solid #16a34a', background: '#f0fdf4' } : {}}
+                                >
+                                  {/* 1. Header: Program Name & Match Percentage */}
+                                  <div className="ai-rec-card__top">
+                                    <div>
+                                      <span className="ai-rec-card__field-label">PROGRAM</span>
+                                      <strong className="ai-rec-card__program-name">{rec.program}</strong>
+                                    </div>
+                                    <div style={{ textAlign: 'right' }}>
+                                      <span className="ai-rec-card__field-label">MATCH</span>
+                                      <span className={`ai-match-badge ${scoreClass}`}>
+                                        {score}% · {statusLabel}
+                                      </span>
+                                    </div>
+                                  </div>
+
+                                  {/* Progress meter */}
+                                  <div className="ai-rec-meter">
+                                    <div
+                                      className="ai-rec-meter__fill"
+                                      style={{ width: `${Math.max(score, isNoMatch ? 4 : score)}%`, backgroundColor: scoreColor }}
+                                    />
+                                  </div>
+
+                                  {/* 2. Matched Evidence */}
+                                  <div className="ai-factor-row" style={{ marginTop: '0.65rem' }}>
+                                    <span className="ai-factor-label">Matched Evidence:</span>
+                                    <div className="ai-factor-tags">
+                                      {matchedItems.length > 0 ? (
+                                        matchedItems.map((ev, i) => (
+                                          <span key={i} className="ai-factor-tag ai-factor-tag--matched">
+                                            <Check size={11} /> {ev}
+                                          </span>
+                                        ))
+                                      ) : (
+                                        <span className="ai-factor-tag ai-factor-tag--none">None found in CV</span>
+                                      )}
+                                    </div>
+                                  </div>
+
+                                  {/* 3. Missing Requirements */}
+                                  <div className="ai-factor-row" style={{ marginTop: '0.45rem' }}>
+                                    <span className="ai-factor-label">Missing Requirements:</span>
+                                    <div className="ai-factor-tags">
+                                      {missingItems.length > 0 ? (
+                                        missingItems.map((mis, i) => (
+                                          <span key={i} className="ai-factor-tag ai-factor-tag--missing" title="Required by program but absent in CV">
+                                            <XCircle size={11} /> {mis}
+                                          </span>
+                                        ))
+                                      ) : (
+                                        <span className="ai-factor-tag ai-factor-tag--matched">
+                                          <Check size={11} /> None (All Requirements Met)
+                                        </span>
+                                      )}
+                                    </div>
+                                  </div>
+
+                                  {/* 4. Reason */}
+                                  {(rec.reason || rec.explanation) && (
+                                    <div className="ai-reason-box">
+                                      <strong>Reason:</strong> {rec.reason || rec.explanation}
+                                    </div>
+                                  )}
+
+                                  {/* 5. Action Buttons */}
+                                  <div className="ai-rec-card__action">
+                                    {isEnrolled ? (
+                                      <span className="badge badge--success" style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem', padding: '0.35rem 0.75rem', fontWeight: 700, fontSize: '0.82rem' }}>
+                                        <Check size={14} /> Enrolled Program (Locked)
+                                      </span>
+                                    ) : singleEnrolledProgram ? (
+                                      <button
+                                        type="button"
+                                        className="btn btn--sm btn--outline"
+                                        onClick={() => handleSetSingleProgram(rec.program, isNoMatch)}
+                                        disabled={saving}
+                                        title={`Switch enrolled program from ${singleEnrolledProgram} to ${rec.program}`}
+                                      >
+                                        Switch to this Program
+                                      </button>
+                                    ) : isStrong || isModerate ? (
+                                      <button
+                                        type="button"
+                                        className="btn btn--sm btn--primary"
+                                        onClick={() => handleSetSingleProgram(rec.program, false)}
+                                        disabled={saving}
+                                      >
+                                        + Select & Enroll in Program
+                                      </button>
+                                    ) : (
+                                      <button
+                                        type="button"
+                                        className="btn btn--sm btn--ghost"
+                                        onClick={() => handleSetSingleProgram(rec.program, true)}
+                                        disabled={saving}
+                                        title="Admin override: Assign this program despite limited CV evidence"
+                                        style={{ fontSize: '0.76rem', color: '#64748b' }}
+                                      >
+                                        + Assign Anyway (Admin Override)
+                                      </button>
+                                    )}
+                                  </div>
+                                </article>
+                              )
+                            })}
+                          </div>
+                        )}
+                      </section>
+                    </div>
+                  )}
+
+                  {/* TAB 3: ASSIGN TASK & HOURS (Separate & focused 2-column layout) */}
+                  {internModalTab === 'tasks' && (
+                    <div className="intern-tab-pane">
+                      {/* Duty Hours Summary */}
+                      <div className="volunteer-hours-summary" style={{ marginBottom: '1rem' }}>
+                        <div className="volunteer-hours-card">
+                          <Clock3 size={16} aria-hidden />
+                          <div>
+                            <strong>{hoursForm.hours || 0}</strong>
+                            <span>Rendered hours</span>
+                          </div>
+                        </div>
+                        <div className="volunteer-hours-card">
+                          <ListTodo size={16} aria-hidden />
+                          <div>
+                            <strong>{hoursForm.requiredHours || 0}</strong>
+                            <span>Required hours</span>
+                          </div>
+                        </div>
+                        <div className="volunteer-hours-card volunteer-hours-card--accent">
+                          <UserCheck size={16} aria-hidden />
+                          <div>
+                            <strong>{remaining}</strong>
+                            <span>Remaining hours</span>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="volunteer-detail__two-col">
+                        {/* Left Column: Task Assignment & Hours Form */}
+                        <div className="volunteer-detail__col">
+                          {/* Direct Assign Task Form */}
+                          <section className="volunteer-detail__card">
+                            <h4>
+                              <ListTodo size={15} aria-hidden /> Assign Duty Task to {selected.name}
+                            </h4>
+                            {singleEnrolledProgram ? (
+                              <p style={{ fontSize: '0.8rem', color: '#166534', margin: '-0.2rem 0 0.75rem', background: '#f0fdf4', padding: '0.4rem 0.65rem', borderRadius: '6px', border: '1px solid #bbf7d0' }}>
+                                <Lock size={12} style={{ display: 'inline', marginRight: '0.25rem' }} />
+                                Enrolled in <strong>{singleEnrolledProgram}</strong>
+                              </p>
+                            ) : (
+                              <p style={{ fontSize: '0.8rem', color: '#92400e', margin: '-0.2rem 0 0.75rem', background: '#fffbeb', padding: '0.4rem 0.65rem', borderRadius: '6px', border: '1px solid #fde68a' }}>
+                                ⚠️ No program enrolled yet. You can assign to any program below or choose one in AI Matching.
+                              </p>
+                            )}
+                            <form onSubmit={handleCreateDirectTask}>
+                              <label>
+                                <Req required>Task Title</Req>
+                                <input
+                                  required
+                                  value={directTaskForm.title}
+                                  onChange={(e) => setDirectTaskForm({ ...directTaskForm, title: e.target.value })}
+                                  placeholder="e.g. Assist in Food Prep, Support Youth Literacy"
+                                />
+                              </label>
+
+                              <label>
+                                <Req required>Program / Project</Req>
+                                <select
+                                  required
+                                  value={directTaskForm.module}
+                                  onChange={(e) => {
+                                    const nextModule = e.target.value
+                                    const isDist = isDistributionProgram(nextModule, directTaskForm.title)
+                                    setDirectTaskForm((prev) => ({
+                                      ...prev,
+                                      module: nextModule,
+                                      distributionId: isDist ? prev.distributionId : '',
+                                    }))
+                                  }}
+                                >
+                                  <option value="">Select a Program…</option>
+                                  {programOptions.map((p) => (
+                                    <option key={p} value={p}>{p}</option>
+                                  ))}
+                                </select>
+                              </label>
+
+                              <div className="form-row">
+                                <label>
+                                  Priority
+                                  <select
+                                    value={directTaskForm.priority}
+                                    onChange={(e) => setDirectTaskForm({ ...directTaskForm, priority: e.target.value })}
+                                  >
+                                    <option>Low</option>
+                                    <option>Medium</option>
+                                    <option>High</option>
+                                    <option>Critical</option>
+                                  </select>
+                                </label>
+                                <label>
+                                  Due Date
+                                  <input
+                                    type="date"
+                                    value={directTaskForm.dueDate}
+                                    onChange={(e) => setDirectTaskForm({ ...directTaskForm, dueDate: e.target.value })}
+                                  />
+                                </label>
+                              </div>
+
+                              <div className="form-row">
+                                <label>
+                                  Duty Start
+                                  <input
+                                    type="time"
+                                    value={directTaskForm.dutyStart}
+                                    onChange={(e) => setDirectTaskForm({ ...directTaskForm, dutyStart: e.target.value })}
+                                  />
+                                </label>
+                                <label>
+                                  Duty End
+                                  <input
+                                    type="time"
+                                    value={directTaskForm.dutyEnd}
+                                    onChange={(e) => setDirectTaskForm({ ...directTaskForm, dutyEnd: e.target.value })}
+                                  />
+                                </label>
+                              </div>
+
+                              <label>
+                                <Req required>Duty Hours</Req>
+                                <input
+                                  type="number"
+                                  min="0.25"
+                                  step="0.25"
+                                  required
+                                  value={directTaskForm.dutyHours}
+                                  onChange={(e) => setDirectTaskForm({ ...directTaskForm, dutyHours: e.target.value })}
+                                  placeholder="e.g. 4"
+                                />
+                              </label>
+
+                              {/* Link to Distribution (Conditional) */}
+                              {isDistributionProgram(directTaskForm.module, directTaskForm.title) && (
+                                <label>
+                                  <Req required>Link to Distribution Event</Req>
+                                  <select
+                                    required
+                                    value={directTaskForm.distributionId}
+                                    onChange={(e) => {
+                                      const distributionId = e.target.value
+                                      const dist = linkableDistributions.find((d) => String(d.dbId) === distributionId)
+                                      setDirectTaskForm((prev) => ({
+                                        ...prev,
+                                        distributionId,
+                                        title: prev.title || (dist
+                                          ? `Delivery — ${dist.id || dist.eventName || dist.location || 'Distribution'}`
+                                          : prev.title),
+                                      }))
+                                    }}
+                                  >
+                                    <option value="">Select a distribution event…</option>
+                                    {linkableDistributions.map((d) => (
+                                      <option key={d.dbId} value={d.dbId}>
+                                        {d.id} · {d.status} · {d.eventName || d.location || 'Distribution'}
+                                      </option>
+                                    ))}
+                                  </select>
+                                </label>
+                              )}
+
+                              <button
+                                type="submit"
+                                className="btn btn--primary btn--sm"
+                                disabled={saving}
+                                style={{ marginTop: '0.5rem', width: '100%', justifyContent: 'center' }}
+                              >
+                                {saving ? 'Assigning…' : `+ Assign Task to ${selected.name}`}
+                              </button>
+                            </form>
+                          </section>
+
+                          {/* Hours Tracking Update Card */}
+                          <section className="volunteer-detail__card">
+                            <h4>
+                              <Clock3 size={15} aria-hidden /> Update Duty Hours Record
+                            </h4>
+                            <form className="volunteer-hours-form" onSubmit={handleSaveHours}>
+                              <div className="form-row">
+                                <label>
+                                  Rendered hours
+                                  <input
+                                    type="number"
+                                    min="0"
+                                    step="0.25"
+                                    value={hoursForm.hours}
+                                    onChange={(e) => setHoursForm({ ...hoursForm, hours: e.target.value })}
+                                  />
+                                </label>
+                                <label>
+                                  Required hours
+                                  <input
+                                    type="number"
+                                    min="0"
+                                    step="0.25"
+                                    value={hoursForm.requiredHours}
+                                    onChange={(e) => setHoursForm({ ...hoursForm, requiredHours: e.target.value })}
+                                  />
+                                </label>
+                              </div>
+                              <button type="submit" className="btn btn--sm btn--outline" disabled={saving} style={{ width: '100%', justifyContent: 'center' }}>
+                                {saving ? 'Saving…' : 'Save Duty Hours'}
+                              </button>
+                            </form>
+                          </section>
+                        </div>
+
+                        {/* Right Column: Assigned Tasks List */}
+                        <div className="volunteer-detail__col">
+                          <section className="volunteer-detail__card volunteer-detail__card--tasks">
+                            <div className="volunteer-panel-section__head">
+                              <div className="volunteer-tasks-title-wrap">
+                                <h4>
+                                  <ListTodo size={15} aria-hidden /> Assigned Tasks
+                                </h4>
+                                <span className="volunteer-tasks-count-pill">{tasks.length}</span>
+                              </div>
+                            </div>
+                            {tasksLoading ? (
+                              <p className="beneficiary-view-empty">Loading tasks…</p>
+                            ) : tasks.length === 0 ? (
+                              <div className="volunteer-tasks-empty-state">
+                                <ListTodo size={28} className="volunteer-tasks-empty-icon" />
+                                <p>No tasks assigned to this intern yet.</p>
+                                <p style={{ fontSize: '0.8rem', color: '#94a3b8' }}>Use the assignment form on the left to assign duties.</p>
+                              </div>
+                            ) : (
+                              <div className="volunteer-tasks-scroll-container">
+                                <div className="see-more-wrap">
+                                  <div className="volunteer-task-list">
+                                    {tasksSeeMore.visible.map((t) => (
+                                      <article key={t.dbId || t.id} className="volunteer-task-card">
+                                        <div className="volunteer-task-card__top">
+                                          <strong>{t.title}</strong>
+                                          <StatusBadge status={t.status || t.boardColumn} />
+                                        </div>
+                                        <div className="volunteer-task-card__meta">
+                                          <span>Priority: {t.priority}</span>
+                                          <span>Due: {t.due || '—'}</span>
+                                          {t.dutyLabel ? <span>Duty: {t.dutyLabel}</span> : null}
+                                          {t.module ? <span>Program: {t.module}</span> : null}
+                                          {t.distributionCode || t.distributionId ? (
+                                            <span style={{ color: 'var(--admin-brand, #af101a)', fontWeight: 600 }}>
+                                              Distribution: {t.distributionCode || `DST-${t.distributionId}`}
+                                              {t.distributionStatus ? ` · ${t.distributionStatus}` : ''}
+                                            </span>
+                                          ) : null}
+                                          {(t.requiredSkills || []).length ? (
+                                            <span>Skills: {(t.requiredSkills || []).join(', ')}</span>
+                                          ) : null}
+                                          {t.completedAtLabel ? <span>Completed: {t.completedAtLabel}</span> : null}
+                                        </div>
+                                        {t.status !== 'Completed' && t.boardColumn !== 'done' && (
+                                          <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '0.65rem' }}>
+                                            <button
+                                              type="button"
+                                              className="btn btn--sm btn--primary"
+                                              onClick={() => handleAdminCompleteTask(t)}
+                                              disabled={saving}
+                                              style={{ padding: '0.25rem 0.65rem', fontSize: '0.78rem', display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}
+                                            >
+                                              <CheckCircle2 size={13} /> Complete Task & Credit Hours
+                                            </button>
+                                          </div>
+                                        )}
+                                      </article>
+                                    ))}
+                                  </div>
+                                  {tasksSeeMore.needsToggle && (
+                                    <SeeMoreToggle
+                                      expanded={tasksSeeMore.expanded}
+                                      onToggle={tasksSeeMore.toggle}
+                                      hiddenCount={tasksSeeMore.hiddenCount}
+                                    />
+                                  )}
+                                </div>
+                              </div>
+                            )}
+                          </section>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </>
+              ) : (
+                /* ==============================================================
+                   VOLUNTEER MODAL: Clean Two-Column Organized Layout
+                   ============================================================== */
+                <div className="volunteer-detail__two-col">
+                  {/* Left Column: Profile & Program Enrollment */}
+                  <div className="volunteer-detail__col">
+                    {/* Profile Card */}
+                    <section className="volunteer-detail__card">
+                      <h4>
+                        <User size={15} aria-hidden /> Volunteer Profile
+                      </h4>
+                      <dl className="volunteer-detail__list">
+                        <div>
+                          <dt>Full Name</dt>
+                          <dd><strong>{selected.name}</strong></dd>
+                        </div>
+                        <div className="volunteer-detail__list-row">
+                          <div>
+                            <dt>Email Address</dt>
+                            <dd>{selected.email || '—'}</dd>
+                          </div>
+                          <div>
+                            <dt>Phone Number</dt>
+                            <dd>{selected.phone || '—'}</dd>
+                          </div>
+                        </div>
+                        <div className="volunteer-detail__list-row">
+                          <div>
+                            <dt>Availability</dt>
+                            <dd>{selected.availability || '—'}</dd>
+                          </div>
+                          <div>
+                            <dt>Status</dt>
+                            <dd><StatusBadge status={selected.status} /></dd>
+                          </div>
+                        </div>
+                        <div>
+                          <dt>Skills & Expertise</dt>
+                          <dd>
+                            <ChipList items={selected.skills} empty="No skills listed" />
+                            {selected.skillsOther ? (
+                              <p className="volunteer-detail__note">Other: {selected.skillsOther}</p>
+                            ) : null}
+                          </dd>
+                        </div>
+                      </dl>
+                    </section>
+
+                    {/* 1-Program Rule: Enrolled Program Card */}
+                    <section className="volunteer-detail__card">
+                      <h4>
+                        <Briefcase size={15} aria-hidden /> Program Enrollment (1 per Volunteer)
+                      </h4>
+                      {singleEnrolledProgram ? (
+                        <div className="volunteer-program-enrolled-box">
+                          <div className="volunteer-program-enrolled-info">
+                            <span className="volunteer-program-label">Currently Enrolled:</span>
+                            <div className="volunteer-program-name-wrap">
+                              <strong>{singleEnrolledProgram}</strong>
+                              <span className="volunteer-program-lock-pill">
+                                <Lock size={10} /> Locked
+                              </span>
+                            </div>
+                          </div>
+                          <button
+                            type="button"
+                            className="btn btn--sm btn--outline"
+                            onClick={handleRemoveSingleProgram}
+                            disabled={saving}
+                          >
+                            <Unlock size={12} /> Change / Remove
+                          </button>
+                        </div>
+                      ) : (
+                        <div className="volunteer-program-unassigned">
+                          <p className="volunteer-program-hint">
+                            No program enrolled yet. Select a program to enroll this volunteer.
+                          </p>
+                          <form
+                            onSubmit={(e) => {
+                              e.preventDefault()
+                              handleSetSingleProgram()
+                            }}
+                            className="volunteer-program-enroll-form"
+                          >
+                            <label className="volunteer-program-form-label">
+                              <span>Select Program:</span>
+                              <select
+                                value={selectedProgramToEnroll}
+                                onChange={(e) => setSelectedProgramToEnroll(e.target.value)}
+                              >
+                                <option value="">Select a program…</option>
+                                {programOptions.map((prog) => (
+                                  <option key={prog} value={prog}>{prog}</option>
+                                ))}
+                              </select>
+                            </label>
+                            <button
+                              type="submit"
+                              className="btn btn--primary btn--sm"
+                              disabled={saving || !selectedProgramToEnroll}
+                            >
+                              + Enroll
+                            </button>
+                          </form>
+                        </div>
+                      )}
+                    </section>
+                  </div>
+
+                  {/* Right Column: Assigned Tasks */}
+                  <div className="volunteer-detail__col">
+                    <section className="volunteer-detail__card volunteer-detail__card--tasks">
+                      <div className="volunteer-panel-section__head">
+                        <div className="volunteer-tasks-title-wrap">
+                          <h4>
+                            <ListTodo size={15} aria-hidden /> Assigned Tasks
+                          </h4>
+                          <span className="volunteer-tasks-count-pill">{tasks.length}</span>
+                        </div>
+                        <button type="button" className="btn btn--sm btn--primary" onClick={openAssignTaskForSelected}>
+                          + Assign Task
+                        </button>
+                      </div>
+
+                      {tasksLoading ? (
+                        <p className="beneficiary-view-empty">Loading tasks…</p>
+                      ) : tasks.length === 0 ? (
+                        <div className="volunteer-tasks-empty-state">
+                          <ListTodo size={28} className="volunteer-tasks-empty-icon" />
+                          <p>No tasks assigned to this volunteer yet.</p>
+                          <button type="button" className="btn btn--sm btn--outline" onClick={openAssignTaskForSelected}>
+                            + Create First Task
+                          </button>
+                        </div>
+                      ) : (
+                        <div className="volunteer-tasks-scroll-container">
+                          <div className="see-more-wrap">
+                            <div className="volunteer-task-list">
+                              {tasksSeeMore.visible.map((t) => (
+                                <article key={t.dbId || t.id} className="volunteer-task-card">
+                                  <div className="volunteer-task-card__top">
+                                    <strong>{t.title}</strong>
+                                    <StatusBadge status={t.status || t.boardColumn} />
+                                  </div>
+                                  <div className="volunteer-task-card__meta">
+                                    <span>Priority: {t.priority}</span>
+                                    <span>Due: {t.due || '—'}</span>
+                                    {t.dutyLabel ? <span>Duty: {t.dutyLabel}</span> : null}
+                                    {t.module ? <span>Program: {t.module}</span> : null}
+                                    {t.distributionCode || t.distributionId ? (
+                                      <span style={{ color: 'var(--admin-brand, #af101a)', fontWeight: 600 }}>
+                                        Distribution: {t.distributionCode || `DST-${t.distributionId}`}
+                                        {t.distributionStatus ? ` · ${t.distributionStatus}` : ''}
+                                      </span>
+                                    ) : null}
+                                    {(t.requiredSkills || []).length ? (
+                                      <span>Skills: {(t.requiredSkills || []).join(', ')}</span>
+                                    ) : null}
+                                    {t.completedAtLabel ? <span>Completed: {t.completedAtLabel}</span> : null}
+                                  </div>
+                                  {t.status !== 'Completed' && t.boardColumn !== 'done' && (
+                                    <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '0.65rem' }}>
+                                      <button
+                                        type="button"
+                                        className="btn btn--sm btn--primary"
+                                        onClick={() => handleAdminCompleteTask(t)}
+                                        disabled={saving}
+                                        style={{ padding: '0.25rem 0.65rem', fontSize: '0.78rem', display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}
+                                      >
+                                        <CheckCircle2 size={13} /> Complete Task
+                                      </button>
+                                    </div>
+                                  )}
+                                </article>
+                              ))}
+                            </div>
+                            {tasksSeeMore.needsToggle && (
+                              <SeeMoreToggle
+                                expanded={tasksSeeMore.expanded}
+                                onToggle={tasksSeeMore.toggle}
+                                hiddenCount={tasksSeeMore.hiddenCount}
+                              />
+                            )}
+                          </div>
+                        </div>
+                      )}
+                    </section>
+                  </div>
+                </div>
+              )}
             </div>
 
             <div className="admin-modal__actions">
@@ -563,39 +1928,156 @@ export default function VolunteersPage() {
         </div>
       )}
 
-      {showTaskForm && selected && (
-        <div className="admin-modal-overlay" onClick={() => setShowTaskForm(false)}>
+      {/* 1. MAIN GENERAL ASSIGN TASK MODAL (Outside Manage) */}
+      {showGeneralTaskModal && (
+        <div className="admin-modal-overlay" onClick={() => setShowGeneralTaskModal(false)}>
           <div className="admin-modal admin-modal--wide" onClick={(e) => e.stopPropagation()}>
-            <ModalHeader title={`Assign Task — ${selected.name}`} onClose={() => setShowTaskForm(false)} />
-            <form onSubmit={(e) => handleCreateTask(e)}>
+            <ModalHeader
+              title="Assign Task — General Task Management"
+              onClose={() => setShowGeneralTaskModal(false)}
+            />
+            <form onSubmit={handleCreateGeneralTask}>
+              <div className="task-banner-general">
+                <Briefcase size={18} />
+                <div>
+                  <strong>General Task Management</strong>
+                  <span>Create, schedule, and assign duty tasks to active volunteers and interns across programs.</span>
+                </div>
+              </div>
+
+              {/* Multi-Member Selection */}
+              <label>
+                <Req required>Assign to Member(s)</Req>
+                <div className="volunteer-multi-actions">
+                  <span>{generalSelectedVolunteerIds.length} of {activeAssigneesList.length} active member(s) selected</span>
+                  <div style={{ display: 'flex', gap: '0.75rem' }}>
+                    <button
+                      type="button"
+                      onClick={() => setGeneralSelectedVolunteerIds(activeAssigneesList.map((v) => String(v.dbId)))}
+                    >
+                      Select All Active
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setGeneralSelectedVolunteerIds([])}
+                    >
+                      Clear Selection
+                    </button>
+                  </div>
+                </div>
+                <div className="volunteer-multi-grid">
+                  {activeAssigneesList.map((v) => {
+                    const isChecked = generalSelectedVolunteerIds.includes(String(v.dbId))
+                    const isIntern = v.applicantType === 'Intern'
+                    return (
+                      <label
+                        key={v.dbId}
+                        className={`volunteer-multi-grid__item${isChecked ? ' volunteer-multi-grid__item--selected' : ''}`}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={isChecked}
+                          onChange={(e) => {
+                            const val = String(v.dbId)
+                            if (e.target.checked) {
+                              setGeneralSelectedVolunteerIds((prev) => [...prev, val])
+                            } else {
+                              setGeneralSelectedVolunteerIds((prev) => prev.filter((id) => id !== val))
+                            }
+                          }}
+                        />
+                        <div style={{ minWidth: 0, flex: 1 }}>
+                          <strong style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', fontSize: '0.82rem', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                            {v.name}
+                            <span style={{ fontSize: '0.68rem', padding: '0.1rem 0.35rem', borderRadius: '4px', background: isIntern ? '#ede9fe' : '#e0f2fe', color: isIntern ? '#6b21a8' : '#0369a1', fontWeight: 600 }}>
+                              {isIntern ? 'Intern' : 'Volunteer'}
+                            </span>
+                          </strong>
+                          <span style={{ fontSize: '0.74rem', color: '#64748b', display: 'block', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                            {v.id} · {(v.programs || [])[0] || 'General'}
+                          </span>
+                        </div>
+                      </label>
+                    )
+                  })}
+                </div>
+              </label>
+
               <label>
                 <Req required>Task Title</Req>
-                <input required value={taskForm.title} onChange={(e) => setTaskForm({ ...taskForm, title: e.target.value })} />
+                <input
+                  required
+                  value={generalTaskForm.title}
+                  onChange={(e) => setGeneralTaskForm({ ...generalTaskForm, title: e.target.value })}
+                  placeholder="e.g. Pack food relief kits, Assist medical triage, Deliver supplies"
+                />
               </label>
+
+              {/* Program Selector */}
+              <label>
+                <Req required>Program / Project</Req>
+                <select
+                  required
+                  value={generalTaskForm.module}
+                  onChange={(e) => {
+                    const nextModule = e.target.value
+                    const isDist = isDistributionProgram(nextModule, generalTaskForm.title)
+                    setGeneralTaskForm((prev) => ({
+                      ...prev,
+                      module: nextModule,
+                      distributionId: isDist ? prev.distributionId : '',
+                    }))
+                  }}
+                >
+                  <option value="">Select a Program…</option>
+                  {programOptions.map((p) => (
+                    <option key={p} value={p}>{p}</option>
+                  ))}
+                </select>
+              </label>
+
               <div className="form-row">
                 <label>
                   Priority
-                  <select value={taskForm.priority} onChange={(e) => setTaskForm({ ...taskForm, priority: e.target.value })}>
+                  <select
+                    value={generalTaskForm.priority}
+                    onChange={(e) => setGeneralTaskForm({ ...generalTaskForm, priority: e.target.value })}
+                  >
                     <option>Low</option>
                     <option>Medium</option>
                     <option>High</option>
+                    <option>Critical</option>
                   </select>
                 </label>
                 <label>
                   Due Date
-                  <input type="date" value={taskForm.dueDate} onChange={(e) => setTaskForm({ ...taskForm, dueDate: e.target.value })} />
+                  <input
+                    type="date"
+                    value={generalTaskForm.dueDate}
+                    onChange={(e) => setGeneralTaskForm({ ...generalTaskForm, dueDate: e.target.value })}
+                  />
                 </label>
               </div>
+
               <div className="form-row">
                 <label>
                   Duty Start
-                  <input type="time" value={taskForm.dutyStart} onChange={(e) => setTaskForm({ ...taskForm, dutyStart: e.target.value })} />
+                  <input
+                    type="time"
+                    value={generalTaskForm.dutyStart}
+                    onChange={(e) => setGeneralTaskForm({ ...generalTaskForm, dutyStart: e.target.value })}
+                  />
                 </label>
                 <label>
                   Duty End
-                  <input type="time" value={taskForm.dutyEnd} onChange={(e) => setTaskForm({ ...taskForm, dutyEnd: e.target.value })} />
+                  <input
+                    type="time"
+                    value={generalTaskForm.dutyEnd}
+                    onChange={(e) => setGeneralTaskForm({ ...generalTaskForm, dutyEnd: e.target.value })}
+                  />
                 </label>
               </div>
+
               <label>
                 <Req required>Duty Hours</Req>
                 <input
@@ -603,113 +2085,310 @@ export default function VolunteersPage() {
                   min="0.25"
                   step="0.25"
                   required
-                  value={taskForm.dutyHours}
-                  onChange={(e) => setTaskForm({ ...taskForm, dutyHours: e.target.value })}
+                  value={generalTaskForm.dutyHours}
+                  onChange={(e) => setGeneralTaskForm({ ...generalTaskForm, dutyHours: e.target.value })}
+                  placeholder="e.g. 4"
                 />
               </label>
 
+              {/* Required Skills Dropdown */}
               <label>
-                <CatalogFieldLabel catalog="task_types" onUpdated={applyTaskTypes}>
-                  Task Type
-                </CatalogFieldLabel>
+                Required Skills
                 <select
-                  value={taskForm.module}
-                  onChange={(e) => setTaskForm({ ...taskForm, module: e.target.value })}
-                >
-                  {taskTypeOptions.map((t) => (
-                    <option key={t} value={t}>{t}</option>
-                  ))}
-                  {taskForm.module && !taskTypeOptions.includes(taskForm.module) && (
-                    <option value={taskForm.module}>{taskForm.module}</option>
-                  )}
-                </select>
-              </label>
-
-              <label>
-                Link to Distribution <span className="field-hint-inline">(for delivery status updates)</span>
-                <select
-                  value={taskForm.distributionId}
+                  value={selectedSkillToAdd}
                   onChange={(e) => {
-                    const distributionId = e.target.value
-                    const dist = linkableDistributions.find((d) => String(d.dbId) === distributionId)
-                    setTaskForm((prev) => ({
-                      ...prev,
-                      distributionId,
-                      module: distributionId
-                        ? (prev.module === 'Volunteer' || !prev.module ? 'Distribution' : prev.module)
-                        : prev.module,
-                      title: prev.title || (dist
-                        ? `Delivery — ${dist.id || dist.eventName || dist.location || 'Distribution'}`
-                        : prev.title),
-                    }))
+                    const skill = e.target.value
+                    if (skill && !generalTaskForm.requiredSkills.includes(skill)) {
+                      const updated = [...generalTaskForm.requiredSkills, skill]
+                      setGeneralTaskForm({ ...generalTaskForm, requiredSkills: updated })
+                      loadSuggestions(updated, null)
+                    }
+                    setSelectedSkillToAdd('')
                   }}
                 >
-                  <option value="">No distribution link</option>
-                  {linkableDistributions.map((d) => (
-                    <option key={d.dbId} value={d.dbId}>
-                      {d.id} · {d.status} · {d.eventName || d.location || 'Distribution'}
+                  <option value="">Select a required skill to add…</option>
+                  {volunteerSkillOptions.map((s) => (
+                    <option key={s} value={s} disabled={generalTaskForm.requiredSkills.includes(s)}>
+                      {s} {generalTaskForm.requiredSkills.includes(s) ? '✓ (Selected)' : ''}
                     </option>
                   ))}
                 </select>
               </label>
-              {taskForm.distributionId ? (
-                <p className="field-hint">
-                  Volunteer can mark this distribution <strong>In Transit</strong> then <strong>Delivered</strong>. Status syncs to Admin, Staff, and Barangay.
-                </p>
-              ) : null}
 
-              <SkillTagPicker
-                label="Required skills for this task"
-                value={taskForm.requiredSkills}
-                showOther={false}
-                onChange={(requiredSkills) => {
-                  setTaskForm({ ...taskForm, requiredSkills })
-                  loadSuggestions(requiredSkills, selected)
-                }}
-              />
-
-              <section className="suggested-volunteers">
-                <div className="suggested-volunteers__head">
-                  <h4>Suggested volunteers</h4>
-                  <span>Ranked by skill match · programs · availability · lighter workload</span>
+              {generalTaskForm.requiredSkills.length > 0 && (
+                <div className="task-selected-skills-tags">
+                  {generalTaskForm.requiredSkills.map((skill) => (
+                    <span key={skill} className="task-skill-tag">
+                      {skill}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const updated = generalTaskForm.requiredSkills.filter((s) => s !== skill)
+                          setGeneralTaskForm({ ...generalTaskForm, requiredSkills: updated })
+                          loadSuggestions(updated, null)
+                        }}
+                        aria-label={`Remove ${skill}`}
+                      >
+                        ×
+                      </button>
+                    </span>
+                  ))}
                 </div>
-                {!taskForm.requiredSkills.length ? (
-                  <p className="beneficiary-view-empty">Select required skills to see top matches.</p>
-                ) : suggestionsLoading ? (
-                  <p className="beneficiary-view-empty">Finding matches…</p>
-                ) : suggestions.length === 0 ? (
-                  <p className="beneficiary-view-empty">No active volunteers matched these skills yet.</p>
-                ) : (
-                  <ul className="suggested-volunteers__list">
-                    {suggestions.map((s) => (
-                      <li key={s.dbId} className={`suggested-volunteers__item${s.dbId === selected.dbId ? ' suggested-volunteers__item--current' : ''}`}>
-                        <div>
-                          <strong>{s.name}</strong>
-                          {s.dbId === selected.dbId ? <span className="suggested-volunteers__badge">Current</span> : null}
-                          <p>{s.whyMatched}</p>
-                        </div>
-                        <button
-                          type="button"
-                          className="btn btn--sm btn--outline"
-                          disabled={saving || !taskForm.title || !taskForm.dutyHours}
-                          onClick={() => handleCreateTask(null, s.dbId)}
-                        >
-                          Assign
-                        </button>
-                      </li>
+              )}
+
+              {/* Link to Distribution (Conditional) */}
+              {isDistributionProgram(generalTaskForm.module, generalTaskForm.title) && (
+                <label>
+                  <Req required>Link to Distribution Event</Req>
+                  <select
+                    required
+                    value={generalTaskForm.distributionId}
+                    onChange={(e) => {
+                      const distributionId = e.target.value
+                      const dist = linkableDistributions.find((d) => String(d.dbId) === distributionId)
+                      setGeneralTaskForm((prev) => ({
+                        ...prev,
+                        distributionId,
+                        title: prev.title || (dist
+                          ? `Delivery — ${dist.id || dist.eventName || dist.location || 'Distribution'}`
+                          : prev.title),
+                      }))
+                    }}
+                  >
+                    <option value="">Select a distribution event…</option>
+                    {linkableDistributions.map((d) => (
+                      <option key={d.dbId} value={d.dbId}>
+                        {d.id} · {d.status} · {d.eventName || d.location || 'Distribution'}
+                      </option>
                     ))}
-                  </ul>
-                )}
-                <p className="suggested-volunteers__hint">
-                  Suggestions help you choose — you still confirm Assign. Default button below assigns to <strong>{selected.name}</strong>.
-                </p>
-              </section>
+                  </select>
+                </label>
+              )}
+
+              {/* Skill Matching Suggestions */}
+              {generalTaskForm.requiredSkills.length > 0 && (
+                <section className="suggested-volunteers" style={{ marginTop: '0.75rem' }}>
+                  <div className="suggested-volunteers__head">
+                    <h4>Suggested Member Matches</h4>
+                    <span>Ranked by skill match · programs · availability</span>
+                  </div>
+                  {suggestionsLoading ? (
+                    <p className="beneficiary-view-empty">Finding matches…</p>
+                  ) : suggestions.length === 0 ? (
+                    <p className="beneficiary-view-empty">No active members matched these skills yet.</p>
+                  ) : (
+                    <ul className="suggested-volunteers__list">
+                      {suggestions.map((s) => {
+                        const isAssigned = generalSelectedVolunteerIds.includes(String(s.dbId))
+                        return (
+                          <li
+                            key={s.dbId}
+                            className={`suggested-volunteers__item${isAssigned ? ' suggested-volunteers__item--current' : ''}`}
+                          >
+                            <div>
+                              <strong>{s.name}</strong>
+                              {isAssigned ? <span className="suggested-volunteers__badge">Assigned</span> : null}
+                              <p>{s.whyMatched}</p>
+                            </div>
+                            <button
+                              type="button"
+                              className={`btn btn--sm ${isAssigned ? 'btn--outline' : 'btn--primary'}`}
+                              onClick={() => {
+                                const idStr = String(s.dbId)
+                                if (isAssigned) {
+                                  setGeneralSelectedVolunteerIds((prev) => prev.filter((id) => id !== idStr))
+                                } else {
+                                  setGeneralSelectedVolunteerIds((prev) => [...prev, idStr])
+                                }
+                              }}
+                            >
+                              {isAssigned ? 'Remove' : '+ Add to Assigned'}
+                            </button>
+                          </li>
+                        )
+                      })}
+                    </ul>
+                  )}
+                </section>
+              )}
 
               <div className="admin-modal__actions">
-                <button type="submit" className="btn btn--primary" disabled={saving}>
+                <button
+                  type="submit"
+                  className="btn btn--primary"
+                  disabled={saving || !generalSelectedVolunteerIds.length}
+                >
+                  {saving
+                    ? 'Saving…'
+                    : generalSelectedVolunteerIds.length > 1
+                      ? `Assign Task to ${generalSelectedVolunteerIds.length} Members`
+                      : 'Assign Task'}
+                </button>
+                <button
+                  type="button"
+                  className="btn btn--ghost"
+                  onClick={() => setShowGeneralTaskModal(false)}
+                >
+                  Cancel
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* 2. DIRECT ASSIGN TASK MODAL (Outside / inside triggered) */}
+      {showDirectTaskModal && selected && (
+        <div className="admin-modal-overlay" onClick={() => setShowDirectTaskModal(false)}>
+          <div className="admin-modal" onClick={(e) => e.stopPropagation()}>
+            <ModalHeader
+              title={`Assign Task — ${selected.name}`}
+              onClose={() => setShowDirectTaskModal(false)}
+            />
+            <form onSubmit={handleCreateDirectTask}>
+              <div className="task-banner-direct">
+                <UserCheck size={18} />
+                <div>
+                  <strong>Direct Task Assignment for {selected.name} ({selected.id})</strong>
+                  <span>
+                    {selected.applicantType === 'Intern' ? 'Intern' : 'Volunteer'} · Enrolled: {(selected.programs || [])[0] || 'General'}
+                    {selected.applicantType === 'Intern' ? ` · Hours: ${selected.hours || 0}/${selected.requiredHours || 0}` : ''}
+                  </span>
+                </div>
+              </div>
+
+              <label>
+                <Req required>Task Title</Req>
+                <input
+                  required
+                  value={directTaskForm.title}
+                  onChange={(e) => setDirectTaskForm({ ...directTaskForm, title: e.target.value })}
+                  placeholder={`e.g. Duty for ${selected.name}`}
+                />
+              </label>
+
+              {/* Program Selector */}
+              <label>
+                <Req required>Program / Project</Req>
+                <select
+                  required
+                  value={directTaskForm.module}
+                  onChange={(e) => {
+                    const nextModule = e.target.value
+                    const isDist = isDistributionProgram(nextModule, directTaskForm.title)
+                    setDirectTaskForm((prev) => ({
+                      ...prev,
+                      module: nextModule,
+                      distributionId: isDist ? prev.distributionId : '',
+                    }))
+                  }}
+                >
+                  <option value="">Select a Program…</option>
+                  {programOptions.map((p) => (
+                    <option key={p} value={p}>{p}</option>
+                  ))}
+                </select>
+              </label>
+
+              <div className="form-row">
+                <label>
+                  Priority
+                  <select
+                    value={directTaskForm.priority}
+                    onChange={(e) => setDirectTaskForm({ ...directTaskForm, priority: e.target.value })}
+                  >
+                    <option>Low</option>
+                    <option>Medium</option>
+                    <option>High</option>
+                    <option>Critical</option>
+                  </select>
+                </label>
+                <label>
+                  Due Date
+                  <input
+                    type="date"
+                    value={directTaskForm.dueDate}
+                    onChange={(e) => setDirectTaskForm({ ...directTaskForm, dueDate: e.target.value })}
+                  />
+                </label>
+              </div>
+
+              <div className="form-row">
+                <label>
+                  Duty Start
+                  <input
+                    type="time"
+                    value={directTaskForm.dutyStart}
+                    onChange={(e) => setDirectTaskForm({ ...directTaskForm, dutyStart: e.target.value })}
+                  />
+                </label>
+                <label>
+                  Duty End
+                  <input
+                    type="time"
+                    value={directTaskForm.dutyEnd}
+                    onChange={(e) => setDirectTaskForm({ ...directTaskForm, dutyEnd: e.target.value })}
+                  />
+                </label>
+              </div>
+
+              <label>
+                <Req required>Duty Hours</Req>
+                <input
+                  type="number"
+                  min="0.25"
+                  step="0.25"
+                  required
+                  value={directTaskForm.dutyHours}
+                  onChange={(e) => setDirectTaskForm({ ...directTaskForm, dutyHours: e.target.value })}
+                  placeholder="e.g. 4"
+                />
+              </label>
+
+              {/* Link to Distribution (Conditional) */}
+              {isDistributionProgram(directTaskForm.module, directTaskForm.title) && (
+                <label>
+                  <Req required>Link to Distribution Event</Req>
+                  <select
+                    required
+                    value={directTaskForm.distributionId}
+                    onChange={(e) => {
+                      const distributionId = e.target.value
+                      const dist = linkableDistributions.find((d) => String(d.dbId) === distributionId)
+                      setDirectTaskForm((prev) => ({
+                        ...prev,
+                        distributionId,
+                        title: prev.title || (dist
+                          ? `Delivery — ${dist.id || dist.eventName || dist.location || 'Distribution'}`
+                          : prev.title),
+                      }))
+                    }}
+                  >
+                    <option value="">Select a distribution event…</option>
+                    {linkableDistributions.map((d) => (
+                      <option key={d.dbId} value={d.dbId}>
+                        {d.id} · {d.status} · {d.eventName || d.location || 'Distribution'}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              )}
+
+              <div className="admin-modal__actions">
+                <button
+                  type="submit"
+                  className="btn btn--primary"
+                  disabled={saving}
+                >
                   {saving ? 'Saving…' : `Assign to ${selected.name}`}
                 </button>
-                <button type="button" className="btn btn--ghost" onClick={() => setShowTaskForm(false)}>Cancel</button>
+                <button
+                  type="button"
+                  className="btn btn--ghost"
+                  onClick={() => setShowDirectTaskModal(false)}
+                >
+                  Cancel
+                </button>
               </div>
             </form>
           </div>

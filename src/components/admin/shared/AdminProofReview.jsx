@@ -8,6 +8,8 @@ import { reviewProof } from '../../../api/resources'
 import { useSeeMore } from '../../../hooks/useSeeMore'
 import { SeeMoreToggle } from './SeeMoreList'
 import { notify } from '../../../utils/toast'
+import { confirmAction, showSuccessModal } from '../../../utils/confirm'
+import { notifyBadgesChanged } from '../../../utils/badgeSync'
 
 function isPending(status) {
   return status === 'Pending' || status === 'Pending Review'
@@ -58,11 +60,20 @@ export default function AdminProofReview({
   }
 
   const approve = async (proof) => {
-    if (!window.confirm(`Approve proof from ${proof.barangay} for "${proof.eventName || proof.distributionCode}"?`)) return
+    const ok = await confirmAction({
+      title: 'Approve Delivery Proof',
+      message: `Approve delivery proof from ${proof.barangay} for "${proof.eventName || proof.distributionCode}"?`,
+      confirmText: 'Approve Proof',
+      type: 'primary',
+    })
+    if (!ok) return
+
     setBusyId(proof.id)
     try {
       await reviewProof(proof.id, 'Approved')
       notify.success('Proof approved successfully.')
+      showSuccessModal('Successfully approved.')
+      notifyBadgesChanged()
       onChanged?.()
     } catch (err) {
       notify.error(err.message)
@@ -78,12 +89,23 @@ export default function AdminProofReview({
       notify.warning('Please provide a rejection reason for the barangay.')
       return
     }
+
+    const ok = await confirmAction({
+      title: 'Reject Delivery Proof',
+      message: `Reject proof from ${rejecting.barangay}? Reason: "${remarks.trim()}"`,
+      confirmText: 'Reject Proof',
+      type: 'danger',
+    })
+    if (!ok) return
+
     setBusyId(rejecting.id)
     try {
       await reviewProof(rejecting.id, 'Rejected', remarks.trim())
       setRejecting(null)
       setRemarks('')
       notify.success('Proof rejected. The barangay has been notified.')
+      showSuccessModal('Successfully rejected.')
+      notifyBadgesChanged()
       onChanged?.()
     } catch (err) {
       notify.error(err.message)

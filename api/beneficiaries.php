@@ -210,6 +210,11 @@ if ($method === 'POST' && ($action === 'accept_invite' || $action === 'apply_inv
   if ($repFirst === '' || $repLast === '') {
     json_response(['ok' => false, 'error' => 'Representative first and last name are required.'], 400);
   }
+  $hasTerms = !empty($body['acceptedTerms']) || !empty($body['termsAccepted']) || !empty($body['acceptTerms']) || !empty($body['acceptedPolicies']);
+  $hasPrivacy = !empty($body['acceptedPrivacy']) || !empty($body['privacyAccepted']) || !empty($body['acceptTerms']) || !empty($body['acceptedPolicies']);
+  if (!$hasTerms || !$hasPrivacy) {
+    json_response(['ok' => false, 'error' => 'Representative must accept both the Data Privacy Policy and Terms & Conditions before submitting.'], 400);
+  }
   $repMiDb = $repMi !== '' ? strtoupper(substr(preg_replace('/[^a-zA-Z]/', '', $repMi) ?: '', 0, 1)) : null;
 
   try {
@@ -341,7 +346,7 @@ if ($method === 'GET') {
     json_response(['ok' => true, 'data' => map_beneficiary($pdo, $row)]);
   }
 
-  $rows = $pdo->query('SELECT * FROM beneficiaries ORDER BY municipality ASC, full_name ASC')->fetchAll();
+  $rows = $pdo->query('SELECT * FROM beneficiaries ORDER BY created_at DESC, id DESC')->fetchAll();
   json_response(['ok' => true, 'data' => array_map(fn($r) => map_beneficiary($pdo, $r), $rows)]);
 }
 
@@ -562,7 +567,19 @@ if ($method === 'POST' && ($action === 'approve' || $action === 'reject')) {
     json_response(['ok' => false, 'error' => 'Only pending barangay applications can be approved.'], 400);
   }
 
+  $hasTerms = !empty($body['acceptedTerms']) || !empty($body['termsAccepted']) || !empty($body['acceptedPolicies']);
+  $hasPrivacy = !empty($body['acceptedPrivacy']) || !empty($body['privacyAccepted']) || !empty($body['acceptedPolicies']);
+  if (!$hasTerms || !$hasPrivacy) {
+    json_response(['ok' => false, 'error' => 'You must accept both the Data Privacy Policy and Terms & Conditions before creating credentials.'], 400);
+  }
+
   $customPass = trim((string) ($body['password'] ?? $body['temporaryPassword'] ?? $body['customPassword'] ?? ''));
+  if ($customPass !== '') {
+    $pwErr = validate_password_policy($customPass, 'Custom password');
+    if ($pwErr !== null) {
+      json_response(['ok' => false, 'error' => $pwErr], 400);
+    }
+  }
   $provision = provision_beneficiary_account($pdo, $ben, $customPass !== '' ? $customPass : null);
   if (!empty($provision['error']) && empty($provision['userId']) && empty($provision['created'])) {
     json_response(['ok' => false, 'error' => $provision['error']], 400);
@@ -662,8 +679,16 @@ if ($method === 'PUT') {
 
   $existingStatus = (string) ($existing['status'] ?? '');
   $newStatus = (string) ($body['status'] ?? $existingStatus);
+
+  if ($existingStatus === 'Rejected' && $newStatus !== 'Rejected') {
+    json_response(['ok' => false, 'error' => 'Rejected barangay applications are finalized and cannot be modified or reactivated.'], 400);
+  }
+
   // After approval, only status/notes changes are allowed (prevents rewriting partnership identity).
   if (in_array($existingStatus, ['Active', 'Approved'], true)) {
+    if ($newStatus === 'Pending Approval') {
+      json_response(['ok' => false, 'error' => 'Cannot revert an approved barangay back to Pending Approval. The status workflow is one-way.'], 400);
+    }
     if (!in_array($newStatus, ['Active', 'Approved', 'Suspended', 'Rejected'], true)) {
       json_response(['ok' => false, 'error' => 'Invalid status for an approved barangay.'], 400);
     }

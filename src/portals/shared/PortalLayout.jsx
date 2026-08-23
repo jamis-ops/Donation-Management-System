@@ -3,6 +3,7 @@ import { Outlet, useLocation } from 'react-router-dom'
 import { Menu } from 'lucide-react'
 import PortalSidebar from './PortalSidebar'
 import NotificationBell from '../../components/admin/shared/NotificationBell'
+import UserProfileMenu from '../../components/shared/UserProfileMenu'
 
 const titles = {
   '/donor': { title: 'Donor Dashboard', sub: 'Track your donations and certificates.' },
@@ -30,18 +31,17 @@ const titles = {
   '/staff/settings': { title: 'Account Settings', sub: 'Update your profile and password.' },
 }
 
-const roleBadgeColor = {
-  Donor: '#AF101A',
-  Volunteer: '#AF101A',
-  Beneficiary: '#16a34a',
-  Staff: '#d97706',
+const portalSettingsPaths = {
+  Donor: '/donor/settings',
+  Volunteer: '/volunteer-portal/settings',
+  Beneficiary: '/beneficiary/settings',
+  Staff: '/staff/settings',
 }
 
 export default function PortalLayout({ role }) {
   const [open, setOpen] = useState(false)
   const location = useLocation()
   const page = titles[location.pathname] || { title: 'Portal', sub: '' }
-  const badgeColor = roleBadgeColor[role] || '#AF101A'
 
   return (
     <div className="portal-layout">
@@ -77,15 +77,10 @@ export default function PortalLayout({ role }) {
                 }
               />
             )}
-            <span
-              className="portal-topbar__badge"
-              style={{
-                background: `${badgeColor}14`,
-                color: badgeColor,
-              }}
-            >
-              {role} Portal
-            </span>
+            <UserProfileMenu
+              settingsPath={portalSettingsPaths[role] || '/admin/settings'}
+              roleLabel={`${role} Portal`}
+            />
           </div>
         </header>
 

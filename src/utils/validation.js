@@ -73,3 +73,47 @@ export function fileSizeError(file, maxBytes, label = 'File') {
   }
   return ''
 }
+
+/**
+ * Password Policy Requirements:
+ * 1. At least 8 characters
+ * 2. At least one uppercase letter (A-Z)
+ * 3. At least one lowercase letter (a-z)
+ * 4. At least one number (0-9)
+ * 5. At least one special character (!@#$%^&*...)
+ */
+export const PASSWORD_REQUIREMENTS = [
+  { id: 'min_length', label: 'At least 8 characters', test: (p) => (p || '').length >= 8 },
+  { id: 'uppercase', label: 'At least one uppercase letter (A-Z)', test: (p) => /[A-Z]/.test(p || '') },
+  { id: 'lowercase', label: 'At least one lowercase letter (a-z)', test: (p) => /[a-z]/.test(p || '') },
+  { id: 'number', label: 'At least one number (0-9)', test: (p) => /[0-9]/.test(p || '') },
+  { id: 'special', label: 'At least one special character (!@#$%^&*...)', test: (p) => /[^A-Za-z0-9]/.test(p || '') },
+]
+
+export function checkPasswordRequirements(password) {
+  const p = String(password || '')
+  const results = PASSWORD_REQUIREMENTS.map((rule) => ({
+    ...rule,
+    met: rule.test(p),
+  }))
+  const metCount = results.filter((r) => r.met).length
+  const isValid = metCount === PASSWORD_REQUIREMENTS.length
+  return {
+    results,
+    metCount,
+    totalCount: PASSWORD_REQUIREMENTS.length,
+    isValid,
+  }
+}
+
+export function passwordError(password, { required = true, fieldLabel = 'Password' } = {}) {
+  const p = String(password || '')
+  if (!p) return required ? `${fieldLabel} is required.` : ''
+  if (p.length < 8) return `${fieldLabel} must be at least 8 characters long.`
+  if (!/[A-Z]/.test(p)) return `${fieldLabel} must contain at least one uppercase letter (A-Z).`
+  if (!/[a-z]/.test(p)) return `${fieldLabel} must contain at least one lowercase letter (a-z).`
+  if (!/[0-9]/.test(p)) return `${fieldLabel} must contain at least one number (0-9).`
+  if (!/[^A-Za-z0-9]/.test(p)) return `${fieldLabel} must contain at least one special character.`
+  return ''
+}
+

@@ -1,4 +1,4 @@
-import { NavLink, useNavigate } from 'react-router-dom'
+import { NavLink } from 'react-router-dom'
 import {
   LayoutDashboard,
   HeartHandshake,
@@ -12,12 +12,8 @@ import {
   Package,
   Truck,
   ListTodo,
-  LogOut,
   Upload,
-  Settings,
-  ExternalLink,
 } from 'lucide-react'
-import { useAuth } from '../../context/AuthContext'
 import Logo from '../../components/shared/Logo'
 
 const portalMenus = {
@@ -29,7 +25,6 @@ const portalMenus = {
       { to: '/donor', label: 'Dashboard', icon: LayoutDashboard, end: true },
       { to: '/donor/donations', label: 'My Donations', icon: History },
       { to: '/donor/certificates', label: 'Certificates', icon: FileBadge },
-      { to: '/donor/settings', label: 'Settings', icon: Settings },
     ],
   },
   Volunteer: {
@@ -42,7 +37,6 @@ const portalMenus = {
       { to: '/volunteer-portal/schedule', label: 'Schedule', icon: CalendarDays },
       { to: '/volunteer-portal/hours', label: 'Volunteer Hours', icon: Clock3 },
       { to: '/volunteer-portal/certificates', label: 'Certificates', icon: Award },
-      { to: '/volunteer-portal/settings', label: 'Settings', icon: Settings },
     ],
   },
   Beneficiary: {
@@ -55,7 +49,6 @@ const portalMenus = {
       { to: '/beneficiary/distributions', label: 'Distributions', icon: Truck },
       { to: '/beneficiary/proofs', label: 'Submit Proof', icon: Upload },
       { to: '/beneficiary/history', label: 'Assistance History', icon: History },
-      { to: '/beneficiary/settings', label: 'Settings', icon: Settings },
     ],
   },
   Staff: {
@@ -69,24 +62,14 @@ const portalMenus = {
       { to: '/staff/inventory', label: 'Inventory', icon: Package },
       { to: '/staff/distributions', label: 'Distributions', icon: Truck },
       { to: '/staff/tasks', label: 'My Tasks', icon: ListTodo },
-      { to: '/staff/settings', label: 'Settings', icon: Settings },
     ],
   },
 }
 
 export default function PortalSidebar({ role, open, onClose }) {
-  const { user, logout } = useAuth()
-  const navigate = useNavigate()
   const menu = portalMenus[role]
 
-  const handleLogout = async () => {
-    await logout()
-    navigate('/login')
-  }
-
   if (!menu) return null
-
-  const initial = user?.name?.charAt(0)?.toUpperCase() || role.charAt(0)
 
   return (
     <>
@@ -141,45 +124,6 @@ export default function PortalSidebar({ role, open, onClose }) {
           </ul>
         </nav>
 
-        {/* Footer */}
-        <div className="portal-sidebar__footer">
-          <div className="portal-sidebar__user">
-            <div
-              className="portal-sidebar__avatar"
-              style={{ background: menu.color }}
-            >
-              {initial}
-            </div>
-            <div>
-              <strong>{user?.name || role}</strong>
-              <span>{role} Account</span>
-            </div>
-          </div>
-
-          <a
-            href="/"
-            className="portal-sidebar__link-btn"
-            target="_blank"
-            rel="noreferrer"
-          >
-            <ExternalLink size={14} />
-            Public Website
-          </a>
-
-          <button
-            type="button"
-            className="portal-sidebar__logout"
-            style={{
-              background: `${menu.color}12`,
-              borderColor: `${menu.color}28`,
-              color: menu.color,
-            }}
-            onClick={handleLogout}
-          >
-            <LogOut size={15} />
-            Sign Out
-          </button>
-        </div>
       </aside>
     </>
   )

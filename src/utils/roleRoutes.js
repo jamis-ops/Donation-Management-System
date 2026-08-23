@@ -1,5 +1,5 @@
 export const ROLE_HOME = {
-  SuperAdmin: '/admin',
+  SuperAdmin: '/admin/admins',
   Admin: '/admin',
   Staff: '/staff',
   Donor: '/donor',

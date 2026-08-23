@@ -4,9 +4,11 @@ import { useAuth } from '../../context/AuthContext'
 import Logo from '../../components/shared/Logo'
 import Req from '../../components/shared/Req'
 import { adminBg } from '../../assets'
+import { useLoading } from '../../context/LoadingContext'
 
 export default function LoginPage() {
   const [email, setEmail] = useState('')
+  const { showLoading, hideLoading } = useLoading()
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
@@ -25,6 +27,7 @@ export default function LoginPage() {
     e.preventDefault()
     setError('')
     setLoading(true)
+    showLoading('Please wait…')
     try {
       const result = await login(email, password)
       const role = result?.user?.role
@@ -40,6 +43,7 @@ export default function LoginPage() {
     } catch (err) {
       setError(err.message || 'Login failed')
     } finally {
+      hideLoading()
       setLoading(false)
     }
   }

@@ -103,7 +103,7 @@ if ($method === 'GET') {
   if ($user['role'] === 'Donor') {
     $rows = donations_for_donor_user($pdo, $user);
   } else {
-    $rows = $pdo->query('SELECT * FROM donations ORDER BY donation_date DESC, id DESC')->fetchAll();
+    $rows = $pdo->query('SELECT * FROM donations ORDER BY created_at DESC, donation_date DESC, id DESC')->fetchAll();
   }
   json_response(['ok' => true, 'data' => array_map('map_donation', $rows)]);
 }
@@ -330,6 +330,15 @@ if ($method === 'PUT') {
   }
 
   $status = trim((string) ($body['status'] ?? $existing['status']));
+  assert_valid_status_transition(
+    'Donation',
+    (string) ($existing['status'] ?? ''),
+    $status,
+    WORKFLOW_DONATION_STEPS,
+    WORKFLOW_DONATION_TERMINAL,
+    WORKFLOW_DONATION_BRANCHES
+  );
+
   $donorName = trim((string) ($body['donorName'] ?? $existing['donor_name']));
   $type = ($body['type'] ?? $existing['type']) === 'In-Kind' ? 'In-Kind' : 'Monetary';
   $amount = $type === 'Monetary' ? (float) ($body['amountRaw'] ?? $body['amount'] ?? $existing['amount']) : null;

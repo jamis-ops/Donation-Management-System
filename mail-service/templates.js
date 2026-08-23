@@ -44,7 +44,7 @@ export function credentialsPlainText({
     intro,
     '',
     `Sign-in email: ${loginEmail}`,
-    `One-time sign-in code: ${temporaryPassword}`,
+    `Temporary password: ${temporaryPassword}`,
     '',
     `Open the portal: ${loginUrl}`,
     `Add a recovery number (optional): ${recoveryUrl}`,
@@ -138,12 +138,12 @@ export function credentialsEmailHtml({
               </h1>
               <p style="margin:0 0 8px;font-size:0.98rem;line-height:1.65;color:#475569;">
                 ${(role || '').toLowerCase() === 'staff'
-                  ? `Hi ${displayName}, welcome to the Rise Above Foundation Cebu team! Your Staff Portal account is ready for managing assigned tasks and supporting operations. Use the one-time sign-in details below, then choose a new password after your first login.`
+                  ? `Hi ${displayName}, welcome to the Rise Above Foundation Cebu team! Your Staff Portal account is ready for managing assigned tasks and supporting operations. Use the temporary password below to sign in, then choose a new password after your first login.`
                   : (role || '').toLowerCase() === 'donor'
-                  ? `Hi ${displayName}, welcome and thank you for being a valued donor and partner! Your Donor Portal allows you to manage and track your donations. Use the one-time sign-in details below, then choose a new password after your first login.`
+                  ? `Hi ${displayName}, welcome and thank you for being a valued donor and partner! Your Donor Portal allows you to manage and track your donations. Use the temporary password below to sign in, then choose a new password after your first login.`
                   : (role || '').toLowerCase() === 'volunteer'
-                  ? `Hi ${displayName}, welcome as a volunteer! Your Volunteer Portal allows you to view assigned tasks, schedules, and support relief operations. Use the one-time sign-in details below, then choose a new password after your first login.`
-                  : `Hi ${displayName}, an administrator created a <strong style="color:#0f172a;">${roleLabel}</strong> account for you on the Rise Above Foundation Cebu portal. Use the one-time sign-in details below, then choose a new password after your first login.`
+                  ? `Hi ${displayName}, welcome as a volunteer! Your Volunteer Portal allows you to view assigned tasks, schedules, and support relief operations. Use the temporary password below to sign in, then choose a new password after your first login.`
+                  : `Hi ${displayName}, an administrator created a <strong style="color:#0f172a;">${roleLabel}</strong> account for you on the Rise Above Foundation Cebu portal. Use the temporary password below to sign in, then choose a new password after your first login.`
                 }
               </p>
             </td>
@@ -161,7 +161,7 @@ export function credentialsEmailHtml({
                 </tr>
                 <tr>
                   <td style="padding:16px 18px;">
-                    <div style="margin:0 0 6px;font-size:0.7rem;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:#94a3b8;">One-time sign-in code</div>
+                    <div style="margin:0 0 6px;font-size:0.7rem;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:#94a3b8;">Temporary password</div>
                     <div style="margin:0;font-size:1.15rem;font-weight:750;font-family:Consolas,Monaco,'Courier New',monospace;color:#AF101A;letter-spacing:0.04em;word-break:break-all;">${password}</div>
                   </td>
                 </tr>
@@ -206,7 +206,7 @@ export function credentialsEmailHtml({
               <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="width:100%;background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;">
                 <tr>
                   <td style="padding:14px 16px;font-size:0.85rem;line-height:1.55;color:#475569;">
-                    <strong style="color:#0f172a;">Security note:</strong> This one-time code is only for your Rise Above Foundation Cebu portal account.
+                    <strong style="color:#0f172a;">Security note:</strong> This temporary password is only for your Rise Above Foundation Cebu portal account.
                     Sign in soon, set your own password, and never forward this email.
                   </td>
                 </tr>

@@ -219,10 +219,10 @@ export default function VolunteerCertificatesPage() {
       {shareModalOpen && (
         <div className="admin-modal-overlay" onClick={() => setShareModalOpen(null)}>
           <div className="admin-modal admin-modal--share" onClick={(e) => e.stopPropagation()}>
-            <div className="admin-modal__header">
-              <h3>Share Certificate</h3>
-              <button onClick={() => setShareModalOpen(null)} className="admin-modal__close">×</button>
-            </div>
+            <ModalHeader
+              title="Share Certificate"
+              onClose={() => setShareModalOpen(null)}
+            />
             <div className="admin-modal__body">
               <div className="share-modal-content">
                 <div className="share-modal-cert-info">

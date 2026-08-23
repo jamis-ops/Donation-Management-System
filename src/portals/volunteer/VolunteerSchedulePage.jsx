@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { ChevronLeft, ChevronRight, Calendar as CalendarIcon, MapPin, Clock, Users } from 'lucide-react'
 import StatusBadge from '../../components/admin/shared/StatusBadge'
+import ModalHeader from '../../components/admin/shared/ModalHeader'
 import ApiState from '../../components/admin/shared/ApiState'
 import Pagination from '../../components/admin/shared/Pagination'
 import { getPortalData } from '../../api/resources'
@@ -275,10 +276,10 @@ export default function VolunteerSchedulePage() {
       {selectedEvent && (
         <div className="admin-modal-overlay" onClick={() => setSelectedEvent(null)}>
           <div className="admin-modal" onClick={(e) => e.stopPropagation()}>
-            <div className="admin-modal__header">
-              <h3>{selectedEvent.event}</h3>
-              <button type="button" onClick={() => setSelectedEvent(null)} className="admin-modal__close">×</button>
-            </div>
+            <ModalHeader
+              title={selectedEvent.event}
+              onClose={() => setSelectedEvent(null)}
+            />
             <div className="admin-modal__body">
               <div className="portal-event-detail">
                 <div className="portal-event-detail__header">

@@ -3,12 +3,13 @@ import { Link, useParams } from 'react-router-dom'
 import { CheckCircle2 } from 'lucide-react'
 import Logo from '../components/shared/Logo'
 import Req from '../components/shared/Req'
-import PolicyLinks from '../components/shared/PolicyLinks'
+import PolicyConsentBox from '../components/shared/PolicyConsentBox'
 import { heroBg } from '../assets'
 import { REPRESENTATIVE_POSITIONS } from '../constants/options'
 import { MUNICIPALITIES, barangaysForMunicipality } from '../constants/locations'
 import PhoneInput from '../components/shared/PhoneInput'
 import { phoneError } from '../utils/validation'
+import { useLoading } from '../context/LoadingContext'
 
 const emptyForm = {
   barangay: '',
@@ -20,12 +21,15 @@ const emptyForm = {
   contactNumber: '',
   email: '',
   notes: '',
+  acceptedTerms: false,
+  acceptedPrivacy: false,
   acceptTerms: false,
 }
 
 export default function AcceptInvitePage() {
   const { token } = useParams()
   const [loading, setLoading] = useState(true)
+  const { showLoading, hideLoading } = useLoading()
   const [invalid, setInvalid] = useState(false)
   const [invalidMessage, setInvalidMessage] = useState('')
   const [submitting, setSubmitting] = useState(false)
@@ -79,11 +83,12 @@ export default function AcceptInvitePage() {
       setError(phoneMsg)
       return
     }
-    if (!form.acceptTerms) {
-      setError('Please agree to the Data Privacy Policy and Terms & Conditions.')
+    if (!form.acceptedTerms || !form.acceptedPrivacy) {
+      setError('Please agree to both the Terms & Conditions and Data Privacy Policy.')
       return
     }
     setSubmitting(true)
+    showLoading('Submitting…')
     try {
       const res = await fetch('/api/beneficiaries.php', {
         method: 'POST',
@@ -100,7 +105,10 @@ export default function AcceptInvitePage() {
           contactNumber: form.contactNumber,
           email: form.email,
           notes: form.notes,
+          acceptedTerms: true,
+          acceptedPrivacy: true,
           acceptTerms: true,
+          acceptedPolicies: true,
         }),
       })
       const data = await res.json().catch(() => null)
@@ -111,6 +119,7 @@ export default function AcceptInvitePage() {
     } catch (err) {
       setError(err.message || 'Something went wrong. Please try again.')
     } finally {
+      hideLoading()
       setSubmitting(false)
     }
   }
@@ -261,19 +270,21 @@ export default function AcceptInvitePage() {
                   />
                 </label>
 
-                <label className="invite-form__consent">
-                  <input
-                    type="checkbox"
-                    checked={form.acceptTerms}
-                    onChange={(e) => set('acceptTerms', e.target.checked)}
-                    required
-                  />
-                  <span>
-                    I agree to the <PolicyLinks />.
-                  </span>
-                </label>
+                <PolicyConsentBox
+                  acceptedTerms={form.acceptedTerms}
+                  onTermsChange={(val) => set('acceptedTerms', val)}
+                  acceptedPrivacy={form.acceptedPrivacy}
+                  onPrivacyChange={(val) => set('acceptedPrivacy', val)}
+                  entityLabel="Barangay representative"
+                  title="Data Privacy & Terms Agreement"
+                />
 
-                <button type="submit" className="btn btn--primary btn--lg auth-form__submit" disabled={submitting}>
+                <button
+                  type="submit"
+                  className="btn btn--primary btn--lg auth-form__submit"
+                  disabled={submitting || !form.acceptedTerms || !form.acceptedPrivacy}
+                  title={!form.acceptedTerms || !form.acceptedPrivacy ? 'Please accept both agreements above to submit application' : ''}
+                >
                   {submitting ? 'Submitting…' : 'Submit application'}
                 </button>
               </form>

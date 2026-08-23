@@ -13,6 +13,7 @@ const statusMap = {
   'To Do': 'neutral',
   'In Review': 'primary',
   Done: 'success',
+  Ongoing: 'primary',
   Verified: 'success',
   Approved: 'primary',
   Active: 'success',

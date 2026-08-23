@@ -502,6 +502,19 @@ try {
     }
   }
 
+  // v25: Volunteer CV / Resume upload support
+  addColumn($pdo, 'volunteers', 'resume_path', 'VARCHAR(255) NULL AFTER required_hours');
+  addColumn($pdo, 'volunteers', 'resume_file_name', 'VARCHAR(255) NULL AFTER resume_path');
+  addColumn($pdo, 'volunteers', 'resume_file_type', 'VARCHAR(80) NULL AFTER resume_file_name');
+  addColumn($pdo, 'volunteers', 'resume_file_size', 'INT UNSIGNED NULL AFTER resume_file_type');
+  echo "Ensured volunteers resume columns\n";
+
+  // v26: Volunteer vs Intern separation
+  addColumn($pdo, 'volunteers', 'applicant_type', "VARCHAR(30) NOT NULL DEFAULT 'Volunteer' AFTER availability");
+  addColumn($pdo, 'volunteers', 'institution', "VARCHAR(190) NULL AFTER applicant_type");
+  $pdo->exec("UPDATE volunteers SET applicant_type = 'Volunteer' WHERE applicant_type IS NULL OR applicant_type = ''");
+  echo "Ensured volunteers applicant_type and institution\n";
+
   echo "\nMigration complete!\n";
 } catch (Throwable $e) {
   http_response_code(500);

@@ -153,7 +153,7 @@ if ($method === 'GET') {
     }
     json_response(['ok' => true, 'data' => map_donor($pdo, $row)]);
   }
-  $rows = $pdo->query('SELECT * FROM donors ORDER BY COALESCE(NULLIF(organization, ""), full_name) ASC')->fetchAll();
+  $rows = $pdo->query('SELECT * FROM donors ORDER BY created_at DESC, id DESC')->fetchAll();
   json_response(['ok' => true, 'data' => array_map(fn($r) => map_donor($pdo, $r), $rows)]);
 }
 
@@ -175,9 +175,10 @@ if ($method === 'POST') {
   }
 
   $createAccount = !empty($body['createAccount']);
-  $acceptedPolicies = !empty($body['acceptedPolicies']) || !empty($body['termsAccepted']);
-  if ($createAccount && !$acceptedPolicies) {
-    json_response(['ok' => false, 'error' => 'Donor must accept the Data Privacy Policy and Terms & Conditions'], 400);
+  $hasTerms = !empty($body['acceptedTerms']) || !empty($body['termsAccepted']) || !empty($body['acceptedPolicies']);
+  $hasPrivacy = !empty($body['acceptedPrivacy']) || !empty($body['privacyAccepted']) || !empty($body['acceptedPolicies']);
+  if ($createAccount && (!$hasTerms || !$hasPrivacy)) {
+    json_response(['ok' => false, 'error' => 'You must accept both the Data Privacy Policy and Terms & Conditions before creating credentials.'], 400);
   }
   if ($createAccount && email_taken($pdo, $fields['email'])) {
     json_response(['ok' => false, 'error' => 'An account with this email already exists'], 409);
@@ -279,8 +280,10 @@ if ($method === 'PUT') {
     if ($email === '' || !filter_var($email, FILTER_VALIDATE_EMAIL)) {
       json_response(['ok' => false, 'error' => 'A valid email is required to create an account'], 400);
     }
-    if (empty($body['acceptedPolicies']) && empty($body['termsAccepted'])) {
-      json_response(['ok' => false, 'error' => 'Donor must accept the Data Privacy Policy and Terms & Conditions'], 400);
+    $hasTerms = !empty($body['acceptedTerms']) || !empty($body['termsAccepted']) || !empty($body['acceptedPolicies']);
+    $hasPrivacy = !empty($body['acceptedPrivacy']) || !empty($body['privacyAccepted']) || !empty($body['acceptedPolicies']);
+    if (!$hasTerms || !$hasPrivacy) {
+      json_response(['ok' => false, 'error' => 'You must accept both the Data Privacy Policy and Terms & Conditions before creating credentials.'], 400);
     }
     if (email_taken($pdo, $email)) {
       json_response(['ok' => false, 'error' => 'An account with this email already exists'], 409);

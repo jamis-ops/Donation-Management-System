@@ -347,6 +347,10 @@ if ($method === 'PUT') {
     json_response(['ok' => false, 'error' => 'Proof not found'], 404);
   }
 
+  if ($proof['status'] === 'Approved' && $status !== 'Approved') {
+    json_response(['ok' => false, 'error' => 'Approved proofs are finalized and cannot be modified or rejected.'], 400);
+  }
+
   $pdo->prepare('UPDATE distribution_proofs SET status = ?, review_remarks = ?, reviewed_at = NOW(), reviewed_by_user_id = ? WHERE id = ?')
     ->execute([$status, $remarks, $user['id'], $id]);
 

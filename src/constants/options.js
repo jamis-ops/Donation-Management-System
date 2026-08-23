@@ -85,16 +85,25 @@ export const REPRESENTATIVE_POSITIONS = [
   'Representative',
 ]
 
+/** Controlled program options for volunteer matching & registration. */
+export const VOLUNTEER_PROGRAMS = [
+  'Disaster Relief and House Building Project',
+  'Community Feeding & Nutrition Program',
+  'Educational Sponsorship & Youth Development',
+  'Medical and Dental Missions',
+  'Family Hygiene & Preventive Health',
+  'Livelihood & Skills Training',
+]
+
 /** Controlled skill tags for RAF Cebu volunteer matching. */
 export const VOLUNTEER_SKILLS = [
-  'Packing / Repacking',
-  'Logistics / Driving',
-  'First Aid',
-  'Teaching / Tutoring',
-  'Medical / Dental support',
-  'Construction',
-  'Cooking / Food prep',
-  'Translation (Cebuano/English)',
-  'Documentation / Photo',
-  'Community outreach',
+  'Community Engagement',
+  'Cooking & Food Prep',
+  'Documentation & Photos',
+  'Driving & Logistics',
+  'First Aid & Medical',
+  'Heavy Lifting & Loading',
+  'Relief Goods Packing',
+  'Teaching & Tutoring',
+  'Warehouse Sorting',
 ]

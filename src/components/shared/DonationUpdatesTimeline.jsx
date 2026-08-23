@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { Check, Clock } from 'lucide-react'
 import { donationUpdatesApi } from '../../api/resources'
 import { notify } from '../../utils/toast'
+import { useLoading } from '../../context/LoadingContext'
 
 const FALLBACK_STAGES = [
   'Donation Received',
@@ -21,6 +22,7 @@ export default function DonationUpdatesTimeline({
   onPosted,
 }) {
   const [updates, setUpdates] = useState([])
+  const { showLoading, hideLoading } = useLoading()
   const [stages, setStages] = useState(FALLBACK_STAGES)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
@@ -31,6 +33,7 @@ export default function DonationUpdatesTimeline({
   const load = async () => {
     if (!donationId) return
     setLoading(true)
+    showLoading('Please wait…')
     setError('')
     try {
       const res = await donationUpdatesApi.list(donationId)
@@ -39,6 +42,7 @@ export default function DonationUpdatesTimeline({
     } catch (err) {
       setError(err.message || 'Could not load updates')
     } finally {
+      hideLoading()
       setLoading(false)
     }
   }
@@ -52,6 +56,7 @@ export default function DonationUpdatesTimeline({
     e.preventDefault()
     if (!stage) return
     setSaving(true)
+    showLoading('Saving…')
     try {
       await donationUpdatesApi.create({ donationId, stage, note })
       setStage('')
@@ -62,6 +67,7 @@ export default function DonationUpdatesTimeline({
     } catch (err) {
       notify.error(err.message)
     } finally {
+      hideLoading()
       setSaving(false)
     }
   }

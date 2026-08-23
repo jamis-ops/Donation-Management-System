@@ -10,9 +10,12 @@ import Pagination from '../../components/admin/shared/Pagination'
 import ModalHeader from '../../components/admin/shared/ModalHeader'
 import DonationProgressTracker from '../../components/donor/DonationProgressTracker'
 import { notify } from '../../utils/toast'
+import { confirmAction, showSuccessModal } from '../../utils/confirm'
 import { DONATION_STATUSES } from '../../constants/options'
+import { useLoading } from '../../context/LoadingContext'
 
 export default function DonorDonationsPage() {
+  const { showLoading, hideLoading } = useLoading()
   const { data, loading, error, reload } = useApiList(() => donationsApi.list())
   const [selected, setSelected] = useState(null)
   const [search, setSearch] = useState('')
@@ -23,18 +26,26 @@ export default function DonorDonationsPage() {
   // Calculate statistics
   const totalMonetary = data
     .filter(d => d.type === 'Monetary' && d.status !== 'Cancelled')
-    .reduce((sum, d) => sum + parseFloat(d.amount.replace(/[₱,]/g, '')), 0)
+    .reduce((sum, d) => sum + (Number(d.amount) || 0), 0)
   
-  const inKindCount = data.filter(d => d.type === 'In-Kind').length
-  const distributedCount = data.filter(d => d.status === 'Distributed').length
-  const totalBeneficiaries = data.reduce((sum, d) => sum + (d.beneficiaries || 0), 0)
+  const totalInKind = data
+    .filter(d => d.type === 'In-Kind' && d.status !== 'Cancelled')
+    .length
 
-  // Apply filters
+  const activeDonations = data
+    .filter(d => ['Pending', 'Pending Verification', 'Verified', 'In Transit', 'Allocated'].includes(d.status))
+    .length
+
+  const completedDonations = data
+    .filter(d => ['Distributed', 'Completed', 'Received'].includes(d.status))
+    .length
+
+  // Filter donations
   const filtered = data.filter((d) => {
     const matchesSearch = !search ||
       d.trackingCode?.toLowerCase().includes(search.toLowerCase()) ||
-      d.program?.toLowerCase().includes(search.toLowerCase()) ||
-      d.status?.toLowerCase().includes(search.toLowerCase())
+      d.category?.toLowerCase().includes(search.toLowerCase()) ||
+      d.program?.toLowerCase().includes(search.toLowerCase())
     
     const matchesType = typeFilter === 'All' || d.type === typeFilter
     const matchesStatus = statusFilter === 'All' || d.status === statusFilter
@@ -53,7 +64,7 @@ export default function DonorDonationsPage() {
   const statusCounts = {
     All: data.length,
     ...Object.fromEntries(
-      DONATION_STATUSES.filter((s) => !['Rejected', 'Cancelled'].includes(s)).map((s) => [
+      DONATION_STATUSES.map((s) => [
         s,
         data.filter((d) => d.status === s).length,
       ])
@@ -61,22 +72,33 @@ export default function DonorDonationsPage() {
   }
 
   const handleCancel = async (row) => {
-    if (!window.confirm(`Cancel donation ${row.trackingCode}? This cannot be undone.`)) return
+    const ok = await confirmAction({
+      title: 'Cancel Donation',
+      message: `Cancel donation ${row.trackingCode}? This cannot be undone.`,
+      confirmText: 'Cancel Donation',
+      type: 'danger',
+    })
+    if (!ok) return
+
     setBusy(true)
+    showLoading('Cancelling donation…')
     try {
       await donationsApi.remove(row.dbId)
       setSelected(null)
       notify.success('Status successfully updated to: Cancelled.')
+      showSuccessModal('Successfully updated.')
       reload()
     } catch (err) {
       notify.error(err.message)
     } finally {
+      hideLoading()
       setBusy(false)
     }
   }
 
   const handleRequestCert = async (row) => {
     setBusy(true)
+    showLoading('Requesting certificate…')
     try {
       await certificatesApi.create({ type: 'Certificate of Donation', reference: row.trackingCode })
       setSelected(null)
@@ -84,6 +106,7 @@ export default function DonorDonationsPage() {
     } catch (err) {
       notify.error(err.message)
     } finally {
+      hideLoading()
       setBusy(false)
     }
   }

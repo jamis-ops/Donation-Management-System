@@ -12,6 +12,7 @@ import ApiState from '../../components/admin/shared/ApiState'
 import StatusBadge from '../../components/admin/shared/StatusBadge'
 import Pagination from '../../components/admin/shared/Pagination'
 import { notify } from '../../utils/toast'
+import { useLoading } from '../../context/LoadingContext'
 
 const PROOF_SLOTS = [
   {
@@ -77,6 +78,7 @@ export default function BeneficiaryProofsPage() {
   }))
   const preselectId = deepLink.distributionId
 
+  const { showLoading, hideLoading } = useLoading()
   const { data: events, loading: distLoading, error: distError, reload: reloadDist } = useApiList(() =>
     distributionsApi.listForProof()
   )
@@ -137,6 +139,7 @@ export default function BeneficiaryProofsPage() {
       return
     }
     setUploading(true)
+    showLoading('Uploading…')
     setMessage('')
     try {
       const fd = new FormData()
@@ -160,6 +163,7 @@ export default function BeneficiaryProofsPage() {
       setMessage(err.message)
       notify.error(err.message)
     } finally {
+      hideLoading()
       setUploading(false)
     }
   }

@@ -585,13 +585,21 @@ switch ($user['role']) {
       $activityLog[] = [
         'id' => $t['code'],
         'date' => format_date($completed),
+        'rawDate' => $completed && $ts ? date('Y-m-d H:i:s', $ts) : ($completed ?: null),
+        'year' => $ts ? (int) date('Y', $ts) : (int) date('Y'),
+        'month' => $ts ? (int) date('n', $ts) : (int) date('n'),
+        'monthName' => $ts ? $monthNames[(int) date('n', $ts) - 1] : date('F'),
         'activity' => $t['title'],
         'type' => $t['module'] ?: 'General',
         'hours' => $h,
+        'dutyStart' => $t['duty_start'] ?? null,
+        'dutyEnd' => $t['duty_end'] ?? null,
+        'dutyLabel' => duty_label($t['duty_start'] ?? null, $t['duty_end'] ?? null, $h),
+        'attendance' => 'Present / Completed',
         'status' => 'Verified',
       ];
     }
-    usort($activityLog, static fn($a, $b) => strcmp($b['date'], $a['date']));
+    usort($activityLog, static fn($a, $b) => strcmp((string) ($b['rawDate'] ?? $b['date']), (string) ($a['rawDate'] ?? $a['date'])));
 
     json_response([
       'ok' => true,
