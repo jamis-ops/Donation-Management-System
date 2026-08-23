@@ -1,6 +1,10 @@
 import { useMemo, useState } from 'react'
-import { Eye, Pencil, Trash2, UserPlus, Building2, User, MapPin } from 'lucide-react'
-import { donorsApi } from '../../api/resources'
+import { 
+  Eye, Pencil, Trash2, UserPlus, Building2, User, MapPin, 
+  Mail, Phone, Globe, Coins, Heart, Calendar, ShieldAlert, 
+  CheckCircle2, FileText, ExternalLink, Sparkles
+} from 'lucide-react'
+import { donorsApi, donationsApi } from '../../api/resources'
 import { useApiList } from '../../hooks/useApiList'
 import { useFilters } from '../../hooks/useFilters'
 import { DONOR_TYPES } from '../../constants/options'
@@ -82,11 +86,24 @@ export default function DonorsPage() {
   const [form, setForm] = useState(emptyForm)
   const [saving, setSaving] = useState(false)
 
+  const { data: allDonations } = useApiList(() => donationsApi.list())
+
   const isCompany = form.donorType === 'Company'
 
   const availableRegions = useMemo(() => {
     return getRegionsForCountry(form.country)
   }, [form.country])
+
+  const donorDonations = useMemo(() => {
+    if (!active?.email && !active?.name && !active?.fullName) return []
+    const email = (active.email || '').toLowerCase().trim()
+    const name = (active.fullName || active.name || active.organization || '').toLowerCase().trim()
+    return (allDonations || []).filter((d) => {
+      if (email && (d.donorEmail || '').toLowerCase().trim() === email) return true
+      if (name && (d.donor || d.donorName || '').toLowerCase().trim() === name) return true
+      return false
+    })
+  }, [allDonations, active])
 
   const openCreate = () => {
     setActive(null)
@@ -321,40 +338,243 @@ export default function DonorsPage() {
       {mode === 'view' && active && (
         <div className="admin-modal-overlay" onClick={() => setMode(null)}>
           <div className="admin-modal admin-modal--wide" onClick={(e) => e.stopPropagation()}>
-            <ModalHeader title="Donor Details" onClose={() => setMode(null)} />
-            <dl className="detail-list">
-              <dt>Donor ID</dt><dd>{active.id}</dd>
-              <dt>Donor Type</dt><dd>{active.donorType || 'Individual'}</dd>
-              {active.donorType === 'Company' ? (
-                <>
-                  <dt>Company / Organization</dt><dd>{active.organization || '—'}</dd>
-                  <dt>Country</dt><dd>{active.country || '—'}</dd>
-                  <dt>Company Address</dt><dd>{active.address || '—'}</dd>
-                  <dt>Authorized Representative</dt><dd>{active.contactPerson || active.fullName || '—'}</dd>
-                </>
-              ) : (
-                <>
-                  <dt>Donor Name</dt><dd>{active.fullName || active.contactPerson || '—'}</dd>
-                  <dt>Country</dt><dd>{active.country || '—'}</dd>
-                  <dt>Address</dt><dd>{active.address || '—'}</dd>
-                </>
+            <ModalHeader title="Donor Profile" onClose={() => setMode(null)} />
+            
+            <div className="donor-modal-content" style={{ padding: '0.25rem 0' }}>
+              {/* Profile Hero Header */}
+              <div className="donor-profile-hero">
+                <div className="donor-profile-avatar">
+                  {active.donorType === 'Company' ? (
+                    <Building2 size={30} />
+                  ) : (
+                    (active.fullName || active.name || 'D').charAt(0).toUpperCase()
+                  )}
+                </div>
+                <div className="donor-profile-main">
+                  <h3 className="donor-profile-name">
+                    {active.donorType === 'Company'
+                      ? (active.organization || active.name || 'Company Donor')
+                      : (active.fullName || active.name || 'Individual Donor')}
+                  </h3>
+                  <div className="donor-profile-pills">
+                    <span className="donor-pill donor-pill--id">
+                      {active.id}
+                    </span>
+                    <span className="donor-pill donor-pill--type">
+                      {active.donorType || 'Individual'}
+                    </span>
+                    {active.hasAccount ? (
+                      <span className="donor-pill donor-pill--active" title="Portal account active">
+                        <CheckCircle2 size={13} /> Portal Account Active
+                      </span>
+                    ) : (
+                      <span className="donor-pill donor-pill--inactive" title="No portal account provisioned">
+                        <ShieldAlert size={13} /> No Portal Login
+                      </span>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* Stats Row */}
+              <div className="donor-stats-row">
+                <div className="donor-stat-card donor-stat-card--funds">
+                  <div className="donor-stat-card__icon">
+                    <Coins size={22} />
+                  </div>
+                  <div className="donor-stat-card__content">
+                    <div className="donor-stat-card__value">
+                      {active.totalDonated || '₱0.00'}
+                    </div>
+                    <div className="donor-stat-card__label">Total Contributed</div>
+                  </div>
+                </div>
+
+                <div className="donor-stat-card donor-stat-card--count">
+                  <div className="donor-stat-card__icon">
+                    <Heart size={22} />
+                  </div>
+                  <div className="donor-stat-card__content">
+                    <div className="donor-stat-card__value">
+                      {active.donations || 0}
+                    </div>
+                    <div className="donor-stat-card__label">Total Donations</div>
+                  </div>
+                </div>
+
+                <div className="donor-stat-card donor-stat-card--date">
+                  <div className="donor-stat-card__icon">
+                    <Calendar size={22} />
+                  </div>
+                  <div className="donor-stat-card__content">
+                    <div className="donor-stat-card__value" style={{ fontSize: '1rem' }}>
+                      {active.lastDonation || '—'}
+                    </div>
+                    <div className="donor-stat-card__label">Latest Contribution</div>
+                  </div>
+                </div>
+              </div>
+
+              {/* 2-Column Info Grid */}
+              <div className="donor-info-grid">
+                {/* Contact Information */}
+                <div className="donor-info-panel">
+                  <div className="donor-info-panel__header">
+                    <Mail size={16} /> Contact Information
+                  </div>
+                  <div className="donor-field-list">
+                    <div className="donor-field-item">
+                      <span className="donor-field-label">Email Address</span>
+                      <span className="donor-field-value">
+                        {active.email ? (
+                          <a href={`mailto:${active.email}`}>{active.email}</a>
+                        ) : (
+                          <span style={{ color: '#94a3b8', fontStyle: 'italic' }}>No email provided</span>
+                        )}
+                      </span>
+                    </div>
+
+                    <div className="donor-field-item">
+                      <span className="donor-field-label">Contact Number</span>
+                      <span className="donor-field-value">
+                        {active.phone ? (
+                          <a href={`tel:${active.phone}`}>{active.phone}</a>
+                        ) : (
+                          <span style={{ color: '#94a3b8', fontStyle: 'italic' }}>No phone number</span>
+                        )}
+                      </span>
+                    </div>
+
+                    {active.donorType === 'Company' && (
+                      <div className="donor-field-item">
+                        <span className="donor-field-label">Authorized Representative</span>
+                        <span className="donor-field-value">
+                          {active.contactPerson || active.fullName || '—'}
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Location Details */}
+                <div className="donor-info-panel">
+                  <div className="donor-info-panel__header">
+                    <MapPin size={16} /> Geographic Location
+                  </div>
+                  <div className="donor-field-list">
+                    <div className="donor-field-item">
+                      <span className="donor-field-label">Country</span>
+                      <span className="donor-field-value">
+                        <Globe size={14} style={{ color: '#64748b' }} />
+                        {active.country || 'Philippines'}
+                      </span>
+                    </div>
+
+                    <div className="donor-field-item">
+                      <span className="donor-field-label">Complete Address</span>
+                      <span className="donor-field-value">
+                        {active.address || '—'}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Remarks / Profile Notes */}
+              {active.notes && (
+                <div className="donor-info-panel">
+                  <div className="donor-info-panel__header">
+                    <FileText size={16} /> Profile Notes & Remarks
+                  </div>
+                  <div className="donor-notes-box">
+                    {active.notes}
+                  </div>
+                </div>
               )}
-              <dt>Email</dt><dd>{active.email || '—'}</dd>
-              <dt>Contact Number</dt><dd>{active.phone || '—'}</dd>
-              <dt>Notes</dt><dd>{active.notes || '—'}</dd>
-              <dt>Portal Account</dt><dd>{active.hasAccount ? 'Yes' : 'No'}</dd>
-              <dt>Total Donated</dt><dd>{active.totalDonated}</dd>
-              <dt>Donations</dt><dd>{active.donations}</dd>
-              <dt>Last Donation</dt><dd>{active.lastDonation || '—'}</dd>
-            </dl>
-            <div className="admin-modal__actions">
+
+              {/* Portal Account Notice / Prompt */}
               {!active.hasAccount && active.email && (
-                <button type="button" className="btn btn--primary" disabled={saving} onClick={createAccountForExisting}>
-                  <UserPlus size={15} /> Create Account &amp; Email Credentials
-                </button>
+                <div className="donor-account-prompt">
+                  <div>
+                    <strong>Donor Portal Access:</strong> This donor does not have an active login account yet. You can provision access to email their login credentials.
+                  </div>
+                  <button
+                    type="button"
+                    className="btn btn--sm btn--primary"
+                    style={{ whiteSpace: 'nowrap' }}
+                    disabled={saving}
+                    onClick={createAccountForExisting}
+                  >
+                    <UserPlus size={14} /> Provision Access
+                  </button>
+                </div>
               )}
-              <button type="button" className="btn btn--outline" onClick={() => openEdit(active)}>Edit</button>
-              <button type="button" className="btn btn--ghost" onClick={() => setMode(null)}>Close</button>
+
+              {/* Contribution History */}
+              {donorDonations?.length > 0 && (
+                <div className="donor-info-panel">
+                  <div className="donor-info-panel__header">
+                    <Heart size={16} /> Recent Contribution History ({donorDonations.length})
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                    {donorDonations.slice(0, 4).map((d) => (
+                      <div
+                        key={d.dbId || d.id}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'space-between',
+                          padding: '0.65rem 0.85rem',
+                          background: '#f8fafc',
+                          borderRadius: '8px',
+                          border: '1px solid #e2e8f0',
+                        }}
+                      >
+                        <div>
+                          <div style={{ fontWeight: 700, fontSize: '0.85rem', color: '#AF101A' }}>
+                            {d.trackingCode}
+                          </div>
+                          <div style={{ fontSize: '0.75rem', color: '#64748b' }}>
+                            {d.type} • {d.category || 'General'} • {d.date}
+                          </div>
+                        </div>
+                        <div style={{ textAlign: 'right' }}>
+                          <div style={{ fontWeight: 700, fontSize: '0.88rem', color: '#047857' }}>
+                            {d.type === 'Monetary' ? d.amount : (d.itemsDescription || d.amount || 'In-Kind')}
+                          </div>
+                          <span style={{ fontSize: '0.72rem', fontWeight: 600, color: '#64748b' }}>
+                            {d.status}
+                          </span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <div className="admin-modal__actions" style={{ marginTop: '1.25rem' }}>
+              <button 
+                type="button" 
+                className="btn btn--outline" 
+                onClick={() => openEdit(active)}
+              >
+                <Pencil size={15} /> Edit Profile
+              </button>
+              <button 
+                type="button" 
+                className="btn btn--danger" 
+                onClick={() => handleDelete(active)}
+              >
+                <Trash2 size={15} /> Delete Donor
+              </button>
+              <button 
+                type="button" 
+                className="btn btn--ghost" 
+                onClick={() => setMode(null)}
+              >
+                Close
+              </button>
             </div>
           </div>
         </div>
