@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Calendar, Download, TrendingUp, Package } from 'lucide-react'
+import { Calendar, Download, TrendingUp, Package, Printer, CheckCircle2, MapPin, Layers } from 'lucide-react'
 import ApiState from '../../components/admin/shared/ApiState'
 import { getPortalData } from '../../api/resources'
 import { useApiObject } from '../../hooks/useApiList'
@@ -7,9 +7,23 @@ import { usePagination, DEFAULT_PAGE_SIZE } from '../../hooks/usePagination'
 import Pagination from '../../components/admin/shared/Pagination'
 import { notify } from '../../utils/toast'
 
+function parseDateBits(dateStr) {
+  if (!dateStr) return { day: '—', month: '—', year: '—' }
+  const d = new Date(dateStr)
+  if (!Number.isNaN(d.getTime())) {
+    return {
+      day: d.getDate(),
+      month: d.toLocaleDateString('en-US', { month: 'short' }),
+      year: d.getFullYear(),
+    }
+  }
+  return { day: '1', month: String(dateStr).slice(0, 3), year: '2026' }
+}
+
 export default function BeneficiaryHistoryPage() {
   const { data, loading, error, reload } = useApiObject(() => getPortalData())
-  const [selectedYear] = useState(2026)
+  const currentYear = new Date().getFullYear()
+  const [selectedYear] = useState(currentYear)
 
   const history = data?.history || []
   const paging = usePagination(history, DEFAULT_PAGE_SIZE, String(history.length))
@@ -20,11 +34,10 @@ export default function BeneficiaryHistoryPage() {
   }, 0)
 
   const totalItems = history.length
+  const maxMonthlyValue = Math.max(...(data?.benefitsByMonth?.map((m) => m.value) || [0]), 1)
 
-  const maxMonthlyValue = Math.max(...(data?.benefitsByMonth?.map(m => m.value) || [0]), 1)
-
-  const handleExportPDF = () => {
-    notify.info('Export to PDF functionality - Demo mode')
+  const handlePrint = () => {
+    window.print()
   }
 
   return (
@@ -65,7 +78,7 @@ export default function BeneficiaryHistoryPage() {
 
             <div className="volunteer-kpi-card volunteer-kpi-card--ongoing">
               <div className="volunteer-kpi-card__icon">
-                <TrendingUp size={20} />
+                <Layers size={20} />
               </div>
               <div>
                 <div className="volunteer-kpi-card__value">{data?.profile?.families || 150}</div>
@@ -77,13 +90,18 @@ export default function BeneficiaryHistoryPage() {
           {/* Monthly Breakdown Chart */}
           <section className="portal-panel">
             <div className="portal-panel__header">
-              <h2>Monthly Assistance - {selectedYear}</h2>
+              <div>
+                <h2>Monthly Assistance Received — {selectedYear}</h2>
+                <p style={{ margin: '0.2rem 0 0', fontSize: '0.82rem', color: '#64748b' }}>
+                  Value of humanitarian relief and program aid delivered to your barangay.
+                </p>
+              </div>
               <button
                 type="button"
                 className="btn btn--sm btn--outline"
-                onClick={handleExportPDF}
+                onClick={handlePrint}
               >
-                <Download size={14} /> Export PDF
+                <Printer size={14} /> Print Summary
               </button>
             </div>
             <div className="beneficiary-benefits-chart">
@@ -109,23 +127,23 @@ export default function BeneficiaryHistoryPage() {
           {/* Benefits by Program */}
           <section className="portal-panel">
             <div className="portal-panel__header">
-              <h2>Assistance by Program</h2>
+              <h2>Assistance Received by Program Category</h2>
             </div>
             <div className="beneficiary-program-breakdown">
               {(data.benefitsByProgram || []).map((program) => (
                 <div key={program.program} className="beneficiary-program-row">
                   <div className="beneficiary-program-row__info">
                     <strong>{program.program}</strong>
-                    <span>{program.count} times · ₱{program.totalValue.toLocaleString()}</span>
+                    <span>{program.count} distributions · ₱{program.totalValue.toLocaleString()}</span>
                   </div>
                   <div className="beneficiary-program-row__bar">
                     <div
                       className="beneficiary-program-row__fill"
-                      style={{ width: `${(program.totalValue / totalValue) * 100}%` }}
+                      style={{ width: `${totalValue > 0 ? (program.totalValue / totalValue) * 100 : 25}%` }}
                     />
                   </div>
                   <span className="beneficiary-program-row__percentage">
-                    {((program.totalValue / totalValue) * 100).toFixed(0)}%
+                    {totalValue > 0 ? ((program.totalValue / totalValue) * 100).toFixed(0) : '0'}%
                   </span>
                 </div>
               ))}
@@ -135,48 +153,61 @@ export default function BeneficiaryHistoryPage() {
           {/* History Timeline */}
           <section className="portal-panel">
             <div className="portal-panel__header">
-              <h2>Assistance History</h2>
+              <div>
+                <h2>Turnover & Assistance History Log</h2>
+                <p style={{ margin: '0.2rem 0 0', fontSize: '0.82rem', color: '#64748b' }}>
+                  Verified record of aid packages and humanitarian items delivered.
+                </p>
+              </div>
             </div>
             <div className="beneficiary-history-timeline">
-              {paging.pageItems.map((item, idx) => (
-                <div key={`${item.date}-${item.item}-${idx}`} className="beneficiary-history-item">
-                  <div className="beneficiary-history-item__date">
-                    <span className="beneficiary-history-item__day">
-                      {new Date(item.date).getDate()}
-                    </span>
-                    <span className="beneficiary-history-item__month">
-                      {new Date(item.date).toLocaleDateString('en-US', { month: 'short' })}
-                    </span>
-                  </div>
-                  <div className="beneficiary-history-item__content">
-                    <strong>{item.item}</strong>
-                    <span className="beneficiary-history-item__program">{item.program}</span>
-                    <div className="beneficiary-history-item__meta">
-                      <span>Qty: {item.quantity}</span>
-                      <span>·</span>
-                      <span>{item.location}</span>
-                      <span>·</span>
-                      <span className="beneficiary-history-item__value">{item.value}</span>
+              {paging.pageItems.map((item, idx) => {
+                const bits = parseDateBits(item.date)
+                return (
+                  <div key={`${item.date}-${item.item}-${idx}`} className="beneficiary-history-item">
+                    <div className="beneficiary-history-item__date">
+                      <span className="beneficiary-history-item__day">{bits.day}</span>
+                      <span className="beneficiary-history-item__month">{bits.month}</span>
+                    </div>
+                    <div className="beneficiary-history-item__content">
+                      <strong>{item.item}</strong>
+                      <span className="beneficiary-history-item__program">{item.program}</span>
+                      <div className="beneficiary-history-item__meta">
+                        <span>📦 Qty: {item.quantity}</span>
+                        <span>·</span>
+                        <span>📍 {item.location}</span>
+                        <span>·</span>
+                        <span className="beneficiary-history-item__value">Est. {item.value}</span>
+                      </div>
+                    </div>
+                    <div className="beneficiary-history-item__status">
+                      <span className="beneficiary-status-badge beneficiary-status-badge--received">
+                        <CheckCircle2 size={13} style={{ display: 'inline', marginRight: '3px' }} />
+                        {item.status}
+                      </span>
                     </div>
                   </div>
-                  <div className="beneficiary-history-item__status">
-                    <span className="beneficiary-status-badge beneficiary-status-badge--received">
-                      {item.status}
-                    </span>
-                  </div>
+                )
+              })}
+              {paging.pageItems.length === 0 && (
+                <div className="portal-empty">
+                  <Package size={28} />
+                  <p>No historical assistance records logged yet.</p>
                 </div>
-              ))}
+              )}
             </div>
-            <Pagination
-              page={paging.page}
-              totalPages={paging.totalPages}
-              total={paging.total}
-              startIndex={paging.startIndex}
-              endIndex={paging.endIndex}
-              onPageChange={paging.setPage}
-              className="pagination--portal"
-              noun="records"
-            />
+            {paging.totalPages > 1 && (
+              <Pagination
+                page={paging.page}
+                totalPages={paging.totalPages}
+                total={paging.total}
+                startIndex={paging.startIndex}
+                endIndex={paging.endIndex}
+                onPageChange={paging.setPage}
+                className="pagination--portal"
+                noun="records"
+              />
+            )}
           </section>
         </>
       )}
