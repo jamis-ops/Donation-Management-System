@@ -142,32 +142,44 @@ export default function BeneficiaryDistributionsPage() {
 
   return (
     <ApiState loading={loading} error={error} onRetry={reload}>
-      <div className="beneficiary-dist-summary" id="dist-summary">
-        <div className="beneficiary-dist-summary-card">
-          <div className="beneficiary-dist-summary-card__icon">
-            <CalendarIcon size={20} />
+      <div className="volunteer-kpi-grid" id="dist-summary">
+        <div className="volunteer-kpi-card volunteer-kpi-card--total">
+          <div className="volunteer-kpi-card__icon">
+            <Truck size={20} />
           </div>
-          <div className="beneficiary-dist-summary-card__content">
-            <span className="beneficiary-dist-summary-card__value">{upcoming.length}</span>
-            <span className="beneficiary-dist-summary-card__label">Active Deliveries</span>
-          </div>
-        </div>
-        <div className="beneficiary-dist-summary-card beneficiary-dist-summary-card--action">
-          <div className="beneficiary-dist-summary-card__icon">
-            <MessageSquare size={20} />
-          </div>
-          <div className="beneficiary-dist-summary-card__content">
-            <span className="beneficiary-dist-summary-card__value">{actionNeeded.length}</span>
-            <span className="beneficiary-dist-summary-card__label">Needs your action</span>
+          <div>
+            <div className="volunteer-kpi-card__value">{upcoming.length}</div>
+            <div className="volunteer-kpi-card__label">Active Deliveries</div>
           </div>
         </div>
-        <div className="beneficiary-dist-summary-card beneficiary-dist-summary-card--completed">
-          <div className="beneficiary-dist-summary-card__icon">
+
+        <div className="volunteer-kpi-card volunteer-kpi-card--ongoing">
+          <div className="volunteer-kpi-card__icon">
+            <AlertTriangle size={20} />
+          </div>
+          <div>
+            <div className="volunteer-kpi-card__value">{actionNeeded.length}</div>
+            <div className="volunteer-kpi-card__label">Action Required</div>
+          </div>
+        </div>
+
+        <div className="volunteer-kpi-card volunteer-kpi-card--completed">
+          <div className="volunteer-kpi-card__icon">
             <CheckCircle2 size={20} />
           </div>
-          <div className="beneficiary-dist-summary-card__content">
-            <span className="beneficiary-dist-summary-card__value">{completed.length}</span>
-            <span className="beneficiary-dist-summary-card__label">Completed</span>
+          <div>
+            <div className="volunteer-kpi-card__value">{completed.length}</div>
+            <div className="volunteer-kpi-card__label">Completed Deliveries</div>
+          </div>
+        </div>
+
+        <div className="volunteer-kpi-card volunteer-kpi-card--hours">
+          <div className="volunteer-kpi-card__icon">
+            <CalendarIcon size={20} />
+          </div>
+          <div>
+            <div className="volunteer-kpi-card__value">{(data || []).length}</div>
+            <div className="volunteer-kpi-card__label">Total Scheduled</div>
           </div>
         </div>
       </div>

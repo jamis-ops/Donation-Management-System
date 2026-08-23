@@ -283,32 +283,44 @@ export default function BeneficiaryRequestsPage() {
   return (
     <ApiState loading={loading} error={error} onRetry={reload}>
       {/* Summary Cards */}
-      <div className="beneficiary-request-summary">
-        <div className="beneficiary-request-summary-card beneficiary-request-summary-card--pending">
-          <div className="beneficiary-request-summary-card__icon">
+      <div className="volunteer-kpi-grid">
+        <div className="volunteer-kpi-card volunteer-kpi-card--total">
+          <div className="volunteer-kpi-card__icon">
             <Clock size={20} />
           </div>
-          <div className="beneficiary-request-summary-card__content">
-            <span className="beneficiary-request-summary-card__value">{statusCounts['Under Review']}</span>
-            <span className="beneficiary-request-summary-card__label">Under Review</span>
+          <div>
+            <div className="volunteer-kpi-card__value">{statusCounts['Under Review'] || 0}</div>
+            <div className="volunteer-kpi-card__label">Under Review</div>
           </div>
         </div>
-        <div className="beneficiary-request-summary-card beneficiary-request-summary-card--approved">
-          <div className="beneficiary-request-summary-card__icon">
+
+        <div className="volunteer-kpi-card volunteer-kpi-card--completed">
+          <div className="volunteer-kpi-card__icon">
             <CheckCircle size={20} />
           </div>
-          <div className="beneficiary-request-summary-card__content">
-            <span className="beneficiary-request-summary-card__value">{statusCounts['Approved']}</span>
-            <span className="beneficiary-request-summary-card__label">Approved</span>
+          <div>
+            <div className="volunteer-kpi-card__value">{statusCounts['Approved'] || 0}</div>
+            <div className="volunteer-kpi-card__label">Approved Requests</div>
           </div>
         </div>
-        <div className="beneficiary-request-summary-card beneficiary-request-summary-card--completed">
-          <div className="beneficiary-request-summary-card__icon">
+
+        <div className="volunteer-kpi-card volunteer-kpi-card--ongoing">
+          <div className="volunteer-kpi-card__icon">
             <CheckCircle size={20} />
           </div>
-          <div className="beneficiary-request-summary-card__content">
-            <span className="beneficiary-request-summary-card__value">{statusCounts['Completed']}</span>
-            <span className="beneficiary-request-summary-card__label">Completed</span>
+          <div>
+            <div className="volunteer-kpi-card__value">{statusCounts['Completed'] || 0}</div>
+            <div className="volunteer-kpi-card__label">Completed Relief</div>
+          </div>
+        </div>
+
+        <div className="volunteer-kpi-card volunteer-kpi-card--hours">
+          <div className="volunteer-kpi-card__icon">
+            <AlertCircle size={20} />
+          </div>
+          <div>
+            <div className="volunteer-kpi-card__value">{statusCounts['All'] || 0}</div>
+            <div className="volunteer-kpi-card__label">Total Requests</div>
           </div>
         </div>
       </div>

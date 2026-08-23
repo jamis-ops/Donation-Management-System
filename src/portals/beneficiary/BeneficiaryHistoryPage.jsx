@@ -32,32 +32,44 @@ export default function BeneficiaryHistoryPage() {
       {data && (
         <>
           {/* Summary Cards */}
-          <div className="beneficiary-history-summary">
-            <div className="beneficiary-history-summary-card">
-              <div className="beneficiary-history-summary-card__icon">
+          <div className="volunteer-kpi-grid">
+            <div className="volunteer-kpi-card volunteer-kpi-card--hours">
+              <div className="volunteer-kpi-card__icon">
                 <TrendingUp size={20} />
               </div>
-              <div className="beneficiary-history-summary-card__content">
-                <span className="beneficiary-history-summary-card__value">₱{totalValue.toLocaleString()}</span>
-                <span className="beneficiary-history-summary-card__label">Total Value Received</span>
+              <div>
+                <div className="volunteer-kpi-card__value">₱{totalValue.toLocaleString()}</div>
+                <div className="volunteer-kpi-card__label">Total Aid Value Received</div>
               </div>
             </div>
-            <div className="beneficiary-history-summary-card beneficiary-history-summary-card--blue">
-              <div className="beneficiary-history-summary-card__icon">
+
+            <div className="volunteer-kpi-card volunteer-kpi-card--total">
+              <div className="volunteer-kpi-card__icon">
                 <Package size={20} />
               </div>
-              <div className="beneficiary-history-summary-card__content">
-                <span className="beneficiary-history-summary-card__value">{totalItems}</span>
-                <span className="beneficiary-history-summary-card__label">Items Received</span>
+              <div>
+                <div className="volunteer-kpi-card__value">{totalItems}</div>
+                <div className="volunteer-kpi-card__label">Relief Turn-overs</div>
               </div>
             </div>
-            <div className="beneficiary-history-summary-card beneficiary-history-summary-card--green">
-              <div className="beneficiary-history-summary-card__icon">
+
+            <div className="volunteer-kpi-card volunteer-kpi-card--completed">
+              <div className="volunteer-kpi-card__icon">
                 <Calendar size={20} />
               </div>
-              <div className="beneficiary-history-summary-card__content">
-                <span className="beneficiary-history-summary-card__value">{data.benefitsByMonth?.length || 0}</span>
-                <span className="beneficiary-history-summary-card__label">Months Active</span>
+              <div>
+                <div className="volunteer-kpi-card__value">{data.benefitsByMonth?.length || 0}</div>
+                <div className="volunteer-kpi-card__label">Active Service Months</div>
+              </div>
+            </div>
+
+            <div className="volunteer-kpi-card volunteer-kpi-card--ongoing">
+              <div className="volunteer-kpi-card__icon">
+                <TrendingUp size={20} />
+              </div>
+              <div>
+                <div className="volunteer-kpi-card__value">{data?.profile?.families || 150}</div>
+                <div className="volunteer-kpi-card__label">Beneficiary Families</div>
               </div>
             </div>
           </div>
