@@ -4,7 +4,8 @@ import {
   Eye, CheckCircle2, Download, FileText, Check, Clock, Package, 
   TrendingUp, Users, MapPin, FileCheck, Send, Printer, Heart,
   Calendar, Mail, Phone, Award, BarChart3, Coins, CreditCard,
-  Banknote, Gift, ShieldAlert, Sparkles, Filter, Layers, DollarSign
+  Banknote, Gift, ShieldAlert, Sparkles, Filter, Layers, DollarSign,
+  Trash2, Settings2, ExternalLink
 } from 'lucide-react'
 import { donationsApi } from '../../api/resources'
 import { useApiList } from '../../hooks/useApiList'
@@ -21,6 +22,8 @@ import { notify } from '../../utils/toast'
 import { confirmAction, showSuccessModal } from '../../utils/confirm'
 import { notifyBadgesChanged } from '../../utils/badgeSync'
 import { useLoading } from '../../context/LoadingContext'
+import { printDonationReceipt } from '../../components/shared/printDonationReceipt'
+import { DONATION_STATUSES } from '../../constants/options'
 
 const IN_KIND_LIFECYCLE = [
   'Submission', 'Tracking Code', 'Verification', 'Inventory Intake',
@@ -119,6 +122,7 @@ export default function DonationsPage() {
   const [form, setForm] = useState(emptyForm)
   const [saving, setSaving] = useState(false)
   const [modalTab, setModalTab] = useState('overview')
+  const [actionStatus, setActionStatus] = useState('')
 
   // Split donations by type
   const inKindDonations = useMemo(() => (donations || []).filter(d => d.type === 'In-Kind'), [donations])
@@ -361,6 +365,34 @@ export default function DonationsPage() {
     }
   }
 
+  const handleUpdateStatus = async (row, newStatus) => {
+    if (!row?.dbId || !newStatus || newStatus === row.status) return
+    const ok = await confirmAction({
+      title: 'Update Donation Status',
+      message: `Update status of donation ${row.trackingCode} to "${newStatus}"?`,
+      confirmText: 'Update Status',
+      type: 'primary',
+    })
+    if (!ok) return
+
+    showLoading('Updating status…')
+    try {
+      const res = await donationsApi.update(row.dbId, { status: newStatus })
+      const status = res?.data?.status || newStatus
+      notify.success(`Status updated to: ${status}.`)
+      showSuccessModal('Successfully updated.')
+      if (selected?.dbId === row.dbId) {
+        setSelected({ ...selected, status })
+      }
+      reload()
+      notifyBadgesChanged()
+    } catch (err) {
+      notify.error(err.message || 'Failed to update status')
+    } finally {
+      hideLoading()
+    }
+  }
+
   // Payment method badge styling helper
   const renderPaymentMethod = (method) => {
     if (!method) return <span className="text-muted">—</span>
@@ -424,6 +456,15 @@ export default function DonationsPage() {
       label: 'Actions',
       render: (row) => (
         <div className="table-actions">
+          <button
+            type="button"
+            className="icon-btn"
+            title="View Details & Actions"
+            aria-label="View Details & Actions"
+            onClick={(e) => { e.stopPropagation(); setSelected(row); setModalTab('overview') }}
+          >
+            <Eye size={15} />
+          </button>
           {row.status === 'Pending Verification' && (
             <button
               type="button"
@@ -438,11 +479,20 @@ export default function DonationsPage() {
           <button
             type="button"
             className="icon-btn"
-            title="View Details"
-            aria-label="View Details"
-            onClick={(e) => { e.stopPropagation(); setSelected(row); setModalTab('overview') }}
+            title="Print Official Receipt"
+            aria-label="Print Official Receipt"
+            onClick={(e) => { e.stopPropagation(); printDonationReceipt(row) }}
           >
-            <Eye size={15} />
+            <Printer size={15} />
+          </button>
+          <button
+            type="button"
+            className="icon-btn icon-btn--danger"
+            title="Delete Donation"
+            aria-label="Delete Donation"
+            onClick={(e) => { e.stopPropagation(); handleDelete(row) }}
+          >
+            <Trash2 size={15} />
           </button>
         </div>
       ),
@@ -502,11 +552,20 @@ export default function DonationsPage() {
       label: 'Actions',
       render: (row) => (
         <div className="table-actions">
+          <button
+            type="button"
+            className="icon-btn"
+            title="View Details & Actions"
+            aria-label="View Details & Actions"
+            onClick={(e) => { e.stopPropagation(); setSelected(row); setModalTab('overview') }}
+          >
+            <Eye size={15} />
+          </button>
           {row.status === 'Pending Verification' && (
             <button
               type="button"
               className="icon-btn icon-btn--success"
-              title="Verify Donation & Confirm Receipt"
+              title="Verify Donation & Clear Funds"
               aria-label="Verify Donation"
               onClick={(e) => { e.stopPropagation(); handleVerify(row) }}
             >
@@ -516,11 +575,20 @@ export default function DonationsPage() {
           <button
             type="button"
             className="icon-btn"
-            title="View Details"
-            aria-label="View Details"
-            onClick={(e) => { e.stopPropagation(); setSelected(row); setModalTab('overview') }}
+            title="Print Official Receipt"
+            aria-label="Print Official Receipt"
+            onClick={(e) => { e.stopPropagation(); printDonationReceipt(row) }}
           >
-            <Eye size={15} />
+            <Printer size={15} />
+          </button>
+          <button
+            type="button"
+            className="icon-btn icon-btn--danger"
+            title="Delete Donation"
+            aria-label="Delete Donation"
+            onClick={(e) => { e.stopPropagation(); handleDelete(row) }}
+          >
+            <Trash2 size={15} />
           </button>
         </div>
       ),
@@ -939,6 +1007,13 @@ export default function DonationsPage() {
                 Overview
               </button>
               <button
+                className={`donation-tab${modalTab === 'actions' ? ' donation-tab--active' : ''}`}
+                onClick={() => { setModalTab('actions'); setActionStatus(selected.status) }}
+              >
+                <Settings2 size={16} />
+                Actions & Operations
+              </button>
+              <button
                 className={`donation-tab${modalTab === 'donor' ? ' donation-tab--active' : ''}`}
                 onClick={() => setModalTab('donor')}
               >
@@ -963,6 +1038,169 @@ export default function DonationsPage() {
                 Timeline & Updates
               </button>
             </div>
+
+            {/* Tab Content: Actions View */}
+            {modalTab === 'actions' && (
+              <div className="donation-actions-view">
+                <div className="donation-actions-grid">
+                  {/* Verification & Intake Operations */}
+                  <div className={`donation-action-card${selected.status === 'Pending Verification' ? ' donation-action-card--highlight' : ''}`}>
+                    <div className="donation-action-card__header">
+                      <div className="donation-action-card__icon">
+                        <CheckCircle2 size={20} />
+                      </div>
+                      <div>
+                        <h4 className="donation-action-card__title">Verification & Intake</h4>
+                        <p className="donation-action-card__desc">
+                          {selected.type === 'In-Kind' 
+                            ? 'Inspect physical items, approve donation, and automatically post items to warehouse inventory.' 
+                            : 'Confirm receipt of monetary funds and provision donor portal account.'}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="donation-action-card__controls">
+                      {selected.status === 'Pending Verification' ? (
+                        <button
+                          type="button"
+                          className="btn btn--primary"
+                          onClick={() => handleVerify(selected)}
+                          disabled={!selected.hasProof}
+                          title={!selected.hasProof ? 'Proof of donation is required before verification' : undefined}
+                        >
+                          <CheckCircle2 size={16} />
+                          {selected.type === 'In-Kind' ? 'Verify & Post to Inventory' : 'Verify & Confirm Funds'}
+                        </button>
+                      ) : (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', width: '100%' }}>
+                          <span style={{ fontSize: '0.85rem', color: '#047857', fontWeight: 600 }}>
+                            ✓ Verified & Active
+                          </span>
+                          <span style={{ fontSize: '0.8rem', color: '#64748b' }}>
+                            (Intake processed)
+                          </span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Lifecycle Status Management */}
+                  <div className="donation-action-card">
+                    <div className="donation-action-card__header">
+                      <div className="donation-action-card__icon">
+                        <Layers size={20} />
+                      </div>
+                      <div>
+                        <h4 className="donation-action-card__title">Lifecycle Status Transition</h4>
+                        <p className="donation-action-card__desc">
+                          Update the current operational stage of this donation across the foundation workflow.
+                        </p>
+                      </div>
+                    </div>
+                    <div className="donation-action-card__controls">
+                      <div className="donation-status-selector">
+                        <select
+                          value={actionStatus || selected.status}
+                          onChange={(e) => setActionStatus(e.target.value)}
+                        >
+                          {DONATION_STATUSES.map((st) => (
+                            <option key={st} value={st}>{st}</option>
+                          ))}
+                        </select>
+                        <button
+                          type="button"
+                          className="btn btn--outline"
+                          disabled={(actionStatus || selected.status) === selected.status}
+                          onClick={() => handleUpdateStatus(selected, actionStatus || selected.status)}
+                        >
+                          Apply Status
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Official Receipts & Documentation */}
+                  <div className="donation-action-card">
+                    <div className="donation-action-card__header">
+                      <div className="donation-action-card__icon">
+                        <Printer size={20} />
+                      </div>
+                      <div>
+                        <h4 className="donation-action-card__title">Official Receipt & Printing</h4>
+                        <p className="donation-action-card__desc">
+                          Generate and print official RAFI donation acknowledgement receipt with tracking details.
+                        </p>
+                      </div>
+                    </div>
+                    <div className="donation-action-card__controls">
+                      <button
+                        type="button"
+                        className="btn btn--outline"
+                        onClick={() => printDonationReceipt(selected)}
+                      >
+                        <Printer size={16} /> Print Official Receipt
+                      </button>
+                      {selected.hasProof && (
+                        <button
+                          type="button"
+                          className="btn btn--ghost"
+                          onClick={() => setModalTab('proof')}
+                        >
+                          <FileText size={16} /> View Proof File
+                        </button>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Timeline & Progress Updates */}
+                  <div className="donation-action-card">
+                    <div className="donation-action-card__header">
+                      <div className="donation-action-card__icon">
+                        <Clock size={20} />
+                      </div>
+                      <div>
+                        <h4 className="donation-action-card__title">Audit Trail & Updates</h4>
+                        <p className="donation-action-card__desc">
+                          Log distribution notes, warehouse milestones, or donor tracking updates.
+                        </p>
+                      </div>
+                    </div>
+                    <div className="donation-action-card__controls">
+                      <button
+                        type="button"
+                        className="btn btn--outline"
+                        onClick={() => setModalTab('timeline')}
+                      >
+                        <Clock size={16} /> Post Progress Update
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Administrative Actions */}
+                  <div className="donation-action-card donation-action-card--danger">
+                    <div className="donation-action-card__header">
+                      <div className="donation-action-card__icon">
+                        <Trash2 size={20} />
+                      </div>
+                      <div>
+                        <h4 className="donation-action-card__title" style={{ color: '#b91c1c' }}>Record Removal</h4>
+                        <p className="donation-action-card__desc">
+                          Permanently remove this donation record from the database. This action is irreversible.
+                        </p>
+                      </div>
+                    </div>
+                    <div className="donation-action-card__controls">
+                      <button
+                        type="button"
+                        className="btn btn--danger"
+                        onClick={() => handleDelete(selected)}
+                      >
+                        <Trash2 size={16} /> Delete Donation Record
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
 
             {/* Tab Content: Overview */}
             {modalTab === 'overview' && (
@@ -1045,23 +1283,35 @@ export default function DonationsPage() {
                       </span>
                     </button>
                   )}
-                  <button type="button" className="donation-quick-action">
+                  <button 
+                    type="button" 
+                    className="donation-quick-action"
+                    onClick={() => { setModalTab('actions'); setActionStatus(selected.status) }}
+                  >
                     <div className="donation-quick-action__icon">
-                      <Award size={20} />
+                      <Settings2 size={20} />
                     </div>
-                    <span className="donation-quick-action__label">Generate Certificate</span>
+                    <span className="donation-quick-action__label">Actions & Status</span>
                   </button>
-                  <button type="button" className="donation-quick-action">
-                    <div className="donation-quick-action__icon">
-                      <Send size={20} />
-                    </div>
-                    <span className="donation-quick-action__label">Send Receipt / Acknowledgement</span>
-                  </button>
-                  <button type="button" className="donation-quick-action">
+                  <button 
+                    type="button" 
+                    className="donation-quick-action"
+                    onClick={() => printDonationReceipt(selected)}
+                  >
                     <div className="donation-quick-action__icon">
                       <Printer size={20} />
                     </div>
-                    <span className="donation-quick-action__label">Print Details</span>
+                    <span className="donation-quick-action__label">Print Receipt</span>
+                  </button>
+                  <button 
+                    type="button" 
+                    className="donation-quick-action"
+                    onClick={() => setModalTab('timeline')}
+                  >
+                    <div className="donation-quick-action__icon">
+                      <Clock size={20} />
+                    </div>
+                    <span className="donation-quick-action__label">Timeline Updates</span>
                   </button>
                 </div>
 
@@ -1261,9 +1511,16 @@ export default function DonationsPage() {
               <button 
                 type="button" 
                 className="btn btn--outline" 
+                onClick={() => printDonationReceipt(selected)}
+              >
+                <Printer size={15} /> Print Receipt
+              </button>
+              <button 
+                type="button" 
+                className="btn btn--danger" 
                 onClick={() => handleDelete(selected)}
               >
-                Delete
+                <Trash2 size={15} /> Delete
               </button>
               <button 
                 type="button" 
