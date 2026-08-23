@@ -440,15 +440,6 @@ export default function DonationsPage() {
         </span>
       ),
     },
-    { 
-      key: 'itemsDescription', 
-      label: 'Items Description / Quantity',
-      render: (row) => (
-        <div className="in-kind-items-desc" title={row.itemsDescription || row.amount}>
-          {row.itemsDescription || row.amount || '—'}
-        </div>
-      ),
-    },
     { key: 'date', label: 'Date Received' },
     { key: 'status', label: 'Status', render: (row) => <StatusBadge status={row.status} /> },
     {
