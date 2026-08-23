@@ -3,6 +3,11 @@ declare(strict_types=1);
 require_once __DIR__ . '/bootstrap.php';
 
 $pdo = db();
+try { $pdo->exec("ALTER TABLE users ADD COLUMN birth_date DATE NULL AFTER phone"); } catch (Throwable $e) {}
+try { $pdo->exec("ALTER TABLE users ADD COLUMN address VARCHAR(255) NULL AFTER birth_date"); } catch (Throwable $e) {}
+try { $pdo->exec("ALTER TABLE users ADD COLUMN emergency_contact_phone VARCHAR(40) NULL AFTER address"); } catch (Throwable $e) {}
+try { $pdo->exec("ALTER TABLE users ADD COLUMN emergency_contact_relation VARCHAR(80) NULL AFTER emergency_contact_phone"); } catch (Throwable $e) {}
+
 $method = request_method();
 $id = get_id_param();
 // Portal access: SuperAdmin (hardcoded) or database Admin/Staff.
@@ -26,6 +31,12 @@ function map_staff_user(array $row): array
     'middleInitial' => $row['middle_initial'] ?? '',
     'email' => $row['email'],
     'phone' => $row['phone'] ?? '',
+    'birthDate' => $row['birth_date'] ?? '',
+    'dateOfBirth' => $row['birth_date'] ?? '',
+    'address' => $row['address'] ?? '',
+    'emergencyContactNumber' => $row['emergency_contact_phone'] ?? '',
+    'emergencyContactPhone' => $row['emergency_contact_phone'] ?? '',
+    'emergencyContactRelation' => $row['emergency_contact_relation'] ?? '',
     'role' => $row['role_name'],
     'department' => $row['role_name'] === 'Admin' ? 'Management' : 'Operations',
     'status' => $statusLabel,
@@ -133,9 +144,13 @@ if ($method === 'POST') {
     true,
     ['lastName' => $last, 'firstName' => $first, 'middleInitial' => $mi]
   );
-  if ($phone !== '') {
-    $pdo->prepare('UPDATE users SET phone = ? WHERE id = ?')->execute([$phone, $userId]);
-  }
+  $birthDate = !empty($body['birthDate']) ? (string) $body['birthDate'] : (!empty($body['dateOfBirth']) ? (string) $body['dateOfBirth'] : null);
+  $address = !empty($body['address']) ? trim((string) $body['address']) : null;
+  $emergencyContactNumber = require_valid_ph_mobile($body['emergencyContactNumber'] ?? ($body['emergencyContactPhone'] ?? ''), false, 'Emergency Contact Number') ?: null;
+  $emergencyContactRelation = !empty($body['emergencyContactRelation']) ? trim((string) $body['emergencyContactRelation']) : null;
+
+  $pdo->prepare('UPDATE users SET phone = ?, birth_date = ?, address = ?, emergency_contact_phone = ?, emergency_contact_relation = ? WHERE id = ?')
+    ->execute([$phone !== '' ? $phone : null, $birthDate, $address, $emergencyContactNumber, $emergencyContactRelation, $userId]);
   $pdo->prepare('UPDATE users SET email_verified_at = NOW(), must_change_password = 1 WHERE id = ?')->execute([$userId]);
   accept_privacy_terms($pdo, $userId);
 
@@ -155,6 +170,12 @@ if ($method === 'POST') {
       'middleInitial' => $mi,
       'email' => $email,
       'phone' => $phone,
+      'birthDate' => $birthDate ?? '',
+      'dateOfBirth' => $birthDate ?? '',
+      'address' => $address ?? '',
+      'emergencyContactNumber' => $emergencyContactNumber ?? '',
+      'emergencyContactPhone' => $emergencyContactNumber ?? '',
+      'emergencyContactRelation' => $emergencyContactRelation ?? '',
       'role' => $role,
       'department' => $role === 'Admin' ? 'Management' : 'Operations',
       'status' => 'Active',
@@ -236,7 +257,20 @@ if ($method === 'PUT') {
     ? (require_valid_ph_mobile($body['phone'] ?? '', false, 'Phone') ?: null)
     : ($existing['phone'] ?? null);
 
-  $pdo->prepare('UPDATE users SET full_name = ?, first_name = ?, last_name = ?, middle_initial = ?, email = ?, phone = ?, status = ? WHERE id = ?')
+  $birthDate = array_key_exists('birthDate', $body) || array_key_exists('dateOfBirth', $body)
+    ? (!empty($body['birthDate']) ? (string) $body['birthDate'] : (!empty($body['dateOfBirth']) ? (string) $body['dateOfBirth'] : null))
+    : ($existing['birth_date'] ?? null);
+  $address = array_key_exists('address', $body)
+    ? (!empty($body['address']) ? trim((string) $body['address']) : null)
+    : ($existing['address'] ?? null);
+  $emergencyContactNumber = array_key_exists('emergencyContactNumber', $body) || array_key_exists('emergencyContactPhone', $body)
+    ? (require_valid_ph_mobile($body['emergencyContactNumber'] ?? ($body['emergencyContactPhone'] ?? ''), false, 'Emergency Contact Number') ?: null)
+    : ($existing['emergency_contact_phone'] ?? null);
+  $emergencyContactRelation = array_key_exists('emergencyContactRelation', $body)
+    ? (!empty($body['emergencyContactRelation']) ? trim((string) $body['emergencyContactRelation']) : null)
+    : ($existing['emergency_contact_relation'] ?? null);
+
+  $pdo->prepare('UPDATE users SET full_name = ?, first_name = ?, last_name = ?, middle_initial = ?, email = ?, phone = ?, birth_date = ?, address = ?, emergency_contact_phone = ?, emergency_contact_relation = ?, status = ? WHERE id = ?')
     ->execute([
       $name,
       $first !== '' ? $first : null,
@@ -244,6 +278,10 @@ if ($method === 'PUT') {
       $mi !== '' ? strtoupper(substr(preg_replace('/[^a-zA-Z]/', '', $mi) ?: '', 0, 1)) : null,
       $email,
       $phone,
+      $birthDate,
+      $address,
+      $emergencyContactNumber,
+      $emergencyContactRelation,
       $status,
       $id,
     ]);

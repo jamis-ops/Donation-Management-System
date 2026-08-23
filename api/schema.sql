@@ -34,6 +34,10 @@ CREATE TABLE IF NOT EXISTS users (
   must_change_password TINYINT(1) NOT NULL DEFAULT 0,
   profile_photo VARCHAR(255) NULL,
   phone VARCHAR(40) NULL,
+  birth_date DATE NULL,
+  address VARCHAR(255) NULL,
+  emergency_contact_phone VARCHAR(40) NULL,
+  emergency_contact_relation VARCHAR(80) NULL,
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   CONSTRAINT fk_users_role_id FOREIGN KEY (role_id) REFERENCES roles(id)

@@ -38,6 +38,10 @@ const emptyForm = {
   ...emptyNameParts(),
   email: '',
   phone: '',
+  birthDate: '',
+  address: '',
+  emergencyContactNumber: '',
+  emergencyContactRelation: '',
   role: 'Staff',
   acceptedTerms: false,
   acceptedPrivacy: false,
@@ -112,6 +116,10 @@ export default function StaffPage() {
       middleInitial: row.middleInitial || '',
       email: row.email || '',
       phone: row.phone || '',
+      birthDate: row.birthDate || row.dateOfBirth || '',
+      address: row.address || '',
+      emergencyContactNumber: row.emergencyContactNumber || row.emergencyContactPhone || '',
+      emergencyContactRelation: row.emergencyContactRelation || '',
       status: row.status === 'Inactive' ? 'Inactive' : 'Active',
     })
     loadTasks(row)
@@ -133,6 +141,13 @@ export default function StaffPage() {
     if (phoneMsg) {
       notify.warning(phoneMsg)
       return
+    }
+    if (form.emergencyContactNumber) {
+      const ecMsg = phoneError(form.emergencyContactNumber, { required: false })
+      if (ecMsg) {
+        notify.warning(`Emergency Contact: ${ecMsg}`)
+        return
+      }
     }
     if (!form.acceptedTerms || !form.acceptedPrivacy) {
       notify.warning('Please accept both the Terms & Conditions and Data Privacy Policy.')
@@ -156,6 +171,10 @@ export default function StaffPage() {
         name: formatFullName(form),
         email: form.email,
         phone: form.phone,
+        birthDate: form.birthDate,
+        address: form.address,
+        emergencyContactNumber: form.emergencyContactNumber,
+        emergencyContactRelation: form.emergencyContactRelation,
         role: 'Staff',
         acceptedTerms: form.acceptedTerms,
         acceptedPrivacy: form.acceptedPrivacy,
@@ -209,6 +228,13 @@ export default function StaffPage() {
       notify.warning(phoneMsg)
       return
     }
+    if (editForm.emergencyContactNumber) {
+      const ecMsg = phoneError(editForm.emergencyContactNumber, { required: false })
+      if (ecMsg) {
+        notify.warning(`Emergency Contact: ${ecMsg}`)
+        return
+      }
+    }
     setSaving(true)
     showLoading('Saving…')
     try {
@@ -218,13 +244,21 @@ export default function StaffPage() {
         middleInitial: editForm.middleInitial,
         email: editForm.email,
         phone: editForm.phone,
+        birthDate: editForm.birthDate,
+        address: editForm.address,
+        emergencyContactNumber: editForm.emergencyContactNumber,
+        emergencyContactRelation: editForm.emergencyContactRelation,
         status: editForm.status,
       })
       setSuccessMsg('Staff profile updated.')
       notify.success('Staff profile updated.')
       showSuccessModal('Successfully updated.')
       reload()
-      setSelected(null)
+      setSelected((prev) => (prev ? {
+        ...prev,
+        ...editForm,
+        name: formatFullName(editForm),
+      } : null))
     } catch (err) {
       notify.error(err.message)
     } finally {
@@ -363,10 +397,47 @@ export default function StaffPage() {
                     <input type="email" required value={editForm.email} onChange={(e) => setEditForm({ ...editForm, email: e.target.value })} />
                   </label>
                   <label>
-                    Phone
+                    Phone Number
                     <PhoneInput
                       value={editForm.phone}
                       onChange={(phone) => setEditForm({ ...editForm, phone })}
+                    />
+                  </label>
+                </div>
+                <div className="form-row">
+                  <label>
+                    Date of Birth
+                    <input
+                      type="date"
+                      value={editForm.birthDate}
+                      onChange={(e) => setEditForm({ ...editForm, birthDate: e.target.value })}
+                    />
+                  </label>
+                  <label>
+                    Address
+                    <input
+                      type="text"
+                      placeholder="e.g., Cebu City, Philippines"
+                      value={editForm.address}
+                      onChange={(e) => setEditForm({ ...editForm, address: e.target.value })}
+                    />
+                  </label>
+                </div>
+                <div className="form-row">
+                  <label>
+                    Emergency Contact Number
+                    <PhoneInput
+                      value={editForm.emergencyContactNumber}
+                      onChange={(num) => setEditForm({ ...editForm, emergencyContactNumber: num })}
+                    />
+                  </label>
+                  <label>
+                    Emergency Contact Relation
+                    <input
+                      type="text"
+                      placeholder="e.g., Parent, Spouse, Sibling"
+                      value={editForm.emergencyContactRelation}
+                      onChange={(e) => setEditForm({ ...editForm, emergencyContactRelation: e.target.value })}
                     />
                   </label>
                 </div>
@@ -382,6 +453,11 @@ export default function StaffPage() {
                   <dt>Department</dt><dd>{selected.department}</dd>
                   <dt>Email</dt>
                   <dd><span className="volunteer-inline-meta"><Mail size={13} /> {selected.email || '—'}</span></dd>
+                  <dt>Phone Number</dt><dd>{selected.phone || '—'}</dd>
+                  <dt>Date of Birth</dt><dd>{selected.birthDate || selected.dateOfBirth || '—'}</dd>
+                  <dt>Address</dt><dd>{selected.address || '—'}</dd>
+                  <dt>Emergency Contact</dt>
+                  <dd>{selected.emergencyContactNumber ? `${selected.emergencyContactNumber} ${selected.emergencyContactRelation ? `(${selected.emergencyContactRelation})` : ''}` : '—'}</dd>
                   <dt>Assigned Tasks</dt>
                   <dd><span className="volunteer-inline-meta"><ListTodo size={13} /> {tasks.length}</span></dd>
                 </dl>
@@ -507,10 +583,47 @@ export default function StaffPage() {
                   <input type="email" required value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} placeholder="staff@email.com" />
                 </label>
                 <label>
-                  Phone
+                  Phone Number
                   <PhoneInput
                     value={form.phone}
                     onChange={(phone) => setForm({ ...form, phone })}
+                  />
+                </label>
+              </div>
+              <div className="form-row">
+                <label>
+                  Date of Birth
+                  <input
+                    type="date"
+                    value={form.birthDate}
+                    onChange={(e) => setForm({ ...form, birthDate: e.target.value })}
+                  />
+                </label>
+                <label>
+                  Address
+                  <input
+                    type="text"
+                    placeholder="e.g., Cebu City, Philippines"
+                    value={form.address}
+                    onChange={(e) => setForm({ ...form, address: e.target.value })}
+                  />
+                </label>
+              </div>
+              <div className="form-row">
+                <label>
+                  Emergency Contact Number
+                  <PhoneInput
+                    value={form.emergencyContactNumber}
+                    onChange={(num) => setForm({ ...form, emergencyContactNumber: num })}
+                  />
+                </label>
+                <label>
+                  Emergency Contact Relation
+                  <input
+                    type="text"
+                    placeholder="e.g., Parent, Spouse, Sibling"
+                    value={form.emergencyContactRelation}
+                    onChange={(e) => setForm({ ...form, emergencyContactRelation: e.target.value })}
                   />
                 </label>
               </div>
