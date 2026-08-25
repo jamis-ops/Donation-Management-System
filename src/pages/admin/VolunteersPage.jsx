@@ -6,6 +6,7 @@ import {
   Award, School, Check, Phone, Info, Lock, Unlock, AlertTriangle, Quote, User,
 } from 'lucide-react'
 import { volunteersApi, tasksApi, volunteerMatchApi, distributionsApi, internAiMatchApi } from '../../api/resources'
+import { getTodayDateString, isPastDateString } from '../../utils/date'
 import { useApiList } from '../../hooks/useApiList'
 import { useFilters } from '../../hooks/useFilters'
 import PageHeader from '../../components/admin/shared/PageHeader'
@@ -497,6 +498,10 @@ export default function VolunteersPage() {
   // 2. Open Direct Assign Task modal (Inside Manage)
   const openAssignTaskForSelected = () => {
     if (!selected) return
+    if (['Completed', 'Rejected'].includes(selected.status)) {
+      notify.error(`Cannot assign task: ${selected.name}'s profile is ${selected.status} (finalized).`)
+      return
+    }
     const initialProg = selected.programs?.[0] || programOptions[0] || (selected.applicantType === 'Intern' ? 'Internship' : 'Volunteer')
     setDirectTaskForm({ ...emptyDirectTaskForm, module: initialProg })
     setShowDirectTaskModal(true)
@@ -510,6 +515,10 @@ export default function VolunteersPage() {
     }
     if (!generalTaskForm.title.trim()) {
       notify.error('Task title is required.')
+      return
+    }
+    if (generalTaskForm.dueDate && isPastDateString(generalTaskForm.dueDate)) {
+      notify.error('Due date cannot be in the past. Please select today or a future date.')
       return
     }
     setSaving(true)
@@ -560,8 +569,16 @@ export default function VolunteersPage() {
       notify.error('No record selected.')
       return
     }
+    if (['Completed', 'Rejected'].includes(selected.status)) {
+      notify.error(`Cannot assign task: ${selected.name}'s profile is ${selected.status} (finalized).`)
+      return
+    }
     if (!directTaskForm.title.trim()) {
       notify.error('Task title is required.')
+      return
+    }
+    if (directTaskForm.dueDate && isPastDateString(directTaskForm.dueDate)) {
+      notify.error('Due date cannot be in the past. Please select today or a future date.')
       return
     }
     setSaving(true)
@@ -1464,7 +1481,12 @@ export default function VolunteersPage() {
                             <h4>
                               <ListTodo size={15} aria-hidden /> Assign Duty Task to {selected.name}
                             </h4>
-                            {singleEnrolledProgram ? (
+                            {['Completed', 'Rejected'].includes(selected.status) ? (
+                              <div className="action-locked-banner action-locked-banner--accent" style={{ marginBottom: '0.85rem' }}>
+                                <Lock size={15} />
+                                <span>This intern profile is <strong>{selected.status}</strong> (finalized). New task assignment and duty hours edits are locked.</span>
+                              </div>
+                            ) : singleEnrolledProgram ? (
                               <p style={{ fontSize: '0.8rem', color: '#166534', margin: '-0.2rem 0 0.75rem', background: '#f0fdf4', padding: '0.4rem 0.65rem', borderRadius: '6px', border: '1px solid #bbf7d0' }}>
                                 <Lock size={12} style={{ display: 'inline', marginRight: '0.25rem' }} />
                                 Enrolled in <strong>{singleEnrolledProgram}</strong>
@@ -1479,6 +1501,7 @@ export default function VolunteersPage() {
                                 <Req required>Task Title</Req>
                                 <input
                                   required
+                                  disabled={saving || ['Completed', 'Rejected'].includes(selected.status)}
                                   value={directTaskForm.title}
                                   onChange={(e) => setDirectTaskForm({ ...directTaskForm, title: e.target.value })}
                                   placeholder="e.g. Assist in Food Prep, Support Youth Literacy"
@@ -1489,6 +1512,7 @@ export default function VolunteersPage() {
                                 <Req required>Program / Project</Req>
                                 <select
                                   required
+                                  disabled={saving || ['Completed', 'Rejected'].includes(selected.status)}
                                   value={directTaskForm.module}
                                   onChange={(e) => {
                                     const nextModule = e.target.value
@@ -1511,6 +1535,7 @@ export default function VolunteersPage() {
                                 <label>
                                   Priority
                                   <select
+                                    disabled={saving || ['Completed', 'Rejected'].includes(selected.status)}
                                     value={directTaskForm.priority}
                                     onChange={(e) => setDirectTaskForm({ ...directTaskForm, priority: e.target.value })}
                                   >
@@ -1524,6 +1549,8 @@ export default function VolunteersPage() {
                                   Due Date
                                   <input
                                     type="date"
+                                    min={getTodayDateString()}
+                                    disabled={saving || ['Completed', 'Rejected'].includes(selected.status)}
                                     value={directTaskForm.dueDate}
                                     onChange={(e) => setDirectTaskForm({ ...directTaskForm, dueDate: e.target.value })}
                                   />
@@ -1535,6 +1562,7 @@ export default function VolunteersPage() {
                                   Duty Start
                                   <input
                                     type="time"
+                                    disabled={saving || ['Completed', 'Rejected'].includes(selected.status)}
                                     value={directTaskForm.dutyStart}
                                     onChange={(e) => setDirectTaskForm({ ...directTaskForm, dutyStart: e.target.value })}
                                   />
@@ -1543,6 +1571,7 @@ export default function VolunteersPage() {
                                   Duty End
                                   <input
                                     type="time"
+                                    disabled={saving || ['Completed', 'Rejected'].includes(selected.status)}
                                     value={directTaskForm.dutyEnd}
                                     onChange={(e) => setDirectTaskForm({ ...directTaskForm, dutyEnd: e.target.value })}
                                   />
@@ -1556,6 +1585,7 @@ export default function VolunteersPage() {
                                   min="0.25"
                                   step="0.25"
                                   required
+                                  disabled={saving || ['Completed', 'Rejected'].includes(selected.status)}
                                   value={directTaskForm.dutyHours}
                                   onChange={(e) => setDirectTaskForm({ ...directTaskForm, dutyHours: e.target.value })}
                                   placeholder="e.g. 4"
@@ -1568,6 +1598,7 @@ export default function VolunteersPage() {
                                   <Req required>Link to Distribution Event</Req>
                                   <select
                                     required
+                                    disabled={saving || ['Completed', 'Rejected'].includes(selected.status)}
                                     value={directTaskForm.distributionId}
                                     onChange={(e) => {
                                       const distributionId = e.target.value
@@ -1594,10 +1625,10 @@ export default function VolunteersPage() {
                               <button
                                 type="submit"
                                 className="btn btn--primary btn--sm"
-                                disabled={saving}
+                                disabled={saving || ['Completed', 'Rejected'].includes(selected.status)}
                                 style={{ marginTop: '0.5rem', width: '100%', justifyContent: 'center' }}
                               >
-                                {saving ? 'Assigning…' : `+ Assign Task to ${selected.name}`}
+                                {saving ? 'Assigning…' : ['Completed', 'Rejected'].includes(selected.status) ? 'Assignment Locked (Finalized)' : `+ Assign Task to ${selected.name}`}
                               </button>
                             </form>
                           </section>
@@ -1615,6 +1646,7 @@ export default function VolunteersPage() {
                                     type="number"
                                     min="0"
                                     step="0.25"
+                                    disabled={saving || ['Completed', 'Rejected'].includes(selected.status)}
                                     value={hoursForm.hours}
                                     onChange={(e) => setHoursForm({ ...hoursForm, hours: e.target.value })}
                                   />
@@ -1625,13 +1657,19 @@ export default function VolunteersPage() {
                                     type="number"
                                     min="0"
                                     step="0.25"
+                                    disabled={saving || ['Completed', 'Rejected'].includes(selected.status)}
                                     value={hoursForm.requiredHours}
                                     onChange={(e) => setHoursForm({ ...hoursForm, requiredHours: e.target.value })}
                                   />
                                 </label>
                               </div>
-                              <button type="submit" className="btn btn--sm btn--outline" disabled={saving} style={{ width: '100%', justifyContent: 'center' }}>
-                                {saving ? 'Saving…' : 'Save Duty Hours'}
+                              <button
+                                type="submit"
+                                className="btn btn--sm btn--outline"
+                                disabled={saving || ['Completed', 'Rejected'].includes(selected.status)}
+                                style={{ width: '100%', justifyContent: 'center' }}
+                              >
+                                {saving ? 'Saving…' : ['Completed', 'Rejected'].includes(selected.status) ? 'Hours Locked (Finalized)' : 'Save Duty Hours'}
                               </button>
                             </form>
                           </section>
@@ -1682,7 +1720,7 @@ export default function VolunteersPage() {
                                           ) : null}
                                           {t.completedAtLabel ? <span>Completed: {t.completedAtLabel}</span> : null}
                                         </div>
-                                        {t.status !== 'Completed' && t.boardColumn !== 'done' && (
+                                        {!(t.status === 'Completed' || t.boardColumn === 'done' || t.isDone || ['Completed', 'Rejected'].includes(selected.status)) ? (
                                           <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '0.65rem' }}>
                                             <button
                                               type="button"
@@ -1691,8 +1729,14 @@ export default function VolunteersPage() {
                                               disabled={saving}
                                               style={{ padding: '0.25rem 0.65rem', fontSize: '0.78rem', display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}
                                             >
-                                              <CheckCircle2 size={13} /> Complete Task & Credit Hours
+                                              <CheckCircle2 size={13} /> Complete Task
                                             </button>
+                                          </div>
+                                        ) : (
+                                          <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '0.5rem' }}>
+                                            <span style={{ fontSize: '0.75rem', color: '#16a34a', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: '0.3rem', background: '#f0fdf4', padding: '0.2rem 0.5rem', borderRadius: '4px', border: '1px solid #bbf7d0' }}>
+                                              <CheckCircle2 size={12} /> {['Completed', 'Rejected'].includes(selected.status) ? 'Assignment Locked' : 'Completed & Locked'}
+                                            </span>
                                           </div>
                                         )}
                                       </article>
@@ -1835,10 +1879,23 @@ export default function VolunteersPage() {
                           </h4>
                           <span className="volunteer-tasks-count-pill">{tasks.length}</span>
                         </div>
-                        <button type="button" className="btn btn--sm btn--primary" onClick={openAssignTaskForSelected}>
+                        <button
+                          type="button"
+                          className="btn btn--sm btn--primary"
+                          onClick={openAssignTaskForSelected}
+                          disabled={['Completed', 'Rejected'].includes(selected.status)}
+                          title={['Completed', 'Rejected'].includes(selected.status) ? 'Cannot assign tasks to a completed/rejected volunteer' : ''}
+                        >
                           + Assign Task
                         </button>
                       </div>
+
+                      {['Completed', 'Rejected'].includes(selected.status) && (
+                        <div className="action-locked-banner action-locked-banner--accent" style={{ margin: '0.5rem 0 0.85rem' }}>
+                          <Lock size={14} />
+                          <span>This volunteer record is <strong>{selected.status}</strong> (finalized). Task assignment is locked.</span>
+                        </div>
+                      )}
 
                       {tasksLoading ? (
                         <p className="beneficiary-view-empty">Loading tasks…</p>
@@ -1846,7 +1903,12 @@ export default function VolunteersPage() {
                         <div className="volunteer-tasks-empty-state">
                           <ListTodo size={28} className="volunteer-tasks-empty-icon" />
                           <p>No tasks assigned to this volunteer yet.</p>
-                          <button type="button" className="btn btn--sm btn--outline" onClick={openAssignTaskForSelected}>
+                          <button
+                            type="button"
+                            className="btn btn--sm btn--outline"
+                            onClick={openAssignTaskForSelected}
+                            disabled={['Completed', 'Rejected'].includes(selected.status)}
+                          >
                             + Create First Task
                           </button>
                         </div>
@@ -1876,7 +1938,7 @@ export default function VolunteersPage() {
                                     ) : null}
                                     {t.completedAtLabel ? <span>Completed: {t.completedAtLabel}</span> : null}
                                   </div>
-                                  {t.status !== 'Completed' && t.boardColumn !== 'done' && (
+                                  {!(t.status === 'Completed' || t.boardColumn === 'done' || t.isDone || ['Completed', 'Rejected'].includes(selected.status)) ? (
                                     <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '0.65rem' }}>
                                       <button
                                         type="button"
@@ -1887,6 +1949,12 @@ export default function VolunteersPage() {
                                       >
                                         <CheckCircle2 size={13} /> Complete Task
                                       </button>
+                                    </div>
+                                  ) : (
+                                    <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '0.5rem' }}>
+                                      <span style={{ fontSize: '0.75rem', color: '#16a34a', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: '0.3rem', background: '#f0fdf4', padding: '0.2rem 0.5rem', borderRadius: '4px', border: '1px solid #bbf7d0' }}>
+                                        <CheckCircle2 size={12} /> {['Completed', 'Rejected'].includes(selected.status) ? 'Assignment Locked' : 'Completed & Locked'}
+                                      </span>
                                     </div>
                                   )}
                                 </article>
@@ -2053,6 +2121,7 @@ export default function VolunteersPage() {
                   Due Date
                   <input
                     type="date"
+                    min={getTodayDateString()}
                     value={generalTaskForm.dueDate}
                     onChange={(e) => setGeneralTaskForm({ ...generalTaskForm, dueDate: e.target.value })}
                   />
@@ -2307,6 +2376,7 @@ export default function VolunteersPage() {
                   Due Date
                   <input
                     type="date"
+                    min={getTodayDateString()}
                     value={directTaskForm.dueDate}
                     onChange={(e) => setDirectTaskForm({ ...directTaskForm, dueDate: e.target.value })}
                   />

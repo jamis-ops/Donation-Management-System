@@ -247,6 +247,16 @@ if ($method === 'POST') {
   if ($title === '') {
     json_response(['ok' => false, 'error' => 'Title is required'], 400);
   }
+
+  // Validate due date: cannot be in the past
+  $dueDate = !empty($body['dueDate']) ? trim((string) $body['dueDate']) : null;
+  if ($dueDate !== null && $dueDate !== '') {
+    $today = date('Y-m-d');
+    if ($dueDate < $today) {
+      json_response(['ok' => false, 'error' => 'Due date cannot be in the past. Please select today or a future date.'], 400);
+    }
+  }
+
   $code = generate_code('TSK');
   $column = $body['boardColumn'] ?? 'todo';
   if (!in_array($column, ['todo', 'inProgress', 'review', 'done'], true)) {
@@ -260,15 +270,37 @@ if ($method === 'POST') {
     $volunteerIds = [(int) $body['volunteerId']];
   }
 
+  // Check that assignees are not in Completed or Rejected terminal status
+  if (!empty($volunteerIds)) {
+    $inClause = implode(',', array_fill(0, count($volunteerIds), '?'));
+    $vCheck = $pdo->prepare("SELECT full_name, status FROM volunteers WHERE id IN ($inClause)");
+    $vCheck->execute($volunteerIds);
+    $vRows = $vCheck->fetchAll();
+    foreach ($vRows as $vRow) {
+      if (in_array($vRow['status'] ?? '', ['Completed', 'Rejected'], true)) {
+        json_response([
+          'ok' => false,
+          'error' => "Cannot assign task to \"{$vRow['full_name']}\" because their status is {$vRow['status']} (finalized).",
+        ], 400);
+      }
+    }
+  }
+
   $assigneeUserId = !empty($body['assigneeUserId']) ? (int) $body['assigneeUserId'] : null;
   $assignee = trim((string) ($body['assignee'] ?? ''));
 
   if ($assigneeUserId && empty($volunteerIds)) {
-    $vol = $pdo->prepare('SELECT full_name FROM volunteers WHERE user_id = ? LIMIT 1');
+    $vol = $pdo->prepare('SELECT full_name, status FROM volunteers WHERE user_id = ? LIMIT 1');
     $vol->execute([$assigneeUserId]);
-    $volName = $vol->fetchColumn();
-    if ($volName) {
-      $assignee = $volName;
+    $volRow = $vol->fetch();
+    if ($volRow) {
+      if (in_array($volRow['status'] ?? '', ['Completed', 'Rejected'], true)) {
+        json_response([
+          'ok' => false,
+          'error' => "Cannot assign task to \"{$volRow['full_name']}\" because their status is {$volRow['status']} (finalized).",
+        ], 400);
+      }
+      $assignee = $volRow['full_name'];
     } elseif ($assignee === '') {
       $uName = $pdo->prepare('SELECT full_name FROM users WHERE id = ? LIMIT 1');
       $uName->execute([$assigneeUserId]);
@@ -444,6 +476,36 @@ if ($method === 'PUT') {
     [],
     WORKFLOW_TASK_ALIASES
   );
+
+  // If task is already completed / done, lock from edits
+  if (($existing['board_column'] ?? '') === 'done') {
+    if ($column !== 'done') {
+      json_response([
+        'ok' => false,
+        'error' => 'Task is already Completed/Done (final status) and cannot be changed or reverted.',
+      ], 400);
+    }
+    $titleDiff = array_key_exists('title', $body) && trim((string) $body['title']) !== (string) $existing['title'];
+    $dueDiff = array_key_exists('dueDate', $body) && $body['dueDate'] !== $existing['due_date'];
+    $assigneeDiff = array_key_exists('assigneeUserId', $body) && (int) $body['assigneeUserId'] !== (int) $existing['assignee_user_id'];
+    if ($titleDiff || $dueDiff || $assigneeDiff) {
+      json_response([
+        'ok' => false,
+        'error' => 'This task is already Completed and locked from modifications.',
+      ], 400);
+    }
+  }
+
+  // Validate due date change
+  if (array_key_exists('dueDate', $body) && $body['dueDate'] !== $existing['due_date']) {
+    $newDue = trim((string) $body['dueDate']);
+    if ($newDue !== '' && $newDue < date('Y-m-d')) {
+      json_response([
+        'ok' => false,
+        'error' => 'Due date cannot be in the past. Please select today or a future date.',
+      ], 400);
+    }
+  }
 
   // Volunteer / Staff limited to status changes on their own tasks.
   if (in_array($user['role'], ['Volunteer', 'Staff'], true)) {

@@ -203,9 +203,292 @@ function distributions_for_beneficiary(PDO $pdo, array $ben, bool $forProof = fa
 }
 
 /**
- * Auto-close linked assistance request when all its distributions are completed.
- * Defined in bootstrap.php so proofs and distributions can both call it.
+ * Resolve accurate geographical coordinates in Cebu for a distribution.
  */
+function resolve_cebu_coordinates(string $location, string $barangay = '', string $municipality = '', string $eventName = ''): array
+{
+  $haystack = strtolower(trim($location . ' ' . $barangay . ' ' . $municipality . ' ' . $eventName));
+
+  // Specific landmarks / barangays / municipalities lookup table
+  $places = [
+    // Cebu City Specific Barangays & Landmarks
+    'guadalupe' => [10.3283, 123.8833],
+    'tejero' => [10.3015, 123.9094],
+    'lahug' => [10.3392, 123.8967],
+    'mabolo' => [10.3228, 123.9142],
+    'mambaling' => [10.2934, 123.8741],
+    'pasil' => [10.2952, 123.8913],
+    'ermita' => [10.2917, 123.8972],
+    'labangon' => [10.3069, 123.8778],
+    'tisa' => [10.3025, 123.8681],
+    'banilad' => [10.3478, 123.9133],
+    'talamban' => [10.3689, 123.9167],
+    'punta princesa' => [10.2981, 123.8722],
+    'basak san nicolas' => [10.2925, 123.8690],
+    'basak pardo' => [10.2861, 123.8611],
+    'inayawan' => [10.2742, 123.8650],
+    'sambag' => [10.3117, 123.8925],
+    'capitol' => [10.3175, 123.8914],
+    'camputhaw' => [10.3194, 123.8972],
+    'carreta' => [10.3111, 123.9083],
+    'hipodromo' => [10.3167, 123.9056],
+    'kasambagan' => [10.3278, 123.9111],
+    'busay' => [10.3639, 123.8778],
+    'sirao' => [10.4286, 123.8569],
+    'tinago' => [10.2986, 123.9042],
+    'san roque' => [10.2958, 123.9069],
+    'lorega' => [10.3067, 123.9011],
+    't. padilla' => [10.3047, 123.9078],
+    'day-as' => [10.3042, 123.9028],
+    'poblacion pardo' => [10.2861, 123.8611],
+    'quiot' => [10.2950, 123.8639],
+    'duljo' => [10.2931, 123.8861],
+    'pahina' => [10.2972, 123.8944],
+    'sawang calero' => [10.2917, 123.8861],
+    'suba' => [10.2903, 123.8903],
+    'cebu city' => [10.3157, 123.8854],
+
+    // Mandaue City
+    'subangdaku' => [10.3236, 123.9317],
+    'tipolo' => [10.3267, 123.9356],
+    'paknaan' => [10.3467, 123.9511],
+    'cabancalan' => [10.3542, 123.9319],
+    'maguikay' => [10.3417, 123.9389],
+    'bakilid' => [10.3356, 123.9333],
+    'jagobiao' => [10.3667, 123.9472],
+    'canduman' => [10.3625, 123.9333],
+    'umapad' => [10.3361, 123.9556],
+    'tabok' => [10.3556, 123.9417],
+    'mandaue' => [10.3346, 123.9404],
+
+    // Lapu-Lapu City / Mactan
+    'marigondon' => [10.2722, 123.9778],
+    'maribago' => [10.2889, 124.0000],
+    'mactan' => [10.3014, 124.0042],
+    'pusok' => [10.3250, 123.9611],
+    'ibo' => [10.3319, 123.9778],
+    'gun-ob' => [10.3083, 123.9417],
+    'babag' => [10.2972, 123.9333],
+    'calawisan' => [10.2861, 123.9222],
+    'agus' => [10.2806, 123.9722],
+    'punta engaño' => [10.3194, 124.0250],
+    'lapu-lapu' => [10.3103, 123.9494],
+    'opon' => [10.3103, 123.9494],
+
+    // Talisay City
+    'tabunok' => [10.2583, 123.8361],
+    'dumlog' => [10.2389, 123.8417],
+    'tangke' => [10.2417, 123.8583],
+    'bulacao' => [10.2639, 123.8472],
+    'cansojong' => [10.2486, 123.8444],
+    'lawaan' => [10.2556, 123.8278],
+    'linao' => [10.2514, 123.8167],
+    'pooc' => [10.2361, 123.8278],
+    'mohon' => [10.2472, 123.8333],
+    'talisay' => [10.2447, 123.8494],
+
+    // Minglanilla
+    'lipata' => [10.2514, 123.8056],
+    'tungkop' => [10.2333, 123.7833],
+    'pakigne' => [10.2472, 123.8000],
+    'calajo-an' => [10.2389, 123.7889],
+    'minglanilla' => [10.2458, 123.7961],
+
+    // Naga City
+    'tinaan' => [10.1972, 123.7444],
+    'inayagan' => [10.2222, 123.7694],
+    'colon' => [10.2139, 123.7611],
+    'langtad' => [10.1917, 123.7389],
+    'naga' => [10.2089, 123.7578],
+
+    // North & Provincial Municipalities
+    'camoboan' => [10.7280, 124.0000],
+    'tabogon' => [10.9333, 124.0333],
+    'medellin' => [11.1286, 123.9622],
+    'daanbantayan' => [11.2583, 124.0222],
+    'bogo' => [11.0500, 124.0056],
+    'san remigio' => [10.9983, 123.9439],
+    'borbon' => [10.8333, 124.0333],
+    'sogod' => [10.7500, 124.0000],
+    'catmon' => [10.6833, 124.0167],
+    'carmen' => [10.5833, 124.0167],
+    'danao' => [10.5219, 124.0258],
+    'compostela' => [10.4578, 124.0125],
+    'liloan' => [10.4000, 123.9989],
+    'consolacion' => [10.3789, 123.9578],
+    'tayud' => [10.3667, 123.9667],
+    'cordova' => [10.2528, 123.9486],
+    'toledo' => [10.3778, 123.6417],
+    'balamban' => [10.5000, 123.7167],
+    'asturias' => [10.5667, 123.7167],
+    'tuburan' => [10.7333, 123.8333],
+    'tabuelan' => [10.9667, 123.8833],
+    'carcar' => [10.1086, 123.6417],
+    'san fernando' => [10.1611, 123.7083],
+    'sibonga' => [10.0167, 123.6167],
+    'argao' => [9.8833, 123.6000],
+    'dalaguete' => [9.7611, 123.5333],
+    'oslob' => [9.5167, 123.4333],
+    'moalboal' => [9.9564, 123.4011],
+    'badian' => [9.8667, 123.4000],
+    'alegria' => [9.7667, 123.3667],
+    'malabuyoc' => [9.6667, 123.3333],
+    'barili' => [10.1167, 123.5083],
+    'dumanjug' => [10.0583, 123.4500],
+    'pinamungajan' => [10.2667, 123.5833],
+    'aloguinsan' => [10.2167, 123.5500],
+    'bantayan' => [11.1556, 123.8056],
+  ];
+
+  // Try matching more specific keys first
+  foreach ($places as $key => $coord) {
+    if (str_contains($haystack, $key)) {
+      return $coord;
+    }
+  }
+
+  // Default to Rise Above Community Center / Guadalupe, Cebu City
+  return [10.3157, 123.8854];
+}
+
+/**
+ * Public distributions list for the Public Site Impact Map.
+ * Sanitizes operational data to protect sensitive info while giving real-time visibility.
+ */
+function public_distributions_map(PDO $pdo): array
+{
+  $stmt = $pdo->query("
+    SELECT 
+      d.id, d.code, d.event_name, d.location, d.program,
+      d.distribution_date, d.schedule_time, d.distribution_type,
+      d.beneficiaries_count, d.items_summary, d.status, d.created_at,
+      b.full_name AS ben_name, b.barangay AS ben_barangay, b.municipality AS ben_municipality
+    FROM distributions d
+    LEFT JOIN beneficiaries b ON d.beneficiary_id = b.id
+    WHERE d.status != 'Cancelled'
+    ORDER BY 
+      CASE 
+        WHEN d.status = 'In Transit' THEN 1
+        WHEN d.status = 'Preparing' THEN 2
+        WHEN d.status = 'Ready for Dispatch' THEN 3
+        WHEN d.status = 'Planning' THEN 4
+        WHEN d.status = 'Delivered' THEN 5
+        WHEN d.status = 'Completed' THEN 6
+        ELSE 7
+      END ASC,
+      d.distribution_date DESC,
+      d.id DESC
+    LIMIT 60
+  ");
+
+  $rows = $stmt->fetchAll();
+  $distributions = [];
+  $seenCoords = [];
+
+  $totalFamilies = 0;
+  $totalItemsCount = 0;
+  $activeCount = 0;
+  $completedCount = 0;
+
+  foreach ($rows as $index => $r) {
+    $status = normalize_distribution_status((string) ($r['status'] ?? 'Planning'));
+    $location = (string) ($r['location'] ?? 'Cebu');
+    $barangay = (string) ($r['ben_barangay'] ?? '');
+    $municipality = (string) ($r['ben_municipality'] ?? '');
+    $eventName = trim((string) ($r['event_name'] ?? ''));
+    if ($eventName === '') {
+      $eventName = trim(($r['code'] ?? '') . ' — ' . $location);
+    }
+
+    [$lat, $lng] = resolve_cebu_coordinates($location, $barangay, $municipality, $eventName);
+
+    // Apply minor offset/jitter if exact coordinate duplicate to keep pins visually separate
+    $coordKey = round($lat, 4) . ',' . round($lng, 4);
+    if (isset($seenCoords[$coordKey])) {
+      $count = $seenCoords[$coordKey]++;
+      $angle = ($count * 55) * (M_PI / 180);
+      $radius = 0.0035 * (1 + floor($count / 6) * 0.5);
+      $lat += sin($angle) * $radius;
+      $lng += cos($angle) * $radius;
+    } else {
+      $seenCoords[$coordKey] = 1;
+    }
+
+    $benCount = (int) ($r['beneficiaries_count'] ?? 0);
+    $totalFamilies += $benCount;
+
+    $generalStatus = 'Scheduled';
+    if (in_array($status, ['In Transit', 'Preparing', 'Ready for Dispatch'], true)) {
+      $generalStatus = 'Active Outreach';
+    } elseif ($status === 'Completed' || $status === 'Delivered') {
+      $generalStatus = 'Completed';
+    }
+
+    // Build generalized, privacy-preserving location label
+    $areaParts = array_filter([$barangay, $municipality]);
+    $areaLabel = !empty($areaParts) ? implode(', ', $areaParts) : $location;
+
+    $distributions[] = [
+      'id' => (int) $r['id'],
+      'locationName' => $areaLabel,
+      'program' => $r['program'] ?: 'Community Program',
+      'status' => $generalStatus,
+      'rawStatus' => $status,
+      'scheduledDate' => $r['distribution_date'] ? format_date($r['distribution_date']) : null,
+      'lat' => round($lat, 6),
+      'lng' => round($lng, 6),
+    ];
+  }
+
+  // Fallback defaults if no distributions exist
+  if (empty($distributions)) {
+    $distributions = [
+      [
+        'id' => 1,
+        'locationName' => 'Guadalupe, Cebu City',
+        'program' => 'Community Center & Family Care',
+        'status' => 'Active Outreach',
+        'rawStatus' => 'Preparing',
+        'scheduledDate' => date('M j, Y'),
+        'lat' => 10.3157,
+        'lng' => 123.8854,
+      ],
+      [
+        'id' => 2,
+        'locationName' => 'Tabogon · Camoboan, Cebu',
+        'program' => 'Disaster Relief & House Building',
+        'status' => 'Active Outreach',
+        'rawStatus' => 'Planning',
+        'scheduledDate' => date('M j, Y', strtotime('+2 days')),
+        'lat' => 10.7280,
+        'lng' => 124.0000,
+      ],
+      [
+        'id' => 3,
+        'locationName' => 'Medellin, Cebu',
+        'program' => 'Educational Sponsorship',
+        'status' => 'Scheduled',
+        'rawStatus' => 'Planning',
+        'scheduledDate' => date('M j, Y', strtotime('+4 days')),
+        'lat' => 11.1286,
+        'lng' => 123.9622,
+      ],
+    ];
+  }
+
+  return [
+    'distributions' => $distributions,
+  ];
+}
+
+// Check for Public Site Map requests (unauthenticated public access with sanitized output)
+if ($method === 'GET' && (isset($_GET['public']) || isset($_GET['map']))) {
+  $publicData = public_distributions_map($pdo);
+  json_response([
+    'ok' => true,
+    'data' => $publicData['distributions'],
+  ]);
+}
 
 $user = require_auth(['Admin', 'Staff', 'Beneficiary']);
 
@@ -522,6 +805,13 @@ if ($method === 'POST') {
     }
   }
 
+  $distributionDate = !empty($body['distributionDate']) ? trim((string) $body['distributionDate']) : null;
+  if ($distributionDate !== null && $distributionDate !== '') {
+    if ($distributionDate < date('Y-m-d')) {
+      json_response(['ok' => false, 'error' => 'Distribution date cannot be in the past. Please select today or a future date.'], 400);
+    }
+  }
+
   $stmt = $pdo->prepare('INSERT INTO distributions (code, event_name, location, beneficiary_id, program, distribution_date, schedule_time, beneficiaries_count, volunteers_count, vehicles_count, distance_km, fuel_liters, fuel_cost, status, distribution_type, items_summary, coordinator, notes, proof_status, request_id, source_allocation_ids) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)');
   $stmt->execute([
     $code,
@@ -529,7 +819,7 @@ if ($method === 'POST') {
     $location,
     $beneficiaryId,
     $program,
-    $body['distributionDate'] ?? null,
+    $distributionDate,
     $body['scheduleTime'] ?? null,
     $beneficiariesCount,
     (int) ($body['volunteers'] ?? 0),
@@ -634,6 +924,17 @@ if ($method === 'PUT') {
   if ($eventName === null || $eventName === '') {
     $eventName = ($existing['code'] ?? 'DST') . ' — ' . $location;
   }
+
+  if (array_key_exists('distributionDate', $body) && $body['distributionDate'] !== $existing['distribution_date']) {
+    $newDistDate = trim((string) $body['distributionDate']);
+    if ($newDistDate !== '' && $newDistDate < date('Y-m-d')) {
+      json_response([
+        'ok' => false,
+        'error' => 'Distribution date cannot be in the past. Please select today or a future date.',
+      ], 400);
+    }
+  }
+
   $update = $pdo->prepare('UPDATE distributions SET event_name = ?, location = ?, beneficiary_id = ?, program = ?, distribution_date = ?, schedule_time = ?, beneficiaries_count = ?, volunteers_count = ?, vehicles_count = ?, distance_km = ?, fuel_liters = ?, fuel_cost = ?, status = ?, distribution_type = ?, items_summary = ?, coordinator = ?, notes = ?, proof_status = ? WHERE id = ?');
   $update->execute([
     $eventName,

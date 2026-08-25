@@ -104,12 +104,13 @@ export default function VolunteerSchedulePage() {
       const date = new Date(currentDate.getFullYear(), currentDate.getMonth(), day)
       const events = getEventsForDate(date)
       const isToday = dateKey(date) === todayKey
+      const isPast = dateKey(date) < todayKey
       const typeColor = (type) => EVENT_TYPE_COLORS[type] || 'crimson'
 
       days.push(
         <div
           key={day}
-          className={`portal-calendar-day ${isToday ? 'portal-calendar-day--today' : ''} ${events.length > 0 ? 'portal-calendar-day--has-events' : ''}`}
+          className={`portal-calendar-day ${isToday ? 'portal-calendar-day--today' : ''} ${isPast ? 'portal-calendar-day--past' : ''} ${events.length > 0 ? 'portal-calendar-day--has-events' : ''}`}
         >
           <div className="portal-calendar-day__number">{day}</div>
           <div className="portal-calendar-day__events">

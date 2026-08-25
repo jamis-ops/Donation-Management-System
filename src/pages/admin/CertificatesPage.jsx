@@ -21,6 +21,7 @@ import {
   validateStatusTransition,
   isTerminalStatus,
 } from '../../utils/workflow'
+import { getTodayDateString } from '../../utils/date'
 import { useLoading } from '../../context/LoadingContext'
 
 const CERT_TYPES = [
@@ -328,25 +329,49 @@ export default function CertificatesPage() {
 
               <div className="form-row">
                 <label>Certificate Type
-                  <select value={form.type} onChange={(e) => setForm({ ...form, type: e.target.value })}>
+                  <select
+                    value={form.type}
+                    disabled={editRow && isTerminalStatus(editRow.status, CERTIFICATE_TERMINAL)}
+                    onChange={(e) => setForm({ ...form, type: e.target.value })}
+                  >
                     {CERT_TYPES.map((t) => <option key={t}>{t}</option>)}
                   </select>
                 </label>
                 <label>Date Issued
-                  <input type="date" value={form.certDate} onChange={(e) => setForm({ ...form, certDate: e.target.value })} />
+                  <input
+                    type="date"
+                    min={getTodayDateString()}
+                    disabled={editRow && isTerminalStatus(editRow.status, CERTIFICATE_TERMINAL)}
+                    value={form.certDate}
+                    onChange={(e) => setForm({ ...form, certDate: e.target.value })}
+                  />
                 </label>
               </div>
 
               <label>Certificate Text
-                <textarea rows={3} value={form.details} onChange={(e) => setForm({ ...form, details: e.target.value })} placeholder="Auto-generated when you pick a recipient — edit freely." />
+                <textarea
+                  rows={3}
+                  disabled={editRow && isTerminalStatus(editRow.status, CERTIFICATE_TERMINAL)}
+                  value={form.details}
+                  onChange={(e) => setForm({ ...form, details: e.target.value })}
+                  placeholder="Auto-generated when you pick a recipient — edit freely."
+                />
               </label>
 
               <div className="form-row">
                 <label>Signatory Name
-                  <input value={form.signatoryName} onChange={(e) => setForm({ ...form, signatoryName: e.target.value })} />
+                  <input
+                    disabled={editRow && isTerminalStatus(editRow.status, CERTIFICATE_TERMINAL)}
+                    value={form.signatoryName}
+                    onChange={(e) => setForm({ ...form, signatoryName: e.target.value })}
+                  />
                 </label>
                 <label>Signatory Title
-                  <input value={form.signatoryTitle} onChange={(e) => setForm({ ...form, signatoryTitle: e.target.value })} />
+                  <input
+                    disabled={editRow && isTerminalStatus(editRow.status, CERTIFICATE_TERMINAL)}
+                    value={form.signatoryTitle}
+                    onChange={(e) => setForm({ ...form, signatoryTitle: e.target.value })}
+                  />
                 </label>
               </div>
 
@@ -371,7 +396,13 @@ export default function CertificatesPage() {
               </label>
 
               <div className="admin-modal__actions">
-                <button type="submit" className="btn btn--primary" disabled={saving}>{saving ? 'Saving...' : editRow ? 'Save Changes' : 'Create Certificate'}</button>
+                <button
+                  type="submit"
+                  className="btn btn--primary"
+                  disabled={saving || (editRow && isTerminalStatus(editRow.status, CERTIFICATE_TERMINAL))}
+                >
+                  {saving ? 'Saving...' : editRow ? (isTerminalStatus(editRow.status, CERTIFICATE_TERMINAL) ? 'Released (Locked)' : 'Save Changes') : 'Create Certificate'}
+                </button>
                 <button
                   type="button"
                   className="btn btn--outline"

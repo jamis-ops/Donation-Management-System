@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react'
 import { Navigate, useSearchParams } from 'react-router-dom'
 import { ListTodo, Mail, UserCog, Trash2 } from 'lucide-react'
 import { createStaffAccount, getStaff, updateStaff, deleteStaff, tasksApi } from '../../api/resources'
+import { getTodayDateString, isPastDateString } from '../../utils/date'
 import { useApiList } from '../../hooks/useApiList'
 import { useFilters } from '../../hooks/useFilters'
 import PageHeader from '../../components/admin/shared/PageHeader'
@@ -295,6 +296,14 @@ export default function StaffPage() {
   const handleCreateTask = async (e) => {
     e.preventDefault()
     if (!selected) return
+    if (['Inactive', 'Suspended', 'Terminated'].includes(selected.status)) {
+      notify.error(`Cannot assign task: ${selected.name}'s account is ${selected.status}.`)
+      return
+    }
+    if (taskForm.dueDate && isPastDateString(taskForm.dueDate)) {
+      notify.error('Due date cannot be in the past. Please select today or a future date.')
+      return
+    }
     setSaving(true)
     showLoading('Saving…')
     try {
@@ -470,10 +479,22 @@ export default function StaffPage() {
             <section className="volunteer-panel-section">
               <div className="volunteer-panel-section__head">
                 <h3>Assigned Tasks</h3>
-                <button type="button" className="btn btn--sm btn--primary" onClick={() => setShowTaskForm(true)}>
+                <button
+                  type="button"
+                  className="btn btn--sm btn--primary"
+                  onClick={() => setShowTaskForm(true)}
+                  disabled={['Inactive', 'Suspended', 'Terminated'].includes(selected.status)}
+                  title={['Inactive', 'Suspended', 'Terminated'].includes(selected.status) ? 'Cannot assign tasks to an inactive staff member' : ''}
+                >
                   + Assign Task
                 </button>
               </div>
+              {['Inactive', 'Suspended', 'Terminated'].includes(selected.status) && (
+                <div className="action-locked-banner action-locked-banner--accent" style={{ margin: '0.5rem 0 0.85rem' }}>
+                  <UserCog size={14} />
+                  <span>This staff account is <strong>{selected.status}</strong>. Task assignment is locked.</span>
+                </div>
+              )}
               {tasksLoading ? (
                 <p className="beneficiary-view-empty">Loading tasks…</p>
               ) : tasks.length === 0 ? (
@@ -543,7 +564,12 @@ export default function StaffPage() {
                 </label>
                 <label>
                   Due Date
-                  <input type="date" value={taskForm.dueDate} onChange={(e) => setTaskForm({ ...taskForm, dueDate: e.target.value })} />
+                  <input
+                    type="date"
+                    min={getTodayDateString()}
+                    value={taskForm.dueDate}
+                    onChange={(e) => setTaskForm({ ...taskForm, dueDate: e.target.value })}
+                  />
                 </label>
               </div>
               <label>
@@ -627,9 +653,6 @@ export default function StaffPage() {
                   />
                 </label>
               </div>
-              <p className="field-hint">
-                Creates a <strong>Staff</strong> account. Admin accounts are managed separately under Admin Management (Super Admin only).
-              </p>
 
               <PolicyConsentBox
                 acceptedTerms={form.acceptedTerms}

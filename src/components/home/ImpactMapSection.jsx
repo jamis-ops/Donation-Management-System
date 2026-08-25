@@ -1,150 +1,289 @@
 import { useEffect, useMemo, useState } from 'react'
-import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet'
+import { MapContainer, TileLayer, Marker, Tooltip, useMap } from 'react-leaflet'
 import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
-import { mapLocations } from '../../data/mockData'
+import { MapPin, RefreshCw, Filter, Sparkles, Calendar } from 'lucide-react'
+import { publicDistributionsApi } from '../../api/resources'
 import SectionHeading from '../shared/SectionHeading'
 import Reveal from '../shared/Reveal'
 
-// Animated crimson marker with pulse effect
-const pinIcon = new L.DivIcon({
-  html: `
-    <div class="map-marker-animated">
-      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 36" width="24" height="36">
-        <path d="M12 0C5.373 0 0 5.373 0 12c0 9 12 24 12 24S24 21 24 12C24 5.373 18.627 0 12 0z"
-          fill="#AF101A"/>
-        <circle cx="12" cy="12" r="5" fill="#fff" opacity="0.9"/>
-      </svg>
-      <span class="map-marker-pulse"></span>
-    </div>`,
-  className: '',
-  iconSize: [24, 36],
-  iconAnchor: [12, 36],
-  popupAnchor: [0, -36],
-})
+// Create clean, minimal status-based map markers
+function createStatusIcon(status = 'Scheduled') {
+  let color = '#af101a'
+  let pulseColor = 'rgba(175, 16, 26, 0.4)'
+  let isLive = false
 
-function MapBounds({ locations }) {
+  if (status === 'Active Outreach') {
+    color = '#af101a'
+    pulseColor = 'rgba(175, 16, 26, 0.45)'
+    isLive = true
+  } else if (status === 'Completed') {
+    color = '#10b981'
+    pulseColor = 'rgba(16, 185, 129, 0.35)'
+  } else {
+    color = '#2563eb'
+    pulseColor = 'rgba(37, 99, 235, 0.35)'
+  }
+
+  return new L.DivIcon({
+    html: `
+      <div class="live-map-marker ${isLive ? 'live-map-marker--pulse' : ''}" style="--marker-color: ${color}; --marker-pulse: ${pulseColor};">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 36" width="24" height="36">
+          <path d="M12 0C5.373 0 0 5.373 0 12c0 9 12 24 12 24S24 21 24 12C24 5.373 18.627 0 12 0z" fill="${color}"/>
+          <circle cx="12" cy="12" r="5" fill="#ffffff" opacity="0.95"/>
+        </svg>
+        <span class="live-marker-pulse-ring"></span>
+      </div>`,
+    className: 'live-leaflet-marker-icon',
+    iconSize: [24, 36],
+    iconAnchor: [12, 36],
+    popupAnchor: [0, -36],
+  })
+}
+
+function getStatusBadgeStyle(status) {
+  if (status === 'Active Outreach') {
+    return { bg: '#fef2f2', text: '#af101a', border: '#fee2e2', label: 'Active Outreach' }
+  }
+  if (status === 'Completed') {
+    return { bg: '#f0fdf4', text: '#15803d', border: '#dcfce7', label: 'Completed' }
+  }
+  return { bg: '#eff6ff', text: '#1d4ed8', border: '#dbeafe', label: 'Scheduled' }
+}
+
+// Controller component to automatically zoom/pan map to fit current locations
+function MapController({ locations }) {
   const map = useMap()
+
   useEffect(() => {
-    if (locations.length > 0) {
-      const bounds = L.latLngBounds(locations.map((loc) => [loc.lat, loc.lng]))
-      map.fitBounds(bounds, { padding: [40, 40] })
+    if (!locations || locations.length === 0) return
+    const validCoords = locations.filter((l) => l.lat && l.lng).map((l) => [l.lat, l.lng])
+    if (validCoords.length > 0) {
+      const bounds = L.latLngBounds(validCoords)
+      map.fitBounds(bounds, { padding: [50, 50], maxZoom: 12 })
     }
   }, [locations, map])
+
   return null
 }
 
 export default function ImpactMapSection() {
-  const [filter, setFilter] = useState('all')
-  const [hoveredLocation, setHoveredLocation] = useState(null)
+  const [distributions, setDistributions] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [refreshing, setRefreshing] = useState(false)
+  const [statusFilter, setStatusFilter] = useState('all')
+  const [programFilter, setProgramFilter] = useState('all')
 
-  const featuredFilters = [
-    'Community Center',
-    'Educational Sponsorship',
-    'Dental Mission',
-    'Disaster Relief and House Building',
-  ]
+  const fetchDistributions = async (isManual = false) => {
+    if (isManual) setRefreshing(true)
+    try {
+      const res = await publicDistributionsApi.list()
+      if (res?.ok && Array.isArray(res.data)) {
+        setDistributions(res.data)
+      }
+    } catch (err) {
+      console.warn('Failed to load public map locations:', err)
+    } finally {
+      setLoading(false)
+      if (isManual) setRefreshing(false)
+    }
+  }
 
-  const programFilters = [
-    { id: 'all', label: 'All Programs' },
-    ...featuredFilters.map((name) => ({ id: name, label: name })),
-  ]
+  // Initial fetch and auto-refresh every 20 seconds
+  useEffect(() => {
+    fetchDistributions()
 
-  const filteredLocations = useMemo(() => {
-    if (filter === 'all') return mapLocations
-    return mapLocations.filter((loc) => loc.programs.includes(filter))
-  }, [filter])
+    const interval = setInterval(() => {
+      fetchDistributions()
+    }, 20000)
+
+    const handleVisibility = () => {
+      if (document.visibilityState === 'visible') {
+        fetchDistributions()
+      }
+    }
+    document.addEventListener('visibilitychange', handleVisibility)
+
+    return () => {
+      clearInterval(interval)
+      document.removeEventListener('visibilitychange', handleVisibility)
+    }
+  }, [])
+
+  // Program options derived from live records
+  const availablePrograms = useMemo(() => {
+    const set = new Set()
+    distributions.forEach((d) => {
+      if (d.program) set.add(d.program)
+    })
+    return ['all', ...Array.from(set)]
+  }, [distributions])
+
+  // Filtered locations
+  const filteredDistributions = useMemo(() => {
+    return distributions.filter((d) => {
+      if (statusFilter === 'active' && d.status !== 'Active Outreach') return false
+      if (statusFilter === 'scheduled' && d.status !== 'Scheduled') return false
+      if (statusFilter === 'completed' && d.status !== 'Completed') return false
+      if (programFilter !== 'all' && d.program !== programFilter) return false
+      return true
+    })
+  }, [distributions, statusFilter, programFilter])
 
   return (
     <section id="map" className="section map-section">
       <div className="container">
         <Reveal>
-          <SectionHeading
-            eyebrow="Impact Map"
-            title="Where we serve"
-            description="Click a location pin to see program details and distribution statistics."
-          />
-        </Reveal>
-
-        <Reveal delay={80}>
-          <div className="map-filters" role="group" aria-label="Filter by program">
-            {programFilters.map((pf) => (
+          <div className="map-section-header">
+            <SectionHeading
+              eyebrow="Community Reach"
+              title="Where We Serve Across Cebu"
+              description="Explore communities and service locations where Rise Above conducts active outreach and community programs."
+            />
+            <div className="map-live-status-badge">
+              <span className="map-live-status-dot"></span>
+              <span>Live Distribution Map</span>
               <button
-                key={pf.id}
                 type="button"
-                className={`map-filter${filter === pf.id ? ' map-filter--active' : ''}`}
-                onClick={() => setFilter(pf.id)}
+                className={`map-refresh-btn ${refreshing ? 'map-refresh-btn--spinning' : ''}`}
+                onClick={() => fetchDistributions(true)}
+                title="Refresh locations"
               >
-                {pf.label}
+                <RefreshCw size={12} />
+                <span>{refreshing ? 'Updating…' : 'Sync'}</span>
               </button>
-            ))}
+            </div>
           </div>
         </Reveal>
 
-        <Reveal className="map-wrapper" delay={140}>
+        {/* Minimal Clean Filter Controls */}
+        <Reveal delay={60}>
+          <div className="map-controls-panel map-controls-panel--compact">
+            <div className="map-filters-group">
+              <span className="map-filters-label"><Filter size={13} /> View:</span>
+              <div className="map-filters" role="group" aria-label="Filter by outreach status">
+                <button
+                  type="button"
+                  className={`map-filter ${statusFilter === 'all' ? 'map-filter--active' : ''}`}
+                  onClick={() => setStatusFilter('all')}
+                >
+                  All Locations ({distributions.length})
+                </button>
+                <button
+                  type="button"
+                  className={`map-filter ${statusFilter === 'active' ? 'map-filter--active' : ''}`}
+                  onClick={() => setStatusFilter('active')}
+                >
+                  <span className="filter-dot filter-dot--active"></span>
+                  Active Outreach ({distributions.filter((d) => d.status === 'Active Outreach').length})
+                </button>
+                <button
+                  type="button"
+                  className={`map-filter ${statusFilter === 'scheduled' ? 'map-filter--active' : ''}`}
+                  onClick={() => setStatusFilter('scheduled')}
+                >
+                  <span className="filter-dot filter-dot--transit"></span>
+                  Scheduled ({distributions.filter((d) => d.status === 'Scheduled').length})
+                </button>
+                <button
+                  type="button"
+                  className={`map-filter ${statusFilter === 'completed' ? 'map-filter--active' : ''}`}
+                  onClick={() => setStatusFilter('completed')}
+                >
+                  <span className="filter-dot filter-dot--completed"></span>
+                  Completed ({distributions.filter((d) => d.status === 'Completed').length})
+                </button>
+              </div>
+            </div>
+
+            {availablePrograms.length > 2 && (
+              <div className="map-search-row" style={{ borderTop: 'none', paddingTop: 0 }}>
+                <div className="map-program-select-wrap">
+                  <label htmlFor="map-program-filter">Filter by Program:</label>
+                  <select
+                    id="map-program-filter"
+                    value={programFilter}
+                    onChange={(e) => setProgramFilter(e.target.value)}
+                    className="map-program-select"
+                  >
+                    <option value="all">All Programs & Projects</option>
+                    {availablePrograms.filter((p) => p !== 'all').map((prog) => (
+                      <option key={prog} value={prog}>{prog}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+            )}
+          </div>
+        </Reveal>
+
+        {/* Clean, Focused Map Container */}
+        <Reveal className="map-wrapper" delay={100}>
           <MapContainer
-            center={[10.3, 123.8]}
-            zoom={9}
+            center={[10.3157, 123.8854]}
+            zoom={10}
             scrollWheelZoom={false}
             className="impact-map"
           >
             <TileLayer
-              attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
+              attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
               url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
             />
-            <MapBounds locations={filteredLocations} />
-            {filteredLocations.map((loc) => (
-              <Marker key={loc.id} position={[loc.lat, loc.lng]} icon={pinIcon}>
-                <Popup>
-                  <div className="map-popup">
-                    <strong>{loc.name}</strong>
-                    <p>
-                      <strong>Programs:</strong> {loc.programs.join(', ')}
-                    </p>
-                    <p>
-                      <strong>Beneficiaries:</strong>{' '}
-                      {loc.stats.beneficiaries.toLocaleString()}
-                    </p>
-                    <p>
-                      <strong>Relief packs:</strong>{' '}
-                      {loc.stats.reliefPacks.toLocaleString()}
-                    </p>
-                  </div>
-                </Popup>
-              </Marker>
-            ))}
+            <MapController locations={filteredDistributions} />
+            {filteredDistributions.map((dist) => {
+              const badge = getStatusBadgeStyle(dist.status)
+              const icon = createStatusIcon(dist.status)
+
+              return (
+                <Marker
+                  key={dist.id}
+                  position={[dist.lat, dist.lng]}
+                  icon={icon}
+                >
+                  <Tooltip
+                    direction="top"
+                    offset={[0, -36]}
+                    opacity={1}
+                    sticky={false}
+                    className="live-map-tooltip-container"
+                  >
+                    <div className="dist-hover-card">
+                      <div className="dist-hover-header">
+                        <span
+                          className="dist-hover-badge"
+                          style={{ background: badge.bg, color: badge.text, borderColor: badge.border }}
+                        >
+                          {badge.label}
+                        </span>
+                      </div>
+
+                      <div className="dist-hover-title">
+                        <MapPin size={13} className="dist-hover-icon" />
+                        <span>{dist.locationName}</span>
+                      </div>
+
+                      <div className="dist-hover-row">
+                        <Sparkles size={12} className="dist-hover-icon" />
+                        <span>{dist.program || 'Community Outreach'}</span>
+                      </div>
+
+                      {dist.scheduledDate && (
+                        <div className="dist-hover-row dist-hover-row--date">
+                          <Calendar size={12} className="dist-hover-icon" />
+                          <span>{dist.scheduledDate}</span>
+                        </div>
+                      )}
+                    </div>
+                  </Tooltip>
+                </Marker>
+              )
+            })}
           </MapContainer>
         </Reveal>
-
-        <div className="map-location-list">
-          {filteredLocations.map((loc, index) => (
-            <div 
-              key={loc.id} 
-              className={`map-location-card ${hoveredLocation === loc.id ? 'map-location-card--hovered' : ''}`}
-              onMouseEnter={() => setHoveredLocation(loc.id)}
-              onMouseLeave={() => setHoveredLocation(null)}
-              style={{
-                animationDelay: `${index * 100}ms`,
-              }}
-            >
-              <div className="map-location-card__icon">
-                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 36" width="20" height="30">
-                  <path d="M12 0C5.373 0 0 5.373 0 12c0 9 12 24 12 24S24 21 24 12C24 5.373 18.627 0 12 0z" fill="#AF101A"/>
-                  <circle cx="12" cy="12" r="5" fill="#fff" opacity="0.9"/>
-                </svg>
-              </div>
-              <div className="map-location-card__content">
-                <h4>{loc.name}</h4>
-                <p>{loc.programs.join(' · ')}</p>
-                <span>
-                  {loc.stats.beneficiaries.toLocaleString()} beneficiaries ·{' '}
-                  {loc.stats.reliefPacks.toLocaleString()} packs
-                </span>
-              </div>
-            </div>
-          ))}
-        </div>
       </div>
     </section>
   )
 }
+
+
+

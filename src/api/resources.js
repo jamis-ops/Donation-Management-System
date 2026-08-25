@@ -92,6 +92,10 @@ export const tasksApi = resourceApi('/api/tasks.php')
 export const distributionsApi = {
   ...resourceApi('/api/distributions.php'),
   listForProof: () => apiFetch('/api/distributions.php?forProof=1'),
+  listPublicMap: () => apiFetch('/api/distributions.php?public=1'),
+}
+export const publicDistributionsApi = {
+  list: () => apiFetch('/api/distributions.php?public=1'),
 }
 export const allocationsApi = {
   ...resourceApi('/api/allocations.php'),

@@ -5,6 +5,7 @@ import {
   Truck, UserRound, FileCheck, ClipboardList, Route, Fuel, StickyNote,
 } from 'lucide-react'
 import { distributionsApi, beneficiariesApi, volunteerMatchApi } from '../../api/resources'
+import { getTodayDateString, isPastDateString } from '../../utils/date'
 import { useApiList } from '../../hooks/useApiList'
 import { useFilters } from '../../hooks/useFilters'
 import PageHeader from '../../components/admin/shared/PageHeader'
@@ -259,6 +260,12 @@ export default function DistributionsPage() {
       })
       if (!check.valid) {
         notify.error(check.message)
+        return
+      }
+    }
+    if (form.distributionDate && isPastDateString(form.distributionDate)) {
+      if (!editRow || form.distributionDate !== editRow.distributionDate) {
+        notify.error('Distribution date cannot be in the past. Please select today or a future date.')
         return
       }
     }
@@ -908,7 +915,12 @@ export default function DistributionsPage() {
                 <div className="form-row">
                   <label>
                     Date
-                    <input type="date" value={form.distributionDate} onChange={(e) => setForm({ ...form, distributionDate: e.target.value })} />
+                    <input
+                      type="date"
+                      min={getTodayDateString()}
+                      value={form.distributionDate}
+                      onChange={(e) => setForm({ ...form, distributionDate: e.target.value })}
+                    />
                   </label>
                   <label>
                     Time

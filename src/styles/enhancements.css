@@ -6850,6 +6850,76 @@ tr.data-table__row--selected:hover {
   line-height: 1.4;
 }
 
+/* =========================================================
+   System-Wide Disabled Controls, Past Dates & Status Lock Styles
+   ========================================================= */
+
+/* Disabled Inputs, Selects, and Textareas */
+input:disabled,
+select:disabled,
+textarea:disabled,
+input[readonly].form-control-disabled,
+.form-input-disabled,
+.form-select-disabled {
+  background-color: #f1f5f9 !important;
+  color: #64748b !important;
+  border-color: #cbd5e1 !important;
+  cursor: not-allowed !important;
+  opacity: 0.85 !important;
+  box-shadow: none !important;
+  -webkit-text-fill-color: #64748b !important;
+  user-select: none !important;
+}
+
+/* Disabled buttons */
+button:disabled,
+.btn:disabled,
+.btn[disabled],
+.btn--disabled {
+  background-color: #e2e8f0 !important;
+  color: #94a3b8 !important;
+  border-color: #cbd5e1 !important;
+  cursor: not-allowed !important;
+  pointer-events: auto !important;
+  box-shadow: none !important;
+  opacity: 0.75 !important;
+}
+
+/* Locked status / action banner */
+.action-locked-banner {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  padding: 0.6rem 0.85rem;
+  background: #f1f5f9;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  color: #475569;
+  font-size: 0.82rem;
+  font-weight: 500;
+  margin-bottom: 0.75rem;
+}
+
+.action-locked-banner svg {
+  color: #64748b;
+  flex-shrink: 0;
+}
+
+.action-locked-banner--accent {
+  background: #f8fafc;
+  border-left: 3px solid #64748b;
+}
+
+.action-locked-banner--success {
+  background: #f0fdf4;
+  border: 1px solid #bbf7d0;
+  color: #166534;
+}
+
+.action-locked-banner--success svg {
+  color: #16a34a;
+}
+
 
 
 

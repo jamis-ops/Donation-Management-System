@@ -1935,6 +1935,21 @@
   background: #f9fafb;
 }
 
+.portal-calendar-day--past {
+  background: #f8fafc;
+  opacity: 0.72;
+}
+
+.portal-calendar-day--past .portal-calendar-day__number {
+  color: #94a3b8;
+  font-weight: 500;
+}
+
+.portal-calendar-day--past .portal-calendar-event {
+  filter: grayscale(0.5);
+  opacity: 0.85;
+}
+
 .portal-calendar-day--today {
   background: rgba(175, 16, 26, 0.04);
 }

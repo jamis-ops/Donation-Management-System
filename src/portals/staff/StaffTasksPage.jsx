@@ -349,7 +349,7 @@ export default function StaffTasksPage() {
                       </div>
                     )}
                   </div>
-                  {selectedTask.status !== 'Completed' && (
+                  {!(selectedTask.isDone || selectedTask.boardColumn === 'done' || selectedTask.status === 'Done' || selectedTask.status === 'Completed') ? (
                     <div className="staff-task-modal__actions">
                       <button
                         type="button"
@@ -385,6 +385,11 @@ export default function StaffTasksPage() {
                           Start Task
                         </button>
                       )}
+                    </div>
+                  ) : (
+                    <div className="action-locked-banner action-locked-banner--success" style={{ marginTop: '1rem' }}>
+                      <CheckCircle2 size={16} />
+                      <span>This task has been marked as Completed. Its status is finalized and locked.</span>
                     </div>
                   )}
                 </div>
