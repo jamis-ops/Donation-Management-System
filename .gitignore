@@ -8,16 +8,24 @@ pnpm-debug.log*
 lerna-debug.log*
 
 node_modules
+Frontend/node_modules
+Backend/mail-service/node_modules
 dist
+Frontend/dist
 dist-ssr
 *.local
 
 # Email & Secrets
 api/mail_config.php
+Backend/api/mail_config.php
 api/super_admin_config.php
+Backend/api/super_admin_config.php
 api/ai_config.php
+Backend/api/ai_config.php
 api/logs/mail_outbox/*.html
+Backend/api/logs/mail_outbox/*.html
 mail-service/.env
+Backend/mail-service/.env
 
 # Editor directories and files
 .vscode/*
