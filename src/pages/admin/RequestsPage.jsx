@@ -38,90 +38,85 @@ const styles = `
 }
 .requests-stats {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-  gap: 1rem;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 1.25rem;
 }
 .requests-page .stat-card {
-  background: var(--admin-surface);
-  border-radius: var(--admin-radius-lg);
-  padding: 1.5rem;
-  border: 1px solid var(--admin-border);
-  box-shadow: var(--admin-shadow);
+  background: var(--admin-surface, #ffffff);
+  border-radius: var(--admin-radius-lg, 14px);
+  padding: 1.25rem 1.5rem;
+  border: 1px solid var(--admin-border, #e2e8f0);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
   display: flex;
   flex-direction: column;
-  gap: 0.5rem;
+  justify-content: space-between;
+  min-height: 115px;
+  cursor: pointer;
+  transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.2s ease, border-color 0.2s ease, background-color 0.2s ease;
 }
-.requests-page .stat-card h3 {
+.requests-page .stat-card:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 8px 22px rgba(175, 16, 26, 0.12);
+  border-color: #fca5a5;
+}
+.requests-page .stat-card--active {
+  border-color: #AF101A !important;
+  box-shadow: 0 0 0 2px rgba(175, 16, 26, 0.16), 0 4px 14px rgba(175, 16, 26, 0.1) !important;
+  background-color: #fff9f9 !important;
+}
+.requests-page .stat-card__top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+.requests-page .stat-card__label {
   font-family: var(--font-sans);
-  font-size: 0.875rem;
-  color: var(--admin-text-muted);
+  font-size: 0.84rem;
+  font-weight: 600;
+  color: #475569;
   margin: 0;
+  letter-spacing: 0.01em;
 }
+.requests-page .stat-card__icon {
+  width: 38px;
+  height: 38px;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  transition: transform 0.2s ease;
+}
+.requests-page .stat-card:hover .stat-card__icon {
+  transform: scale(1.08);
+}
+.requests-page .stat-card__icon--neutral { background: rgba(175, 16, 26, 0.08); color: #AF101A; }
+.requests-page .stat-card__icon--warning { background: rgba(245, 158, 11, 0.12); color: #d97706; }
+.requests-page .stat-card__icon--success { background: rgba(22, 163, 74, 0.12); color: #16a34a; }
+.requests-page .stat-card__icon--danger { background: rgba(220, 38, 38, 0.12); color: #dc2626; }
+.requests-page .stat-card__icon--muted { background: #f1f5f9; color: #94a3b8; }
+
 .requests-page .stat-card .value {
   font-family: var(--font-sans);
-  font-size: 2rem;
+  font-size: 2.15rem;
   font-weight: 700;
-  color: var(--admin-text);
-  margin: 0;
-  line-height: 1.2;
+  color: #0f172a;
+  margin: 0.75rem 0 0 0;
+  line-height: 1;
 }
-.requests-page .stat-card.critical {
-  border-color: #fecaca;
-  background: #fef2f2;
+
+.requests-page .stat-card.critical-alert-active {
+  border-color: #fca5a5;
+  background-color: #fff5f5;
 }
-.requests-page .stat-card.critical .value {
-  color: var(--admin-danger);
+.requests-page .stat-card.critical-alert-active .value {
+  color: #dc2626;
 }
 
 @keyframes pulse-red {
   0%, 100% { transform: scale(1); }
   50% { transform: scale(1.03); }
-}
-
-.alert-banner {
-  background: #fef2f2;
-  border: 1px solid #fecaca;
-  border-radius: var(--admin-radius);
-  padding: 1rem 1.5rem;
-  display: flex;
-  align-items: center;
-  gap: 1rem;
-  color: #b91c1c;
-  cursor: pointer;
-  transition: background 0.2s;
-  font-family: var(--font-sans);
-}
-.alert-banner:hover {
-  background: #fee2e2;
-}
-.alert-banner-icon {
-  color: var(--admin-danger);
-}
-
-.requests-toolbar {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 1rem;
-  align-items: center;
-  justify-content: flex-end;
-}
-.requests-sort {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-}
-.requests-sort label {
-  font-size: 0.875rem;
-  color: var(--admin-text-muted);
-  font-family: var(--font-sans);
-}
-.requests-sort select {
-  background: var(--admin-surface);
-  border: 1px solid var(--admin-border);
-  color: var(--admin-text);
-  border-radius: 6px;
-  padding: 0.5rem;
-  font-family: var(--font-sans);
 }
 
 .requests-grid {
@@ -397,14 +392,358 @@ const styles = `
   min-width: 0;
 }
 
-@media (max-width: 640px) {
-  .admin-modal__body {
-    flex-direction: column;
-    padding: 1rem;
-  }
+/* ---------- Modern Relief Request Review Modal ---------- */
+.relief-review-modal {
+  max-width: 820px !important;
+  width: 95vw !important;
+  padding: 0 !important;
+  border-radius: 12px !important;
+  overflow: hidden !important;
+  display: flex !important;
+  flex-direction: column !important;
+  box-shadow: 0 20px 45px rgba(0, 0, 0, 0.22) !important;
+  border: 1px solid rgba(0, 0, 0, 0.08) !important;
+  box-sizing: border-box !important;
+}
 
-  .requests-page .admin-modal__right {
-    flex: none;
+.relief-review-modal .admin-modal__header {
+  margin: 0 !important;
+  top: 0 !important;
+  position: static !important;
+  padding: 1rem 1.25rem !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  background: linear-gradient(135deg, #AF101A 0%, #8E0D15 100%) !important;
+  border-top-left-radius: 12px !important;
+  border-top-right-radius: 12px !important;
+  box-shadow: none !important;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.1) !important;
+}
+
+.relief-review-modal .admin-modal__header h2 {
+  font-size: 1.15rem !important;
+  font-weight: 700 !important;
+  color: #ffffff !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  line-height: 1.3 !important;
+}
+
+.relief-review-modal .admin-modal__close {
+  margin: 0 !important;
+  width: 32px !important;
+  height: 32px !important;
+}
+
+.relief-review-header-strip {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.7rem 1.25rem;
+  background: #f8fafc;
+  border-bottom: 1px solid #e2e8f0;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.relief-review-badges {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.relief-priority-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  padding: 0.25rem 0.65rem;
+  border-radius: 9999px;
+  line-height: 1.2;
+}
+.relief-priority-badge--critical {
+  background: #fef2f2;
+  color: #dc2626;
+  border: 1px solid #fecaca;
+}
+.relief-priority-badge--high {
+  background: #fff7ed;
+  color: #ea580c;
+  border: 1px solid #fed7aa;
+}
+.relief-priority-badge--medium {
+  background: #eff6ff;
+  color: #2563eb;
+  border: 1px solid #bfdbfe;
+}
+.relief-priority-badge--low {
+  background: #f0fdf4;
+  color: #16a34a;
+  border: 1px solid #bbf7d0;
+}
+
+.relief-meta-strip {
+  display: flex;
+  align-items: center;
+  gap: 0.85rem;
+  font-size: 0.8125rem;
+  color: #64748b;
+  flex-wrap: wrap;
+}
+
+.relief-meta-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.relief-sla-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  padding: 0.15rem 0.5rem;
+  border-radius: 4px;
+}
+.relief-sla-tag--red {
+  background: #fee2e2;
+  color: #b91c1c;
+}
+.relief-sla-tag--yellow {
+  background: #fef3c7;
+  color: #b45309;
+}
+.relief-sla-tag--green {
+  background: #dcfce7;
+  color: #15803d;
+}
+
+.relief-review-grid {
+  display: grid;
+  grid-template-columns: 1.15fr 0.85fr;
+  gap: 1.15rem;
+  padding: 1.1rem 1.25rem;
+  background: #ffffff;
+  box-sizing: border-box;
+}
+
+.relief-review-col {
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+  min-width: 0;
+}
+
+.relief-review-section {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.relief-section-label {
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #64748b;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.relief-section-label span.editable-hint {
+  font-size: 0.7rem;
+  font-weight: normal;
+  text-transform: none;
+  color: #94a3b8;
+}
+
+.relief-needs-box {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  padding: 0.5rem 0.65rem;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  min-height: 38px;
+  align-items: center;
+}
+
+.relief-need-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  background: #ffffff;
+  color: #991b1b;
+  border: 1px solid #fecaca;
+  padding: 0.22rem 0.55rem;
+  border-radius: 6px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  box-shadow: 0 1px 2px rgba(0,0,0,0.03);
+}
+
+.relief-notes-textarea {
+  width: 100%;
+  height: 80px;
+  min-height: 70px;
+  max-height: 95px;
+  padding: 0.55rem 0.7rem;
+  font-size: 0.8125rem;
+  line-height: 1.4;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  resize: vertical;
+  background: #ffffff;
+  color: #1e293b;
+  font-family: var(--font-sans);
+  box-sizing: border-box;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+.relief-notes-textarea:focus {
+  outline: none;
+  border-color: var(--admin-brand);
+  box-shadow: 0 0 0 3px rgba(175, 16, 26, 0.1);
+}
+
+.relief-barangay-card {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  padding: 0.85rem 1rem;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 0.75rem;
+  height: 100%;
+  box-sizing: border-box;
+}
+
+.relief-barangay-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  border-bottom: 1px solid #e2e8f0;
+  padding-bottom: 0.5rem;
+}
+
+.relief-barangay-title {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: #1e293b;
+  margin: 0;
+}
+
+.relief-barangay-muni {
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: #475569;
+  background: #e2e8f0;
+  padding: 0.15rem 0.45rem;
+  border-radius: 4px;
+}
+
+.relief-barangay-stats-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.6rem 0.75rem;
+}
+
+.relief-bstat {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+
+.relief-bstat-label {
+  font-size: 0.68rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #64748b;
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.relief-bstat-val {
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: #1e293b;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.relief-view-barangay-btn {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35rem;
+  padding: 0.45rem 0.75rem;
+  font-size: 0.78rem;
+  font-weight: 600;
+  border-radius: 6px;
+  background: #ffffff;
+  border: 1px solid #cbd5e1;
+  color: #334155;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+.relief-view-barangay-btn:hover {
+  border-color: var(--admin-brand);
+  color: var(--admin-brand);
+  background: #fff9f9;
+}
+
+.relief-duplicate-alert {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  background: #fffbeb;
+  border: 1px solid #fde68a;
+  border-radius: 6px;
+  padding: 0.45rem 0.75rem;
+  color: #b45309;
+  font-size: 0.78rem;
+}
+
+.relief-review-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.75rem 1.25rem;
+  background: #f8fafc;
+  border-top: 1px solid #e2e8f0;
+  gap: 0.75rem;
+}
+
+.relief-review-footer-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+@media (max-width: 680px) {
+  .relief-review-grid {
+    grid-template-columns: 1fr;
+    padding: 0.85rem;
+  }
+  .relief-review-modal {
+    max-height: 94vh !important;
+    overflow-y: auto !important;
   }
 }
 `;
@@ -478,7 +817,6 @@ export default function RequestsPage() {
   const { data: beneficiariesData } = useApiList(() => beneficiariesApi.list());
   
   const [emergencyIds, setEmergencyIds] = useState(() => new Set());
-  const [sortBy, setSortBy] = useState('priority');
   const [selectedRequest, setSelectedRequest] = useState(null);
   const [isUpdating, setIsUpdating] = useState(false);
 
@@ -529,23 +867,17 @@ export default function RequestsPage() {
       if (aEm && !bEm) return -1;
       if (!aEm && bEm) return 1;
 
-      if (sortBy === 'priority') {
-        const pA = priorityConfig[a.priority]?.weight || 0;
-        const pB = priorityConfig[b.priority]?.weight || 0;
-        if (pA !== pB) return pB - pA;
-        return (new Date(b.createdAt || b.date || b.requestDate || 0) - new Date(a.createdAt || a.date || a.requestDate || 0)) || (b.dbId - a.dbId);
-      }
-      if (sortBy === 'date') return (new Date(b.createdAt || b.date || b.requestDate || 0) - new Date(a.createdAt || a.date || a.requestDate || 0)) || (b.dbId - a.dbId);
-      if (sortBy === 'barangay') return (a.beneficiary || '').localeCompare(b.beneficiary || '');
-      if (sortBy === 'status') return (a.status || '').localeCompare(b.status || '');
-      return (b.dbId - a.dbId);
+      const pA = priorityConfig[a.priority]?.weight || 0;
+      const pB = priorityConfig[b.priority]?.weight || 0;
+      if (pA !== pB) return pB - pA;
+      return (new Date(b.createdAt || b.date || b.requestDate || 0) - new Date(a.createdAt || a.date || a.requestDate || 0)) || (b.dbId - a.dbId);
     });
-  }, [filterController.filtered, emergencyIds, sortBy]);
+  }, [filterController.filtered, emergencyIds]);
 
   const paging = usePagination(
     sortedData,
     DEFAULT_PAGE_SIZE,
-    `${filterController.search}|${filterController.values?.priority || ''}|${filterController.values?.status || ''}|${sortBy}`,
+    `${filterController.search}|${filterController.values?.priority || ''}|${filterController.values?.status || ''}`,
   );
 
   const stats = useMemo(() => {
@@ -642,45 +974,106 @@ export default function RequestsPage() {
 
       <ApiState loading={reqLoading} error={reqError} onRetry={reqReload}>
         <div className="requests-stats">
-          <div className="stat-card">
-            <h3>Total Requests</h3>
+          <div
+            className={`stat-card stat-card--clickable ${filterController.values.status === 'all' && filterController.values.priority === 'all' ? 'stat-card--active' : ''}`}
+            onClick={() => {
+              filterController.setValue('status', 'all')
+              filterController.setValue('priority', 'all')
+            }}
+            role="button"
+            tabIndex={0}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault()
+                filterController.setValue('status', 'all')
+                filterController.setValue('priority', 'all')
+              }
+            }}
+            title="View all requests"
+          >
+            <div className="stat-card__top">
+              <span className="stat-card__label">Total Requests</span>
+              <div className="stat-card__icon stat-card__icon--neutral">
+                <FileText size={18} />
+              </div>
+            </div>
             <p className="value">{stats.total}</p>
           </div>
-          <div className="stat-card">
-            <h3>Pending Review</h3>
+
+          <div
+            className={`stat-card stat-card--clickable ${filterController.values.status === 'Pending Review' ? 'stat-card--active' : ''}`}
+            onClick={() => {
+              filterController.setValue('status', filterController.values.status === 'Pending Review' ? 'all' : 'Pending Review')
+            }}
+            role="button"
+            tabIndex={0}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault()
+                filterController.setValue('status', filterController.values.status === 'Pending Review' ? 'all' : 'Pending Review')
+              }
+            }}
+            title="Filter by Pending Review requests"
+          >
+            <div className="stat-card__top">
+              <span className="stat-card__label">Pending Review</span>
+              <div className="stat-card__icon stat-card__icon--warning">
+                <Clock size={18} />
+              </div>
+            </div>
             <p className="value">{stats.pending}</p>
           </div>
-          <div className="stat-card">
-            <h3>Approved</h3>
+
+          <div
+            className={`stat-card stat-card--clickable ${filterController.values.status === 'Approved' ? 'stat-card--active' : ''}`}
+            onClick={() => {
+              filterController.setValue('status', filterController.values.status === 'Approved' ? 'all' : 'Approved')
+            }}
+            role="button"
+            tabIndex={0}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault()
+                filterController.setValue('status', filterController.values.status === 'Approved' ? 'all' : 'Approved')
+              }
+            }}
+            title="Filter by Approved requests"
+          >
+            <div className="stat-card__top">
+              <span className="stat-card__label">Approved</span>
+              <div className="stat-card__icon stat-card__icon--success">
+                <CheckCircle size={18} />
+              </div>
+            </div>
             <p className="value">{stats.approved}</p>
           </div>
-          <div className="stat-card critical">
-            <h3>Critical Alerts</h3>
+
+          <div
+            className={`stat-card stat-card--clickable ${stats.critical > 0 ? 'critical-alert-active' : ''} ${filterController.values.priority === 'Critical' ? 'stat-card--active' : ''}`}
+            onClick={() => {
+              filterController.setValue('priority', filterController.values.priority === 'Critical' ? 'all' : 'Critical')
+            }}
+            role="button"
+            tabIndex={0}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault()
+                filterController.setValue('priority', filterController.values.priority === 'Critical' ? 'all' : 'Critical')
+              }
+            }}
+            title="Filter by Critical priority requests"
+          >
+            <div className="stat-card__top">
+              <span className="stat-card__label">Critical Alerts</span>
+              <div className={`stat-card__icon ${stats.critical > 0 ? 'stat-card__icon--danger' : 'stat-card__icon--muted'}`}>
+                <AlertTriangle size={18} />
+              </div>
+            </div>
             <p className="value">{stats.critical}</p>
           </div>
         </div>
 
-        {stats.critical > 0 && (
-          <div className="alert-banner" onClick={() => filterController.setValue('priority', 'Critical')}>
-            <AlertTriangle className="alert-banner-icon" />
-            <strong>⚠️ {stats.critical} Critical request{stats.critical !== 1 ? 's' : ''} need immediate attention!</strong>
-            <span>Click to filter</span>
-          </div>
-        )}
-
         <FilterBar controller={filterController} searchPlaceholder="Search barangay, type, notes..." />
-
-        <div className="requests-toolbar">
-          <div className="requests-sort">
-            <label>Sort by:</label>
-            <select value={sortBy} onChange={(e) => setSortBy(e.target.value)}>
-              <option value="priority">Priority (Default)</option>
-              <option value="date">Date Submitted</option>
-              <option value="barangay">Barangay</option>
-              <option value="status">Status</option>
-            </select>
-          </div>
-        </div>
 
         <div className="requests-grid">
           {paging.pageItems.map(req => {
@@ -791,12 +1184,26 @@ export default function RequestsPage() {
   );
 }
 
+function PriorityBadge({ priority }) {
+  const pConf = priorityConfig[priority] || priorityConfig.Medium;
+  const Icon = pConf.icon;
+  const pClass = (priority || 'medium').toLowerCase();
+  return (
+    <div 
+      className={`relief-priority-badge relief-priority-badge--${pClass}`}
+      title="Priority is locked based on the original submitted request"
+    >
+      <Icon size={13} strokeWidth={2.5} />
+      <span>{priority || 'Medium'} Priority</span>
+    </div>
+  );
+}
+
 function ReviewModal({ request, allRequests, onClose, onUpdate, isUpdating, navigate }) {
   const [notes, setNotes] = useState(request.notes || '');
-  const [priority, setPriority] = useState(request.priority || 'Medium');
   
   const activeCriticalRequests = useMemo(() => {
-    return allRequests.filter(r => 
+    return (allRequests || []).filter(r => 
       r.beneficiaryId === request.beneficiaryId && 
       r.priority === 'Critical' && 
       !['Completed', 'Rejected', 'Allocated', 'Cancelled'].includes(r.status) && 
@@ -804,124 +1211,185 @@ function ReviewModal({ request, allRequests, onClose, onUpdate, isUpdating, navi
     );
   }, [allRequests, request]);
 
+  const requestedNeeds = useMemo(() => {
+    if (Array.isArray(request.needs) && request.needs.length > 0) {
+      return request.needs;
+    }
+    return (request.type || '')
+      .split(',')
+      .map(s => s.trim())
+      .filter(Boolean);
+  }, [request]);
+
+  const calamityInfo = useMemo(() => {
+    if (Array.isArray(request.calamityTags) && request.calamityTags.length > 0) {
+      return request.calamityTags.join(', ');
+    }
+    const match = (request.notes || '').match(/Calamity\/Program:\s*([^\n\r]+)/i);
+    if (match) return match[1].trim();
+    return null;
+  }, [request]);
+
+  const prevRequestsCount = useMemo(() => {
+    return (allRequests || []).filter(r => r.beneficiaryId === request.beneficiaryId && r.dbId !== request.dbId).length;
+  }, [allRequests, request]);
+
+  const slaInfo = useMemo(() => getSLALabel(request), [request]);
+
   const handleSave = async (status) => {
-    await onUpdate(request.dbId, { status, priority, notes, type: request.type });
+    await onUpdate(request.dbId, { status, notes, type: request.type });
     if (status !== 'Approved') onClose();
   };
 
+  const formattedDate = useMemo(() => {
+    const raw = request.requestDate || request.date || request.createdAt;
+    if (!raw) return 'N/A';
+    try {
+      return new Date(raw).toLocaleString(undefined, { 
+        month: 'short', 
+        day: 'numeric', 
+        year: 'numeric', 
+        hour: 'numeric', 
+        minute: '2-digit' 
+      });
+    } catch {
+      return raw;
+    }
+  }, [request]);
+
   return (
     <div className="admin-modal-overlay" onClick={onClose}>
-      <div className="admin-modal admin-modal--wide" onClick={e => e.stopPropagation()}>
+      <div className="admin-modal relief-review-modal" onClick={e => e.stopPropagation()}>
         <ModalHeader
           title={`Review Request: ${request.id}`}
           onClose={onClose}
         />
         
-        <div className="admin-modal__body" style={{ gap: '2rem', padding: '1.5rem' }}>
-          <div className="admin-modal__left" style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
-            {activeCriticalRequests.length > 0 && priority === 'Critical' && (
-              <div className="alert-banner">
-                <AlertTriangle size={20} />
-                <div style={{ display: 'flex', flexDirection: 'column' }}>
-                  <strong>Duplicate Alert</strong>
-                  <span style={{ fontSize: '0.875rem' }}>There is already an open Critical request for this barangay.</span>
-                </div>
+        {/* Top Overview & Metadata Strip */}
+        <div className="relief-review-header-strip">
+          <div className="relief-review-badges">
+            <PriorityBadge priority={request.priority} />
+            <StatusBadge status={request.status} />
+            {request.isEmergency && (
+              <span className="badge" style={{ background: '#fdf2f8', color: '#db2777', border: '1px solid #fbcfe8', display: 'inline-flex', alignItems: 'center', gap: '0.25rem', fontSize: '0.72rem', fontWeight: 600 }}>
+                <Pin size={11} /> Pinned Emergency
+              </span>
+            )}
+          </div>
+          
+          <div className="relief-meta-strip">
+            <div className="relief-meta-item" title="Submission date and time">
+              <Clock size={13} />
+              <span>{formattedDate}</span>
+            </div>
+            {slaInfo && (
+              <div className={`relief-sla-tag relief-sla-tag--${slaInfo.status}`}>
+                {slaInfo.text}
               </div>
             )}
-            
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem' }}>
-              <div className="form-group">
-                <label style={{ marginBottom: '0.25rem' }}>Priority</label>
-                <select value={priority} onChange={e => setPriority(e.target.value)} style={{ padding: '0.75rem', border: '1px solid #cbd5e1' }}>
-                  <option value="Critical">Critical</option>
-                  <option value="High">High</option>
-                  <option value="Medium">Medium</option>
-                  <option value="Low">Low</option>
-                </select>
+          </div>
+        </div>
+
+        {/* Modal Main Content Grid */}
+        <div className="relief-review-grid">
+          {/* Left Column: Needs & Notes */}
+          <div className="relief-review-col">
+            {activeCriticalRequests.length > 0 && request.priority === 'Critical' && (
+              <div className="relief-duplicate-alert">
+                <AlertTriangle size={15} style={{ flexShrink: 0 }} />
+                <span><strong>Duplicate Alert:</strong> There is another open Critical request for this barangay.</span>
               </div>
-              <div className="form-group">
-                <label style={{ marginBottom: '0.25rem' }}>Status</label>
-                <div style={{ display: 'flex', alignItems: 'center', height: '42px' }}>
-                  <StatusBadge status={request.status} />
-                </div>
+            )}
+
+            <div className="relief-review-section">
+              <div className="relief-section-label">
+                <span>Requested Relief Items</span>
+                {calamityInfo && (
+                  <span className="badge badge--neutral" style={{ fontSize: '0.7rem', padding: '0.1rem 0.45rem' }}>
+                    🏷️ {calamityInfo}
+                  </span>
+                )}
+              </div>
+              <div className="relief-needs-box">
+                {requestedNeeds.length > 0 ? (
+                  requestedNeeds.map((need, i) => {
+                    const Icon = iconForNeed(need);
+                    return (
+                      <div key={i} className="relief-need-chip">
+                        <Icon size={13} strokeWidth={2.2} />
+                        <span>{need}</span>
+                      </div>
+                    );
+                  })
+                ) : (
+                  <span style={{ fontSize: '0.78rem', color: '#94a3b8' }}>General Relief Assistance</span>
+                )}
               </div>
             </div>
 
-            <div className="form-group">
-              <label style={{ marginBottom: '0.25rem' }}>Request Type</label>
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem', background: '#f8fafc', border: '1px solid #e2e8f0', padding: '0.75rem', borderRadius: '6px' }}>
-                {(request.type || '').split(',').map(s => s.trim()).filter(Boolean).map((need, i) => {
-                  const Icon = iconForNeed(need);
-                  return (
-                    <div key={i} style={{ display: 'inline-flex', alignItems: 'center', gap: '0.375rem', backgroundColor: 'var(--admin-brand)', color: 'white', padding: '0.375rem 0.75rem', borderRadius: '9999px', fontSize: '0.875rem', fontWeight: 500 }}>
-                      <Icon size={14} strokeWidth={2.5} aria-hidden="true" />
-                      {need}
-                    </div>
-                  );
-                })}
+            <div className="relief-review-section" style={{ flex: 1 }}>
+              <div className="relief-section-label">
+                <span>Description & Remarks</span>
+                <span className="editable-hint">(Editable by Admin)</span>
               </div>
-            </div>
-
-            <div className="form-group" style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
-              <label style={{ marginBottom: '0.25rem' }}>Description / Notes <span style={{ fontSize: '0.75rem', color: 'var(--admin-text-muted)', fontWeight: 'normal', marginLeft: '0.25rem' }}>(Editable)</span></label>
               <textarea 
+                className="relief-notes-textarea"
                 value={notes} 
                 onChange={e => setNotes(e.target.value)} 
-                placeholder="Enter details..."
-                style={{ flex: 1, minHeight: '120px', padding: '0.75rem', border: '1px solid #cbd5e1' }}
-              ></textarea>
-            </div>
-            
-            <div style={{ fontSize: '0.875rem', color: 'var(--admin-text-muted)', display: 'flex', alignItems: 'center', gap: '0.5rem', marginTop: 'auto', paddingTop: '0.5rem' }}>
-              <Clock size={16} />
-              <span>Submitted: {request.requestDate || request.date ? new Date(request.requestDate || request.date).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' }) : 'N/A'}</span>
+                placeholder="Enter administrative notes, delivery instructions, or remarks..."
+              />
             </div>
           </div>
 
-          <div className="admin-modal__right" style={{ background: '#f8fafc', padding: '1.5rem', borderRadius: '8px', display: 'flex', flexDirection: 'column', border: '1px solid #e2e8f0' }}>
-            <div className="barangay-context-card" style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
-              <h3 style={{ fontSize: '1.125rem', marginBottom: '1.25rem', color: 'var(--admin-text)', borderBottom: '1px solid #e2e8f0', paddingBottom: '0.75rem' }}>
-                <MapPin size={20} style={{ color: 'var(--admin-brand)' }} /> {request.beneficiary}
-              </h3>
-              
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
-                <div className="barangay-stat" style={{ alignItems: 'flex-start' }}>
-                  <div style={{ width: '24px', display: 'flex', justifyContent: 'center', paddingTop: '2px' }}><MapPin size={16} color="#64748b"/></div>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
-                    <span style={{ fontSize: '0.75rem', color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em', fontWeight: '600' }}>Municipality</span>
-                    <strong style={{ fontSize: '0.95rem', color: 'var(--admin-text)' }}>{request.municipality}</strong>
-                  </div>
+          {/* Right Column: Barangay Context */}
+          <div className="relief-review-col">
+            <div className="relief-barangay-card">
+              <div className="relief-barangay-header">
+                <h4 className="relief-barangay-title">
+                  <MapPin size={16} style={{ color: 'var(--admin-brand)', flexShrink: 0 }} />
+                  <span>{request.beneficiary}</span>
+                </h4>
+                <span className="relief-barangay-muni">
+                  {request.municipality || 'Cebu'}
+                </span>
+              </div>
+
+              <div className="relief-barangay-stats-grid">
+                <div className="relief-bstat">
+                  <span className="relief-bstat-label">
+                    <Users size={12} /> Families
+                  </span>
+                  <span className="relief-bstat-val">
+                    {(request.affectedFamilies || 0).toLocaleString()}
+                  </span>
                 </div>
-                
-                <div className="barangay-stat" style={{ alignItems: 'flex-start' }}>
-                  <div style={{ width: '24px', display: 'flex', justifyContent: 'center', paddingTop: '2px' }}><Users size={16} color="#64748b"/></div>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
-                    <span style={{ fontSize: '0.75rem', color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em', fontWeight: '600' }}>Affected Families</span>
-                    <strong style={{ fontSize: '0.95rem', color: 'var(--admin-text)' }}>{request.affectedFamilies}</strong>
-                  </div>
+
+                <div className="relief-bstat">
+                  <span className="relief-bstat-label">
+                    <FileText size={12} /> Past Requests
+                  </span>
+                  <span className="relief-bstat-val">
+                    {prevRequestsCount} previous
+                  </span>
                 </div>
-                
-                <div className="barangay-stat" style={{ alignItems: 'flex-start' }}>
-                  <div style={{ width: '24px', display: 'flex', justifyContent: 'center', paddingTop: '2px' }}><Users size={16} color="#64748b"/></div>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
-                    <span style={{ fontSize: '0.75rem', color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em', fontWeight: '600' }}>Representative</span>
-                    <strong style={{ fontSize: '0.95rem', color: 'var(--admin-text)' }}>{request.representative}</strong>
-                  </div>
-                </div>
-                
-                <div className="barangay-stat" style={{ alignItems: 'flex-start' }}>
-                  <div style={{ width: '24px', display: 'flex', justifyContent: 'center', paddingTop: '2px' }}><FileText size={16} color="#64748b"/></div>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
-                    <span style={{ fontSize: '0.75rem', color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em', fontWeight: '600' }}>Previous Requests</span>
-                    <strong style={{ fontSize: '0.95rem', color: 'var(--admin-text)' }}>{allRequests.filter(r => r.beneficiaryId === request.beneficiaryId).length - 1}</strong>
-                  </div>
+
+                <div className="relief-bstat" style={{ gridColumn: 'span 2' }}>
+                  <span className="relief-bstat-label">
+                    <Users size={12} /> Representative
+                  </span>
+                  <span className="relief-bstat-val" style={{ fontSize: '0.8125rem' }}>
+                    {request.representative || 'Barangay Captain / Official'}
+                  </span>
                 </div>
               </div>
-              
+
               <button 
-                className="btn btn--outline" 
-                style={{ width: '100%', marginTop: 'auto', paddingTop: '0.75rem', paddingBottom: '0.75rem', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '0.5rem' }}
-                onClick={() => navigate(`/admin/beneficiaries/${request.beneficiaryId}`)}
+                type="button"
+                className="relief-view-barangay-btn"
+                onClick={() => {
+                  onClose();
+                  navigate(`/admin/beneficiaries/${request.beneficiaryId}`);
+                }}
               >
                 View Barangay Details &rarr;
               </button>
@@ -929,28 +1397,76 @@ function ReviewModal({ request, allRequests, onClose, onUpdate, isUpdating, navi
           </div>
         </div>
 
-        <div className="admin-modal__footer" style={{ borderTop: '1px solid #e2e8f0', background: '#f8fafc', borderBottomLeftRadius: '8px', borderBottomRightRadius: '8px', display: 'flex', justifyContent: 'flex-end', gap: '1rem', padding: '1.25rem 1.5rem' }}>
-          {request.status === 'Pending Review' && (
-            <button className="btn btn--outline" disabled={isUpdating} onClick={() => handleSave('Under Review')} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-              <Clock size={16} /> Mark Under Review
-            </button>
-          )}
-          {request.status !== 'Rejected' && request.status !== 'Approved' && (
-            <button className="btn btn--danger" disabled={isUpdating} onClick={() => handleSave('Rejected')} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-              <X size={16} /> Reject
-            </button>
-          )}
-          {request.status !== 'Approved' ? (
-            <button className="btn btn--success" disabled={isUpdating} onClick={() => handleSave('Approved')} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-              {isUpdating ? <Loader2 className="spin" size={16} /> : <Check size={16} />} Approve
-            </button>
-          ) : (
-            <button className="btn btn--primary" onClick={() => navigate('/admin/allocation', { state: { prefillRequest: { requestId: request.dbId, beneficiaryId: request.beneficiaryId, type: request.type, notes: request.notes, beneficiaryName: request.beneficiary } } })} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-              Create Allocation &rarr;
-            </button>
-          )}
+        {/* Modal Footer / Workflow Actions */}
+        <div className="relief-review-footer">
+          <button 
+            type="button" 
+            className="btn btn--outline btn--sm" 
+            onClick={onClose}
+          >
+            Close
+          </button>
+          
+          <div className="relief-review-footer-actions">
+            {request.status === 'Pending Review' && (
+              <button 
+                type="button" 
+                className="btn btn--outline btn--sm" 
+                disabled={isUpdating} 
+                onClick={() => handleSave('Under Review')} 
+                style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem', color: '#b45309', borderColor: '#fde68a' }}
+              >
+                <Clock size={14} /> Mark Under Review
+              </button>
+            )}
+            {request.status !== 'Rejected' && request.status !== 'Approved' && (
+              <button 
+                type="button" 
+                className="btn btn--danger btn--sm" 
+                disabled={isUpdating} 
+                onClick={() => handleSave('Rejected')} 
+                style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem' }}
+              >
+                <X size={14} /> Reject
+              </button>
+            )}
+            {request.status !== 'Approved' ? (
+              <button 
+                type="button" 
+                className="btn btn--success btn--sm" 
+                disabled={isUpdating} 
+                onClick={() => handleSave('Approved')} 
+                style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem' }}
+              >
+                <Check size={14} /> Approve Request
+              </button>
+            ) : (
+              <button 
+                type="button" 
+                className="btn btn--primary btn--sm" 
+                onClick={() => {
+                  onClose();
+                  navigate('/admin/allocation', { 
+                    state: { 
+                      prefillRequest: { 
+                        requestId: request.dbId, 
+                        beneficiaryId: request.beneficiaryId, 
+                        type: request.type, 
+                        notes: request.notes, 
+                        beneficiaryName: request.beneficiary 
+                      } 
+                    } 
+                  });
+                }} 
+                style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem' }}
+              >
+                Create Allocation &rarr;
+              </button>
+            )}
+          </div>
         </div>
       </div>
     </div>
   );
 }
+

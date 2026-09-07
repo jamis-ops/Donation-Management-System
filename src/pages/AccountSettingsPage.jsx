@@ -282,7 +282,7 @@ export default function AccountSettingsPage() {
                 className="btn btn--primary"
                 disabled={savingVolDetails}
               >
-                {savingVolDetails ? 'Saving volunteer details…' : 'Save volunteer profile'}
+                Save volunteer profile
               </button>
             </div>
           </form>
@@ -302,18 +302,22 @@ export default function AccountSettingsPage() {
             <label>
               <Req required>Full name</Req>
               <input
+                type="text"
                 required
                 value={name}
                 onChange={(e) => setName(e.target.value)}
-                placeholder="Your full name"
               />
             </label>
             <label>
-              Phone
-              <PhoneInput value={phone} onChange={setPhone} />
+              Phone number
+              <PhoneInput 
+                value={phone} 
+                onChange={setPhone} 
+                placeholder="09XXXXXXXXX"
+              />
             </label>
             <label>
-              Recovery phone
+              Recovery phone (optional)
               <PhoneInput
                 value={recoveryPhone}
                 onChange={setRecoveryPhone}
@@ -321,7 +325,7 @@ export default function AccountSettingsPage() {
               />
             </label>
             <button type="submit" className="btn btn--primary" disabled={savingProfile}>
-              {savingProfile ? 'Saving…' : 'Save profile'}
+              Save profile
             </button>
           </form>
         </section>
@@ -344,7 +348,7 @@ export default function AccountSettingsPage() {
             </label>
             <p className="portal-hint">JPG, PNG, or WebP under 3MB.</p>
             <button type="submit" className="btn btn--outline" disabled={uploadingPhoto || !photoFile}>
-              {uploadingPhoto ? 'Uploading…' : 'Upload photo'}
+              Upload photo
             </button>
           </form>
         </section>
@@ -390,7 +394,7 @@ export default function AccountSettingsPage() {
             </label>
             <PasswordRequirements password={newPassword} />
             <button type="submit" className="btn btn--primary" disabled={savingPassword}>
-              {savingPassword ? 'Updating…' : 'Update password'}
+              Update password
             </button>
           </form>
         </section>

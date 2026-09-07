@@ -557,7 +557,7 @@ export default function ContentPage() {
                   Cancel
                 </button>
                 <button type="submit" className="btn btn--primary" disabled={saving}>
-                  {saving ? 'Saving…' : editRow ? 'Save changes' : 'Create item'}
+                  {editRow ? 'Save changes' : 'Create item'}
                 </button>
               </div>
             </form>

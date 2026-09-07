@@ -515,6 +515,10 @@ try {
   $pdo->exec("UPDATE volunteers SET applicant_type = 'Volunteer' WHERE applicant_type IS NULL OR applicant_type = ''");
   echo "Ensured volunteers applicant_type and institution\n";
 
+  // v27: Remove duty hours from volunteers (Duty hours reserved for Interns only)
+  $pdo->exec("UPDATE volunteers SET hours = 0, required_hours = 0 WHERE applicant_type = 'Volunteer' OR applicant_type IS NULL");
+  echo "Cleared duty hours from volunteer profiles\n";
+
   echo "\nMigration complete!\n";
 } catch (Throwable $e) {
   http_response_code(500);

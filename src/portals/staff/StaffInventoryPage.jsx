@@ -199,7 +199,12 @@ export default function StaffInventoryPage() {
                 {alerts.map((alert) => (
                   <div 
                     key={alert.item} 
-                    className={`staff-inventory-alert-card staff-inventory-alert-card--${alert.severity.toLowerCase()}`}
+                    className={`staff-inventory-alert-card staff-inventory-alert-card--${alert.severity.toLowerCase()} staff-inventory-summary__card--clickable`}
+                    onClick={() => setSearch(alert.item)}
+                    role="button"
+                    tabIndex={0}
+                    onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setSearch(alert.item) } }}
+                    title={`Search inventory for ${alert.item}`}
                   >
                     <div className="staff-inventory-alert-card__header">
                       <AlertTriangle size={20} />
@@ -230,8 +235,12 @@ export default function StaffInventoryPage() {
                 {categorySummary.map((cat) => (
                   <div 
                     key={cat.category} 
-                    className="staff-inventory-category-card"
+                    className={`staff-inventory-category-card staff-inventory-category-card--clickable ${filterCategory === cat.category ? 'staff-inventory-category-card--active' : ''}`}
                     onClick={() => setFilterCategory(filterCategory === cat.category ? 'all' : cat.category)}
+                    role="button"
+                    tabIndex={0}
+                    onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setFilterCategory(filterCategory === cat.category ? 'all' : cat.category) } }}
+                    title={`Filter by ${cat.category} inventory`}
                   >
                     <div className="staff-inventory-category-card__header">
                       <Package size={20} style={{ color: getCategoryColor(cat.category) }} />

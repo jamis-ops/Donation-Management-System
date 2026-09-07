@@ -1,4 +1,5 @@
-import { useMemo, useState } from 'react'
+import { useMemo, useState, useEffect } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { Search, CheckCircle, XCircle, Eye, FileText } from 'lucide-react'
 import StatusBadge from '../../components/admin/shared/StatusBadge'
 import ApiState from '../../components/admin/shared/ApiState'
@@ -23,12 +24,18 @@ function verifyResultMessage(res) {
 }
 
 export default function StaffVerificationPage() {
+  const [searchParams] = useSearchParams()
   const { showLoading, hideLoading } = useLoading()
   const { data, loading, error, reload } = useApiList(() => donationsApi.list())
-  const [searchQuery, setSearchQuery] = useState('')
-  const [priorityFilter, setPriorityFilter] = useState('All')
+  const [searchQuery, setSearchQuery] = useState(() => searchParams.get('q') || searchParams.get('search') || '')
+  const [priorityFilter, setPriorityFilter] = useState(() => searchParams.get('priority') || 'All')
   const [selected, setSelected] = useState(null)
   const [busy, setBusy] = useState(false)
+
+  useEffect(() => {
+    const p = searchParams.get('priority')
+    if (p) setPriorityFilter(p)
+  }, [searchParams])
 
   const pending = useMemo(() => {
     return (data || [])
@@ -124,8 +131,9 @@ export default function StaffVerificationPage() {
           <button
             key={label}
             type="button"
-            className={`staff-task-summary-card${priorityFilter === label ? ' staff-task-summary-card--active' : ''}`}
+            className={`staff-task-summary-card staff-task-summary-card--clickable${priorityFilter === label ? ' staff-task-summary-card--active' : ''}`}
             onClick={() => setPriorityFilter(label)}
+            title={`Filter by ${label === 'All' ? 'all pending' : `${label.toLowerCase()} priority`} donations`}
           >
             <span className="staff-task-summary-card__value">{count}</span>
             <span className="staff-task-summary-card__label">{label === 'All' ? 'Pending' : `${label} Priority`}</span>

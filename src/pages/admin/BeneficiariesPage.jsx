@@ -14,7 +14,6 @@ import ModalHeader from '../../components/admin/shared/ModalHeader'
 import Req from '../../components/shared/Req'
 import NameFields from '../../components/shared/NameFields'
 import NeedsPicker from '../../components/shared/NeedsPicker'
-import PolicyConsentBox from '../../components/shared/PolicyConsentBox'
 import { useCatalogOptions } from '../../hooks/useCatalogOptions'
 import { CatalogFieldLabel } from '../../components/admin/shared/CatalogQuickAdd'
 import { NEEDS as FALLBACK_NEEDS } from '../../constants/options'
@@ -247,8 +246,6 @@ export default function BeneficiariesPage() {
   const [rejectTarget, setRejectTarget] = useState(null)
   const [useCustomPass, setUseCustomPass] = useState(false)
   const [customPassword, setCustomPassword] = useState('')
-  const [approveAcceptedTerms, setApproveAcceptedTerms] = useState(false)
-  const [approveAcceptedPrivacy, setApproveAcceptedPrivacy] = useState(false)
   const [rejectionReason, setRejectionReason] = useState('')
 
   const { options: barangayTypeOptions, applyList: applyBarangayTypes } = useCatalogOptions(
@@ -383,16 +380,10 @@ export default function BeneficiariesPage() {
     setApproveTarget(row)
     setCustomPassword('')
     setUseCustomPass(false)
-    setApproveAcceptedTerms(false)
-    setApproveAcceptedPrivacy(false)
   }
 
   const handleConfirmApprove = async () => {
     if (!approveTarget) return
-    if (!approveAcceptedTerms || !approveAcceptedPrivacy) {
-      notify.warning('Please accept both the Terms & Conditions and Data Privacy Policy before approving.')
-      return
-    }
     if (useCustomPass) {
       const pwErr = passwordError(customPassword, { fieldLabel: 'Custom password' })
       if (pwErr) {
@@ -667,14 +658,46 @@ export default function BeneficiariesPage() {
       />
 
       <div className="beneficiaries-stats">
-        <div className="beneficiaries-stat">
+        <div
+          className={`beneficiaries-stat beneficiaries-stat--clickable ${activeSection === 'overview' && !filters.values.status ? 'beneficiaries-stat--active' : ''}`}
+          onClick={() => {
+            setActiveSection('overview')
+            filters.reset()
+          }}
+          role="button"
+          tabIndex={0}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' || e.key === ' ') {
+              e.preventDefault()
+              setActiveSection('overview')
+              filters.reset()
+            }
+          }}
+          title="View all barangays overview"
+        >
           <div className="beneficiaries-stat__icon beneficiaries-stat__icon--brand"><Users size={22} /></div>
           <div>
             <span className="beneficiaries-stat__value">{totalBeneficiaries}</span>
             <span className="beneficiaries-stat__label">Total Beneficiaries</span>
           </div>
         </div>
-        <div className="beneficiaries-stat">
+        <div
+          className={`beneficiaries-stat beneficiaries-stat--clickable ${activeSection === 'overview' && filters.values.status === 'Active' ? 'beneficiaries-stat--active' : ''}`}
+          onClick={() => {
+            setActiveSection('overview')
+            filters.setValue('status', filters.values.status === 'Active' ? 'all' : 'Active')
+          }}
+          role="button"
+          tabIndex={0}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' || e.key === ' ') {
+              e.preventDefault()
+              setActiveSection('overview')
+              filters.setValue('status', filters.values.status === 'Active' ? 'all' : 'Active')
+            }
+          }}
+          title="Filter by Active partner barangays"
+        >
           <div className="beneficiaries-stat__icon beneficiaries-stat__icon--success"><Activity size={22} /></div>
           <div>
             <span className="beneficiaries-stat__value">{activeBeneficiaries}</span>
@@ -682,8 +705,14 @@ export default function BeneficiariesPage() {
           </div>
         </div>
         <div
-          className="beneficiaries-stat beneficiaries-stat--clickable"
+          className={`beneficiaries-stat beneficiaries-stat--clickable ${activeSection === 'submissions' ? 'beneficiaries-stat--active' : ''}`}
           onClick={() => setActiveSection('submissions')}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' || e.key === ' ') {
+              e.preventDefault()
+              setActiveSection('submissions')
+            }
+          }}
           title="Click to view pending barangay registration submissions"
           role="button"
           tabIndex={0}
@@ -694,7 +723,19 @@ export default function BeneficiariesPage() {
             <span className="beneficiaries-stat__label">Pending Approval</span>
           </div>
         </div>
-        <div className="beneficiaries-stat">
+        <div
+          className="beneficiaries-stat beneficiaries-stat--clickable"
+          onClick={() => navigate('/admin/requests?priority=Critical')}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' || e.key === ' ') {
+              e.preventDefault()
+              navigate('/admin/requests?priority=Critical')
+            }
+          }}
+          title="View critical open relief requests from barangays"
+          role="button"
+          tabIndex={0}
+        >
           <div className="beneficiaries-stat__icon beneficiaries-stat__icon--danger"><AlertCircle size={22} /></div>
           <div>
             <span className="beneficiaries-stat__value">{urgentNeedsCount}</span>
@@ -1068,7 +1109,7 @@ export default function BeneficiariesPage() {
 
               <div className="admin-modal__actions">
                 <button type="submit" className="btn btn--primary" disabled={saving}>
-                  {saving ? 'Saving…' : 'Save Barangay'}
+                  Save Barangay
                 </button>
                 <button type="button" className="btn btn--ghost" onClick={() => setModalMode(null)}>Cancel</button>
               </div>
@@ -1342,21 +1383,11 @@ export default function BeneficiariesPage() {
                   </div>
                 )}
               </div>
-
-              <PolicyConsentBox
-                acceptedTerms={approveAcceptedTerms}
-                onTermsChange={setApproveAcceptedTerms}
-                acceptedPrivacy={approveAcceptedPrivacy}
-                onPrivacyChange={setApproveAcceptedPrivacy}
-                entityLabel="Barangay representative"
-              />
-
-              <div className="admin-modal__actions">
+              <div className="admin-modal__actions" style={{ marginTop: '1.25rem' }}>
                 <button
                   type="submit"
                   className="btn approval-overlay__btn-approve"
-                  disabled={actionBusyId === approveTarget.dbId || !approveAcceptedTerms || !approveAcceptedPrivacy}
-                  title={!approveAcceptedTerms || !approveAcceptedPrivacy ? 'Please accept both agreements above to create credentials' : ''}
+                  disabled={actionBusyId === approveTarget.dbId}
                 >
                   {actionBusyId === approveTarget.dbId ? (
                     <>

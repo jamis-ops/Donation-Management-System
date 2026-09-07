@@ -122,6 +122,11 @@ if ($method === 'GET') {
     $ben = $pdo->prepare('SELECT id FROM beneficiaries WHERE user_id = ? LIMIT 1');
     $ben->execute([$user['id']]);
     $benId = $ben->fetchColumn();
+    if (!$benId && !empty($user['email'])) {
+      $ben = $pdo->prepare('SELECT id FROM beneficiaries WHERE LOWER(representative_email) = LOWER(?) LIMIT 1');
+      $ben->execute([(string) $user['email']]);
+      $benId = $ben->fetchColumn();
+    }
     if (!$benId) {
       json_response(['ok' => true, 'data' => []]);
     }
@@ -145,6 +150,11 @@ if ($method === 'POST') {
   $ben = $pdo->prepare('SELECT * FROM beneficiaries WHERE user_id = ? LIMIT 1');
   $ben->execute([$user['id']]);
   $beneficiary = $ben->fetch();
+  if (!$beneficiary && !empty($user['email'])) {
+    $ben = $pdo->prepare('SELECT * FROM beneficiaries WHERE LOWER(representative_email) = LOWER(?) LIMIT 1');
+    $ben->execute([(string) $user['email']]);
+    $beneficiary = $ben->fetch();
+  }
   if (!$beneficiary) {
     json_response(['ok' => false, 'error' => 'No barangay profile linked to your account'], 400);
   }

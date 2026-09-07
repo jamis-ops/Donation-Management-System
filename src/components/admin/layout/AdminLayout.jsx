@@ -24,6 +24,7 @@ const pageTitles = {
   '/admin/certificates': 'Certificates',
   '/admin/content': 'Content Management',
   '/admin/settings': 'Settings',
+  '/admin/database': 'Database Management',
 }
 
 const SECONDARY_COLLAPSE_KEY = 'admin.secondarySidebar.collapsed'
@@ -31,6 +32,8 @@ const SECONDARY_COLLAPSE_KEY = 'admin.secondarySidebar.collapsed'
 function useBarangayModule(pathname) {
   return pathname.startsWith('/admin/beneficiaries') || pathname.startsWith('/admin/barangays')
 }
+
+const SUPER_ADMIN_ALLOWED_PATHS = ['/admin/admins', '/admin/settings', '/admin/database']
 
 export default function AdminLayout() {
   const { user } = useAuth()
@@ -60,7 +63,7 @@ export default function AdminLayout() {
     setSecondaryMobileOpen(false)
   }, [location.pathname])
 
-  if (isSuperAdmin && location.pathname !== '/admin/admins') {
+  if (isSuperAdmin && !SUPER_ADMIN_ALLOWED_PATHS.includes(location.pathname)) {
     return <Navigate to="/admin/admins" replace />
   }
 

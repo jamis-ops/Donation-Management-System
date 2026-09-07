@@ -21,6 +21,13 @@ const emptyMetrics = {
   tasksCompleted: 0,
 }
 
+const STAFF_STAT_LINKS = {
+  'Donations to Verify': '/staff/verification',
+  'Active Deliveries': '/staff/distributions?status=In+Transit',
+  'Low Stock Items': '/staff/inventory',
+  'Assigned Tasks': '/staff/tasks?status=In+Progress',
+}
+
 export default function StaffDashboard() {
   const { data, loading, error, reload } = useApiObject(() => getPortalData())
   const [metricPeriod, setMetricPeriod] = useState('thisWeek')
@@ -58,15 +65,35 @@ export default function StaffDashboard() {
           <div className="portal-stats">
             {(data.stats || []).map((item) => {
               const Icon = iconMap[item.icon]
+              const destination = STAFF_STAT_LINKS[item.label]
+              const cardContent = (
+                <>
+                  <div className="staff-stat-card__top">
+                    <span className="staff-stat-card__label">{item.label}</span>
+                    <div className="staff-stat-card__icon" style={{ backgroundColor: `${item.color || '#AF101A'}15`, color: item.color || '#AF101A' }}>
+                      {Icon && <Icon size={20} />}
+                    </div>
+                  </div>
+                  <div className="staff-stat-card__body">
+                    <span className="staff-stat-card__value">{item.value}</span>
+                  </div>
+                </>
+              )
+              if (destination) {
+                return (
+                  <Link
+                    key={item.label}
+                    to={destination}
+                    className="portal-stat-card staff-stat-card portal-stat-card--clickable"
+                    title={`View ${item.label}`}
+                  >
+                    {cardContent}
+                  </Link>
+                )
+              }
               return (
                 <div key={item.label} className="portal-stat-card staff-stat-card">
-                  <div className="portal-stat-card__icon" style={{ backgroundColor: `${item.color || '#d97706'}15`, color: item.color || '#d97706' }}>
-                    {Icon && <Icon size={24} />}
-                  </div>
-                  <div className="portal-stat-card__content">
-                    <span className="portal-stat-card__value">{item.value}</span>
-                    <span className="portal-stat-card__label">{item.label}</span>
-                  </div>
+                  {cardContent}
                 </div>
               )
             })}

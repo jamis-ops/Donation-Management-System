@@ -34,6 +34,10 @@ function map_volunteer(PDO $pdo, array $row): array
   $applicantType = !empty($row['applicant_type']) && strcasecmp((string)$row['applicant_type'], 'Intern') === 0 ? 'Intern' : 'Volunteer';
   $hasResume = !empty($row['resume_path']) && $applicantType === 'Intern';
 
+  $hours = $applicantType === 'Intern' ? (int) $row['hours'] : 0;
+  $requiredHours = $applicantType === 'Intern' ? (int) ($row['required_hours'] ?? 0) : 0;
+  $remainingHours = $applicantType === 'Intern' ? max(0, $requiredHours - $hours) : 0;
+
   return [
     'id' => $row['code'],
     'dbId' => (int) $row['id'],
@@ -51,9 +55,9 @@ function map_volunteer(PDO $pdo, array $row): array
     'skillsOther' => $row['skills_other'] ?? '',
     'availability' => $row['availability'] ?? '',
     'status' => $row['status'],
-    'hours' => (int) $row['hours'],
-    'requiredHours' => (int) ($row['required_hours'] ?? 0),
-    'remainingHours' => max(0, (int) ($row['required_hours'] ?? 0) - (int) $row['hours']),
+    'hours' => $hours,
+    'requiredHours' => $requiredHours,
+    'remainingHours' => $remainingHours,
     'assignedTasks' => (int) $taskCount->fetchColumn(),
     'openTasks' => (int) $openCount->fetchColumn(),
     'hasResume' => $hasResume,
@@ -257,8 +261,8 @@ if ($method === 'POST') {
     $skillsOther !== '' ? $skillsOther : null,
     $availability !== '' ? $availability : null,
     $status,
-    $public ? 0 : (int) ($body['hours'] ?? 0),
-    $public ? 0 : (int) ($body['requiredHours'] ?? $body['required_hours'] ?? 0),
+    ($public || $applicantType !== 'Intern') ? 0 : (int) ($body['hours'] ?? 0),
+    ($public || $applicantType !== 'Intern') ? 0 : (int) ($body['requiredHours'] ?? $body['required_hours'] ?? 0),
     $resume ? $resume['path'] : null,
     $resume ? $resume['name'] : null,
     $resume ? $resume['type'] : null,
@@ -271,32 +275,28 @@ if ($method === 'POST') {
     $appLabel = $applicantType === 'Intern' ? 'Internship application' : 'Volunteer application';
     notify_admins(
       $pdo,
-      'volunteer',
-      "New {$entityTitle} application",
-      "{$name} applied for {$appLabel} ({$code})" . ($resume ? ' [CV attached]' : ''),
+      'application',
+      "New {$appLabel}",
+      "{$name} submitted a {$entityTitle} application ({$code}).",
       '/admin/volunteers'
     );
   }
 
   $stmt = $pdo->prepare('SELECT * FROM volunteers WHERE id = ?');
   $stmt->execute([$newId]);
-  $mapped = map_volunteer($pdo, $stmt->fetch());
-  json_response([
-    'ok' => true,
-    'data' => $mapped,
-    'trackingCode' => $code,
-  ], 201);
+  json_response(['ok' => true, 'data' => map_volunteer($pdo, $stmt->fetch())], 201);
 }
 
-$user = require_auth(['Admin', 'Staff', 'Volunteer']);
-
 if ($method === 'PUT') {
-  if (!$id) {
-    if ($user['role'] === 'Volunteer') {
-      $lookup = $pdo->prepare('SELECT id FROM volunteers WHERE user_id = ? LIMIT 1');
-      $lookup->execute([$user['id']]);
-      $id = $lookup->fetchColumn();
+  $user = require_auth(['Admin', 'Staff', 'Volunteer']);
+  if ($user['role'] === 'Volunteer') {
+    $vIdStmt = $pdo->prepare('SELECT id FROM volunteers WHERE user_id = ? LIMIT 1');
+    $vIdStmt->execute([$user['id']]);
+    $id = (int) ($vIdStmt->fetchColumn() ?: 0);
+    if (!$id) {
+      json_response(['ok' => false, 'error' => 'Volunteer record not found for your account.'], 404);
     }
+  } else {
     if (!$id) {
       json_response(['ok' => false, 'error' => 'Volunteer id is required'], 400);
     }
@@ -322,13 +322,13 @@ if ($method === 'PUT') {
     ? (trim((string) ($body['skillsOther'] ?? $body['skills_other'] ?? '')) ?: null)
     : ($existing['skills_other'] ?? null);
   $availability = array_key_exists('availability', $body)
-    ? (trim((string) $body['availability']) ?: null)
+    ? (trim((string) ($body['availability']) ?: null))
     : ($existing['availability'] ?? null);
   $applicantType = array_key_exists('applicantType', $body) || array_key_exists('applicant_type', $body)
     ? (strcasecmp((string) ($body['applicantType'] ?? $body['applicant_type']), 'Intern') === 0 ? 'Intern' : 'Volunteer')
     : ($existing['applicant_type'] ?? 'Volunteer');
   $institution = array_key_exists('institution', $body)
-    ? (trim((string) $body['institution']) ?: null)
+    ? (trim((string) ($body['institution']) ?: null))
     : ($existing['institution'] ?? null);
 
   if ($isVolunteerOwner) {
@@ -365,6 +365,13 @@ if ($method === 'PUT') {
 
   $email = require_valid_email((string) ($body['email'] ?? $existing['email'] ?? ''), 'Email');
 
+  $updateHours = $applicantType === 'Intern'
+    ? (int) ($body['hours'] ?? $existing['hours'])
+    : 0;
+  $updateRequiredHours = $applicantType === 'Intern'
+    ? (int) ($body['requiredHours'] ?? $body['required_hours'] ?? ($existing['required_hours'] ?? 0))
+    : 0;
+
   $update = $pdo->prepare('UPDATE volunteers SET full_name = ?, first_name = ?, last_name = ?, middle_initial = ?, email = ?, applicant_type = ?, institution = ?, programs_json = ?, skills_json = ?, skills_other = ?, availability = ?, status = ?, hours = ?, required_hours = ? WHERE id = ?');
   $update->execute([
     $name,
@@ -379,8 +386,8 @@ if ($method === 'PUT') {
     $skillsOther,
     $availability,
     $newStatus,
-    (int) ($body['hours'] ?? $existing['hours']),
-    (int) ($body['requiredHours'] ?? $body['required_hours'] ?? ($existing['required_hours'] ?? 0)),
+    $updateHours,
+    $updateRequiredHours,
     $id,
   ]);
 

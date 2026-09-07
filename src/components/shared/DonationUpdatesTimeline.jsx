@@ -119,7 +119,7 @@ export default function DonationUpdatesTimeline({
             <input value={note} onChange={(e) => setNote(e.target.value)} placeholder="Brief progress note" />
           </label>
           <button type="submit" className="btn btn--sm btn--primary" disabled={saving || !stage}>
-            {saving ? 'Saving…' : 'Post Update'}
+            Post Update
           </button>
         </form>
       )}

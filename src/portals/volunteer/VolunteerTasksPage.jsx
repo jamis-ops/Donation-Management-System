@@ -1,4 +1,5 @@
-import { useMemo, useState } from 'react'
+import { useMemo, useState, useEffect } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import {
   Clock,
   Search,
@@ -52,18 +53,33 @@ function getVolunteerTaskStatus(task) {
   return 'Ongoing'
 }
 
+function mapParamToStatus(param) {
+  if (!param) return 'All'
+  const p = param.toLowerCase()
+  if (p === 'completed' || p === 'done') return 'Completed'
+  if (p === 'ongoing' || p === 'active' || p === 'in progress') return 'Ongoing'
+  if (p === 'distributions' || p === 'distribution') return 'Distributions'
+  return 'All'
+}
+
 export default function VolunteerTasksPage() {
+  const [searchParams] = useSearchParams()
   const { data, loading, error, reload } = useApiList(() =>
     tasksApi.list().then((r) => ({
       data: Array.isArray(r.data) ? r.data : (r.list || []),
     }))
   )
 
-  const [statusFilter, setStatusFilter] = useState('All')
+  const [statusFilter, setStatusFilter] = useState(() => mapParamToStatus(searchParams.get('status') || searchParams.get('filter')))
   const { showLoading, hideLoading } = useLoading()
-  const [searchQuery, setSearchQuery] = useState('')
+  const [searchQuery, setSearchQuery] = useState(() => searchParams.get('q') || searchParams.get('search') || '')
   const [selectedTask, setSelectedTask] = useState(null)
   const [saving, setSaving] = useState(false)
+
+  useEffect(() => {
+    const s = searchParams.get('status') || searchParams.get('filter')
+    if (s) setStatusFilter(mapParamToStatus(s))
+  }, [searchParams])
 
   const stats = useMemo(() => {
     const list = Array.isArray(data) ? data : []
@@ -71,11 +87,7 @@ export default function VolunteerTasksPage() {
     const ongoing = list.filter((t) => getVolunteerTaskStatus(t) === 'Ongoing').length
     const completed = list.filter((t) => getVolunteerTaskStatus(t) === 'Completed').length
     const distributions = list.filter(isDistributionTask).length
-    const totalHours = list.reduce((sum, t) => {
-      const hrs = parseFloat(t.dutyHours || t.hours || 0) || 0
-      return sum + hrs
-    }, 0)
-    return { total, ongoing, completed, distributions, totalHours }
+    return { total, ongoing, completed, distributions }
   }, [data])
 
   const filteredTasks = useMemo(() => {
@@ -154,7 +166,14 @@ export default function VolunteerTasksPage() {
     <ApiState loading={loading} error={error} onRetry={reload}>
       {/* Volunteer KPI Header Cards */}
       <div className="volunteer-kpi-grid">
-        <div className="volunteer-kpi-card volunteer-kpi-card--total">
+        <div 
+          className={`volunteer-kpi-card volunteer-kpi-card--total volunteer-kpi-card--clickable ${statusFilter === 'All' ? 'volunteer-kpi-card--active' : ''}`}
+          onClick={() => setStatusFilter('All')}
+          role="button"
+          tabIndex={0}
+          onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setStatusFilter('All') } }}
+          title="Filter: All Tasks"
+        >
           <div className="volunteer-kpi-card__icon">
             <Layers size={20} />
           </div>
@@ -164,7 +183,14 @@ export default function VolunteerTasksPage() {
           </div>
         </div>
 
-        <div className="volunteer-kpi-card volunteer-kpi-card--ongoing">
+        <div 
+          className={`volunteer-kpi-card volunteer-kpi-card--ongoing volunteer-kpi-card--clickable ${statusFilter === 'Ongoing' ? 'volunteer-kpi-card--active' : ''}`}
+          onClick={() => setStatusFilter('Ongoing')}
+          role="button"
+          tabIndex={0}
+          onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setStatusFilter('Ongoing') } }}
+          title="Filter: Ongoing Tasks"
+        >
           <div className="volunteer-kpi-card__icon">
             <Clock size={20} />
           </div>
@@ -174,7 +200,14 @@ export default function VolunteerTasksPage() {
           </div>
         </div>
 
-        <div className="volunteer-kpi-card volunteer-kpi-card--completed">
+        <div 
+          className={`volunteer-kpi-card volunteer-kpi-card--completed volunteer-kpi-card--clickable ${statusFilter === 'Completed' ? 'volunteer-kpi-card--active' : ''}`}
+          onClick={() => setStatusFilter('Completed')}
+          role="button"
+          tabIndex={0}
+          onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setStatusFilter('Completed') } }}
+          title="Filter: Completed Tasks"
+        >
           <div className="volunteer-kpi-card__icon">
             <ShieldCheck size={20} />
           </div>
@@ -184,13 +217,20 @@ export default function VolunteerTasksPage() {
           </div>
         </div>
 
-        <div className="volunteer-kpi-card volunteer-kpi-card--hours">
+        <div 
+          className={`volunteer-kpi-card volunteer-kpi-card--dist volunteer-kpi-card--clickable ${statusFilter === 'Distributions' ? 'volunteer-kpi-card--active' : ''}`}
+          onClick={() => setStatusFilter('Distributions')}
+          role="button"
+          tabIndex={0}
+          onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setStatusFilter('Distributions') } }}
+          title="Filter: Distribution Operations"
+        >
           <div className="volunteer-kpi-card__icon">
-            <Award size={20} />
+            <Truck size={20} />
           </div>
           <div>
-            <div className="volunteer-kpi-card__value">{stats.totalHours.toFixed(1)}h</div>
-            <div className="volunteer-kpi-card__label">Estimated Duty Hours</div>
+            <div className="volunteer-kpi-card__value">{stats.distributions}</div>
+            <div className="volunteer-kpi-card__label">Distribution Ops</div>
           </div>
         </div>
       </div>
@@ -200,7 +240,7 @@ export default function VolunteerTasksPage() {
           <div>
             <h2>My Tasks &amp; Deployments</h2>
             <p style={{ margin: '0.2rem 0 0', fontSize: '0.825rem', color: '#64748b' }}>
-              Track assigned volunteer duties, distribution operations, and logged volunteer hours.
+              Track assigned volunteer duties and distribution operations.
             </p>
           </div>
           <span className="portal-panel__count">{filteredTasks.length} {filteredTasks.length === 1 ? 'task' : 'tasks'}</span>
@@ -285,10 +325,6 @@ export default function VolunteerTasksPage() {
                           <Clock size={14} /> Due: {t.due || '—'}
                         </span>
                         <span className="portal-task-item__category">{t.module || t.category || 'General Duty'}</span>
-                        {(t.dutyHours || t.hours) && (
-                          <span className="portal-task-item__hours">{t.dutyHours || t.hours}h credited</span>
-                        )}
-                        {t.dutyLabel && <span>{t.dutyLabel}</span>}
                       </div>
                       {isDist && (
                         <div className="portal-task-dist">
@@ -480,27 +516,13 @@ export default function VolunteerTasksPage() {
               <div className="vtask-metrics-grid">
                 <div className="vtask-metric-card">
                   <span className="vtask-metric-card__label">
-                    <Clock size={13} /> Duty Hours
-                  </span>
-                  <span className="vtask-metric-card__val">
-                    {selectedTask.dutyHours || selectedTask.hours ? `${selectedTask.dutyHours || selectedTask.hours} hrs` : '—'}
-                  </span>
-                  <span className="vtask-metric-card__sub">
-                    {selectedTask.dutyLabel || 'Credited upon completion'}
-                  </span>
-                </div>
-
-                <div className="vtask-metric-card">
-                  <span className="vtask-metric-card__label">
                     <CalendarDays size={13} /> Schedule & Due
                   </span>
                   <span className="vtask-metric-card__val">
                     {selectedTask.due || 'Open schedule'}
                   </span>
                   <span className="vtask-metric-card__sub">
-                    {selectedTask.dutyStart && selectedTask.dutyEnd
-                      ? `${selectedTask.dutyStart} – ${selectedTask.dutyEnd}`
-                      : 'Duty window'}
+                    {selectedTask.due ? 'Target completion date' : 'Flexible timing'}
                   </span>
                 </div>
 
@@ -513,6 +535,18 @@ export default function VolunteerTasksPage() {
                   </span>
                   <span className="vtask-metric-card__sub">
                     {isDistributionTask(selectedTask) ? 'Logistics / Relief' : (selectedTask.module || selectedTask.category || 'Volunteer Task')}
+                  </span>
+                </div>
+
+                <div className="vtask-metric-card">
+                  <span className="vtask-metric-card__label">
+                    <Layers size={13} /> Program / Module
+                  </span>
+                  <span className="vtask-metric-card__val">
+                    {selectedTask.module || selectedTask.category || 'General'}
+                  </span>
+                  <span className="vtask-metric-card__sub">
+                    Assigned Foundation Program
                   </span>
                 </div>
               </div>
@@ -569,7 +603,7 @@ export default function VolunteerTasksPage() {
                       {selectedTask.completedAtLabel
                         ? `Completed on ${selectedTask.completedAtLabel}. `
                         : ''}
-                      Duty hours ({selectedTask.dutyHours || selectedTask.hours || 0} hrs) have been verified and recorded to your volunteer profile.
+                      This task has been verified and recorded to your volunteer profile.
                     </span>
                   </div>
                 </div>
@@ -577,9 +611,9 @@ export default function VolunteerTasksPage() {
                 <div className="vtask-callout vtask-callout--ongoing">
                   <ShieldCheck size={18} />
                   <div>
-                    <strong>Administrator Duty Verification</strong>
+                    <strong>Administrator Verification</strong>
                     <span>
-                      After you fulfill this activity, an Administrator will review and verify task completion to automatically credit your {selectedTask.dutyHours || selectedTask.hours ? `${selectedTask.dutyHours || selectedTask.hours} ` : ''}duty hours.
+                      After you fulfill this activity, an Administrator will review and verify task completion.
                     </span>
                   </div>
                 </div>
@@ -595,7 +629,7 @@ export default function VolunteerTasksPage() {
                   disabled={saving}
                   onClick={() => handleDistributionStatus(selectedTask, 'In Transit')}
                 >
-                  <Truck size={15} /> {saving ? 'Saving…' : 'Mark In Transit'}
+                  <Truck size={15} /> Mark In Transit
                 </button>
               )}
               {isDistributionTask(selectedTask) && selectedTask.canMarkDelivered && (
@@ -605,7 +639,7 @@ export default function VolunteerTasksPage() {
                   disabled={saving}
                   onClick={() => handleDistributionStatus(selectedTask, 'Delivered')}
                 >
-                  <PackageCheck size={15} /> {saving ? 'Saving…' : 'Mark Delivered'}
+                  <PackageCheck size={15} /> Mark Delivered
                 </button>
               )}
               <button

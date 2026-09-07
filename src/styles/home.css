@@ -778,19 +778,19 @@
    LIVE IMPACT MAP SECTION
    ========================================================= */
 
-.map-section-header {
-  display: flex;
-  flex-direction: column;
-  gap: 0.75rem;
-  margin-bottom: 1.5rem;
+.map-section {
+  position: relative;
 }
 
-@media (min-width: 768px) {
-  .map-section-header {
-    flex-direction: row;
-    align-items: flex-end;
-    justify-content: space-between;
-  }
+.map-section .section-heading {
+  margin-bottom: 1rem;
+}
+
+.map-meta-bar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 2rem;
 }
 
 .map-live-status-badge {
@@ -799,12 +799,18 @@
   gap: 0.6rem;
   background: #ffffff;
   border: 1px solid #e2e8f0;
-  padding: 0.45rem 0.85rem;
+  padding: 0.45rem 0.95rem;
   border-radius: 9999px;
   font-size: 0.825rem;
   font-weight: 500;
   color: #334155;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+  transition: all 0.2s ease;
+}
+
+.map-live-status-badge:hover {
+  border-color: #cbd5e1;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.06);
 }
 
 .map-live-status-dot {
@@ -859,105 +865,6 @@
   100% {
     transform: rotate(360deg);
   }
-}
-
-/* Controls Panel */
-.map-controls-panel {
-  background: #ffffff;
-  border: 1px solid #e2e8f0;
-  border-radius: 12px;
-  padding: 0.85rem 1rem;
-  margin-bottom: 1.25rem;
-  display: flex;
-  flex-direction: column;
-  gap: 0.75rem;
-}
-
-.map-controls-panel--compact {
-  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.02);
-}
-
-.map-filters-group {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 0.5rem;
-}
-
-.map-filters-label {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.3rem;
-  font-size: 0.8rem;
-  font-weight: 600;
-  color: #475569;
-  margin-right: 0.25rem;
-}
-
-.filter-dot {
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  display: inline-block;
-  margin-right: 0.35rem;
-}
-
-.filter-dot--active {
-  background: #af101a;
-}
-
-.filter-dot--transit {
-  background: #2563eb;
-}
-
-.filter-dot--completed {
-  background: #10b981;
-}
-
-.map-search-row {
-  display: flex;
-  flex-direction: column;
-  gap: 0.75rem;
-}
-
-@media (min-width: 640px) {
-  .map-search-row {
-    flex-direction: row;
-    align-items: center;
-    justify-content: flex-start;
-  }
-}
-
-.map-program-select-wrap {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  flex: 1;
-}
-
-.map-program-select-wrap label {
-  font-size: 0.825rem;
-  font-weight: 600;
-  color: #475569;
-  white-space: nowrap;
-}
-
-.map-program-select {
-  width: 100%;
-  max-width: 320px;
-  padding: 0.4rem 0.75rem;
-  font-size: 0.85rem;
-  border: 1px solid #cbd5e1;
-  border-radius: 8px;
-  background-color: #f8fafc;
-  color: #0f172a;
-  outline: none;
-  transition: border-color 0.2s ease, background-color 0.2s ease;
-}
-
-.map-program-select:focus {
-  border-color: #af101a;
-  background-color: #ffffff;
 }
 
 /* Map Animated Marker Styles */

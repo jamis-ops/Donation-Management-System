@@ -57,8 +57,8 @@ if ($method === 'GET') {
     $stmt = $pdo->prepare('SELECT * FROM certificates WHERE recipient_name = ? OR reference_code IN (SELECT tracking_code FROM donations WHERE donor_email = ?) ORDER BY id DESC');
     $stmt->execute([$user['name'], $user['email']]);
   } elseif ($user['role'] === 'Volunteer') {
-    $stmt = $pdo->prepare('SELECT * FROM certificates WHERE recipient_name = ? AND (recipient_type = \'Volunteer\' OR recipient_type IS NULL OR recipient_type = \'\') ORDER BY id DESC');
-    $stmt->execute([$user['name']]);
+    $stmt = $pdo->prepare('SELECT * FROM certificates WHERE (recipient_name = ? OR reference_code IN (SELECT code FROM volunteers WHERE user_id = ? OR email = ?)) AND (recipient_type = \'Volunteer\' OR recipient_type IS NULL OR recipient_type = \'\') ORDER BY id DESC');
+    $stmt->execute([$user['name'], $user['id'], $user['email']]);
   } else {
     $stmt = $pdo->query('SELECT * FROM certificates ORDER BY created_at DESC, id DESC');
   }
@@ -102,6 +102,51 @@ if ($method === 'POST') {
     ]);
     notify_admins($pdo, 'certificate', 'Certificate requested', "{$user['name']} requested a certificate" . ($reference ? " for {$reference}" : ''), '/admin/certificates');
     audit_log($pdo, 'request', 'certificate', $code, "{$user['name']} requested a certificate");
+    $stmt = $pdo->prepare('SELECT * FROM certificates WHERE id = ?');
+    $stmt->execute([(int) $pdo->lastInsertId()]);
+    json_response(['ok' => true, 'data' => map_certificate($stmt->fetch())], 201);
+  }
+
+  // Volunteers may request a certificate for their volunteer service.
+  if ($user['role'] === 'Volunteer') {
+    $certType = trim((string) ($body['type'] ?? 'Certificate of Volunteer Service'));
+    $allowedTypes = [
+      'Certificate of Volunteer Service',
+      'Volunteer Certificate',
+      'Certificate of Participation',
+      'Certificate of Appreciation',
+      'Training Certificate',
+      'Achievement Award',
+      'Special Recognition',
+    ];
+    if (!in_array($certType, $allowedTypes, true)) {
+      $certType = 'Certificate of Volunteer Service';
+    }
+
+    $reference = trim((string) ($body['reference'] ?? ''));
+    if ($reference === '') {
+      $vStmt = $pdo->prepare('SELECT code FROM volunteers WHERE user_id = ? OR email = ? LIMIT 1');
+      $vStmt->execute([$user['id'], $user['email']]);
+      $vCode = $vStmt->fetchColumn();
+      if ($vCode) {
+        $reference = (string) $vCode;
+      }
+    }
+
+    $code = generate_code('CERT');
+    $stmt = $pdo->prepare('INSERT INTO certificates (code, cert_type, recipient_type, recipient_name, reference_code, details, cert_date, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?)');
+    $stmt->execute([
+      $code,
+      $certType,
+      'Volunteer',
+      $user['name'],
+      $reference ?: null,
+      trim((string) ($body['details'] ?? '')) ?: null,
+      date('Y-m-d'),
+      'Requested',
+    ]);
+    notify_admins($pdo, 'certificate', 'Certificate requested', "{$user['name']} requested a {$certType}" . ($reference ? " ({$reference})" : ''), '/admin/certificates');
+    audit_log($pdo, 'request', 'certificate', $code, "{$user['name']} requested a {$certType}");
     $stmt = $pdo->prepare('SELECT * FROM certificates WHERE id = ?');
     $stmt->execute([(int) $pdo->lastInsertId()]);
     json_response(['ok' => true, 'data' => map_certificate($stmt->fetch())], 201);

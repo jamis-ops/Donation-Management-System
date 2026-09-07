@@ -176,7 +176,7 @@ export default function AssistancePage() {
               </label>
 
               <button type="submit" className="btn btn--primary btn--lg" disabled={submitting}>
-                {submitting ? 'Submitting…' : 'Submit Nomination'}
+                Submit Nomination
               </button>
             </form>
           )}

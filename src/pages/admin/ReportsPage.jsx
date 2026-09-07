@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { Link } from 'react-router-dom'
 import { Download, FileText, FileSpreadsheet, Printer, HeartHandshake, Users, Truck, Clock, TrendingUp } from 'lucide-react'
 import { getReports } from '../../api/resources'
 import { useApiObject } from '../../hooks/useApiList'
@@ -136,7 +137,11 @@ export default function ReportsPage() {
         {data && (
           <>
             <div className="admin-stats-grid admin-stats-grid--compact">
-              <div className="admin-stat-card">
+              <Link
+                to="/admin/donations"
+                className="admin-stat-card admin-stat-card--clickable"
+                title="View donations report"
+              >
                 <div className="admin-stat-card__header">
                   <span className="admin-stat-card__label">Donations This Month</span>
                   <HeartHandshake className="admin-stat-card__icon" size={15} />
@@ -145,8 +150,12 @@ export default function ReportsPage() {
                   <span className="admin-stat-card__value">{summary.donationsThisMonth}</span>
                   <span className="admin-stat-card__change">{changeLabel}</span>
                 </div>
-              </div>
-              <div className="admin-stat-card">
+              </Link>
+              <Link
+                to="/admin/distributions?status=Completed"
+                className="admin-stat-card admin-stat-card--clickable"
+                title="View completed distributions and beneficiaries served"
+              >
                 <div className="admin-stat-card__header">
                   <span className="admin-stat-card__label">Beneficiaries Served (YTD)</span>
                   <Users className="admin-stat-card__icon" size={15} />
@@ -154,8 +163,12 @@ export default function ReportsPage() {
                 <div className="admin-stat-card__body">
                   <span className="admin-stat-card__value">{summary.beneficiariesServed.toLocaleString()}</span>
                 </div>
-              </div>
-              <div className="admin-stat-card">
+              </Link>
+              <Link
+                to="/admin/distributions?status=Completed"
+                className="admin-stat-card admin-stat-card--clickable"
+                title="View completed distributions"
+              >
                 <div className="admin-stat-card__header">
                   <span className="admin-stat-card__label">Distributions Completed</span>
                   <Truck className="admin-stat-card__icon" size={15} />
@@ -163,8 +176,12 @@ export default function ReportsPage() {
                 <div className="admin-stat-card__body">
                   <span className="admin-stat-card__value">{summary.distributionsCompleted}</span>
                 </div>
-              </div>
-              <div className="admin-stat-card">
+              </Link>
+              <Link
+                to="/admin/volunteers"
+                className="admin-stat-card admin-stat-card--clickable"
+                title="View volunteers and rendered hours"
+              >
                 <div className="admin-stat-card__header">
                   <span className="admin-stat-card__label">Volunteer Hours</span>
                   <Clock className="admin-stat-card__icon" size={15} />
@@ -172,8 +189,12 @@ export default function ReportsPage() {
                 <div className="admin-stat-card__body">
                   <span className="admin-stat-card__value">{summary.volunteerHours.toLocaleString()}</span>
                 </div>
-              </div>
-              <div className="admin-stat-card">
+              </Link>
+              <Link
+                to="/admin/inventory"
+                className="admin-stat-card admin-stat-card--clickable"
+                title="View inventory and stock turnover"
+              >
                 <div className="admin-stat-card__header">
                   <span className="admin-stat-card__label">Inventory Turnover</span>
                   <TrendingUp className="admin-stat-card__icon" size={15} />
@@ -181,7 +202,7 @@ export default function ReportsPage() {
                 <div className="admin-stat-card__body">
                   <span className="admin-stat-card__value">{summary.inventoryTurnover}</span>
                 </div>
-              </div>
+              </Link>
             </div>
 
             <div className="admin-charts-grid">

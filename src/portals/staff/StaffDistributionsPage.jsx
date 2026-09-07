@@ -1,4 +1,5 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { Truck, MapPin, Calendar, Users, Package, Clock, CheckCircle, Search, Filter, Eye, Edit, PlayCircle, CheckSquare, ArrowRight } from 'lucide-react'
 import ApiState from '../../components/admin/shared/ApiState'
 import { getPortalData, distributionsApi } from '../../api/resources'
@@ -17,14 +18,22 @@ const STAFF_ADVANCE = {
 }
 
 export default function StaffDistributionsPage() {
+  const [searchParams] = useSearchParams()
   const { data: portalData, loading, error, reload } = useApiObject(() => getPortalData())
-  const [filterStatus, setFilterStatus] = useState('all')
+  const [filterStatus, setFilterStatus] = useState(() => searchParams.get('status') || 'all')
   const { showLoading, hideLoading } = useLoading()
-  const [filterProgram, setFilterProgram] = useState('all')
-  const [searchQuery, setSearchQuery] = useState('')
+  const [filterProgram, setFilterProgram] = useState(() => searchParams.get('program') || 'all')
+  const [searchQuery, setSearchQuery] = useState(() => searchParams.get('q') || searchParams.get('search') || '')
   const [selectedDistribution, setSelectedDistribution] = useState(null)
   const [viewMode, setViewMode] = useState('grid') // 'grid' or 'calendar'
   const [saving, setSaving] = useState(false)
+
+  useEffect(() => {
+    const st = searchParams.get('status')
+    if (st) setFilterStatus(st)
+    const prog = searchParams.get('program')
+    if (prog) setFilterProgram(prog)
+  }, [searchParams])
 
   const distributions = portalData?.distributions || []
 
@@ -128,8 +137,12 @@ export default function StaffDistributionsPage() {
             {Object.entries(statusCounts).map(([status, count]) => (
               <div 
                 key={status}
-                className={`staff-distribution-summary-card ${filterStatus === status ? 'staff-distribution-summary-card--active' : ''}`}
+                className={`staff-distribution-summary-card staff-distribution-summary-card--clickable ${filterStatus === status ? 'staff-distribution-summary-card--active' : ''}`}
                 onClick={() => setFilterStatus(filterStatus === status ? 'all' : status)}
+                role="button"
+                tabIndex={0}
+                onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setFilterStatus(filterStatus === status ? 'all' : status) } }}
+                title={`Filter by ${status} distributions`}
               >
                 <span className="staff-distribution-summary-card__value">{count}</span>
                 <span className="staff-distribution-summary-card__label">{status}</span>
@@ -282,7 +295,7 @@ export default function StaffDistributionsPage() {
                               onClick={() => handleAdvanceStatus(dist)}
                             >
                               <ArrowRight size={14} />
-                              {saving ? 'Saving…' : `→ ${STAFF_ADVANCE[dist.status]}`}
+                              {`→ ${STAFF_ADVANCE[dist.status]}`}
                             </button>
                           )}
                         </div>
@@ -531,7 +544,7 @@ export default function StaffDistributionsPage() {
                         onClick={() => handleAdvanceStatus(selectedDistribution)}
                       >
                         <ArrowRight size={16} />
-                        {saving ? 'Saving…' : `Advance to ${STAFF_ADVANCE[selectedDistribution.status]}`}
+                        {`Advance to ${STAFF_ADVANCE[selectedDistribution.status]}`}
                       </button>
                     ) : selectedDistribution.status === 'Delivered' || selectedDistribution.status === 'Awaiting Proof' ? (
                       <p className="staff-modal__hint" style={{ margin: 0, color: '#64748b', fontSize: '0.9rem' }}>

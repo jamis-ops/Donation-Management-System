@@ -317,3 +317,30 @@ export const adminBadgesApi = {
     body: JSON.stringify({ section }),
   }),
 }
+
+export const databaseManagementApi = {
+  getTables: () => apiFetch('/api/database_management.php?action=tables'),
+  getTableData: (params = {}) => {
+    const qs = new URLSearchParams()
+    qs.set('action', 'table_data')
+    if (params.table) qs.set('table', params.table)
+    if (params.page) qs.set('page', String(params.page))
+    if (params.limit) qs.set('limit', String(params.limit))
+    if (params.search) qs.set('search', params.search)
+    if (params.sort) qs.set('sort', params.sort)
+    if (params.order) qs.set('order', params.order)
+    return apiFetch(`/api/database_management.php?${qs.toString()}`)
+  },
+  deleteRows: (table, ids, idColumn) => apiFetch('/api/database_management.php', {
+    method: 'POST',
+    body: JSON.stringify({ action: 'delete_rows', table, ids, idColumn }),
+  }),
+  truncateTable: (table) => apiFetch('/api/database_management.php', {
+    method: 'POST',
+    body: JSON.stringify({ action: 'truncate_table', table }),
+  }),
+  wipeExcept: (preserveTables, confirmation) => apiFetch('/api/database_management.php', {
+    method: 'POST',
+    body: JSON.stringify({ action: 'wipe_except', preserveTables, confirmation }),
+  }),
+}

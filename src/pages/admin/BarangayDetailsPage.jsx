@@ -21,7 +21,6 @@ import ApiState from '../../components/admin/shared/ApiState'
 import ModalHeader from '../../components/admin/shared/ModalHeader'
 import Req from '../../components/shared/Req'
 import NeedsPicker from '../../components/shared/NeedsPicker'
-import PolicyConsentBox from '../../components/shared/PolicyConsentBox'
 import { usePagination, DEFAULT_PAGE_SIZE } from '../../hooks/usePagination'
 import Pagination from '../../components/admin/shared/Pagination'
 import { notifyBeneficiariesChanged } from '../../utils/beneficiariesSync'
@@ -102,8 +101,6 @@ export default function BarangayDetailsPage() {
   const [rejectConfirm, setRejectConfirm] = useState(false)
   const [useCustomPass, setUseCustomPass] = useState(false)
   const [customPassword, setCustomPassword] = useState('')
-  const [approveAcceptedTerms, setApproveAcceptedTerms] = useState(false)
-  const [approveAcceptedPrivacy, setApproveAcceptedPrivacy] = useState(false)
   const [editForm, setEditForm] = useState({})
   const { options: barangayTypeOptions, applyList: applyBarangayTypes } = useCatalogOptions(
     'barangay_types',
@@ -276,10 +273,6 @@ export default function BarangayDetailsPage() {
   }
 
   const handleApprove = async () => {
-    if (!approveAcceptedTerms || !approveAcceptedPrivacy) {
-      notify.warning('Please accept both the Terms & Conditions and Data Privacy Policy before approving.')
-      return
-    }
     if (useCustomPass) {
       const pwErr = passwordError(customPassword, { fieldLabel: 'Custom password' })
       if (pwErr) {
@@ -390,21 +383,13 @@ export default function BarangayDetailsPage() {
                 </div>
               )}
             </div>
-              <PolicyConsentBox
-                acceptedTerms={approveAcceptedTerms}
-                onTermsChange={setApproveAcceptedTerms}
-                acceptedPrivacy={approveAcceptedPrivacy}
-                onPrivacyChange={setApproveAcceptedPrivacy}
-                entityLabel="Barangay representative"
-              />
 
-              <div className="approval-confirm__actions">
+              <div className="approval-confirm__actions" style={{ marginTop: '1.25rem' }}>
                 <button
                   type="button"
                   className="btn approval-overlay__btn-approve"
                   onClick={handleApprove}
-                  disabled={actionBusy || !approveAcceptedTerms || !approveAcceptedPrivacy}
-                  title={!approveAcceptedTerms || !approveAcceptedPrivacy ? 'Please accept both agreements above to create credentials' : ''}
+                  disabled={actionBusy}
                 >
                   {actionBusy ? 'Approving…' : 'Yes, Approve & Send Credentials'}
                 </button>
@@ -501,21 +486,42 @@ export default function BarangayDetailsPage() {
           </div>
           <span className="barangay-metric__value">{Number(beneficiary.affectedFamilies || 0).toLocaleString()}</span>
         </div>
-        <div className="barangay-metric">
+        <div
+          className={`barangay-metric barangay-metric--clickable ${activeTab === 'relief-requests' ? 'barangay-metric--active' : ''}`}
+          onClick={() => selectTab('relief-requests')}
+          role="button"
+          tabIndex={0}
+          onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); selectTab('relief-requests') } }}
+          title="View relief requests for this barangay"
+        >
           <div className="barangay-metric__header">
             <FileText size={15} className="barangay-metric__icon" />
             <span className="barangay-metric__label">Relief Requests</span>
           </div>
           <span className="barangay-metric__value">{requests.length}</span>
         </div>
-        <div className="barangay-metric">
+        <div
+          className={`barangay-metric barangay-metric--clickable ${activeTab === 'distributions' ? 'barangay-metric--active' : ''}`}
+          onClick={() => selectTab('distributions')}
+          role="button"
+          tabIndex={0}
+          onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); selectTab('distributions') } }}
+          title="View distributions for this barangay"
+        >
           <div className="barangay-metric__header">
             <CheckCircle2 size={15} className="barangay-metric__icon" />
             <span className="barangay-metric__label">Delivered Packs</span>
           </div>
           <span className="barangay-metric__value">{completedDistributions}</span>
         </div>
-        <div className="barangay-metric">
+        <div
+          className={`barangay-metric barangay-metric--clickable ${activeTab === 'tracker' ? 'barangay-metric--active' : ''}`}
+          onClick={() => selectTab('tracker')}
+          role="button"
+          tabIndex={0}
+          onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); selectTab('tracker') } }}
+          title="View items tracker for this barangay"
+        >
           <div className="barangay-metric__header">
             <Clock size={15} className="barangay-metric__icon" />
             <span className="barangay-metric__label">Pending Items</span>
@@ -961,7 +967,7 @@ export default function BarangayDetailsPage() {
                 </label>
               </div>
               <div className="admin-modal__actions" style={{ marginTop: '1.25rem' }}>
-                <button type="submit" className="btn btn--primary" disabled={saving}>{saving ? 'Saving…' : 'Save Changes'}</button>
+                <button type="submit" className="btn btn--primary" disabled={saving}>Save Changes</button>
                 <button type="button" className="btn btn--ghost" onClick={() => setIsEditModalOpen(false)}>Cancel</button>
               </div>
             </form>

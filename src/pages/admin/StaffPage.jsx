@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import { Navigate, useSearchParams } from 'react-router-dom'
-import { ListTodo, Mail, UserCog, Trash2 } from 'lucide-react'
+import { ListTodo, Mail, UserCog, Trash2, Pencil } from 'lucide-react'
 import { createStaffAccount, getStaff, updateStaff, deleteStaff, tasksApi } from '../../api/resources'
 import { getTodayDateString, isPastDateString } from '../../utils/date'
 import { useApiList } from '../../hooks/useApiList'
@@ -12,10 +12,8 @@ import ApiState from '../../components/admin/shared/ApiState'
 import FilterBar from '../../components/admin/shared/FilterBar'
 import ModalHeader from '../../components/admin/shared/ModalHeader'
 import Req from '../../components/shared/Req'
-import PolicyLinks from '../../components/shared/PolicyLinks'
 import { useSeeMore } from '../../hooks/useSeeMore'
 import { SeeMoreToggle } from '../../components/admin/shared/SeeMoreList'
-import PolicyConsentBox from '../../components/shared/PolicyConsentBox'
 import NameFields from '../../components/shared/NameFields'
 import { emptyNameParts, formatFullName } from '../../utils/personName'
 import { notify } from '../../utils/toast'
@@ -44,9 +42,9 @@ const emptyForm = {
   emergencyContactNumber: '',
   emergencyContactRelation: '',
   role: 'Staff',
-  acceptedTerms: false,
-  acceptedPrivacy: false,
-  acceptedPolicies: false,
+  acceptedTerms: true,
+  acceptedPrivacy: true,
+  acceptedPolicies: true,
 }
 
 const emptyTaskForm = {
@@ -77,6 +75,7 @@ export default function StaffPage() {
   const [saving, setSaving] = useState(false)
   const [selected, setSelected] = useState(null)
   const [editForm, setEditForm] = useState(null)
+  const [isEditing, setIsEditing] = useState(false)
   const [tasks, setTasks] = useState([])
   const [tasksLoading, setTasksLoading] = useState(false)
   const tasksSeeMore = useSeeMore(tasks, 3)
@@ -105,12 +104,13 @@ export default function StaffPage() {
     }
   }
 
-  const openStaff = (row) => {
+  const openStaff = (row, startInEditMode = false) => {
     if (row.role !== 'Staff') {
       notify.warning('Admin accounts are managed under Admin Management.')
       return
     }
     setSelected(row)
+    setIsEditing(startInEditMode)
     setEditForm({
       lastName: row.lastName || '',
       firstName: row.firstName || '',
@@ -150,10 +150,6 @@ export default function StaffPage() {
         return
       }
     }
-    if (!form.acceptedTerms || !form.acceptedPrivacy) {
-      notify.warning('Please accept both the Terms & Conditions and Data Privacy Policy.')
-      return
-    }
     const ok = await confirmAction({
       title: 'Create Staff Account',
       message: `Create a staff portal account for ${formatFullName(form)} (${form.email}) and email their temporary password?`,
@@ -177,8 +173,8 @@ export default function StaffPage() {
         emergencyContactNumber: form.emergencyContactNumber,
         emergencyContactRelation: form.emergencyContactRelation,
         role: 'Staff',
-        acceptedTerms: form.acceptedTerms,
-        acceptedPrivacy: form.acceptedPrivacy,
+        acceptedTerms: true,
+        acceptedPrivacy: true,
         acceptedPolicies: true,
       })
       if (!res?.ok && !res?.data) {
@@ -224,6 +220,15 @@ export default function StaffPage() {
   const handleUpdateProfile = async (e) => {
     e.preventDefault()
     if (!selected || !editForm) return
+    if (!editForm.lastName.trim() || !editForm.firstName.trim()) {
+      notify.warning('Last Name and First Name are required.')
+      return
+    }
+    const emailMsg = emailError(editForm.email)
+    if (emailMsg) {
+      notify.warning(emailMsg)
+      return
+    }
     const phoneMsg = phoneError(editForm.phone, { required: false })
     if (phoneMsg) {
       notify.warning(phoneMsg)
@@ -251,7 +256,6 @@ export default function StaffPage() {
         emergencyContactRelation: editForm.emergencyContactRelation,
         status: editForm.status,
       })
-      setSuccessMsg('Staff profile updated.')
       notify.success('Staff profile updated.')
       showSuccessModal('Successfully updated.')
       reload()
@@ -260,6 +264,7 @@ export default function StaffPage() {
         ...editForm,
         name: formatFullName(editForm),
       } : null))
+      setIsEditing(false)
     } catch (err) {
       notify.error(err.message)
     } finally {
@@ -340,7 +345,10 @@ export default function StaffPage() {
       label: 'Actions',
       render: (row) => (
         <div className="table-actions" onClick={(e) => e.stopPropagation()}>
-          <button type="button" className="btn btn--sm btn--outline" onClick={() => openStaff(row)}>Manage</button>
+          <button type="button" className="btn btn--sm btn--outline" onClick={() => openStaff(row, false)}>Manage</button>
+          <button type="button" className="btn btn--sm btn--outline" onClick={() => openStaff(row, true)}>
+            <Pencil size={13} /> Edit
+          </button>
           <button type="button" className="btn btn--sm btn--danger" onClick={() => handleDelete(row)}>
             <Trash2 size={14} /> Delete
           </button>
@@ -373,18 +381,69 @@ export default function StaffPage() {
         <div className="admin-banner admin-banner--success" role="status">{successMsg}</div>
       ) : null}
 
+      <div className="admin-stats-grid admin-stats-grid--compact" style={{ marginBottom: '1.25rem' }}>
+        <div
+          className={`admin-stat-card admin-stat-card--clickable ${filters.values.status === 'all' ? 'admin-stat-card--active' : ''}`}
+          onClick={() => filters.setValue('status', 'all')}
+          role="button"
+          tabIndex={0}
+          onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); filters.setValue('status', 'all') } }}
+          title="View all staff members"
+        >
+          <div className="admin-stat-card__header">
+            <span className="admin-stat-card__label">Total Staff</span>
+            <UserCog className="admin-stat-card__icon" size={15} />
+          </div>
+          <div className="admin-stat-card__body">
+            <span className="admin-stat-card__value">{staffData.length}</span>
+          </div>
+        </div>
+        <div
+          className={`admin-stat-card admin-stat-card--clickable ${filters.values.status === 'Active' ? 'admin-stat-card--active' : ''}`}
+          onClick={() => filters.setValue('status', filters.values.status === 'Active' ? 'all' : 'Active')}
+          role="button"
+          tabIndex={0}
+          onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); filters.setValue('status', filters.values.status === 'Active' ? 'all' : 'Active') } }}
+          title="Filter by Active staff"
+        >
+          <div className="admin-stat-card__header">
+            <span className="admin-stat-card__label">Active Staff</span>
+            <UserCog className="admin-stat-card__icon" size={15} style={{ color: '#16a34a' }} />
+          </div>
+          <div className="admin-stat-card__body">
+            <span className="admin-stat-card__value">{staffData.filter((s) => s.status === 'Active').length}</span>
+          </div>
+        </div>
+        <div
+          className={`admin-stat-card admin-stat-card--clickable ${filters.values.status === 'Inactive' ? 'admin-stat-card--active' : ''}`}
+          onClick={() => filters.setValue('status', filters.values.status === 'Inactive' ? 'all' : 'Inactive')}
+          role="button"
+          tabIndex={0}
+          onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); filters.setValue('status', filters.values.status === 'Inactive' ? 'all' : 'Inactive') } }}
+          title="Filter by Inactive staff"
+        >
+          <div className="admin-stat-card__header">
+            <span className="admin-stat-card__label">Inactive Staff</span>
+            <UserCog className="admin-stat-card__icon" size={15} style={{ color: '#dc2626' }} />
+          </div>
+          <div className="admin-stat-card__body">
+            <span className="admin-stat-card__value">{staffData.filter((s) => s.status !== 'Active').length}</span>
+          </div>
+        </div>
+      </div>
+
       <FilterBar controller={filters} searchPlaceholder="Search by ID, name, or email..." />
       <ApiState loading={loading} error={error} onRetry={reload}>
         <DataTable
           columns={columns}
           data={filters.filtered}
-          onRowClick={openStaff}
+          onRowClick={(row) => openStaff(row, false)}
           pageSize={10}
           resetKey={`${filters.search}|${JSON.stringify(filters.values)}`}
         />
       </ApiState>
 
-      {selected && editForm && (
+      {selected && (
         <div className="admin-modal-overlay" onClick={() => setSelected(null)}>
           <div className="admin-modal admin-modal--wide volunteer-manage-modal" onClick={(e) => e.stopPropagation()}>
             <ModalHeader
@@ -394,86 +453,142 @@ export default function StaffPage() {
             />
 
             <section className="volunteer-panel-section">
-              <h3>Staff Profile</h3>
-              <form onSubmit={handleUpdateProfile}>
-                <NameFields
-                  value={editForm}
-                  onChange={(parts) => setEditForm({ ...editForm, ...parts })}
-                />
-                <div className="form-row">
+              <div className="volunteer-panel-section__head" style={{ marginBottom: '0.75rem' }}>
+                <h3 style={{ margin: 0 }}>Staff Profile</h3>
+                {!isEditing && (
+                  <button
+                    type="button"
+                    className="btn btn--sm btn--outline"
+                    onClick={() => setIsEditing(true)}
+                  >
+                    <Pencil size={13} /> Edit Profile
+                  </button>
+                )}
+              </div>
+
+              {isEditing && editForm ? (
+                <form onSubmit={handleUpdateProfile}>
+                  <NameFields
+                    value={editForm}
+                    onChange={(parts) => setEditForm({ ...editForm, ...parts })}
+                  />
+                  <div className="form-row">
+                    <label>
+                      <Req required>Email</Req>
+                      <input
+                        type="email"
+                        required
+                        value={editForm.email}
+                        onChange={(e) => setEditForm({ ...editForm, email: e.target.value })}
+                      />
+                    </label>
+                    <label>
+                      Phone Number
+                      <PhoneInput
+                        value={editForm.phone}
+                        onChange={(phone) => setEditForm({ ...editForm, phone })}
+                      />
+                    </label>
+                  </div>
+                  <div className="form-row">
+                    <label>
+                      Date of Birth
+                      <input
+                        type="date"
+                        value={editForm.birthDate}
+                        onChange={(e) => setEditForm({ ...editForm, birthDate: e.target.value })}
+                      />
+                    </label>
+                    <label>
+                      Address
+                      <input
+                        type="text"
+                        placeholder="e.g., Cebu City, Philippines"
+                        value={editForm.address}
+                        onChange={(e) => setEditForm({ ...editForm, address: e.target.value })}
+                      />
+                    </label>
+                  </div>
+                  <div className="form-row">
+                    <label>
+                      Emergency Contact Number
+                      <PhoneInput
+                        value={editForm.emergencyContactNumber}
+                        onChange={(num) => setEditForm({ ...editForm, emergencyContactNumber: num })}
+                      />
+                    </label>
+                    <label>
+                      Emergency Contact Relation
+                      <input
+                        type="text"
+                        placeholder="e.g., Parent, Spouse, Sibling"
+                        value={editForm.emergencyContactRelation}
+                        onChange={(e) => setEditForm({ ...editForm, emergencyContactRelation: e.target.value })}
+                      />
+                    </label>
+                  </div>
                   <label>
-                    <Req required>Email</Req>
-                    <input type="email" required value={editForm.email} onChange={(e) => setEditForm({ ...editForm, email: e.target.value })} />
+                    Account Status
+                    <select
+                      value={editForm.status}
+                      onChange={(e) => setEditForm({ ...editForm, status: e.target.value })}
+                    >
+                      <option value="Active">Active</option>
+                      <option value="Inactive">Inactive</option>
+                    </select>
                   </label>
-                  <label>
-                    Phone Number
-                    <PhoneInput
-                      value={editForm.phone}
-                      onChange={(phone) => setEditForm({ ...editForm, phone })}
-                    />
-                  </label>
-                </div>
-                <div className="form-row">
-                  <label>
-                    Date of Birth
-                    <input
-                      type="date"
-                      value={editForm.birthDate}
-                      onChange={(e) => setEditForm({ ...editForm, birthDate: e.target.value })}
-                    />
-                  </label>
-                  <label>
-                    Address
-                    <input
-                      type="text"
-                      placeholder="e.g., Cebu City, Philippines"
-                      value={editForm.address}
-                      onChange={(e) => setEditForm({ ...editForm, address: e.target.value })}
-                    />
-                  </label>
-                </div>
-                <div className="form-row">
-                  <label>
-                    Emergency Contact Number
-                    <PhoneInput
-                      value={editForm.emergencyContactNumber}
-                      onChange={(num) => setEditForm({ ...editForm, emergencyContactNumber: num })}
-                    />
-                  </label>
-                  <label>
-                    Emergency Contact Relation
-                    <input
-                      type="text"
-                      placeholder="e.g., Parent, Spouse, Sibling"
-                      value={editForm.emergencyContactRelation}
-                      onChange={(e) => setEditForm({ ...editForm, emergencyContactRelation: e.target.value })}
-                    />
-                  </label>
-                </div>
-                <label>
-                  Account Status
-                  <select value={editForm.status} onChange={(e) => setEditForm({ ...editForm, status: e.target.value })}>
-                    <option value="Active">Active</option>
-                    <option value="Inactive">Inactive</option>
-                  </select>
-                </label>
-                <dl className="detail-list" style={{ marginTop: '0.75rem' }}>
-                  <dt>Role</dt><dd>Staff</dd>
-                  <dt>Department</dt><dd>{selected.department}</dd>
+
+                  <div className="admin-modal__actions" style={{ marginTop: '1rem', justifyContent: 'flex-start', gap: '0.5rem' }}>
+                    <button type="submit" className="btn btn--primary" disabled={saving}>
+                      Save Changes
+                    </button>
+                    <button
+                      type="button"
+                      className="btn btn--ghost"
+                      onClick={() => {
+                        setIsEditing(false)
+                        setEditForm({
+                          lastName: selected.lastName || '',
+                          firstName: selected.firstName || '',
+                          middleInitial: selected.middleInitial || '',
+                          email: selected.email || '',
+                          phone: selected.phone || '',
+                          birthDate: selected.birthDate || selected.dateOfBirth || '',
+                          address: selected.address || '',
+                          emergencyContactNumber: selected.emergencyContactNumber || selected.emergencyContactPhone || '',
+                          emergencyContactRelation: selected.emergencyContactRelation || '',
+                          status: selected.status === 'Inactive' ? 'Inactive' : 'Active',
+                        })
+                      }}
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </form>
+              ) : (
+                <dl className="detail-list">
+                  <dt>Full Name</dt>
+                  <dd>{selected.name || formatFullName(selected) || '—'}</dd>
+                  <dt>Status</dt>
+                  <dd><StatusBadge status={selected.status} /></dd>
+                  <dt>Role</dt>
+                  <dd>Staff</dd>
+                  <dt>Department</dt>
+                  <dd>{selected.department || 'Operations'}</dd>
                   <dt>Email</dt>
                   <dd><span className="volunteer-inline-meta"><Mail size={13} /> {selected.email || '—'}</span></dd>
-                  <dt>Phone Number</dt><dd>{selected.phone || '—'}</dd>
-                  <dt>Date of Birth</dt><dd>{selected.birthDate || selected.dateOfBirth || '—'}</dd>
-                  <dt>Address</dt><dd>{selected.address || '—'}</dd>
+                  <dt>Phone Number</dt>
+                  <dd>{selected.phone || '—'}</dd>
+                  <dt>Date of Birth</dt>
+                  <dd>{selected.birthDate || selected.dateOfBirth || '—'}</dd>
+                  <dt>Address</dt>
+                  <dd>{selected.address || '—'}</dd>
                   <dt>Emergency Contact</dt>
                   <dd>{selected.emergencyContactNumber ? `${selected.emergencyContactNumber} ${selected.emergencyContactRelation ? `(${selected.emergencyContactRelation})` : ''}` : '—'}</dd>
                   <dt>Assigned Tasks</dt>
                   <dd><span className="volunteer-inline-meta"><ListTodo size={13} /> {tasks.length}</span></dd>
                 </dl>
-                <div className="admin-modal__actions">
-                  <button type="submit" className="btn btn--primary" disabled={saving}>{saving ? 'Saving…' : 'Save Profile'}</button>
-                </div>
-              </form>
+              )}
             </section>
 
             <section className="volunteer-panel-section">
@@ -586,7 +701,7 @@ export default function StaffPage() {
                 </select>
               </label>
               <div className="admin-modal__actions">
-                <button type="submit" className="btn btn--primary" disabled={saving}>{saving ? 'Saving…' : 'Assign Task'}</button>
+                <button type="submit" className="btn btn--primary" disabled={saving}>Assign Task</button>
                 <button type="button" className="btn btn--ghost" onClick={() => setShowTaskForm(false)}>Cancel</button>
               </div>
             </form>
@@ -654,22 +769,13 @@ export default function StaffPage() {
                 </label>
               </div>
 
-              <PolicyConsentBox
-                acceptedTerms={form.acceptedTerms}
-                onTermsChange={(acceptedTerms) => setForm({ ...form, acceptedTerms })}
-                acceptedPrivacy={form.acceptedPrivacy}
-                onPrivacyChange={(acceptedPrivacy) => setForm({ ...form, acceptedPrivacy })}
-                entityLabel="Staff member"
-              />
-
-              <div className="admin-modal__actions">
+              <div className="admin-modal__actions" style={{ marginTop: '1.25rem' }}>
                 <button
                   type="submit"
                   className="btn btn--primary"
-                  disabled={saving || !form.acceptedTerms || !form.acceptedPrivacy}
-                  title={!form.acceptedTerms || !form.acceptedPrivacy ? 'Please read and accept both agreements above to create credentials' : ''}
+                  disabled={saving}
                 >
-                  {saving ? 'Creating & emailing…' : 'Create & Email Credentials'}
+                  Create & Email Credentials
                 </button>
                 <button type="button" className="btn btn--ghost" onClick={() => setShowForm(false)}>Cancel</button>
               </div>

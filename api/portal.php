@@ -464,7 +464,8 @@ switch ($user['role']) {
     $vol->execute([$user['id']]);
     $profile = $vol->fetch();
     $name = $profile['full_name'] ?? $user['name'];
-    $hours = (int) ($profile['hours'] ?? 0);
+    $isIntern = !empty($profile['applicant_type']) && strcasecmp((string)$profile['applicant_type'], 'Intern') === 0;
+    $hours = $isIntern ? (int) ($profile['hours'] ?? 0) : 0;
     $statusLabels = [
       'todo' => 'To Do',
       'inProgress' => 'In Progress',
@@ -476,9 +477,9 @@ switch ($user['role']) {
     $tasks->execute([$name, $user['id']]);
     $taskRows = $tasks->fetchAll();
 
-    $mappedTasks = array_map(static function ($t) use ($statusLabels) {
+    $mappedTasks = array_map(static function ($t) use ($statusLabels, $isIntern) {
       $column = $t['board_column'] ?? 'todo';
-      $dutyHours = isset($t['duty_hours']) && $t['duty_hours'] !== null ? (float) $t['duty_hours'] : null;
+      $dutyHours = ($isIntern && isset($t['duty_hours']) && $t['duty_hours'] !== null) ? (float) $t['duty_hours'] : null;
       return [
         'id' => $t['code'],
         'dbId' => (int) $t['id'],
@@ -489,6 +490,7 @@ switch ($user['role']) {
         'priority' => $t['priority'] ?? 'Medium',
         'category' => $t['module'] ?: 'General',
         'hours' => $dutyHours,
+        'dutyHours' => $dutyHours,
         'completedDate' => !empty($t['completed_at']) ? format_date($t['completed_at']) : null,
       ];
     }, $taskRows);
@@ -562,22 +564,24 @@ switch ($user['role']) {
       ];
     }
 
-    // Build hours breakdown + activity log from completed tasks with duty hours.
+    // Build activity log and (for interns only) hours breakdown
     $monthNames = ['January','February','March','April','May','June','July','August','September','October','November','December'];
     $year = (int) date('Y');
     $monthBuckets = [];
-    for ($m = 1; $m <= 12; $m++) {
-      $monthBuckets[$m] = ['month' => $monthNames[$m - 1], 'hours' => 0.0, 'activities' => 0];
+    if ($isIntern) {
+      for ($m = 1; $m <= 12; $m++) {
+        $monthBuckets[$m] = ['month' => $monthNames[$m - 1], 'hours' => 0.0, 'activities' => 0];
+      }
     }
     $activityLog = [];
     foreach ($taskRows as $t) {
       if (($t['board_column'] ?? '') !== 'done') {
         continue;
       }
-      $h = isset($t['duty_hours']) ? (float) $t['duty_hours'] : 0;
+      $h = ($isIntern && isset($t['duty_hours'])) ? (float) $t['duty_hours'] : 0;
       $completed = $t['completed_at'] ?: $t['due_date'];
       $ts = $completed ? strtotime((string) $completed) : false;
-      if ($ts && (int) date('Y', $ts) === $year) {
+      if ($isIntern && $ts && (int) date('Y', $ts) === $year) {
         $mi = (int) date('n', $ts);
         $monthBuckets[$mi]['hours'] += $h;
         $monthBuckets[$mi]['activities'] += 1;
@@ -591,28 +595,39 @@ switch ($user['role']) {
         'monthName' => $ts ? $monthNames[(int) date('n', $ts) - 1] : date('F'),
         'activity' => $t['title'],
         'type' => $t['module'] ?: 'General',
-        'hours' => $h,
-        'dutyStart' => $t['duty_start'] ?? null,
-        'dutyEnd' => $t['duty_end'] ?? null,
-        'dutyLabel' => duty_label($t['duty_start'] ?? null, $t['duty_end'] ?? null, $h),
+        'hours' => $isIntern ? $h : null,
+        'dutyStart' => $isIntern ? ($t['duty_start'] ?? null) : null,
+        'dutyEnd' => $isIntern ? ($t['duty_end'] ?? null) : null,
+        'dutyLabel' => $isIntern ? duty_label($t['duty_start'] ?? null, $t['duty_end'] ?? null, $h) : null,
         'attendance' => 'Present / Completed',
         'status' => 'Verified',
       ];
     }
     usort($activityLog, static fn($a, $b) => strcmp((string) ($b['rawDate'] ?? $b['date']), (string) ($a['rawDate'] ?? $a['date'])));
 
-    json_response([
-      'ok' => true,
-      'data' => [
-        'stats' => [
+    $portalStats = $isIntern
+      ? [
           ['label' => 'Hours Rendered', 'value' => (string) $hours, 'icon' => 'clock'],
           ['label' => 'Assigned Tasks', 'value' => (string) count($openTasks), 'icon' => 'checkSquare'],
           ['label' => 'Upcoming Events', 'value' => (string) count($schedule), 'icon' => 'calendar'],
           ['label' => 'Certificates', 'value' => (string) $certCount, 'icon' => 'award'],
-        ],
+        ]
+      : [
+          ['label' => 'Completed Tasks', 'value' => (string) count($doneTasks), 'icon' => 'checkCircle'],
+          ['label' => 'Active Tasks', 'value' => (string) count($openTasks), 'icon' => 'checkSquare'],
+          ['label' => 'Upcoming Events', 'value' => (string) count($schedule), 'icon' => 'calendar'],
+          ['label' => 'Certificates', 'value' => (string) $certCount, 'icon' => 'award'],
+        ];
+
+    json_response([
+      'ok' => true,
+      'data' => [
+        'isIntern' => $isIntern,
+        'applicantType' => $isIntern ? 'Intern' : 'Volunteer',
+        'stats' => $portalStats,
         'tasks' => $mappedTasks,
         'schedule' => $schedule,
-        'hoursBreakdown' => array_values($monthBuckets),
+        'hoursBreakdown' => $isIntern ? array_values($monthBuckets) : [],
         'activityLog' => $activityLog,
         'recentActivity' => array_slice($recentActivity, 0, 8),
       ],
@@ -623,12 +638,17 @@ switch ($user['role']) {
     $ben = $pdo->prepare('SELECT * FROM beneficiaries WHERE user_id = ? LIMIT 1');
     $ben->execute([$user['id']]);
     $profile = $ben->fetch();
-    $benId = $profile['id'] ?? 0;
+    if (!$profile && !empty($user['email'])) {
+      $ben = $pdo->prepare('SELECT * FROM beneficiaries WHERE LOWER(representative_email) = LOWER(?) LIMIT 1');
+      $ben->execute([(string) $user['email']]);
+      $profile = $ben->fetch();
+    }
+    $benId = (int) ($profile['id'] ?? 0);
 
     $requests = [];
     $rawRequests = [];
-    if ($benId) {
-      $req = $pdo->prepare('SELECT * FROM assistance_requests WHERE beneficiary_id = ? ORDER BY request_date DESC');
+    if ($benId > 0) {
+      $req = $pdo->prepare('SELECT * FROM assistance_requests WHERE beneficiary_id = ? ORDER BY request_date DESC, id DESC');
       $req->execute([$benId]);
       $rawRequests = $req->fetchAll();
       $requests = array_map(static fn($r) => [
@@ -638,143 +658,142 @@ switch ($user['role']) {
         'priority' => $r['priority'] ?? 'Medium',
         'date' => format_date($r['request_date']),
         'status' => $r['status'],
-        'notes' => $r['notes'],
+        'notes' => $r['notes'] ?? '',
       ], $rawRequests);
     }
 
-    $locPattern = '%' . ($profile['barangay'] ?? ($profile['full_name'] ?? '')) . '%';
-    $distStmt = $pdo->prepare("
-      SELECT d.* 
-      FROM distributions d 
-      WHERE (d.beneficiary_id = ? OR d.location LIKE ?)
+    $distributions = [];
+    $rawDists = [];
+    if ($benId > 0) {
+      $brgySearch = trim((string) ($profile['barangay'] ?? ($profile['full_name'] ?? '')));
+      $stripped = trim((string) preg_replace('/^(brgy\.?|barangay)\s+/i', '', $brgySearch));
+      $term = $stripped !== '' ? $stripped : $brgySearch;
+
+      $distStmt = $pdo->prepare("
+        SELECT d.* 
+        FROM distributions d 
+        WHERE (
+          d.beneficiary_id = ? 
+          OR (d.beneficiary_id IS NULL AND ? != '' AND (d.location LIKE ? OR d.event_name LIKE ?))
+        )
         AND d.status IN ('Planning','Preparing','In Transit','Delivered','Awaiting Proof','Scheduled')
-      ORDER BY d.distribution_date ASC
-    ");
-    $distStmt->execute([$benId, $locPattern]);
-    $rawDists = $distStmt->fetchAll();
+        ORDER BY d.distribution_date ASC, d.id ASC
+      ");
+      $distStmt->execute([$benId, $term, '%' . $term . '%', '%' . $term . '%']);
+      $rawDists = $distStmt->fetchAll();
 
-    $distributions = array_map(static fn($d) => [
-      'id' => (int) ($d['id'] ?? 0),
-      'distributionCode' => $d['code'] ?? ('DST-' . ($d['id'] ?? '1')),
-      'event' => !empty($d['event_name']) ? $d['event_name'] : (!empty($d['distribution_type']) ? $d['distribution_type'] : 'Relief Distribution'),
-      'date' => format_date($d['distribution_date'] ?? null),
-      'time' => $d['distribution_time'] ?? ($d['time'] ?? '9:00 AM'),
-      'location' => $d['location'] ?? 'Barangay Hall',
-      'type' => $d['distribution_type'] ?? 'Relief Goods',
-      'status' => $d['status'] ?? 'Scheduled',
-      'quantity' => $d['quantity'] ?? 0,
-      'items' => !empty($d['items_summary']) ? $d['items_summary'] : (!empty($d['items']) ? $d['items'] : 'Assorted Relief Goods'),
-    ], $rawDists);
-
-    // If no specific distributions, provide available active ones
-    if (empty($distributions)) {
-      $distGeneral = $pdo->query("SELECT * FROM distributions WHERE status IN ('Planning','Preparing','In Transit','Delivered','Awaiting Proof','Scheduled') ORDER BY distribution_date ASC LIMIT 5");
       $distributions = array_map(static fn($d) => [
         'id' => (int) ($d['id'] ?? 0),
+        'dbId' => (int) ($d['id'] ?? 0),
         'distributionCode' => $d['code'] ?? ('DST-' . ($d['id'] ?? '1')),
         'event' => !empty($d['event_name']) ? $d['event_name'] : (!empty($d['distribution_type']) ? $d['distribution_type'] : 'Relief Distribution'),
         'date' => format_date($d['distribution_date'] ?? null),
-        'time' => $d['distribution_time'] ?? ($d['time'] ?? '9:00 AM'),
-        'location' => $d['location'] ?? 'Designated Distribution Site',
+        'time' => $d['schedule_time'] ?? ($d['distribution_time'] ?? ($d['time'] ?? '9:00 AM')),
+        'location' => $d['location'] ?? 'Barangay Hall',
         'type' => $d['distribution_type'] ?? 'Relief Goods',
-        'status' => $d['status'] ?? 'Scheduled',
-        'quantity' => $d['quantity'] ?? 0,
+        'status' => normalize_distribution_status((string) ($d['status'] ?? 'Scheduled')),
+        'quantity' => (int) ($d['received_quantity'] ?? $d['beneficiaries_count'] ?? $d['quantity'] ?? 0),
         'items' => !empty($d['items_summary']) ? $d['items_summary'] : (!empty($d['items']) ? $d['items'] : 'Assorted Relief Goods'),
-      ], $distGeneral->fetchAll());
+      ], $rawDists);
     }
 
-    $completedCount = (int) count(array_filter($requests, static fn($r) => in_array($r['status'], ['Completed', 'Distributed', 'Done'], true)));
+    $completedRequestsCount = (int) count(array_filter($requests, static fn($r) => in_array($r['status'], ['Completed', 'Distributed', 'Done'], true)));
     $activeCount = (int) count(array_filter($requests, static fn($r) => in_array($r['status'], ['Pending Review', 'Under Review', 'Allocated', 'In Transit'], true)));
     $approvedCount = (int) count(array_filter($requests, static fn($r) => $r['status'] === 'Approved'));
 
-    // Fetch assistance history
-    $histStmt = $pdo->prepare("
-      SELECT d.* 
-      FROM distributions d 
-      WHERE (d.beneficiary_id = ? OR d.location LIKE ?)
-        AND d.status IN ('Completed', 'Delivered')
-      ORDER BY d.distribution_date DESC
-    ");
-    $histStmt->execute([$benId, $locPattern]);
-    $rawHistory = $histStmt->fetchAll();
-
+    // Fetch actual assistance / turnover history
     $history = [];
-    foreach ($rawHistory as $h) {
-      $history[] = [
-        'date' => format_date($h['distribution_date']),
-        'item' => $h['items_summary'] ?: ($h['event_name'] ?: 'Relief Goods Package'),
-        'program' => $h['distribution_type'] ?: 'Emergency Relief',
-        'quantity' => ($h['quantity'] ?? 100) . ' packs',
-        'location' => $h['location'] ?: ($profile['barangay'] ?? 'Barangay Hall'),
-        'value' => '₱' . number_format(($h['quantity'] ?? 100) * 450),
-        'status' => 'Received & Verified',
-      ];
+    if ($benId > 0) {
+      $brgySearch = trim((string) ($profile['barangay'] ?? ($profile['full_name'] ?? '')));
+      $stripped = trim((string) preg_replace('/^(brgy\.?|barangay)\s+/i', '', $brgySearch));
+      $term = $stripped !== '' ? $stripped : $brgySearch;
+
+      $histStmt = $pdo->prepare("
+        SELECT d.* 
+        FROM distributions d 
+        WHERE (
+          d.beneficiary_id = ? 
+          OR (d.beneficiary_id IS NULL AND ? != '' AND (d.location LIKE ? OR d.event_name LIKE ?))
+        )
+        AND d.status IN ('Completed', 'Delivered')
+        ORDER BY d.distribution_date DESC, d.id DESC
+      ");
+      $histStmt->execute([$benId, $term, '%' . $term . '%', '%' . $term . '%']);
+      $rawHistory = $histStmt->fetchAll();
+
+      foreach ($rawHistory as $h) {
+        $qty = (int) ($h['received_quantity'] ?? $h['beneficiaries_count'] ?? $h['quantity'] ?? 0);
+        $val = $qty * 450;
+        $history[] = [
+          'id' => (int) $h['id'],
+          'code' => $h['code'] ?? '',
+          'date' => format_date($h['distribution_date']),
+          'rawDate' => $h['distribution_date'],
+          'item' => $h['items_summary'] ?: ($h['event_name'] ?: 'Relief Goods Package'),
+          'program' => $h['program'] ?: ($h['distribution_type'] ?: 'Emergency Relief'),
+          'quantity' => $qty . ' packs',
+          'location' => $h['location'] ?: ($profile['barangay'] ?? 'Barangay Hall'),
+          'value' => '₱' . number_format($val),
+          'valueRaw' => (float) $val,
+          'status' => 'Received & Verified',
+        ];
+      }
     }
 
-    if (empty($history)) {
-      $history = [
-        [
-          'date' => '2026-08-15',
-          'item' => 'Family Food Packs (Rice, Canned Goods, Water)',
-          'program' => 'Emergency Food Relief',
-          'quantity' => '150 packs',
-          'location' => $profile['barangay'] ?? 'Barangay Hall',
-          'value' => '₱67,500',
-          'status' => 'Received & Verified',
-        ],
-        [
-          'date' => '2026-07-20',
-          'item' => 'Hygiene & Sanitation Care Kits',
-          'program' => 'Health & Sanitation',
-          'quantity' => '100 kits',
-          'location' => $profile['barangay'] ?? 'Barangay Health Center',
-          'value' => '₱25,000',
-          'status' => 'Received & Verified',
-        ],
-        [
-          'date' => '2026-06-10',
-          'item' => 'Medical Supplies & First Aid Kits',
-          'program' => 'Medical Mission Support',
-          'quantity' => '50 sets',
-          'location' => $profile['barangay'] ?? 'Barangay Hall',
-          'value' => '₱30,000',
-          'status' => 'Received & Verified',
-        ],
+    $completedDistsCount = count($history);
+
+    // Monthly benefits chart computed from real history for current year
+    $monthNames = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+    $currentYear = (int) date('Y');
+    $byMonthMap = [];
+    for ($m = 1; $m <= 12; $m++) {
+      $byMonthMap[$m] = [
+        'month' => $monthNames[$m - 1],
+        'value' => 0.0,
+        'count' => 0,
       ];
     }
+    foreach ($history as $h) {
+      if (!empty($h['rawDate'])) {
+        $ts = strtotime((string) $h['rawDate']);
+        if ($ts && (int) date('Y', $ts) === $currentYear) {
+          $mIdx = (int) date('n', $ts);
+          $byMonthMap[$mIdx]['count'] += 1;
+          $byMonthMap[$mIdx]['value'] += (float) ($h['valueRaw'] ?? 0);
+        }
+      }
+    }
+    $benefitsByMonth = array_values($byMonthMap);
 
-    // Monthly benefits chart
-    $benefitsByMonth = [
-      ['month' => 'January', 'value' => 35000, 'count' => 80],
-      ['month' => 'February', 'value' => 42000, 'count' => 95],
-      ['month' => 'March', 'value' => 28000, 'count' => 60],
-      ['month' => 'April', 'value' => 50000, 'count' => 120],
-      ['month' => 'May', 'value' => 38000, 'count' => 85],
-      ['month' => 'June', 'value' => 45000, 'count' => 100],
-      ['month' => 'July', 'value' => 55000, 'count' => 130],
-      ['month' => 'August', 'value' => 67500, 'count' => 150],
-    ];
+    // Benefits summary grouped by program from real history
+    $progMap = [];
+    foreach ($history as $h) {
+      $prog = trim((string) ($h['program'] ?? 'Emergency Relief'));
+      if ($prog === '') $prog = 'Emergency Relief';
+      if (!isset($progMap[$prog])) {
+        $progMap[$prog] = [
+          'program' => $prog,
+          'count' => 0,
+          'totalValue' => 0.0,
+        ];
+      }
+      $progMap[$prog]['count'] += 1;
+      $progMap[$prog]['totalValue'] += (float) ($h['valueRaw'] ?? 0);
+    }
+    $benefitsByProgram = array_values($progMap);
 
-    // Benefits summary by program
-    $benefitsByProgram = [
-      ['program' => 'Emergency Food Relief', 'count' => max(3, $completedCount + 2), 'totalValue' => 185000],
-      ['program' => 'Health & Sanitation', 'count' => 2, 'totalValue' => 65000],
-      ['program' => 'Medical Mission Support', 'count' => 2, 'totalValue' => 58000],
-      ['program' => 'Disaster Preparedness Kits', 'count' => 1, 'totalValue' => 42500],
-    ];
-
-    // Activity feed
+    // Activity feed built dynamically from real requests and distributions
     $recentActivity = [];
-    foreach (array_slice($requests, 0, 4) as $reqItem) {
+    foreach (array_slice($requests, 0, 5) as $reqItem) {
       $recentActivity[] = [
         'title' => "Request {$reqItem['id']} ({$reqItem['type']}) is {$reqItem['status']}",
         'date' => $reqItem['date'],
-        'icon' => $reqItem['status'] === 'Approved' ? 'checkCircle' : 'inbox',
+        'icon' => in_array($reqItem['status'], ['Approved', 'Completed'], true) ? 'checkCircle' : 'inbox',
       ];
     }
-    foreach (array_slice($distributions, 0, 2) as $distItem) {
+    foreach (array_slice($distributions, 0, 3) as $distItem) {
       $recentActivity[] = [
-        'title' => "Relief Distribution ({$distItem['event']}) scheduled for {$distItem['date']}",
+        'title' => "Relief Delivery ({$distItem['event']}) is {$distItem['status']}",
         'date' => $distItem['date'],
         'icon' => 'package',
       ];
@@ -785,18 +804,18 @@ switch ($user['role']) {
       'data' => [
         'profile' => [
           'name' => $profile['full_name'] ?? $user['name'],
-          'barangay' => $profile['barangay'] ?? $user['name'],
-          'municipality' => $profile['municipality'] ?? 'Cebu',
+          'barangay' => $profile['barangay'] ?? $profile['full_name'] ?? $user['name'],
+          'municipality' => $profile['municipality'] ?? '',
           'representative' => $profile['representative_name'] ?? $user['name'],
           'phone' => $profile['representative_phone'] ?? '',
-          'families' => (int) ($profile['affected_families'] ?? 150),
+          'families' => (int) ($profile['affected_families'] ?? 0),
           'status' => $profile['status'] ?? 'Active',
         ],
         'stats' => [
-          ['label' => 'Active Requests', 'value' => (string) $activeCount, 'icon' => 'inbox'],
-          ['label' => 'Approved Requests', 'value' => (string) $approvedCount, 'icon' => 'checkCircle'],
+          ['label' => 'Total Received', 'value' => (string) $completedDistsCount, 'icon' => 'package'],
+          ['label' => 'Total Requests', 'value' => (string) count($requests), 'icon' => 'inbox'],
+          ['label' => 'Active Requests', 'value' => (string) $activeCount, 'icon' => 'clock'],
           ['label' => 'Scheduled Deliveries', 'value' => (string) count($distributions), 'icon' => 'calendar'],
-          ['label' => 'Completed Assistance', 'value' => (string) max(1, $completedCount), 'icon' => 'package'],
         ],
         'requests' => $requests,
         'upcomingSchedule' => $distributions,

@@ -29,7 +29,17 @@ import { useLoading } from '../../context/LoadingContext'
 const filterConfig = {
   searchKeys: ['id', 'name', 'email', 'institution', 'skills', 'programs'],
   filters: [
-    { key: 'status', label: 'Status' },
+    {
+      key: 'status',
+      label: 'Status',
+      match: (row, val) => {
+        if (!val || val === 'all') return true
+        if (val === 'Approved' || val === 'Active') {
+          return ['Approved', 'Active', 'Assigned'].includes(row.status)
+        }
+        return String(row.status) === String(val)
+      },
+    },
     {
       key: 'program',
       label: 'Program',
@@ -44,9 +54,6 @@ const emptyGeneralTaskForm = {
   title: '',
   priority: 'Medium',
   dueDate: '',
-  dutyStart: '',
-  dutyEnd: '',
-  dutyHours: '',
   module: '',
   requiredSkills: [],
   distributionId: '',
@@ -533,9 +540,9 @@ export default function VolunteersPage() {
         title: generalTaskForm.title,
         priority: generalTaskForm.priority,
         dueDate: generalTaskForm.dueDate || null,
-        dutyStart: generalTaskForm.dutyStart || null,
-        dutyEnd: generalTaskForm.dutyEnd || null,
-        dutyHours: generalTaskForm.dutyHours !== '' ? Number(generalTaskForm.dutyHours) : null,
+        dutyStart: null,
+        dutyEnd: null,
+        dutyHours: null,
         module,
         requiredSkills: generalTaskForm.requiredSkills || [],
         volunteerIds: generalSelectedVolunteerIds.map(Number),
@@ -589,13 +596,14 @@ export default function VolunteersPage() {
       const module = distId
         ? (directTaskForm.module && !['Volunteer', 'Internship'].includes(directTaskForm.module) ? directTaskForm.module : 'Distribution')
         : (directTaskForm.module || selected.programs?.[0] || 'Volunteer')
+      const isIntern = selected.applicantType === 'Intern'
       await tasksApi.create({
         title: directTaskForm.title,
         priority: directTaskForm.priority,
         dueDate: directTaskForm.dueDate || null,
-        dutyStart: directTaskForm.dutyStart || null,
-        dutyEnd: directTaskForm.dutyEnd || null,
-        dutyHours: directTaskForm.dutyHours !== '' ? Number(directTaskForm.dutyHours) : null,
+        dutyStart: isIntern ? (directTaskForm.dutyStart || null) : null,
+        dutyEnd: isIntern ? (directTaskForm.dutyEnd || null) : null,
+        dutyHours: isIntern && directTaskForm.dutyHours !== '' ? Number(directTaskForm.dutyHours) : null,
         module,
         volunteerId: Number(selected.dbId),
         distributionId: distId || undefined,
@@ -618,9 +626,12 @@ export default function VolunteersPage() {
 
   const handleAdminCompleteTask = async (task) => {
     if (!task?.dbId) return
+    const isIntern = selected?.applicantType === 'Intern'
     const ok = await confirmAction({
-      title: 'Complete Duty Task',
-      message: `Mark task "${task.title}" as completed for ${selected.name}? This will verify duty hours and credit them to the profile record.`,
+      title: 'Complete Task',
+      message: isIntern
+        ? `Mark task "${task.title}" as completed for ${selected.name}? This will verify duty hours and credit them to the intern profile record.`
+        : `Mark task "${task.title}" as completed for ${selected.name}?`,
       confirmText: 'Mark Completed',
       type: 'primary',
     })
@@ -853,15 +864,36 @@ export default function VolunteersPage() {
       </div>
 
       <div className="volunteer-stats">
-        <div className="volunteer-stat">
+        <div
+          className={`volunteer-stat volunteer-stat--clickable ${filters.values.status === 'all' ? 'volunteer-stat--active' : ''}`}
+          onClick={() => filters.setValue('status', 'all')}
+          role="button"
+          tabIndex={0}
+          onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); filters.setValue('status', 'all') } }}
+          title={`View all ${activeTab.toLowerCase()}s`}
+        >
           <strong>{tabFilteredData.length}</strong>
           <span>Total {activeTab === 'Intern' ? 'Interns' : 'Volunteers'}</span>
         </div>
-        <div className="volunteer-stat">
+        <div
+          className={`volunteer-stat volunteer-stat--clickable ${filters.values.status === 'Pending Review' ? 'volunteer-stat--active' : ''}`}
+          onClick={() => filters.setValue('status', filters.values.status === 'Pending Review' ? 'all' : 'Pending Review')}
+          role="button"
+          tabIndex={0}
+          onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); filters.setValue('status', filters.values.status === 'Pending Review' ? 'all' : 'Pending Review') } }}
+          title={`Filter by Pending Review ${activeTab.toLowerCase()}s`}
+        >
           <strong>{pendingCount}</strong>
           <span>Pending Review</span>
         </div>
-        <div className="volunteer-stat">
+        <div
+          className={`volunteer-stat volunteer-stat--clickable ${['Approved', 'Active'].includes(filters.values.status) ? 'volunteer-stat--active' : ''}`}
+          onClick={() => filters.setValue('status', ['Approved', 'Active'].includes(filters.values.status) ? 'all' : 'Approved')}
+          role="button"
+          tabIndex={0}
+          onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); filters.setValue('status', ['Approved', 'Active'].includes(filters.values.status) ? 'all' : 'Approved') } }}
+          title={`Filter by Approved / Active ${activeTab.toLowerCase()}s`}
+        >
           <strong>{activeCount}</strong>
           <span>Approved / Active</span>
         </div>
@@ -1669,7 +1701,7 @@ export default function VolunteersPage() {
                                 disabled={saving || ['Completed', 'Rejected'].includes(selected.status)}
                                 style={{ width: '100%', justifyContent: 'center' }}
                               >
-                                {saving ? 'Saving…' : ['Completed', 'Rejected'].includes(selected.status) ? 'Hours Locked (Finalized)' : 'Save Duty Hours'}
+                                {['Completed', 'Rejected'].includes(selected.status) ? 'Hours Locked (Finalized)' : 'Save Duty Hours'}
                               </button>
                             </form>
                           </section>
@@ -1925,7 +1957,6 @@ export default function VolunteersPage() {
                                   <div className="volunteer-task-card__meta">
                                     <span>Priority: {t.priority}</span>
                                     <span>Due: {t.due || '—'}</span>
-                                    {t.dutyLabel ? <span>Duty: {t.dutyLabel}</span> : null}
                                     {t.module ? <span>Program: {t.module}</span> : null}
                                     {t.distributionCode || t.distributionId ? (
                                       <span style={{ color: 'var(--admin-brand, #af101a)', fontWeight: 600 }}>
@@ -2128,38 +2159,6 @@ export default function VolunteersPage() {
                 </label>
               </div>
 
-              <div className="form-row">
-                <label>
-                  Duty Start
-                  <input
-                    type="time"
-                    value={generalTaskForm.dutyStart}
-                    onChange={(e) => setGeneralTaskForm({ ...generalTaskForm, dutyStart: e.target.value })}
-                  />
-                </label>
-                <label>
-                  Duty End
-                  <input
-                    type="time"
-                    value={generalTaskForm.dutyEnd}
-                    onChange={(e) => setGeneralTaskForm({ ...generalTaskForm, dutyEnd: e.target.value })}
-                  />
-                </label>
-              </div>
-
-              <label>
-                <Req required>Duty Hours</Req>
-                <input
-                  type="number"
-                  min="0.25"
-                  step="0.25"
-                  required
-                  value={generalTaskForm.dutyHours}
-                  onChange={(e) => setGeneralTaskForm({ ...generalTaskForm, dutyHours: e.target.value })}
-                  placeholder="e.g. 4"
-                />
-              </label>
-
               {/* Required Skills Dropdown */}
               <label>
                 Required Skills
@@ -2287,11 +2286,9 @@ export default function VolunteersPage() {
                   className="btn btn--primary"
                   disabled={saving || !generalSelectedVolunteerIds.length}
                 >
-                  {saving
-                    ? 'Saving…'
-                    : generalSelectedVolunteerIds.length > 1
-                      ? `Assign Task to ${generalSelectedVolunteerIds.length} Members`
-                      : 'Assign Task'}
+                  {generalSelectedVolunteerIds.length > 1
+                    ? `Assign Task to ${generalSelectedVolunteerIds.length} Members`
+                    : 'Assign Task'}
                 </button>
                 <button
                   type="button"
@@ -2383,37 +2380,41 @@ export default function VolunteersPage() {
                 </label>
               </div>
 
-              <div className="form-row">
-                <label>
-                  Duty Start
-                  <input
-                    type="time"
-                    value={directTaskForm.dutyStart}
-                    onChange={(e) => setDirectTaskForm({ ...directTaskForm, dutyStart: e.target.value })}
-                  />
-                </label>
-                <label>
-                  Duty End
-                  <input
-                    type="time"
-                    value={directTaskForm.dutyEnd}
-                    onChange={(e) => setDirectTaskForm({ ...directTaskForm, dutyEnd: e.target.value })}
-                  />
-                </label>
-              </div>
+              {selected.applicantType === 'Intern' && (
+                <>
+                  <div className="form-row">
+                    <label>
+                      Duty Start
+                      <input
+                        type="time"
+                        value={directTaskForm.dutyStart}
+                        onChange={(e) => setDirectTaskForm({ ...directTaskForm, dutyStart: e.target.value })}
+                      />
+                    </label>
+                    <label>
+                      Duty End
+                      <input
+                        type="time"
+                        value={directTaskForm.dutyEnd}
+                        onChange={(e) => setDirectTaskForm({ ...directTaskForm, dutyEnd: e.target.value })}
+                      />
+                    </label>
+                  </div>
 
-              <label>
-                <Req required>Duty Hours</Req>
-                <input
-                  type="number"
-                  min="0.25"
-                  step="0.25"
-                  required
-                  value={directTaskForm.dutyHours}
-                  onChange={(e) => setDirectTaskForm({ ...directTaskForm, dutyHours: e.target.value })}
-                  placeholder="e.g. 4"
-                />
-              </label>
+                  <label>
+                    <Req required>Duty Hours</Req>
+                    <input
+                      type="number"
+                      min="0.25"
+                      step="0.25"
+                      required
+                      value={directTaskForm.dutyHours}
+                      onChange={(e) => setDirectTaskForm({ ...directTaskForm, dutyHours: e.target.value })}
+                      placeholder="e.g. 4"
+                    />
+                  </label>
+                </>
+              )}
 
               {/* Link to Distribution (Conditional) */}
               {isDistributionProgram(directTaskForm.module, directTaskForm.title) && (
@@ -2450,7 +2451,7 @@ export default function VolunteersPage() {
                   className="btn btn--primary"
                   disabled={saving}
                 >
-                  {saving ? 'Saving…' : `Assign to ${selected.name}`}
+                  {`Assign to ${selected.name}`}
                 </button>
                 <button
                   type="button"

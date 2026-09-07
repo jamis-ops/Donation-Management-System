@@ -8,16 +8,36 @@ import Pagination from '../../components/admin/shared/Pagination'
 import { notify } from '../../utils/toast'
 
 function parseDateBits(dateStr) {
-  if (!dateStr) return { day: '—', month: '—', year: '—' }
-  const d = new Date(dateStr)
-  if (!Number.isNaN(d.getTime())) {
-    return {
-      day: d.getDate(),
-      month: d.toLocaleDateString('en-US', { month: 'short' }),
-      year: d.getFullYear(),
+  if (!dateStr || dateStr === '—' || dateStr === 'TBD' || dateStr === 'Invalid Date') {
+    return { day: '—', month: '—', year: '—' }
+  }
+
+  const cleanStr = String(dateStr).trim()
+  const match = cleanStr.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/)
+  if (match) {
+    const year = parseInt(match[1], 10)
+    const month = parseInt(match[2], 10) - 1
+    const day = parseInt(match[3], 10)
+    const d = new Date(year, month, day)
+    if (!Number.isNaN(d.getTime())) {
+      return {
+        day: String(d.getDate()),
+        month: d.toLocaleDateString('en-US', { month: 'short' }),
+        year: String(d.getFullYear()),
+      }
     }
   }
-  return { day: '1', month: String(dateStr).slice(0, 3), year: '2026' }
+
+  const d = new Date(cleanStr.includes('T') ? cleanStr : cleanStr.replace(/-/g, '/'))
+  if (!Number.isNaN(d.getTime())) {
+    return {
+      day: String(d.getDate()),
+      month: d.toLocaleDateString('en-US', { month: 'short' }),
+      year: String(d.getFullYear()),
+    }
+  }
+
+  return { day: '—', month: '—', year: '—' }
 }
 
 export default function BeneficiaryHistoryPage() {
@@ -81,7 +101,7 @@ export default function BeneficiaryHistoryPage() {
                 <Layers size={20} />
               </div>
               <div>
-                <div className="volunteer-kpi-card__value">{data?.profile?.families || 150}</div>
+                <div className="volunteer-kpi-card__value">{data?.profile?.families ?? 0}</div>
                 <div className="volunteer-kpi-card__label">Beneficiary Families</div>
               </div>
             </div>
@@ -96,32 +116,41 @@ export default function BeneficiaryHistoryPage() {
                   Value of humanitarian relief and program aid delivered to your barangay.
                 </p>
               </div>
-              <button
-                type="button"
-                className="btn btn--sm btn--outline"
-                onClick={handlePrint}
-              >
-                <Printer size={14} /> Print Summary
-              </button>
+              {totalValue > 0 && (
+                <button
+                  type="button"
+                  className="btn btn--sm btn--outline"
+                  onClick={handlePrint}
+                >
+                  <Printer size={14} /> Print Summary
+                </button>
+              )}
             </div>
-            <div className="beneficiary-benefits-chart">
-              {(data.benefitsByMonth || []).map((month, idx) => (
-                <div key={idx} className="beneficiary-benefits-bar">
-                  <div className="beneficiary-benefits-bar__wrapper">
-                    <div
-                      className="beneficiary-benefits-bar__fill"
-                      style={{ height: `${(month.value / maxMonthlyValue) * 100}%` }}
-                    >
-                      <span className="beneficiary-benefits-bar__value">₱{(month.value / 1000).toFixed(1)}k</span>
+            {totalValue > 0 ? (
+              <div className="beneficiary-benefits-chart">
+                {(data.benefitsByMonth || []).map((month, idx) => (
+                  <div key={idx} className="beneficiary-benefits-bar">
+                    <div className="beneficiary-benefits-bar__wrapper">
+                      <div
+                        className="beneficiary-benefits-bar__fill"
+                        style={{ height: `${(month.value / maxMonthlyValue) * 100}%` }}
+                      >
+                        <span className="beneficiary-benefits-bar__value">₱{(month.value / 1000).toFixed(1)}k</span>
+                      </div>
+                    </div>
+                    <div className="beneficiary-benefits-bar__label">
+                      <span>{month.month.slice(0, 3)}</span>
+                      <span className="beneficiary-benefits-bar__sublabel">{month.count} items</span>
                     </div>
                   </div>
-                  <div className="beneficiary-benefits-bar__label">
-                    <span>{month.month.slice(0, 3)}</span>
-                    <span className="beneficiary-benefits-bar__sublabel">{month.count} items</span>
-                  </div>
-                </div>
-              ))}
-            </div>
+                ))}
+              </div>
+            ) : (
+              <div className="portal-empty" style={{ padding: '2rem 1rem' }}>
+                <TrendingUp size={28} />
+                <p>No monthly assistance records recorded for {selectedYear} yet.</p>
+              </div>
+            )}
           </section>
 
           {/* Benefits by Program */}
@@ -129,25 +158,32 @@ export default function BeneficiaryHistoryPage() {
             <div className="portal-panel__header">
               <h2>Assistance Received by Program Category</h2>
             </div>
-            <div className="beneficiary-program-breakdown">
-              {(data.benefitsByProgram || []).map((program) => (
-                <div key={program.program} className="beneficiary-program-row">
-                  <div className="beneficiary-program-row__info">
-                    <strong>{program.program}</strong>
-                    <span>{program.count} distributions · ₱{program.totalValue.toLocaleString()}</span>
+            {(data.benefitsByProgram || []).length > 0 ? (
+              <div className="beneficiary-program-breakdown">
+                {(data.benefitsByProgram || []).map((program) => (
+                  <div key={program.program} className="beneficiary-program-row">
+                    <div className="beneficiary-program-row__info">
+                      <strong>{program.program}</strong>
+                      <span>{program.count} distributions · ₱{program.totalValue.toLocaleString()}</span>
+                    </div>
+                    <div className="beneficiary-program-row__bar">
+                      <div
+                        className="beneficiary-program-row__fill"
+                        style={{ width: `${totalValue > 0 ? (program.totalValue / totalValue) * 100 : 0}%` }}
+                      />
+                    </div>
+                    <span className="beneficiary-program-row__percentage">
+                      {totalValue > 0 ? ((program.totalValue / totalValue) * 100).toFixed(0) : '0'}%
+                    </span>
                   </div>
-                  <div className="beneficiary-program-row__bar">
-                    <div
-                      className="beneficiary-program-row__fill"
-                      style={{ width: `${totalValue > 0 ? (program.totalValue / totalValue) * 100 : 25}%` }}
-                    />
-                  </div>
-                  <span className="beneficiary-program-row__percentage">
-                    {totalValue > 0 ? ((program.totalValue / totalValue) * 100).toFixed(0) : '0'}%
-                  </span>
-                </div>
-              ))}
-            </div>
+                ))}
+              </div>
+            ) : (
+              <div className="portal-empty" style={{ padding: '2rem 1rem' }}>
+                <Package size={28} />
+                <p>No assistance by program category recorded yet.</p>
+              </div>
+            )}
           </section>
 
           {/* History Timeline */}

@@ -1,4 +1,5 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
+import { useLocation } from 'react-router-dom'
 
 function uniqueOptions(data, key) {
   const set = new Set()
@@ -9,29 +10,54 @@ function uniqueOptions(data, key) {
   return Array.from(set).sort((a, b) => String(a).localeCompare(String(b)))
 }
 
+function getInitialValues(filters, searchStr) {
+  const params = new URLSearchParams(searchStr || '')
+  const initial = {}
+  filters.forEach((f) => {
+    const fromParam = params.get(f.key) || params.get(f.optionKey || '')
+    initial[f.key] = fromParam || 'all'
+  })
+  return initial
+}
+
 /**
- * Generic client-side filtering for list/table modules.
- *
- * config = {
- *   searchKeys: ['donor', 'trackingCode'],
- *   filters: [
- *     { key: 'status', label: 'Status' },                       // options auto-derived
- *     { key: 'type', label: 'Type', options: ['Monetary'] },    // explicit options
- *     { key: 'program', label: 'Program',                        // array-valued field
- *       deriveOptions: (d) => [...], match: (row, val) => bool },
- *   ],
- *   dateKey: 'date',   // filters on a 'YYYY-MM-DD' string field
- * }
+ * Generic client-side filtering for list/table modules with URL query sync.
  */
 export function useFilters(data, config = {}) {
   const { searchKeys = [], filters = [], dateKey = null } = config
+  const location = useLocation()
 
-  const [search, setSearch] = useState('')
-  const [values, setValues] = useState(() =>
-    Object.fromEntries(filters.map((f) => [f.key, 'all']))
-  )
-  const [dateFrom, setDateFrom] = useState('')
-  const [dateTo, setDateTo] = useState('')
+  const [search, setSearch] = useState(() => {
+    const params = new URLSearchParams(location?.search || '')
+    return params.get('q') || params.get('search') || ''
+  })
+  const [values, setValues] = useState(() => getInitialValues(filters, location?.search))
+  const [dateFrom, setDateFrom] = useState(() => {
+    const params = new URLSearchParams(location?.search || '')
+    return params.get('from') || params.get('dateFrom') || ''
+  })
+  const [dateTo, setDateTo] = useState(() => {
+    const params = new URLSearchParams(location?.search || '')
+    return params.get('to') || params.get('dateTo') || ''
+  })
+
+  // Sync state when URL query changes (e.g. clicking dashboard cards)
+  useEffect(() => {
+    if (!location?.search) return
+    const params = new URLSearchParams(location.search)
+    filters.forEach((f) => {
+      const fromParam = params.get(f.key) || params.get(f.optionKey || '')
+      if (fromParam) {
+        setValues((prev) => ({ ...prev, [f.key]: fromParam }))
+      }
+    })
+    const q = params.get('q') || params.get('search')
+    if (q !== null) setSearch(q)
+    const from = params.get('from') || params.get('dateFrom')
+    if (from !== null) setDateFrom(from)
+    const to = params.get('to') || params.get('dateTo')
+    if (to !== null) setDateTo(to)
+  }, [location?.search])
 
   const options = useMemo(() => {
     const o = {}

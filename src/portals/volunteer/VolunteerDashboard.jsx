@@ -1,7 +1,7 @@
 import { useMemo } from 'react'
 import { 
-  Clock, CheckSquare, Calendar, Award, ListTodo, CalendarDays, 
-  FileText, CheckCircle, Inbox, TrendingUp, Sparkles, ShieldCheck 
+  CheckSquare, Calendar, Award, ListTodo, CalendarDays, 
+  FileText, CheckCircle, Inbox, TrendingUp, Clock
 } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import StatusBadge from '../../components/admin/shared/StatusBadge'
@@ -37,41 +37,22 @@ function parseLocalDate(value) {
 export default function VolunteerDashboard() {
   const { data, loading, error, reload } = useApiObject(() => getPortalData())
   const todayKey = dateKey(new Date())
-  const currentYear = new Date().getFullYear()
-  const currentMonthIndex = new Date().getMonth()
-  const currentMonthName = new Date().toLocaleString('en-US', { month: 'short' })
 
   const activityLog = data?.activityLog || []
-  
-  const { totalYearHours, currentMonthHours } = useMemo(() => {
-    let yearSum = 0
-    let monthSum = 0
-    activityLog.forEach((log) => {
-      const k = dateKey(log.rawDate || log.date)
-      if (!k) return
-      const [y, m] = k.split('-').map(Number)
-      if (y === currentYear) {
-        yearSum += Number(log.hours || 0)
-        if (m === currentMonthIndex + 1) {
-          monthSum += Number(log.hours || 0)
-        }
-      }
-    })
-    if (yearSum === 0 && (data?.hoursBreakdown || []).length === 12) {
-      yearSum = data.hoursBreakdown.reduce((sum, b) => sum + Number(b.hours || 0), 0)
-      monthSum = Number(data.hoursBreakdown[currentMonthIndex]?.hours || 0)
-    }
-    // Fallback to stats array if available
-    if (yearSum === 0 && data?.stats) {
-      const clockStat = data.stats.find((s) => s.icon === 'clock')
-      if (clockStat) yearSum = parseFloat(String(clockStat.value).replace(/[^0-9.]/g, '')) || 0
-    }
-    return { totalYearHours: yearSum, currentMonthHours: monthSum }
-  }, [activityLog, currentYear, currentMonthIndex, data?.hoursBreakdown, data?.stats])
+  const tasks = data?.tasks || []
+  const schedule = data?.schedule || []
 
-  const pendingTasksCount = (data?.tasks || []).filter(
-    (t) => t.status !== 'Done' && t.boardColumn !== 'done' && !t.isDone
-  ).length
+  const completedTasksCount = useMemo(() => {
+    return tasks.filter((t) => t.isDone || t.boardColumn === 'done' || t.status === 'Done' || t.status === 'Completed').length
+  }, [tasks])
+
+  const pendingTasksCount = useMemo(() => {
+    return tasks.filter((t) => t.status !== 'Done' && t.boardColumn !== 'done' && !t.isDone).length
+  }, [tasks])
+
+  const upcomingEventsCount = useMemo(() => {
+    return schedule.filter((s) => dateKey(s.date) >= todayKey).length || schedule.length
+  }, [schedule, todayKey])
 
   return (
     <ApiState loading={loading} error={error} onRetry={reload}>
@@ -79,73 +60,60 @@ export default function VolunteerDashboard() {
         <>
           {/* Top Summary Stat Cards */}
           <div className="portal-stats">
-            <div className="portal-stat-card">
+            <Link
+              to="/volunteer-portal/tasks?status=Completed"
+              className="portal-stat-card portal-stat-card--clickable"
+              title="View Completed Tasks"
+            >
               <div className="portal-stat-card__icon" style={{ background: '#fef2f2', color: '#AF101A' }}>
-                <Clock size={20} />
+                <CheckCircle size={20} />
               </div>
-              <span className="portal-stat-card__value">{totalYearHours} hrs</span>
-              <span className="portal-stat-card__label">Total Rendered ({currentYear})</span>
-            </div>
+              <span className="portal-stat-card__value">{completedTasksCount}</span>
+              <span className="portal-stat-card__label">Completed Tasks</span>
+            </Link>
 
-            <div className="portal-stat-card">
+            <Link
+              to="/volunteer-portal/tasks?status=Ongoing"
+              className="portal-stat-card portal-stat-card--clickable"
+              title="View Active / Ongoing Tasks"
+            >
               <div className="portal-stat-card__icon" style={{ background: '#eff6ff', color: '#2563eb' }}>
-                <Calendar size={20} />
+                <CheckSquare size={20} />
               </div>
-              <span className="portal-stat-card__value">{currentMonthHours} hrs</span>
-              <span className="portal-stat-card__label">This Month ({currentMonthName})</span>
-            </div>
+              <span className="portal-stat-card__value">{pendingTasksCount}</span>
+              <span className="portal-stat-card__label">Active Tasks</span>
+            </Link>
 
-            <div className="portal-stat-card">
+            <Link
+              to="/volunteer-portal/tasks?status=Completed"
+              className="portal-stat-card portal-stat-card--clickable"
+              title="View Verified Activities"
+            >
               <div className="portal-stat-card__icon" style={{ background: '#ecfdf5', color: '#059669' }}>
                 <TrendingUp size={20} />
               </div>
               <span className="portal-stat-card__value">{activityLog.length || 0}</span>
               <span className="portal-stat-card__label">Verified Activities</span>
-            </div>
+            </Link>
 
-            <div className="portal-stat-card">
+            <Link
+              to="/volunteer-portal/schedule"
+              className="portal-stat-card portal-stat-card--clickable"
+              title="View Upcoming Schedule"
+            >
               <div className="portal-stat-card__icon" style={{ background: '#fffbeb', color: '#d97706' }}>
-                <CheckSquare size={20} />
+                <Calendar size={20} />
               </div>
-              <span className="portal-stat-card__value">{pendingTasksCount}</span>
-              <span className="portal-stat-card__label">Active Tasks</span>
-            </div>
+              <span className="portal-stat-card__value">{upcomingEventsCount}</span>
+              <span className="portal-stat-card__label">Upcoming Events</span>
+            </Link>
           </div>
-
-          {/* Annual Volunteer Target Progress */}
-          <section className="portal-panel" style={{ padding: '1.25rem 1.5rem', marginBottom: '1.25rem' }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.65rem' }}>
-              <h3 style={{ margin: 0, fontSize: '1.05rem', fontWeight: 700, color: '#1e293b', display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
-                <Award size={18} style={{ color: '#AF101A' }} />
-                Annual Volunteer Target ({currentYear})
-              </h3>
-              <span style={{ fontWeight: 800, color: '#AF101A', fontSize: '0.95rem' }}>
-                {totalYearHours} / 200 hours
-              </span>
-            </div>
-            <div style={{ height: '10px', background: '#e2e8f0', borderRadius: '999px', overflow: 'hidden' }}>
-              <div
-                style={{
-                  height: '100%',
-                  background: 'linear-gradient(90deg, #AF101A 0%, #059669 100%)',
-                  borderRadius: '999px',
-                  width: `${Math.min((totalYearHours / 200) * 100, 100)}%`,
-                  transition: 'width 0.5s ease',
-                }}
-              />
-            </div>
-            <p style={{ margin: '0.55rem 0 0', fontSize: '0.82rem', color: '#64748b' }}>
-              {totalYearHours >= 200
-                ? `🎉 Congratulations! You have achieved your annual target for ${currentYear}.`
-                : `${Math.max(200 - totalYearHours, 0)} hours remaining to reach the 200-hour goal for ${currentYear}.`}
-            </p>
-          </section>
 
           <section className="portal-panel portal-quick-actions">
             <div className="portal-panel__header">
               <h2>Quick Actions</h2>
             </div>
-            <div className="portal-quick-actions__grid">
+            <div className="portal-quick-actions__grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))' }}>
               <Link to="/volunteer-portal/tasks" className="portal-quick-action">
                 <ListTodo size={24} />
                 <span>View All Tasks</span>
@@ -153,10 +121,6 @@ export default function VolunteerDashboard() {
               <Link to="/volunteer-portal/schedule" className="portal-quick-action">
                 <CalendarDays size={24} />
                 <span>Check Schedule</span>
-              </Link>
-              <Link to="/volunteer-portal/hours" className="portal-quick-action">
-                <Clock size={24} />
-                <span>Log Hours</span>
               </Link>
               <Link to="/volunteer-portal/certificates" className="portal-quick-action">
                 <FileText size={24} />
@@ -172,8 +136,8 @@ export default function VolunteerDashboard() {
                 <Link to="/volunteer-portal/tasks" className="portal-panel__link">View All</Link>
               </div>
               <ul className="portal-task-list">
-                {(data.tasks || [])
-                  .filter((t) => t.status !== 'Done' && t.boardColumn !== 'done')
+                {tasks
+                  .filter((t) => t.status !== 'Done' && t.boardColumn !== 'done' && !t.isDone)
                   .slice(0, 4)
                   .map((t) => (
                     <li key={t.id} className="portal-task-item">
@@ -184,7 +148,7 @@ export default function VolunteerDashboard() {
                       <StatusBadge status={t.isDone || t.boardColumn === 'done' || t.status === 'Done' || t.status === 'Completed' ? 'Completed' : 'Ongoing'} />
                     </li>
                   ))}
-                {(data.tasks || []).filter((t) => t.status !== 'Done' && t.boardColumn !== 'done').length === 0 && (
+                {tasks.filter((t) => t.status !== 'Done' && t.boardColumn !== 'done' && !t.isDone).length === 0 && (
                   <li className="portal-empty">
                     <CheckSquare size={24} />
                     <p>All caught up! No pending tasks.</p>
@@ -230,11 +194,11 @@ export default function VolunteerDashboard() {
             </div>
             <div className="portal-event-preview">
               {(() => {
-                const schedule = [...(data.schedule || [])].sort((a, b) =>
+                const schedList = [...(data.schedule || [])].sort((a, b) =>
                   dateKey(a.date).localeCompare(dateKey(b.date))
                 )
-                const upcoming = schedule.filter((s) => dateKey(s.date) >= todayKey)
-                const preview = (upcoming.length ? upcoming : schedule.slice(-3).reverse()).slice(0, 3)
+                const upcoming = schedList.filter((s) => dateKey(s.date) >= todayKey)
+                const preview = (upcoming.length ? upcoming : schedList.slice(-3).reverse()).slice(0, 3)
 
                 if (!preview.length) {
                   return (

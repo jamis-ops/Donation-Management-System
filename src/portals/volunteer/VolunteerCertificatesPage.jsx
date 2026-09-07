@@ -1,15 +1,16 @@
 import { useState } from 'react'
-import { Award, Download, Eye, Printer, Share2 } from 'lucide-react'
+import { Award, Download, Eye, Printer, Share2, BadgeCheck, FileText, X } from 'lucide-react'
 import StatusBadge from '../../components/admin/shared/StatusBadge'
 import ApiState from '../../components/admin/shared/ApiState'
 import CertificateView from '../../components/shared/CertificateView'
 import { printCertificate } from '../../components/shared/printCertificate'
-import { certificatesApi } from '../../api/resources'
+import { certificatesApi, tasksApi } from '../../api/resources'
 import { useApiList } from '../../hooks/useApiList'
 import { usePagination, DEFAULT_PAGE_SIZE } from '../../hooks/usePagination'
 import Pagination from '../../components/admin/shared/Pagination'
 import ModalHeader from '../../components/admin/shared/ModalHeader'
 import { notify } from '../../utils/toast'
+import { useLoading } from '../../context/LoadingContext'
 
 const CERTIFICATE_TYPE_CONFIG = {
   'Volunteer Certificate': { color: 'crimson', icon: 'award' },
@@ -19,6 +20,15 @@ const CERTIFICATE_TYPE_CONFIG = {
   'Training Certificate': { color: 'blue', icon: 'book' },
   'Achievement Award': { color: 'purple', icon: 'trophy' },
 }
+
+const VOLUNTEER_CERT_TYPES = [
+  'Certificate of Volunteer Service',
+  'Certificate of Participation',
+  'Certificate of Appreciation',
+  'Training Certificate',
+  'Achievement Award',
+  'Special Recognition',
+]
 
 function certPeriod(cert) {
   if (cert.period) return cert.period
@@ -30,10 +40,26 @@ function certPeriod(cert) {
 }
 
 export default function VolunteerCertificatesPage() {
+  const { showLoading, hideLoading } = useLoading()
   const { data, loading, error, reload } = useApiList(() => certificatesApi.list())
+  const { data: rawTasks } = useApiList(() =>
+    tasksApi.list().then((r) => ({
+      data: Array.isArray(r.data) ? r.data : (r.list || []),
+    }))
+  )
   const [preview, setPreview] = useState(null)
   const [statusFilter, setStatusFilter] = useState('All')
   const [shareModalOpen, setShareModalOpen] = useState(null)
+  const [showRequest, setShowRequest] = useState(false)
+  const [form, setForm] = useState({
+    type: 'Certificate of Volunteer Service',
+    reference: '',
+    details: '',
+  })
+  const [busy, setBusy] = useState(false)
+  const [notice, setNotice] = useState('')
+
+  const tasksList = Array.isArray(rawTasks) ? rawTasks : []
 
   const filteredCertificates = data.filter((cert) => {
     if (statusFilter === 'All') return true
@@ -50,8 +76,35 @@ export default function VolunteerCertificatesPage() {
 
   const statusCounts = {
     All: data.length,
-    Generated: data.filter(c => c.status === 'Generated' || c.status === 'Released').length,
-    Processing: data.filter(c => ['Requested', 'Pending', 'Processing'].includes(c.status)).length,
+    Generated: data.filter((c) => c.status === 'Generated' || c.status === 'Released').length,
+    Processing: data.filter((c) => ['Requested', 'Pending', 'Processing'].includes(c.status)).length,
+  }
+
+  const handleRequest = async (e) => {
+    e.preventDefault()
+    setBusy(true)
+    showLoading('Submitting certificate request…')
+    try {
+      await certificatesApi.create({
+        type: form.type,
+        reference: form.reference || undefined,
+        details: form.details ? form.details.trim() : undefined,
+      })
+      setShowRequest(false)
+      setForm({
+        type: 'Certificate of Volunteer Service',
+        reference: '',
+        details: '',
+      })
+      setNotice('Your certificate request has been submitted. You will be notified once it is approved and issued.')
+      notify.success('Certificate request submitted successfully!')
+      reload()
+    } catch (err) {
+      notify.error(err.message || 'Failed to submit certificate request')
+    } finally {
+      hideLoading()
+      setBusy(false)
+    }
   }
 
   const handleShare = (cert) => {
@@ -59,14 +112,14 @@ export default function VolunteerCertificatesPage() {
   }
 
   const handleCopyLink = (cert) => {
-    const link = `${window.location.origin}/certificates/verify/${cert.reference}`
+    const link = `${window.location.origin}/certificates/verify/${cert.reference || cert.id}`
     navigator.clipboard.writeText(link)
     notify.success('Certificate link copied to clipboard!')
   }
 
   const handleSocialShare = (platform, cert) => {
-    const text = `I've earned a ${cert.type} from Rise Against Hunger Cebu! ${cert.period}`
-    const url = `${window.location.origin}/certificates/verify/${cert.reference}`
+    const text = `I've earned a ${cert.type} from Rise Against Hunger Cebu! ${certPeriod(cert)}`
+    const url = `${window.location.origin}/certificates/verify/${cert.reference || cert.id}`
     
     let shareUrl = ''
     switch (platform) {
@@ -86,12 +139,65 @@ export default function VolunteerCertificatesPage() {
     }
   }
 
+  const ready = (c) => c.status === 'Generated' || c.status === 'Released'
+
   return (
     <ApiState loading={loading} error={error} onRetry={reload}>
+      {notice && (
+        <div className="portal-notice">
+          <span>{notice}</span>
+          <button type="button" onClick={() => setNotice('')} aria-label="Dismiss">
+            <X size={14} />
+          </button>
+        </div>
+      )}
+
+      {/* Volunteer Certificate KPI Summary Cards */}
+      <div className="donor-cert-summary">
+        <div className="donor-cert-summary-card">
+          <div className="donor-cert-summary-card__icon">
+            <BadgeCheck size={20} />
+          </div>
+          <div className="donor-cert-summary-card__content">
+            <span className="donor-cert-summary-card__value">{statusCounts.Generated}</span>
+            <span className="donor-cert-summary-card__label">Ready to Download</span>
+          </div>
+        </div>
+        <div className="donor-cert-summary-card donor-cert-summary-card--blue">
+          <div className="donor-cert-summary-card__icon">
+            <FileText size={20} />
+          </div>
+          <div className="donor-cert-summary-card__content">
+            <span className="donor-cert-summary-card__value">{statusCounts.Processing}</span>
+            <span className="donor-cert-summary-card__label">Being Processed</span>
+          </div>
+        </div>
+        <div className="donor-cert-summary-card donor-cert-summary-card--green">
+          <div className="donor-cert-summary-card__icon">
+            <Award size={20} />
+          </div>
+          <div className="donor-cert-summary-card__content">
+            <span className="donor-cert-summary-card__value">{data.length}</span>
+            <span className="donor-cert-summary-card__label">Total Certificates</span>
+          </div>
+        </div>
+      </div>
+
       <section className="portal-panel">
         <div className="portal-panel__header">
-          <h2>Volunteer Certificates</h2>
-          <span className="portal-panel__count">{filteredCertificates.length} certificates</span>
+          <div>
+            <h2>Volunteer Certificates</h2>
+            <p style={{ margin: '0.2rem 0 0', fontSize: '0.82rem', color: '#64748b' }}>
+              View earned certificates, download PDFs, or request new certificates for completed volunteer services.
+            </p>
+          </div>
+          <button
+            type="button"
+            className="btn btn--sm btn--primary"
+            onClick={() => setShowRequest(true)}
+          >
+            + Request Certificate
+          </button>
         </div>
 
         {/* Filter Bar */}
@@ -115,8 +221,18 @@ export default function VolunteerCertificatesPage() {
             <p>
               {statusFilter !== 'All' 
                 ? `No ${statusFilter.toLowerCase()} certificates` 
-                : 'No certificates yet. Certificates are issued after completed activities.'}
+                : 'No certificates yet. You can request one for your volunteer activities and service.'}
             </p>
+            {statusFilter === 'All' && (
+              <button
+                type="button"
+                className="btn btn--sm btn--primary"
+                style={{ marginTop: '0.75rem' }}
+                onClick={() => setShowRequest(true)}
+              >
+                Request Certificate Now
+              </button>
+            )}
           </div>
         ) : (
           <>
@@ -131,9 +247,6 @@ export default function VolunteerCertificatesPage() {
                     <div className="cert-card__body">
                       <strong>{c.type}</strong>
                       <span className="cert-card__period">{certPeriod(c)}</span>
-                      {c.hours != null && c.hours !== '' && (
-                        <span className="cert-card__hours">{c.hours} hours</span>
-                      )}
                       {c.reference && (
                         <span className="cert-card__reference">Ref: {c.reference}</span>
                       )}
@@ -143,7 +256,7 @@ export default function VolunteerCertificatesPage() {
                     </div>
                     <div className="cert-card__side">
                       <StatusBadge status={c.status} />
-                      {c.status === 'Generated' ? (
+                      {ready(c) ? (
                         <div className="cert-card__actions">
                           <button 
                             type="button" 
@@ -192,6 +305,73 @@ export default function VolunteerCertificatesPage() {
         )}
       </section>
 
+      {/* Request Certificate Modal */}
+      {showRequest && (
+        <div className="admin-modal-overlay" onClick={() => setShowRequest(false)}>
+          <div className="admin-modal" onClick={(e) => e.stopPropagation()}>
+            <ModalHeader
+              title="Request a Certificate"
+              onClose={() => setShowRequest(false)}
+            />
+            <form onSubmit={handleRequest}>
+              <div className="admin-modal__body">
+                <label>
+                  Certificate Type
+                  <select
+                    value={form.type}
+                    onChange={(e) => setForm({ ...form, type: e.target.value })}
+                  >
+                    {VOLUNTEER_CERT_TYPES.map((t) => (
+                      <option key={t} value={t}>
+                        {t}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+
+                <label>
+                  For Duty / Activity (Optional)
+                  <select
+                    value={form.reference}
+                    onChange={(e) => setForm({ ...form, reference: e.target.value })}
+                  >
+                    <option value="">General Volunteer Service</option>
+                    {tasksList.map((t) => (
+                      <option key={t.dbId || t.id} value={t.id || t.title}>
+                        {t.id ? `${t.id} — ` : ''}{t.title} ({t.category || t.module || 'Duty'})
+                      </option>
+                    ))}
+                  </select>
+                </label>
+
+                <label>
+                  Purpose / Notes (Optional)
+                  <textarea
+                    rows={3}
+                    value={form.details}
+                    onChange={(e) => setForm({ ...form, details: e.target.value })}
+                    placeholder="e.g. In recognition of completed relief distribution duties and academic community service requirements."
+                  />
+                </label>
+              </div>
+
+              <div className="admin-modal__actions">
+                <button type="submit" className="btn btn--primary" disabled={busy}>
+                  {busy ? 'Submitting...' : 'Send Request'}
+                </button>
+                <button
+                  type="button"
+                  className="btn btn--ghost"
+                  onClick={() => setShowRequest(false)}
+                >
+                  Cancel
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
       {/* Preview Modal */}
       {preview && (
         <div className="admin-modal-overlay" onClick={() => setPreview(null)}>
@@ -229,7 +409,7 @@ export default function VolunteerCertificatesPage() {
                   <Award size={24} />
                   <div>
                     <strong>{shareModalOpen.type}</strong>
-                    <span>{shareModalOpen.period}</span>
+                    <span>{certPeriod(shareModalOpen)}</span>
                   </div>
                 </div>
 
@@ -275,7 +455,7 @@ export default function VolunteerCertificatesPage() {
                     <input
                       type="text"
                       readOnly
-                      value={`${window.location.origin}/certificates/verify/${shareModalOpen.reference}`}
+                      value={`${window.location.origin}/certificates/verify/${shareModalOpen.reference || shareModalOpen.id}`}
                       className="share-modal-input"
                     />
                     <button

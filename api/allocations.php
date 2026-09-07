@@ -223,6 +223,7 @@ if ($method === 'POST') {
     $body['notes'] ?? null,
     $body['allocationDate'] ?? date('Y-m-d'),
   ]);
+  $newId = (int) $pdo->lastInsertId();
 
   // Sync inventory allocated counter + stock state when reserved/allocated
   if ($resource !== '' && $qty > 0 && in_array($status, ['Reserved', 'Allocated'], true)) {
@@ -237,7 +238,6 @@ if ($method === 'POST') {
 
   notify_admins($pdo, 'allocation', 'New resource allocation', "Allocated {$resource} for {$body['beneficiary']}", '/admin/allocation');
   audit_log($pdo, 'create', 'allocation', $code, "Allocated {$resource} for {$body['beneficiary']}");
-  $newId = (int) $pdo->lastInsertId();
 
   // Leave Relief Requests queue once this request has been allocated
   mark_request_allocated($pdo, $assistanceRequestId);
@@ -255,7 +255,11 @@ if ($method === 'POST') {
 
   $stmt = $pdo->prepare('SELECT * FROM allocations WHERE id = ?');
   $stmt->execute([$newId]);
-  $result = map_allocation($pdo, $stmt->fetch());
+  $allocRow = $stmt->fetch();
+  if (!$allocRow) {
+    json_response(['ok' => false, 'error' => 'Failed to retrieve created allocation'], 500);
+  }
+  $result = map_allocation($pdo, $allocRow);
   if ($draftDistId) {
     $result['draftDistributionCreated'] = true;
     $result['draftDistributionId'] = $draftDistId;
@@ -326,7 +330,11 @@ if ($method === 'PUT') {
 
   $stmt = $pdo->prepare('SELECT * FROM allocations WHERE id = ?');
   $stmt->execute([$id]);
-  $result = map_allocation($pdo, $stmt->fetch());
+  $updatedRow = $stmt->fetch();
+  if (!$updatedRow) {
+    json_response(['ok' => false, 'error' => 'Failed to retrieve updated allocation'], 500);
+  }
+  $result = map_allocation($pdo, $updatedRow);
   if ($draftDistId) {
     $result['draftDistributionCreated'] = true;
     $result['draftDistributionId'] = $draftDistId;

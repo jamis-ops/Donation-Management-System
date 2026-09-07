@@ -45,6 +45,7 @@ import ReportsPage from './pages/admin/ReportsPage'
 import CertificatesPage from './pages/admin/CertificatesPage'
 import ContentPage from './pages/admin/ContentPage'
 import AccountSettingsPage from './pages/AccountSettingsPage'
+import DatabaseManagementPage from './pages/admin/DatabaseManagementPage'
 
 // Role portals
 import DonorDashboard from './portals/donor/DonorDashboard'
@@ -135,6 +136,7 @@ const router = createBrowserRouter([
       { path: 'certificates', element: <CertificatesPage /> },
       { path: 'content', element: <ContentPage /> },
       { path: 'settings', element: <AccountSettingsPage /> },
+      { path: 'database', element: <DatabaseManagementPage /> },
     ],
   },
   {
@@ -162,7 +164,7 @@ const router = createBrowserRouter([
       { index: true, element: <VolunteerDashboard /> },
       { path: 'tasks', element: <VolunteerTasksPage /> },
       { path: 'schedule', element: <VolunteerSchedulePage /> },
-      { path: 'hours', element: <VolunteerHoursPage /> },
+      { path: 'hours', element: <Navigate to="/volunteer-portal/tasks" replace /> },
       { path: 'certificates', element: <VolunteerCertificatesPage /> },
       { path: 'settings', element: <AccountSettingsPage /> },
     ],

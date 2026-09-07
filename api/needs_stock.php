@@ -613,7 +613,7 @@ if ($action === 'barangay_analysis') {
   $invStmt = $pdo->query('
     SELECT id, code, item_name, category, quantity, allocated, unit
     FROM inventory_items
-    WHERE (quantity - allocated) > 0
+    WHERE quantity > allocated
     ORDER BY item_name ASC
   ');
   $availableInventory = $invStmt->fetchAll();

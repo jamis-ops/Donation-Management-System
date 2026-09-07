@@ -35,10 +35,20 @@ const INDICATOR_LABEL = {
   excess: 'Surplus',
 }
 
+const STAT_LINKS = {
+  'Total Cash Donations': '/admin/donations?tab=monetary',
+  'Active Beneficiaries': '/admin/beneficiaries?status=Active',
+  'Items in Inventory': '/admin/inventory',
+  'Repacked Inventory': '/admin/inventory',
+  'Active Deliveries': '/admin/distributions?status=In+Transit',
+  'Beneficiaries Served': '/admin/distributions?status=Completed',
+  'Pending Requests': '/admin/requests?status=Pending+Review',
+}
+
 const quickActions = [
-  { to: '/admin/donations', icon: HeartHandshake, title: 'Verify Donations' },
-  { to: '/admin/volunteers', icon: UserCheck, title: 'Review Volunteers' },
-  { to: '/admin/beneficiaries', icon: Users, title: 'Approve Beneficiaries' },
+  { to: '/admin/donations?status=Pending+Verification', icon: HeartHandshake, title: 'Verify Donations' },
+  { to: '/admin/volunteers?status=Pending+Review', icon: UserCheck, title: 'Review Volunteers' },
+  { to: '/admin/beneficiaries?status=Pending+Approval', icon: Users, title: 'Approve Beneficiaries' },
   { to: '/admin/inventory', icon: Package, title: 'Check Inventory' },
   { to: '/admin/distributions', icon: Truck, title: 'Plan Distribution' },
   { to: '/admin/staff', icon: UserCog, title: 'Manage Staff' },
@@ -189,8 +199,9 @@ export default function DashboardPage() {
             <div className="admin-stats-grid">
               {data.stats.map((stat) => {
                 const IconComponent = STAT_ICONS[stat.label]
-                return (
-                  <div key={stat.label} className={`admin-stat-card admin-stat-card--${stat.trend}`}>
+                const destination = STAT_LINKS[stat.label]
+                const cardContent = (
+                  <>
                     <div className="admin-stat-card__header">
                       <span className="admin-stat-card__label" title={stat.label}>{stat.label}</span>
                       {IconComponent && <IconComponent className="admin-stat-card__icon" size={15} />}
@@ -199,6 +210,23 @@ export default function DashboardPage() {
                       <span className="admin-stat-card__value">{stat.value}</span>
                       {stat.change && <span className="admin-stat-card__change">{stat.change}</span>}
                     </div>
+                  </>
+                )
+                if (destination) {
+                  return (
+                    <Link
+                      key={stat.label}
+                      to={destination}
+                      className={`admin-stat-card admin-stat-card--${stat.trend} admin-stat-card--clickable`}
+                      title={`View ${stat.label}`}
+                    >
+                      {cardContent}
+                    </Link>
+                  )
+                }
+                return (
+                  <div key={stat.label} className={`admin-stat-card admin-stat-card--${stat.trend}`}>
+                    {cardContent}
                   </div>
                 )
               })}
@@ -289,29 +317,8 @@ export default function DashboardPage() {
               </section>
             </div>
 
-            <div className="admin-charts-grid admin-charts-grid--3">
-              <section className="admin-panel admin-panel--chart">
-                {beneficiaryTypes.length > 0 ? (
-                  <DonutChart title="Active Beneficiaries by Type" data={beneficiaryTypes} />
-                ) : (
-                  <>
-                    <h3 className="admin-chart__title">Active Beneficiaries by Type</h3>
-                    <ChartEmpty message="No approved barangays with a type set yet." />
-                  </>
-                )}
-              </section>
-
-              <section className="admin-panel admin-panel--chart">
-                {flowComparison.length > 0 ? (
-                  <BarChart title="Available vs Allocated vs Distributed (packs)" data={flowComparison} />
-                ) : (
-                  <>
-                    <h3 className="admin-chart__title">Available vs Allocated vs Distributed</h3>
-                    <ChartEmpty message="No inventory movement recorded yet." />
-                  </>
-                )}
-              </section>
-
+            {/* Supply Chain & Demand Intelligence */}
+            <div className="admin-charts-grid">
               <section className="admin-panel admin-panel--chart">
                 <h3 className="admin-chart__title">Needs vs Available Stock</h3>
                 <p className="needs-vs-stock-list__hint">
@@ -347,7 +354,7 @@ export default function DashboardPage() {
                 ) : (
                   <ChartEmpty message={needsError || 'No open request needs or inventory to compare yet.'} />
                 )}
-                <div className="needs-vs-stock-list__actions">
+                <div className="needs-vs-stock-list__actions" style={{ display: 'flex', gap: '0.5rem', marginTop: 'auto', paddingTop: '1rem' }}>
                   <Link to="/admin/allocation" className="btn btn--sm btn--outline">
                     Open Allocation
                   </Link>
@@ -390,6 +397,31 @@ export default function DashboardPage() {
                   </div>
                 ) : (
                   <ChartEmpty message="No inventory items to forecast yet." />
+                )}
+              </section>
+            </div>
+
+            {/* Flow Comparison & Community Demographics */}
+            <div className="admin-charts-grid">
+              <section className="admin-panel admin-panel--chart">
+                {flowComparison.length > 0 ? (
+                  <BarChart title="Available vs Allocated vs Distributed (packs)" data={flowComparison} />
+                ) : (
+                  <>
+                    <h3 className="admin-chart__title">Available vs Allocated vs Distributed</h3>
+                    <ChartEmpty message="No inventory movement recorded yet." />
+                  </>
+                )}
+              </section>
+
+              <section className="admin-panel admin-panel--chart">
+                {beneficiaryTypes.length > 0 ? (
+                  <DonutChart title="Active Beneficiaries by Type" data={beneficiaryTypes} />
+                ) : (
+                  <>
+                    <h3 className="admin-chart__title">Active Beneficiaries by Type</h3>
+                    <ChartEmpty message="No approved barangays with a type set yet." />
+                  </>
                 )}
               </section>
             </div>

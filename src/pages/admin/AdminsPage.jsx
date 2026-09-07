@@ -13,7 +13,6 @@ import ApiState from '../../components/admin/shared/ApiState'
 import FilterBar from '../../components/admin/shared/FilterBar'
 import ModalHeader from '../../components/admin/shared/ModalHeader'
 import Req from '../../components/shared/Req'
-import PolicyConsentBox from '../../components/shared/PolicyConsentBox'
 import NameFields from '../../components/shared/NameFields'
 import { emptyNameParts, formatFullName } from '../../utils/personName'
 import { notify } from '../../utils/toast'
@@ -38,9 +37,9 @@ const emptyForm = {
   emergencyContactNumber: '',
   emergencyContactRelation: '',
   role: 'Admin',
-  acceptedTerms: false,
-  acceptedPrivacy: false,
-  acceptedPolicies: false,
+  acceptedTerms: true,
+  acceptedPrivacy: true,
+  acceptedPolicies: true,
 }
 
 /**
@@ -107,10 +106,6 @@ export default function AdminsPage() {
         return
       }
     }
-    if (!form.acceptedTerms || !form.acceptedPrivacy) {
-      notify.warning('Please accept both the Terms & Conditions and Data Privacy Policy.')
-      return
-    }
     const ok = await confirmAction({
       title: 'Create Admin Account',
       message: `Create a database Admin account for ${formatFullName(form)} (${form.email}) and email their temporary password?`,
@@ -134,8 +129,8 @@ export default function AdminsPage() {
         emergencyContactNumber: form.emergencyContactNumber,
         emergencyContactRelation: form.emergencyContactRelation,
         role: 'Admin',
-        acceptedTerms: form.acceptedTerms,
-        acceptedPrivacy: form.acceptedPrivacy,
+        acceptedTerms: true,
+        acceptedPrivacy: true,
         acceptedPolicies: true,
       })
       if (!res?.ok && !res?.data) {
@@ -396,7 +391,7 @@ export default function AdminsPage() {
                   <Shield size={14} /> Database Admin accounts access the Admin portal. This is separate from the hardcoded Super Admin.
                 </p>
                 <div className="admin-modal__actions">
-                  <button type="submit" className="btn btn--primary" disabled={saving}>{saving ? 'Saving…' : 'Save Profile'}</button>
+                  <button type="submit" className="btn btn--primary" disabled={saving}>Save Profile</button>
                   <button type="button" className="btn btn--ghost" onClick={() => setSelected(null)}>Close</button>
                 </div>
               </form>
@@ -468,22 +463,13 @@ export default function AdminsPage() {
                 Creates a database <strong>Admin</strong> account (separate from Super Admin and Staff). Credentials are emailed after creation.
               </p>
 
-              <PolicyConsentBox
-                acceptedTerms={form.acceptedTerms}
-                onTermsChange={(acceptedTerms) => setForm({ ...form, acceptedTerms })}
-                acceptedPrivacy={form.acceptedPrivacy}
-                onPrivacyChange={(acceptedPrivacy) => setForm({ ...form, acceptedPrivacy })}
-                entityLabel="Admin user"
-              />
-
-              <div className="admin-modal__actions">
+              <div className="admin-modal__actions" style={{ marginTop: '1.25rem' }}>
                 <button
                   type="submit"
                   className="btn btn--primary"
-                  disabled={saving || !form.acceptedTerms || !form.acceptedPrivacy}
-                  title={!form.acceptedTerms || !form.acceptedPrivacy ? 'Please read and accept both agreements above to create credentials' : ''}
+                  disabled={saving}
                 >
-                  {saving ? 'Creating & emailing…' : 'Create & Email Credentials'}
+                  Create & Email Credentials
                 </button>
                 <button type="button" className="btn btn--ghost" onClick={() => setShowForm(false)}>Cancel</button>
               </div>

@@ -218,8 +218,8 @@ if ($method === 'POST') {
         }
 
         // Deduct stock immediately
-        $pdo->prepare('UPDATE inventory_items SET quantity = quantity - ? WHERE id = ?')
-          ->execute([$srcQty, $srcItemId]);
+        $pdo->prepare('UPDATE inventory_items SET quantity = CASE WHEN quantity >= ? THEN quantity - ? ELSE 0 END WHERE id = ?')
+          ->execute([$srcQty, $srcQty, $srcItemId]);
 
         $sourceItemsArray[] = [
           'item_id' => $srcItemId,
@@ -260,8 +260,8 @@ if ($method === 'POST') {
         json_response(['ok' => false, 'error' => "Only {$availableQty} {$sourceItem['unit']} of {$sourceItem['item_name']} in stock"], 400);
       }
       
-      $pdo->prepare('UPDATE inventory_items SET quantity = quantity - ? WHERE id = ?')
-        ->execute([$sourceQty, $sourceItemId]);
+      $pdo->prepare('UPDATE inventory_items SET quantity = CASE WHEN quantity >= ? THEN quantity - ? ELSE 0 END WHERE id = ?')
+        ->execute([$sourceQty, $sourceQty, $sourceItemId]);
       $sourceLabel = $sourceItem['item_name'] . " ({$sourceQty} {$sourceItem['unit']})";
 
       // Create JSON structure for backward compatibility

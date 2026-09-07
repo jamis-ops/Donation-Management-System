@@ -1,4 +1,5 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { CheckCircle2, Clock, AlertCircle, Filter, Search, Calendar, User, Tag } from 'lucide-react'
 import ApiState from '../../components/admin/shared/ApiState'
 import { getPortalData, tasksApi } from '../../api/resources'
@@ -10,14 +11,24 @@ import { confirmAction, showSuccessModal } from '../../utils/confirm'
 import { useLoading } from '../../context/LoadingContext'
 
 export default function StaffTasksPage() {
+  const [searchParams] = useSearchParams()
   const { data: portalData, loading, error, reload } = useApiObject(() => getPortalData())
-  const [filterStatus, setFilterStatus] = useState('all')
+  const [filterStatus, setFilterStatus] = useState(() => searchParams.get('status') || 'all')
   const { showLoading, hideLoading } = useLoading()
-  const [filterPriority, setFilterPriority] = useState('all')
-  const [filterCategory, setFilterCategory] = useState('all')
-  const [searchQuery, setSearchQuery] = useState('')
+  const [filterPriority, setFilterPriority] = useState(() => searchParams.get('priority') || 'all')
+  const [filterCategory, setFilterCategory] = useState(() => searchParams.get('category') || 'all')
+  const [searchQuery, setSearchQuery] = useState(() => searchParams.get('q') || searchParams.get('search') || '')
   const [selectedTask, setSelectedTask] = useState(null)
   const [saving, setSaving] = useState(false)
+
+  useEffect(() => {
+    const st = searchParams.get('status')
+    if (st) setFilterStatus(st)
+    const pr = searchParams.get('priority')
+    if (pr) setFilterPriority(pr)
+    const cat = searchParams.get('category')
+    if (cat) setFilterCategory(cat)
+  }, [searchParams])
 
   const tasks = portalData?.tasks || []
 
@@ -126,8 +137,12 @@ export default function StaffTasksPage() {
             {Object.entries(statusCounts).map(([status, count]) => (
               <div 
                 key={status} 
-                className={`staff-task-summary-card ${filterStatus === status ? 'staff-task-summary-card--active' : ''}`}
+                className={`staff-task-summary-card staff-task-summary-card--clickable ${filterStatus === status ? 'staff-task-summary-card--active' : ''}`}
                 onClick={() => setFilterStatus(filterStatus === status ? 'all' : status)}
+                role="button"
+                tabIndex={0}
+                onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setFilterStatus(filterStatus === status ? 'all' : status) } }}
+                title={`Filter by ${status} tasks`}
               >
                 <span className="staff-task-summary-card__value">{count}</span>
                 <span className="staff-task-summary-card__label">{status}</span>

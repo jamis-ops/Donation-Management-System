@@ -35,14 +35,13 @@ const portalMenus = {
       { to: '/volunteer-portal', label: 'Dashboard', icon: LayoutDashboard, end: true },
       { to: '/volunteer-portal/tasks', label: 'My Tasks', icon: ClipboardList },
       { to: '/volunteer-portal/schedule', label: 'Schedule', icon: CalendarDays },
-      { to: '/volunteer-portal/hours', label: 'Volunteer Hours', icon: Clock3 },
       { to: '/volunteer-portal/certificates', label: 'Certificates', icon: Award },
     ],
   },
   Beneficiary: {
     title: 'Barangay Portal',
     base: '/beneficiary',
-    color: '#16a34a',
+    color: '#AF101A',
     items: [
       { to: '/beneficiary', label: 'Dashboard', icon: LayoutDashboard, end: true },
       { to: '/beneficiary/requests', label: 'My Requests', icon: HandHeart },

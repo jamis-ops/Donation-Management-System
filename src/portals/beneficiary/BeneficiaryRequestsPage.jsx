@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { Search, AlertCircle, CheckCircle, Clock, XCircle, FileText, Package, Users, Calendar } from 'lucide-react'
 import StatusBadge from '../../components/admin/shared/StatusBadge'
 import ApiState from '../../components/admin/shared/ApiState'
@@ -66,8 +67,8 @@ function getRequestPreview(request) {
   const notesMatch = notes.match(/Additional Notes:\s*([\s\S]+)/i)
   const extraNotes = notesMatch ? notesMatch[1].trim() : ''
   return {
-    calamity: calamityMatch ? calamityMatch[1].trim() : '',
-    families: familiesMatch ? familiesMatch[1] : '',
+    calamity: calamityMatch ? calamityMatch[1].trim() : (request?.type || 'Assistance Request'),
+    families: familiesMatch ? parseInt(familiesMatch[1], 10) : (request?.affectedFamilies || 0),
     needs,
     extraNotes,
     hasStructured: Boolean(calamityMatch || familiesMatch || needs.length || extraNotes),
@@ -79,6 +80,7 @@ function canCancelRequest(request) {
 }
 
 export default function BeneficiaryRequestsPage() {
+  const [searchParams] = useSearchParams()
   const { data, loading, error, reload } = useApiList(() => assistanceRequestsApi.list())
   const [showForm, setShowForm] = useState(false)
   const { showLoading, hideLoading } = useLoading()
@@ -86,8 +88,13 @@ export default function BeneficiaryRequestsPage() {
   const [form, setForm] = useState(emptyForm)
   const [saving, setSaving] = useState(false)
   const [submitError, setSubmitError] = useState('')
-  const [searchQuery, setSearchQuery] = useState('')
-  const [statusFilter, setStatusFilter] = useState('All')
+  const [searchQuery, setSearchQuery] = useState(() => searchParams.get('q') || searchParams.get('search') || '')
+  const [statusFilter, setStatusFilter] = useState(() => searchParams.get('status') || 'All')
+
+  useEffect(() => {
+    const st = searchParams.get('status')
+    if (st) setStatusFilter(st)
+  }, [searchParams])
 
   // Keep progress tracker in sync when list reloads or status changes server-side.
   useEffect(() => {
@@ -168,38 +175,23 @@ export default function BeneficiaryRequestsPage() {
     ].filter(Boolean).join('\n\n')
     
     setSaving(true)
-    showLoading('Saving…')
+    showLoading('Submitting…')
     try {
-      if (editingRequest) {
-        // Update existing request
-        await assistanceRequestsApi.update(editingRequest.dbId, {
-          type: assistanceType,
-          priority: form.priority,
-          notes: structuredNotes,
-          calamityTags: [calamityType],
-          needs,
-        })
-        setEditingRequest(null)
-        notify.success('Request updated.')
-        showSuccessModal('Successfully updated.')
-      } else {
-        // Create new request
-        await assistanceRequestsApi.create({
-          type: assistanceType,
-          priority: form.priority,
-          notes: structuredNotes,
-          calamityTags: [calamityType],
-          needs,
-        })
-        notify.success('Request submitted.')
-        showSuccessModal('Successfully added.')
-      }
+      await assistanceRequestsApi.create({
+        type: assistanceType,
+        priority: form.priority,
+        notes: structuredNotes,
+        calamityTags: [calamityType],
+        needs,
+      })
+      notify.success('Request submitted.')
+      showSuccessModal('Successfully added.')
       setForm(emptyForm)
       setShowForm(false)
       reload()
       notifyBadgesChanged()
     } catch (err) {
-      setSubmitError(err.message || 'Failed to save request')
+      setSubmitError(err.message || 'Failed to submit request')
     } finally {
       hideLoading()
       setSaving(false)
@@ -236,7 +228,14 @@ export default function BeneficiaryRequestsPage() {
     <ApiState loading={loading} error={error} onRetry={reload}>
       {/* Summary Cards */}
       <div className="volunteer-kpi-grid">
-        <div className="volunteer-kpi-card volunteer-kpi-card--total">
+        <div 
+          className={`volunteer-kpi-card volunteer-kpi-card--total volunteer-kpi-card--clickable ${statusFilter === 'Under Review' ? 'volunteer-kpi-card--active' : ''}`}
+          onClick={() => setStatusFilter(statusFilter === 'Under Review' ? 'All' : 'Under Review')}
+          role="button"
+          tabIndex={0}
+          onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setStatusFilter(statusFilter === 'Under Review' ? 'All' : 'Under Review') } }}
+          title="Filter: Under Review"
+        >
           <div className="volunteer-kpi-card__icon">
             <Clock size={20} />
           </div>
@@ -246,7 +245,14 @@ export default function BeneficiaryRequestsPage() {
           </div>
         </div>
 
-        <div className="volunteer-kpi-card volunteer-kpi-card--completed">
+        <div 
+          className={`volunteer-kpi-card volunteer-kpi-card--completed volunteer-kpi-card--clickable ${statusFilter === 'Approved' ? 'volunteer-kpi-card--active' : ''}`}
+          onClick={() => setStatusFilter(statusFilter === 'Approved' ? 'All' : 'Approved')}
+          role="button"
+          tabIndex={0}
+          onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setStatusFilter(statusFilter === 'Approved' ? 'All' : 'Approved') } }}
+          title="Filter: Approved Requests"
+        >
           <div className="volunteer-kpi-card__icon">
             <CheckCircle size={20} />
           </div>
@@ -256,7 +262,14 @@ export default function BeneficiaryRequestsPage() {
           </div>
         </div>
 
-        <div className="volunteer-kpi-card volunteer-kpi-card--ongoing">
+        <div 
+          className={`volunteer-kpi-card volunteer-kpi-card--ongoing volunteer-kpi-card--clickable ${statusFilter === 'Completed' ? 'volunteer-kpi-card--active' : ''}`}
+          onClick={() => setStatusFilter(statusFilter === 'Completed' ? 'All' : 'Completed')}
+          role="button"
+          tabIndex={0}
+          onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setStatusFilter(statusFilter === 'Completed' ? 'All' : 'Completed') } }}
+          title="Filter: Completed Relief"
+        >
           <div className="volunteer-kpi-card__icon">
             <CheckCircle size={20} />
           </div>
@@ -266,7 +279,14 @@ export default function BeneficiaryRequestsPage() {
           </div>
         </div>
 
-        <div className="volunteer-kpi-card volunteer-kpi-card--hours">
+        <div 
+          className={`volunteer-kpi-card volunteer-kpi-card--hours volunteer-kpi-card--clickable ${statusFilter === 'All' ? 'volunteer-kpi-card--active' : ''}`}
+          onClick={() => setStatusFilter('All')}
+          role="button"
+          tabIndex={0}
+          onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setStatusFilter('All') } }}
+          title="Filter: All Requests"
+        >
           <div className="volunteer-kpi-card__icon">
             <AlertCircle size={20} />
           </div>
@@ -284,7 +304,6 @@ export default function BeneficiaryRequestsPage() {
             type="button"
             className="btn btn--sm btn--primary"
             onClick={() => {
-              setEditingRequest(null)
               setForm(emptyForm)
               setSubmitError('')
               setShowForm(true)
@@ -436,147 +455,152 @@ export default function BeneficiaryRequestsPage() {
       {/* Create Request Modal */}
       {showForm && (
         <div className="admin-modal-overlay" onClick={() => !saving && setShowForm(false)}>
-          <div className="admin-modal admin-modal--wide" onClick={(e) => e.stopPropagation()}>
+          <div className="admin-modal beneficiary-request-modal" onClick={(e) => e.stopPropagation()}>
             <ModalHeader 
               title="New Assistance Request" 
+              subtitle="Submit a relief request for your barangay"
               onClose={() => {
                 if (!saving) {
                   setShowForm(false)
                   setForm(emptyForm)
+                  setSubmitError('')
                 }
               }} 
             />
-            <form onSubmit={handleCreate} className="beneficiary-request-form">
-              {submitError ? (
-                <p role="alert" style={{ color: '#c0392b', marginBottom: '1rem', padding: '0.75rem', background: '#fee', borderRadius: '6px', fontSize: '0.875rem' }}>
-                  {submitError}
-                </p>
-              ) : null}
+            <div className="beneficiary-request-modal__body">
+              <form onSubmit={handleCreate} className="beneficiary-request-form">
+                {submitError ? (
+                  <p role="alert" style={{ color: '#c0392b', marginBottom: '1rem', padding: '0.75rem', background: '#fee', borderRadius: '6px', fontSize: '0.875rem' }}>
+                    {submitError}
+                  </p>
+                ) : null}
 
-              {/* Step 1: Calamity/Event Type */}
-              <fieldset className="beneficiary-form-section">
-                <legend>1. Reason for Assistance Request</legend>
-                <p className="beneficiary-form-hint">
-                  Select the calamity experienced or the program/mission needed.
-                </p>
-                <label>
-                  <Req required>Type of Calamity/Program</Req>
-                  <select
-                    required
-                    value={form.calamityType}
-                    onChange={(e) => setForm({ ...form, calamityType: e.target.value, customCalamity: '' })}
-                  >
-                    <option value="">Select reason...</option>
-                    <optgroup label="Calamity/Disaster">
-                      {CALAMITY_TYPES.map((type) => (
-                        <option key={type} value={type}>{type}</option>
-                      ))}
-                    </optgroup>
-                    <optgroup label="Mission/Program">
-                      {MISSION_TYPES.map((type) => (
-                        <option key={type} value={type}>{type}</option>
-                      ))}
-                    </optgroup>
-                    <option value="Other">Other (Please specify)</option>
-                  </select>
-                </label>
-                
-                {form.calamityType === 'Other' && (
+                {/* Step 1: Calamity/Event Type */}
+                <fieldset className="beneficiary-form-section">
+                  <legend>1. Reason for Assistance Request</legend>
+                  <p className="beneficiary-form-hint">
+                    Select the calamity experienced or the program/mission needed.
+                  </p>
                   <label>
-                    <Req required>Specify Calamity/Program Type</Req>
-                    <input
-                      type="text"
+                    <Req required>Type of Calamity/Program</Req>
+                    <select
                       required
-                      placeholder="e.g., Community Earthquake Preparedness"
-                      value={form.customCalamity}
-                      onChange={(e) => setForm({ ...form, customCalamity: e.target.value })}
+                      value={form.calamityType}
+                      onChange={(e) => setForm({ ...form, calamityType: e.target.value, customCalamity: '' })}
+                    >
+                      <option value="">Select reason...</option>
+                      <optgroup label="Calamity/Disaster">
+                        {CALAMITY_TYPES.map((type) => (
+                          <option key={type} value={type}>{type}</option>
+                        ))}
+                      </optgroup>
+                      <optgroup label="Mission/Program">
+                        {MISSION_TYPES.map((type) => (
+                          <option key={type} value={type}>{type}</option>
+                        ))}
+                      </optgroup>
+                      <option value="Other">Other (Please specify)</option>
+                    </select>
+                  </label>
+                  
+                  {form.calamityType === 'Other' && (
+                    <label>
+                      <Req required>Specify Calamity/Program Type</Req>
+                      <input
+                        type="text"
+                        required
+                        placeholder="e.g., Community Earthquake Preparedness"
+                        value={form.customCalamity}
+                        onChange={(e) => setForm({ ...form, customCalamity: e.target.value })}
+                      />
+                    </label>
+                  )}
+                </fieldset>
+
+                {/* Step 2: Type of Needs (shared Admin catalog) */}
+                <fieldset className="beneficiary-form-section">
+                  <legend>2. Type of Needs</legend>
+                  <p className="beneficiary-form-hint">
+                    Select the types of needs for this request.
+                  </p>
+                  <NeedsPicker
+                    required
+                    value={form.selectedNeeds}
+                    onChange={(selectedNeeds) => setForm({ ...form, selectedNeeds })}
+                    error={!form.selectedNeeds.length ? 'Select at least one type of need.' : ''}
+                    showNote={false}
+                    label="Type of Needs"
+                    initialVisible={8}
+                  />
+                </fieldset>
+
+                {/* Step 3: Families Affected */}
+                <fieldset className="beneficiary-form-section">
+                  <legend>3. Impact Assessment</legend>
+                  <p className="beneficiary-form-hint">
+                    Help us understand the scale of assistance needed.
+                  </p>
+                  <label>
+                    <Req required>Number of Families Affected</Req>
+                    <input
+                      type="number"
+                      min="1"
+                      required
+                      placeholder="e.g., 50"
+                      value={form.familiesAffected}
+                      onChange={(e) => setForm({ ...form, familiesAffected: e.target.value })}
+                      style={{ fontSize: '1.125rem', padding: '0.875rem' }}
+                    />
+                    <span className="field-hint">Enter the approximate number of families in need of assistance</span>
+                  </label>
+                </fieldset>
+
+                {/* Step 4: Priority & Notes */}
+                <fieldset className="beneficiary-form-section">
+                  <legend>4. Priority & Additional Information</legend>
+                  <label>
+                    Priority Level
+                    <select
+                      value={form.priority}
+                      onChange={(e) => setForm({ ...form, priority: e.target.value })}
+                    >
+                      <option value="Low">Low - Can wait</option>
+                      <option value="Medium">Medium - Normal urgency</option>
+                      <option value="High">High - Urgent</option>
+                      <option value="Critical">Critical - Immediate need</option>
+                    </select>
+                    <span className="field-hint">Select the urgency level of this request</span>
+                  </label>
+                  <label>
+                    Additional Notes/Details
+                    <textarea
+                      rows={5}
+                      placeholder="Provide any additional information about the situation, number of families affected, special circumstances, etc."
+                      value={form.notes}
+                      onChange={(e) => setForm({ ...form, notes: e.target.value })}
                     />
                   </label>
-                )}
-              </fieldset>
+                </fieldset>
 
-              {/* Step 2: Type of Needs (shared Admin catalog) */}
-              <fieldset className="beneficiary-form-section">
-                <legend>2. Type of Needs</legend>
-                <p className="beneficiary-form-hint">
-                  Select the types of needs for this request.
-                </p>
-                <NeedsPicker
-                  required
-                  value={form.selectedNeeds}
-                  onChange={(selectedNeeds) => setForm({ ...form, selectedNeeds })}
-                  error={!form.selectedNeeds.length ? 'Select at least one type of need.' : ''}
-                  showNote={false}
-                  label="Type of Needs"
-                  initialVisible={8}
-                />
-              </fieldset>
-
-              {/* Step 3: Families Affected */}
-              <fieldset className="beneficiary-form-section">
-                <legend>3. Impact Assessment</legend>
-                <p className="beneficiary-form-hint">
-                  Help us understand the scale of assistance needed.
-                </p>
-                <label>
-                  <Req required>Number of Families Affected</Req>
-                  <input
-                    type="number"
-                    min="1"
-                    required
-                    placeholder="e.g., 50"
-                    value={form.familiesAffected}
-                    onChange={(e) => setForm({ ...form, familiesAffected: e.target.value })}
-                    style={{ fontSize: '1.125rem', padding: '0.875rem' }}
-                  />
-                  <span className="field-hint">Enter the approximate number of families in need of assistance</span>
-                </label>
-              </fieldset>
-
-              {/* Step 4: Priority & Notes */}
-              <fieldset className="beneficiary-form-section">
-                <legend>4. Priority & Additional Information</legend>
-                <label>
-                  Priority Level
-                  <select
-                    value={form.priority}
-                    onChange={(e) => setForm({ ...form, priority: e.target.value })}
+                <div className="admin-modal__actions">
+                  <button type="submit" className="btn btn--primary" disabled={saving}>
+                    Submit Request
+                  </button>
+                  <button 
+                    type="button" 
+                    className="btn btn--ghost" 
+                    onClick={() => {
+                      setShowForm(false)
+                      setForm(emptyForm)
+                      setSubmitError('')
+                    }} 
+                    disabled={saving}
                   >
-                    <option value="Low">Low - Can wait</option>
-                    <option value="Medium">Medium - Normal urgency</option>
-                    <option value="High">High - Urgent</option>
-                    <option value="Critical">Critical - Immediate need</option>
-                  </select>
-                  <span className="field-hint">Select the urgency level of this request</span>
-                </label>
-                <label>
-                  Additional Notes/Details
-                  <textarea
-                    rows={5}
-                    placeholder="Provide any additional information about the situation, number of families affected, special circumstances, etc."
-                    value={form.notes}
-                    onChange={(e) => setForm({ ...form, notes: e.target.value })}
-                  />
-                </label>
-              </fieldset>
-
-              <div className="admin-modal__actions">
-                <button type="submit" className="btn btn--primary" disabled={saving}>
-                  {saving ? 'Saving…' : 'Submit Request'}
-                </button>
-                <button 
-                  type="button" 
-                  className="btn btn--ghost" 
-                  onClick={() => {
-                    setShowForm(false)
-                    setForm(emptyForm)
-                  }} 
-                  disabled={saving}
-                >
-                  Cancel
-                </button>
-              </div>
-            </form>
+                    Cancel
+                  </button>
+                </div>
+              </form>
+            </div>
           </div>
         </div>
       )}

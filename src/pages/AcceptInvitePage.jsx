@@ -285,7 +285,7 @@ export default function AcceptInvitePage() {
                   disabled={submitting || !form.acceptedTerms || !form.acceptedPrivacy}
                   title={!form.acceptedTerms || !form.acceptedPrivacy ? 'Please accept both agreements above to submit application' : ''}
                 >
-                  {submitting ? 'Submitting…' : 'Submit application'}
+                  Submit application
                 </button>
               </form>
             </>

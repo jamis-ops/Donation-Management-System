@@ -20,7 +20,16 @@ const inventoryFilterConfig = {
   searchKeys: ['item', 'category'],
   filters: [
     { key: 'category', label: 'Category' },
-    { key: 'status', label: 'Stock Status', allLabel: 'All Stock' },
+    {
+      key: 'status',
+      label: 'Stock Status',
+      allLabel: 'All Stock',
+      match: (row, val) => {
+        if (!val || val === 'all') return true
+        const level = row.stockLevel || row.status
+        return level === val
+      },
+    },
   ],
 }
 
@@ -475,16 +484,44 @@ export default function InventoryManagement() {
         <>
           {invSummary && (
             <div className="stock-summary stock-summary--4">
-              <div className="stock-summary__card">
+              <div
+                className={`stock-summary__card stock-summary__card--clickable ${invFilters.values.status === 'all' ? 'stock-summary__card--active' : ''}`}
+                onClick={() => invFilters.setValue('status', 'all')}
+                role="button"
+                tabIndex={0}
+                onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); invFilters.setValue('status', 'all') } }}
+                title="View all tracked inventory items"
+              >
                 <strong>{invSummary.totalItems}</strong><span>Items Tracked</span>
               </div>
-              <div className="stock-summary__card stock-summary__card--sufficient">
+              <div
+                className={`stock-summary__card stock-summary__card--sufficient stock-summary__card--clickable ${invFilters.values.status === 'Sufficient' ? 'stock-summary__card--active' : ''}`}
+                onClick={() => invFilters.setValue('status', invFilters.values.status === 'Sufficient' ? 'all' : 'Sufficient')}
+                role="button"
+                tabIndex={0}
+                onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); invFilters.setValue('status', invFilters.values.status === 'Sufficient' ? 'all' : 'Sufficient') } }}
+                title="Filter by Sufficient stock items"
+              >
                 <strong>{invSummary.sufficientCount}</strong><span>Sufficient</span>
               </div>
-              <div className="stock-summary__card stock-summary__card--moderate">
+              <div
+                className={`stock-summary__card stock-summary__card--moderate stock-summary__card--clickable ${invFilters.values.status === 'Moderate' ? 'stock-summary__card--active' : ''}`}
+                onClick={() => invFilters.setValue('status', invFilters.values.status === 'Moderate' ? 'all' : 'Moderate')}
+                role="button"
+                tabIndex={0}
+                onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); invFilters.setValue('status', invFilters.values.status === 'Moderate' ? 'all' : 'Moderate') } }}
+                title="Filter by Moderate stock items"
+              >
                 <strong>{invSummary.moderateCount}</strong><span>Moderate</span>
               </div>
-              <div className="stock-summary__card stock-summary__card--low">
+              <div
+                className={`stock-summary__card stock-summary__card--low stock-summary__card--clickable ${invFilters.values.status === 'Low' ? 'stock-summary__card--active' : ''}`}
+                onClick={() => invFilters.setValue('status', invFilters.values.status === 'Low' ? 'all' : 'Low')}
+                role="button"
+                tabIndex={0}
+                onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); invFilters.setValue('status', invFilters.values.status === 'Low' ? 'all' : 'Low') } }}
+                title="Filter by Low stock items"
+              >
                 <strong>{invSummary.lowCount}</strong><span>Low Stock</span>
               </div>
             </div>
@@ -522,16 +559,44 @@ export default function InventoryManagement() {
         <>
           {rpkSummary && (
             <div className="stock-summary stock-summary--4">
-              <div className="stock-summary__card">
+              <div
+                className={`stock-summary__card stock-summary__card--clickable ${rpkFilters.values.status === 'all' ? 'stock-summary__card--active' : ''}`}
+                onClick={() => rpkFilters.setValue('status', 'all')}
+                role="button"
+                tabIndex={0}
+                onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); rpkFilters.setValue('status', 'all') } }}
+                title="View all repacking batches"
+              >
                 <strong>{rpkSummary.total}</strong><span>Total Batches</span>
               </div>
-              <div className="stock-summary__card stock-summary__card--moderate">
+              <div
+                className={`stock-summary__card stock-summary__card--moderate stock-summary__card--clickable ${rpkFilters.values.status === 'Scheduled' ? 'stock-summary__card--active' : ''}`}
+                onClick={() => rpkFilters.setValue('status', rpkFilters.values.status === 'Scheduled' ? 'all' : 'Scheduled')}
+                role="button"
+                tabIndex={0}
+                onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); rpkFilters.setValue('status', rpkFilters.values.status === 'Scheduled' ? 'all' : 'Scheduled') } }}
+                title="Filter by Scheduled batches"
+              >
                 <strong>{rpkSummary.scheduled}</strong><span>Scheduled</span>
               </div>
-              <div className="stock-summary__card">
+              <div
+                className={`stock-summary__card stock-summary__card--clickable ${rpkFilters.values.status === 'In Progress' ? 'stock-summary__card--active' : ''}`}
+                onClick={() => rpkFilters.setValue('status', rpkFilters.values.status === 'In Progress' ? 'all' : 'In Progress')}
+                role="button"
+                tabIndex={0}
+                onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); rpkFilters.setValue('status', rpkFilters.values.status === 'In Progress' ? 'all' : 'In Progress') } }}
+                title="Filter by In Progress batches"
+              >
                 <strong>{rpkSummary.inProgress}</strong><span>In Progress</span>
               </div>
-              <div className="stock-summary__card stock-summary__card--sufficient">
+              <div
+                className={`stock-summary__card stock-summary__card--sufficient stock-summary__card--clickable ${rpkFilters.values.status === 'Completed' ? 'stock-summary__card--active' : ''}`}
+                onClick={() => rpkFilters.setValue('status', rpkFilters.values.status === 'Completed' ? 'all' : 'Completed')}
+                role="button"
+                tabIndex={0}
+                onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); rpkFilters.setValue('status', rpkFilters.values.status === 'Completed' ? 'all' : 'Completed') } }}
+                title="Filter by Completed batches"
+              >
                 <strong>{rpkSummary.completed}</strong><span>Completed</span>
               </div>
             </div>

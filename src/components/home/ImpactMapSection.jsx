@@ -1,8 +1,8 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { MapContainer, TileLayer, Marker, Tooltip, useMap } from 'react-leaflet'
 import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
-import { MapPin, RefreshCw, Filter, Sparkles, Calendar } from 'lucide-react'
+import { MapPin, RefreshCw, Calendar, Sparkles } from 'lucide-react'
 import { publicDistributionsApi } from '../../api/resources'
 import SectionHeading from '../shared/SectionHeading'
 import Reveal from '../shared/Reveal'
@@ -71,8 +71,6 @@ export default function ImpactMapSection() {
   const [distributions, setDistributions] = useState([])
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
-  const [statusFilter, setStatusFilter] = useState('all')
-  const [programFilter, setProgramFilter] = useState('all')
 
   const fetchDistributions = async (isManual = false) => {
     if (isManual) setRefreshing(true)
@@ -110,36 +108,20 @@ export default function ImpactMapSection() {
     }
   }, [])
 
-  // Program options derived from live records
-  const availablePrograms = useMemo(() => {
-    const set = new Set()
-    distributions.forEach((d) => {
-      if (d.program) set.add(d.program)
-    })
-    return ['all', ...Array.from(set)]
-  }, [distributions])
-
-  // Filtered locations
-  const filteredDistributions = useMemo(() => {
-    return distributions.filter((d) => {
-      if (statusFilter === 'active' && d.status !== 'Active Outreach') return false
-      if (statusFilter === 'scheduled' && d.status !== 'Scheduled') return false
-      if (statusFilter === 'completed' && d.status !== 'Completed') return false
-      if (programFilter !== 'all' && d.program !== programFilter) return false
-      return true
-    })
-  }, [distributions, statusFilter, programFilter])
-
   return (
     <section id="map" className="section map-section">
       <div className="container">
         <Reveal>
-          <div className="map-section-header">
-            <SectionHeading
-              eyebrow="Community Reach"
-              title="Where We Serve Across Cebu"
-              description="Explore communities and service locations where Rise Above conducts active outreach and community programs."
-            />
+          <SectionHeading
+            eyebrow="Community Reach"
+            title="Where We Serve Across Cebu"
+            description="Explore communities and service locations where Rise Above conducts active outreach and community programs."
+            align="center"
+          />
+        </Reveal>
+
+        <Reveal delay={40}>
+          <div className="map-meta-bar">
             <div className="map-live-status-badge">
               <span className="map-live-status-dot"></span>
               <span>Live Distribution Map</span>
@@ -156,69 +138,8 @@ export default function ImpactMapSection() {
           </div>
         </Reveal>
 
-        {/* Minimal Clean Filter Controls */}
-        <Reveal delay={60}>
-          <div className="map-controls-panel map-controls-panel--compact">
-            <div className="map-filters-group">
-              <span className="map-filters-label"><Filter size={13} /> View:</span>
-              <div className="map-filters" role="group" aria-label="Filter by outreach status">
-                <button
-                  type="button"
-                  className={`map-filter ${statusFilter === 'all' ? 'map-filter--active' : ''}`}
-                  onClick={() => setStatusFilter('all')}
-                >
-                  All Locations ({distributions.length})
-                </button>
-                <button
-                  type="button"
-                  className={`map-filter ${statusFilter === 'active' ? 'map-filter--active' : ''}`}
-                  onClick={() => setStatusFilter('active')}
-                >
-                  <span className="filter-dot filter-dot--active"></span>
-                  Active Outreach ({distributions.filter((d) => d.status === 'Active Outreach').length})
-                </button>
-                <button
-                  type="button"
-                  className={`map-filter ${statusFilter === 'scheduled' ? 'map-filter--active' : ''}`}
-                  onClick={() => setStatusFilter('scheduled')}
-                >
-                  <span className="filter-dot filter-dot--transit"></span>
-                  Scheduled ({distributions.filter((d) => d.status === 'Scheduled').length})
-                </button>
-                <button
-                  type="button"
-                  className={`map-filter ${statusFilter === 'completed' ? 'map-filter--active' : ''}`}
-                  onClick={() => setStatusFilter('completed')}
-                >
-                  <span className="filter-dot filter-dot--completed"></span>
-                  Completed ({distributions.filter((d) => d.status === 'Completed').length})
-                </button>
-              </div>
-            </div>
-
-            {availablePrograms.length > 2 && (
-              <div className="map-search-row" style={{ borderTop: 'none', paddingTop: 0 }}>
-                <div className="map-program-select-wrap">
-                  <label htmlFor="map-program-filter">Filter by Program:</label>
-                  <select
-                    id="map-program-filter"
-                    value={programFilter}
-                    onChange={(e) => setProgramFilter(e.target.value)}
-                    className="map-program-select"
-                  >
-                    <option value="all">All Programs & Projects</option>
-                    {availablePrograms.filter((p) => p !== 'all').map((prog) => (
-                      <option key={prog} value={prog}>{prog}</option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-            )}
-          </div>
-        </Reveal>
-
         {/* Clean, Focused Map Container */}
-        <Reveal className="map-wrapper" delay={100}>
+        <Reveal className="map-wrapper" delay={80}>
           <MapContainer
             center={[10.3157, 123.8854]}
             zoom={10}
@@ -229,8 +150,8 @@ export default function ImpactMapSection() {
               attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
               url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
             />
-            <MapController locations={filteredDistributions} />
-            {filteredDistributions.map((dist) => {
+            <MapController locations={distributions} />
+            {distributions.map((dist) => {
               const badge = getStatusBadgeStyle(dist.status)
               const icon = createStatusIcon(dist.status)
 

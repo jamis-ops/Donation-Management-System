@@ -1382,8 +1382,8 @@ try {
       'skills_other' => 'Basic conversational Cebuano & Tagalog',
       'availability' => 'Weekends & Friday Afternoons',
       'status' => 'Approved',
-      'hours' => 48,
-      'required_hours' => 60,
+      'hours' => 0,
+      'required_hours' => 0,
     ],
     [
       'code' => 'VOL-6002',
@@ -1397,8 +1397,8 @@ try {
       'skills_other' => 'Professional Driver License (Codes 1, 2, 3)',
       'availability' => 'Flexible / On-Call for Calamity Response',
       'status' => 'Active',
-      'hours' => 65,
-      'required_hours' => 60,
+      'hours' => 0,
+      'required_hours' => 0,
     ],
     [
       'code' => 'VOL-6003',
@@ -1412,8 +1412,8 @@ try {
       'skills_other' => 'Licensed Professional Teacher (Elementary)',
       'availability' => 'Saturday Mornings',
       'status' => 'Active',
-      'hours' => 84,
-      'required_hours' => 80,
+      'hours' => 0,
+      'required_hours' => 0,
     ],
     [
       'code' => 'VOL-6004',
@@ -1427,8 +1427,8 @@ try {
       'skills_other' => 'Certified Forklift Operator',
       'availability' => 'Weekdays 8:00 AM - 12:00 PM',
       'status' => 'Assigned',
-      'hours' => 28,
-      'required_hours' => 50,
+      'hours' => 0,
+      'required_hours' => 0,
     ],
     [
       'code' => 'VOL-6005',
@@ -1443,7 +1443,7 @@ try {
       'availability' => 'Sundays Full Day',
       'status' => 'Pending Review',
       'hours' => 0,
-      'required_hours' => 40,
+      'required_hours' => 0,
     ],
     [
       'code' => 'VOL-6006',
@@ -1457,8 +1457,8 @@ try {
       'skills_other' => null,
       'availability' => 'Weekends',
       'status' => 'Approved',
-      'hours' => 20,
-      'required_hours' => 40,
+      'hours' => 0,
+      'required_hours' => 0,
     ],
   ];
 

@@ -31,7 +31,11 @@
 
 /* ─── 2. MODAL HEADER ────────────────────────────────────── */
 
-.repacking-modal-multi .admin-modal__header {
+.repacking-modal-multi .admin-modal__header,
+.repacking-modal-vertical .admin-modal__header {
+  margin: 0 !important;
+  top: 0 !important;
+  position: static !important;
   flex-shrink: 0;
   display: flex;
   align-items: flex-start;

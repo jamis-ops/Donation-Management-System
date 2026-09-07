@@ -76,13 +76,34 @@ function can_volunteer_set_distribution_status(?string $current, string $next): 
   ], true);
 }
 
-function map_task(PDO $pdo, array $row): array
+function is_intern_assignee(PDO $pdo, ?int $userId, ?string $assigneeName, ?int $volunteerId = null): bool
 {
-  $dutyStart = $row['duty_start'] ?? null;
-  $dutyEnd = $row['duty_end'] ?? null;
-  $dutyHours = isset($row['duty_hours']) && $row['duty_hours'] !== null ? (float) $row['duty_hours'] : null;
-  $completedAt = $row['completed_at'] ?? null;
-  $completedTs = $completedAt ? strtotime((string) $completedAt) : false;
+  if ($volunteerId) {
+    $st = $pdo->prepare("SELECT applicant_type FROM volunteers WHERE id = ? LIMIT 1");
+    $st->execute([$volunteerId]);
+    $type = $st->fetchColumn();
+    if ($type && strcasecmp((string) $type, 'Intern') === 0) return true;
+  }
+  if ($userId) {
+    $st = $pdo->prepare("SELECT applicant_type FROM volunteers WHERE user_id = ? LIMIT 1");
+    $st->execute([$userId]);
+    $type = $st->fetchColumn();
+    if ($type && strcasecmp((string) $type, 'Intern') === 0) return true;
+  }
+  if ($assigneeName) {
+    $st = $pdo->prepare("SELECT applicant_type FROM volunteers WHERE full_name = ? LIMIT 1");
+    $st->execute([$assigneeName]);
+    $type = $st->fetchColumn();
+    if ($type && strcasecmp((string) $type, 'Intern') === 0) return true;
+  }
+  return false;
+}
+
+function map_task(PDO $pdo, ?array $row): ?array
+{
+  if (!$row) {
+    return null;
+  }
   $column = $row['board_column'] ?? 'todo';
   $statusLabels = [
     'todo' => 'To Do',
@@ -90,30 +111,39 @@ function map_task(PDO $pdo, array $row): array
     'review' => 'In Review',
     'done' => 'Done',
   ];
+  $completedAt = !empty($row['completed_at']) ? $row['completed_at'] : null;
+  $completedTs = $completedAt ? strtotime((string) $completedAt) : false;
+  $dutyStart = $row['duty_start'] ?? null;
+  $dutyEnd = $row['duty_end'] ?? null;
+  $rawDutyHours = isset($row['duty_hours']) && $row['duty_hours'] !== null ? (float) $row['duty_hours'] : null;
+
+  $assigneeUserId = !empty($row['assignee_user_id']) ? (int) $row['assignee_user_id'] : null;
+  $assigneeName = $row['assignee'] ?? null;
+  $isIntern = is_intern_assignee($pdo, $assigneeUserId, $assigneeName);
+
+  $dutyHours = $isIntern ? $rawDutyHours : null;
+  $dutyStartClean = $isIntern ? ($dutyStart ?: '') : '';
+  $dutyEndClean = $isIntern ? ($dutyEnd ?: '') : '';
+  $dutyLabelClean = $isIntern ? duty_label($dutyStart, $dutyEnd, $dutyHours) : '';
 
   $distId = !empty($row['distribution_id']) ? (int) $row['distribution_id'] : null;
-  $distCode = null;
-  $distStatus = null;
-  $distLabel = null;
-  $distLocation = null;
+  $distCode = '';
+  $distStatus = '';
+  $distLabel = '';
+  $distLocation = '';
   if ($distId) {
-    $dStmt = $pdo->prepare('SELECT id, code, status, event_name, location FROM distributions WHERE id = ? LIMIT 1');
+    $dStmt = $pdo->prepare('SELECT code, event_name, location, status FROM distributions WHERE id = ? LIMIT 1');
     $dStmt->execute([$distId]);
-    $dist = $dStmt->fetch();
-    if ($dist) {
-      $distCode = (string) ($dist['code'] ?? '');
-      $distStatus = (string) ($dist['status'] ?? '');
-      $event = trim((string) ($dist['event_name'] ?? ''));
-      $loc = trim((string) ($dist['location'] ?? ''));
-      $distLocation = $loc;
-      $distLabel = $event !== '' ? $event : trim($distCode . ($loc !== '' ? " — {$loc}" : ''));
-    } else {
-      $distId = null;
+    $distRow = $dStmt->fetch();
+    if ($distRow) {
+      $distCode = (string) ($distRow['code'] ?? "DST-{$distId}");
+      $distStatus = (string) ($distRow['status'] ?? '');
+      $distLabel = (string) ($distRow['event_name'] ?: ($distRow['location'] ?: 'Distribution'));
+      $distLocation = (string) ($distRow['location'] ?? '');
     }
   }
-
-  $moduleStr = strtolower(trim((string) ($row['module'] ?? '')));
-  $titleStr = strtolower(trim((string) ($row['title'] ?? '')));
+  $moduleStr = strtolower((string) ($row['module'] ?? ''));
+  $titleStr = strtolower((string) ($row['title'] ?? ''));
   $isDistType = str_contains($moduleStr, 'distribution') ||
                 str_contains($moduleStr, 'logistics') ||
                 str_contains($moduleStr, 'delivery') ||
@@ -128,7 +158,7 @@ function map_task(PDO $pdo, array $row): array
     'dbId' => (int) $row['id'],
     'title' => $row['title'],
     'assignee' => $row['assignee'],
-    'assigneeUserId' => !empty($row['assignee_user_id']) ? (int) $row['assignee_user_id'] : null,
+    'assigneeUserId' => $assigneeUserId,
     'distributionId' => $isDistTask ? $distId : null,
     'distributionCode' => $isDistTask ? $distCode : '',
     'distributionStatus' => $isDistTask ? $distStatus : '',
@@ -140,10 +170,10 @@ function map_task(PDO $pdo, array $row): array
     'priority' => $row['priority'],
     'due' => format_date($row['due_date']),
     'dueDate' => $row['due_date'],
-    'dutyStart' => $dutyStart ?: '',
-    'dutyEnd' => $dutyEnd ?: '',
+    'dutyStart' => $dutyStartClean,
+    'dutyEnd' => $dutyEndClean,
     'dutyHours' => $dutyHours,
-    'dutyLabel' => duty_label($dutyStart, $dutyEnd, $dutyHours),
+    'dutyLabel' => $dutyLabelClean,
     'module' => $row['module'],
     'requiredSkills' => decode_required_skills($row['required_skills_json'] ?? null),
     'boardColumn' => $column,
@@ -333,21 +363,20 @@ if ($method === 'POST') {
     }
   }
 
-  $isVolunteerTask = !empty($volunteerIds) || !empty($body['volunteerId']) || strcasecmp((string) $module, 'Volunteer') === 0 || $distributionId;
-  // Duty hours are required for volunteer assignments (hours tracking).
-  if ($isVolunteerTask && ($assignee || $assigneeUserId || !empty($volunteerIds)) && !$dutyStart && ($dutyHours === null || $dutyHours <= 0)) {
-    json_response(['ok' => false, 'error' => 'Duty hours are required: set a start/end time or total hours.'], 400);
-  }
-
   if (count($volunteerIds) > 1) {
     $created = [];
     foreach ($volunteerIds as $vId) {
       $tCode = generate_code('TSK');
-      $vol = $pdo->prepare('SELECT full_name, user_id FROM volunteers WHERE id = ? LIMIT 1');
+      $vol = $pdo->prepare('SELECT full_name, user_id, applicant_type FROM volunteers WHERE id = ? LIMIT 1');
       $vol->execute([$vId]);
       $volRow = $vol->fetch();
       $vAssignee = $volRow ? $volRow['full_name'] : null;
       $vAssigneeUserId = ($volRow && $volRow['user_id']) ? (int) $volRow['user_id'] : null;
+      $isVIntern = ($volRow && strcasecmp((string)($volRow['applicant_type'] ?? ''), 'Intern') === 0);
+
+      $tDutyStart = $isVIntern ? $dutyStart : null;
+      $tDutyEnd = $isVIntern ? $dutyEnd : null;
+      $tDutyHours = $isVIntern ? $dutyHours : null;
 
       $stmt = $pdo->prepare('INSERT INTO tasks (code, title, assignee, assignee_user_id, distribution_id, priority, due_date, duty_start, duty_end, duty_hours, module, required_skills_json, board_column) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)');
       $stmt->execute([
@@ -358,9 +387,9 @@ if ($method === 'POST') {
         $distributionId,
         $body['priority'] ?? 'Medium',
         $body['dueDate'] ?? null,
-        $dutyStart,
-        $dutyEnd,
-        $dutyHours,
+        $tDutyStart,
+        $tDutyEnd,
+        $tDutyHours,
         $module,
         encode_required_skills($body['requiredSkills'] ?? $body['skills'] ?? null),
         $column,
@@ -372,7 +401,7 @@ if ($method === 'POST') {
       $created[] = $task;
 
       if ($vAssigneeUserId) {
-        $duty = duty_label($dutyStart, $dutyEnd, $dutyHours);
+        $duty = $isVIntern ? duty_label($tDutyStart, $tDutyEnd, $tDutyHours) : '';
         create_notification(
           $pdo,
           'task_assigned',
@@ -386,6 +415,12 @@ if ($method === 'POST') {
     json_response(['ok' => true, 'data' => $created[0], 'created' => $created, 'count' => count($created)], 201);
   }
 
+  $singleVolId = !empty($body['volunteerId']) ? (int) $body['volunteerId'] : (count($volunteerIds) === 1 ? $volunteerIds[0] : null);
+  $isSingleIntern = is_intern_assignee($pdo, $assigneeUserId, $assignee, $singleVolId);
+  $finalDutyStart = $isSingleIntern ? $dutyStart : null;
+  $finalDutyEnd = $isSingleIntern ? $dutyEnd : null;
+  $finalDutyHours = $isSingleIntern ? $dutyHours : null;
+
   $stmt = $pdo->prepare('INSERT INTO tasks (code, title, assignee, assignee_user_id, distribution_id, priority, due_date, duty_start, duty_end, duty_hours, module, required_skills_json, board_column) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)');
   $stmt->execute([
     $code,
@@ -395,9 +430,9 @@ if ($method === 'POST') {
     $distributionId,
     $body['priority'] ?? 'Medium',
     $body['dueDate'] ?? null,
-    $dutyStart,
-    $dutyEnd,
-    $dutyHours,
+    $finalDutyStart,
+    $finalDutyEnd,
+    $finalDutyHours,
     $module,
     encode_required_skills($body['requiredSkills'] ?? $body['skills'] ?? null),
     $column,
@@ -408,7 +443,7 @@ if ($method === 'POST') {
   $task = map_task($pdo, $stmt->fetch());
 
   if ($assigneeUserId) {
-    $duty = duty_label($dutyStart, $dutyEnd, $dutyHours);
+    $duty = $isSingleIntern ? duty_label($finalDutyStart, $finalDutyEnd, $finalDutyHours) : '';
     $roleStmt = $pdo->prepare('SELECT r.name FROM users u JOIN roles r ON r.id = u.role_id WHERE u.id = ?');
     $roleStmt->execute([$assigneeUserId]);
     $assigneeRole = (string) ($roleStmt->fetchColumn() ?: '');
@@ -571,11 +606,11 @@ if ($method === 'PUT') {
     $update = $pdo->prepare('UPDATE tasks SET board_column = ?, completed_at = CASE WHEN ? = \'done\' THEN COALESCE(completed_at, NOW()) ELSE NULL END WHERE id = ?');
     $update->execute([$column, $column, $id]);
 
-    // When completing, credit duty hours to volunteer record if assignee is a volunteer.
+    // When completing, credit duty hours to intern record if assignee is an intern.
     if ($column === 'done' && ($existing['board_column'] ?? '') !== 'done') {
       $hours = isset($existing['duty_hours']) ? (float) $existing['duty_hours'] : 0;
       if ($hours > 0 && !empty($existing['assignee_user_id'])) {
-        $pdo->prepare('UPDATE volunteers SET hours = hours + ? WHERE user_id = ?')
+        $pdo->prepare('UPDATE volunteers SET hours = hours + ? WHERE user_id = ? AND applicant_type = "Intern"')
           ->execute([$hours, (int) $existing['assignee_user_id']]);
       }
     }
@@ -590,9 +625,11 @@ if ($method === 'PUT') {
     : ($existing['assignee_user_id'] ? (int) $existing['assignee_user_id'] : null);
   $assignee = trim((string) ($body['assignee'] ?? $existing['assignee'] ?? ''));
 
+  $singleVolId = null;
   if (!empty($body['volunteerId'])) {
+    $singleVolId = (int) $body['volunteerId'];
     $vol = $pdo->prepare('SELECT full_name, user_id FROM volunteers WHERE id = ? LIMIT 1');
-    $vol->execute([(int) $body['volunteerId']]);
+    $vol->execute([$singleVolId]);
     $volRow = $vol->fetch();
     if ($volRow) {
       $assignee = $volRow['full_name'];
@@ -607,17 +644,22 @@ if ($method === 'PUT') {
     }
   }
 
-  // Preserve existing duty hours unless the request explicitly touches them.
+  $isAssigneeIntern = is_intern_assignee($pdo, $assigneeUserId, $assignee, $singleVolId);
+
+  // Preserve existing duty hours only for Interns. For volunteers, duty hours are always null.
   $dutyTouched = array_key_exists('dutyStart', $body) || array_key_exists('dutyEnd', $body) || array_key_exists('dutyHours', $body);
-  if ($dutyTouched) {
-    [$dutyStart, $dutyEnd, $dutyHours] = read_duty_fields($body);
-    if (($assignee || $assigneeUserId) && !$dutyStart && ($dutyHours === null || $dutyHours <= 0)) {
-      json_response(['ok' => false, 'error' => 'Duty hours are required: set a start/end time or total hours.'], 400);
+  if ($isAssigneeIntern) {
+    if ($dutyTouched) {
+      [$dutyStart, $dutyEnd, $dutyHours] = read_duty_fields($body);
+    } else {
+      $dutyStart = $existing['duty_start'] ?? null;
+      $dutyEnd = $existing['duty_end'] ?? null;
+      $dutyHours = isset($existing['duty_hours']) && $existing['duty_hours'] !== null ? (float) $existing['duty_hours'] : null;
     }
   } else {
-    $dutyStart = $existing['duty_start'] ?? null;
-    $dutyEnd = $existing['duty_end'] ?? null;
-    $dutyHours = isset($existing['duty_hours']) && $existing['duty_hours'] !== null ? (float) $existing['duty_hours'] : null;
+    $dutyStart = null;
+    $dutyEnd = null;
+    $dutyHours = null;
   }
 
   $completedAtSql = $column === 'done'
@@ -654,13 +696,13 @@ if ($method === 'PUT') {
     $id,
   ]);
 
-  if ($column === 'done' && ($existing['board_column'] ?? '') !== 'done' && $dutyHours && $assigneeUserId) {
-    $pdo->prepare('UPDATE volunteers SET hours = hours + ? WHERE user_id = ?')
+  if ($column === 'done' && ($existing['board_column'] ?? '') !== 'done' && $dutyHours && $assigneeUserId && $isAssigneeIntern) {
+    $pdo->prepare('UPDATE volunteers SET hours = hours + ? WHERE user_id = ? AND applicant_type = "Intern"')
       ->execute([(float) $dutyHours, (int) $assigneeUserId]);
   }
 
   if ($assigneeUserId && (int) $assigneeUserId !== (int) ($existing['assignee_user_id'] ?? 0)) {
-    $duty = duty_label($dutyStart, $dutyEnd, $dutyHours);
+    $duty = $isAssigneeIntern ? duty_label($dutyStart, $dutyEnd, $dutyHours) : '';
     // Route notification based on whether assignee is Staff or Volunteer.
     $roleStmt = $pdo->prepare('SELECT r.name FROM users u JOIN roles r ON r.id = u.role_id WHERE u.id = ?');
     $roleStmt->execute([$assigneeUserId]);

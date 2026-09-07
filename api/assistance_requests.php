@@ -541,17 +541,9 @@ if ($method === 'PUT') {
     }
   }
 
-  $newPriority = in_array($body['priority'] ?? $existing['priority'], ['Low', 'Medium', 'High', 'Critical'], true)
-    ? ($body['priority'] ?? $existing['priority'])
-    : $existing['priority'];
-
-  // Recalculate SLA if priority changes
+  // Priority is strictly read-only on update and preserved from the original submitted request
+  $newPriority = $existing['priority'] ?? 'Medium';
   $slaDeadline = $existing['sla_deadline'] ?? null;
-  if (($body['priority'] ?? null) !== null && ($body['priority'] ?? '') !== ($existing['priority'] ?? '')) {
-    $slaHours = ['Critical' => 4, 'High' => 24, 'Medium' => 72, 'Low' => 168];
-    $createdAt = strtotime($existing['created_at'] ?? $existing['request_date']);
-    $slaDeadline = date('Y-m-d H:i:s', $createdAt + ($slaHours[$newPriority] ?? 72) * 3600);
-  }
 
   // Calamity tags
   $calamityTags = $existing['calamity_tags'] ?? null;

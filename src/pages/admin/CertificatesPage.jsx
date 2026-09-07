@@ -110,7 +110,7 @@ export default function CertificatesPage() {
         recipient: vol.name,
         reference: vol.id,
         type: CERT_TYPES.includes(form.type) && form.type.includes('Volunteer') ? form.type : 'Certificate of Volunteer Service',
-        details: `In recognition of ${vol.hours} hours of dedicated volunteer service rendered to Rise Above Foundation programs, touching countless lives in our communities.`,
+        details: `In recognition of dedicated volunteer service rendered to Rise Above Foundation programs, touching countless lives in our communities.`,
       })
     } else {
       const donor = donors.find((d) => String(d.dbId) === key)
@@ -247,7 +247,14 @@ export default function CertificatesPage() {
       />
 
       <div className="admin-stats-grid admin-stats-grid--compact">
-        <div className="admin-stat-card">
+        <div
+          className={`admin-stat-card admin-stat-card--clickable ${filters.values.status === 'all' ? 'admin-stat-card--active' : ''}`}
+          onClick={() => filters.setValue('status', 'all')}
+          role="button"
+          tabIndex={0}
+          onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); filters.setValue('status', 'all') } }}
+          title="View all certificates"
+        >
           <div className="admin-stat-card__header">
             <span className="admin-stat-card__label">Total Certificates</span>
             <Award className="admin-stat-card__icon" size={15} />
@@ -256,7 +263,14 @@ export default function CertificatesPage() {
             <span className="admin-stat-card__value">{data.length}</span>
           </div>
         </div>
-        <div className="admin-stat-card">
+        <div
+          className={`admin-stat-card admin-stat-card--clickable ${filters.values.status === 'Generated' ? 'admin-stat-card--active' : ''}`}
+          onClick={() => filters.setValue('status', filters.values.status === 'Generated' ? 'all' : 'Generated')}
+          role="button"
+          tabIndex={0}
+          onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); filters.setValue('status', filters.values.status === 'Generated' ? 'all' : 'Generated') } }}
+          title="Filter by Generated certificates"
+        >
           <div className="admin-stat-card__header">
             <span className="admin-stat-card__label">Generated</span>
             <FileCheck className="admin-stat-card__icon" size={15} />
@@ -265,7 +279,14 @@ export default function CertificatesPage() {
             <span className="admin-stat-card__value">{data.filter((c) => c.status === 'Generated').length}</span>
           </div>
         </div>
-        <div className="admin-stat-card">
+        <div
+          className={`admin-stat-card admin-stat-card--clickable ${filters.values.status === 'Requested' ? 'admin-stat-card--active' : ''}`}
+          onClick={() => filters.setValue('status', filters.values.status === 'Requested' ? 'all' : 'Requested')}
+          role="button"
+          tabIndex={0}
+          onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); filters.setValue('status', filters.values.status === 'Requested' ? 'all' : 'Requested') } }}
+          title="Filter by Pending certificate requests"
+        >
           <div className="admin-stat-card__header">
             <span className="admin-stat-card__label">Pending Requests</span>
             <Clock className="admin-stat-card__icon" size={15} />
@@ -311,7 +332,7 @@ export default function CertificatesPage() {
                     <option value="">Choose a {form.recipientType.toLowerCase()}...</option>
                     {(form.recipientType === 'Volunteer' ? volunteers : donors).map((p) => (
                       <option key={p.dbId} value={p.dbId}>
-                        {p.name}{form.recipientType === 'Volunteer' ? ` — ${p.hours} hrs` : ` — ${p.totalDonated}`}
+                        {p.name}{form.recipientType === 'Volunteer' ? (p.applicantType === 'Intern' && p.hours ? ` — ${p.hours} hrs` : '') : ` — ${p.totalDonated}`}
                       </option>
                     ))}
                   </select>

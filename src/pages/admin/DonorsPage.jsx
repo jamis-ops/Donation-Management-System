@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react'
+import { Link } from 'react-router-dom'
 import { 
-  Eye, Pencil, Trash2, UserPlus, Building2, User, MapPin, 
+  Eye, Trash2, UserPlus, Building2, User, MapPin, 
   Mail, Phone, Globe, Coins, Heart, Calendar, ShieldAlert, 
   CheckCircle2, FileText, ExternalLink, Sparkles
 } from 'lucide-react'
@@ -11,7 +12,6 @@ import { DONOR_TYPES } from '../../constants/options'
 import { COUNTRIES, getRegionsForCountry } from '../../constants/locations'
 import Req from '../../components/shared/Req'
 import NameFields from '../../components/shared/NameFields'
-import PolicyConsentBox from '../../components/shared/PolicyConsentBox'
 import PageHeader from '../../components/admin/shared/PageHeader'
 import DataTable from '../../components/admin/shared/DataTable'
 import ApiState from '../../components/admin/shared/ApiState'
@@ -38,9 +38,9 @@ const emptyForm = {
   address: '',
   notes: '',
   createAccount: false,
-  acceptedTerms: false,
-  acceptedPrivacy: false,
-  acceptedPolicies: false,
+  acceptedTerms: true,
+  acceptedPrivacy: true,
+  acceptedPolicies: true,
 }
 
 const filterConfig = {
@@ -116,53 +116,6 @@ export default function DonorsPage() {
     setMode('view')
   }
 
-  const openEdit = (row) => {
-    setActive(row)
-    const hasParts = Boolean(row.lastName || row.firstName)
-    const nameParts = hasParts
-      ? {
-          lastName: row.lastName || '',
-          firstName: row.firstName || '',
-          middleInitial: row.middleInitial || '',
-        }
-      : parseFullName(row.contactPerson || row.fullName || '')
-
-    const country = row.country || 'Philippines'
-    const regions = getRegionsForCountry(country)
-
-    // Check if row.address matches any known region
-    let streetAddress = (row.address || '').trim()
-    let stateProvince = ''
-    let customRegion = ''
-
-    if (streetAddress && regions.length > 0) {
-      for (const reg of regions) {
-        if (streetAddress.toLowerCase().endsWith(reg.toLowerCase())) {
-          stateProvince = reg
-          streetAddress = streetAddress.slice(0, streetAddress.length - reg.length).replace(/,\s*$/, '').trim()
-          break
-        }
-      }
-    }
-
-    setForm({
-      donorType: row.donorType === 'Company' ? 'Company' : 'Individual',
-      organization: row.organization || '',
-      nameParts,
-      email: row.email || '',
-      phone: row.phone || '',
-      country,
-      stateProvince,
-      customRegion,
-      streetAddress,
-      address: row.address || '',
-      notes: row.notes || '',
-      createAccount: false,
-      acceptedPolicies: false,
-    })
-    setMode('edit')
-  }
-
   const handleSave = async (e) => {
     e.preventDefault()
     if (isCompany && !form.organization.trim()) {
@@ -200,22 +153,17 @@ export default function DonorsPage() {
         address: composedAddress || form.streetAddress.trim() || '',
         notes: form.notes,
         createAccount: form.createAccount,
-        acceptedTerms: form.acceptedTerms,
-        acceptedPrivacy: form.acceptedPrivacy,
-        acceptedPolicies: form.createAccount ? (form.acceptedTerms && form.acceptedPrivacy) : true,
+        acceptedTerms: true,
+        acceptedPrivacy: true,
+        acceptedPolicies: true,
       }
-      let res
-      if (mode === 'edit' && active) {
-        res = await donorsApi.update(active.dbId, payload)
-      } else {
-        res = await donorsApi.create(payload)
-      }
+      const res = await donorsApi.create(payload)
       if (res?.accountCreated) {
         toastAccountResult(res)
         showSuccessModal('Credentials successfully sent.')
       } else {
-        notify.success(mode === 'edit' ? 'Donor updated.' : 'Donor saved.')
-        showSuccessModal(mode === 'edit' ? 'Successfully updated.' : 'Successfully added.')
+        notify.success('Donor saved.')
+        showSuccessModal('Successfully added.')
       }
       setMode(null)
       setForm(emptyForm)
@@ -296,9 +244,6 @@ export default function DonorsPage() {
           <button type="button" className="icon-btn" title="View" aria-label="View" onClick={(e) => { e.stopPropagation(); openView(row) }}>
             <Eye size={15} />
           </button>
-          <button type="button" className="icon-btn" title="Edit" aria-label="Edit" onClick={(e) => { e.stopPropagation(); openEdit(row) }}>
-            <Pencil size={15} />
-          </button>
           <button type="button" className="icon-btn icon-btn--danger" title="Delete" aria-label="Delete" onClick={(e) => { e.stopPropagation(); handleDelete(row) }}>
             <Trash2 size={15} />
           </button>
@@ -378,7 +323,11 @@ export default function DonorsPage() {
 
               {/* Stats Row */}
               <div className="donor-stats-row">
-                <div className="donor-stat-card donor-stat-card--funds">
+                <Link
+                  to={`/admin/donations?tab=monetary&q=${encodeURIComponent(active.name || active.email || '')}`}
+                  className="donor-stat-card donor-stat-card--funds donor-stat-card--clickable"
+                  title="View monetary donations from this donor"
+                >
                   <div className="donor-stat-card__icon">
                     <Coins size={22} />
                   </div>
@@ -388,9 +337,13 @@ export default function DonorsPage() {
                     </div>
                     <div className="donor-stat-card__label">Total Contributed</div>
                   </div>
-                </div>
+                </Link>
 
-                <div className="donor-stat-card donor-stat-card--count">
+                <Link
+                  to={`/admin/donations?q=${encodeURIComponent(active.name || active.email || '')}`}
+                  className="donor-stat-card donor-stat-card--count donor-stat-card--clickable"
+                  title="View all donations from this donor"
+                >
                   <div className="donor-stat-card__icon">
                     <Heart size={22} />
                   </div>
@@ -400,7 +353,7 @@ export default function DonorsPage() {
                     </div>
                     <div className="donor-stat-card__label">Total Donations</div>
                   </div>
-                </div>
+                </Link>
 
                 <div className="donor-stat-card donor-stat-card--date">
                   <div className="donor-stat-card__icon">
@@ -495,13 +448,17 @@ export default function DonorsPage() {
               {/* Portal Account Notice / Prompt */}
               {!active.hasAccount && active.email && (
                 <div className="donor-account-prompt">
-                  <div>
-                    <strong>Donor Portal Access:</strong> This donor does not have an active login account yet. You can provision access to email their login credentials.
+                  <div className="donor-account-prompt__content">
+                    <span className="donor-account-prompt__icon">
+                      <ShieldAlert size={18} />
+                    </span>
+                    <div>
+                      <strong>Donor Portal Access:</strong> This donor does not have an active login account yet. You can provision access to email their login credentials.
+                    </div>
                   </div>
                   <button
                     type="button"
-                    className="btn btn--sm btn--primary"
-                    style={{ whiteSpace: 'nowrap' }}
+                    className="btn btn--sm btn--primary donor-account-prompt__btn"
                     disabled={saving}
                     onClick={createAccountForExisting}
                   >
@@ -556,13 +513,6 @@ export default function DonorsPage() {
             <div className="admin-modal__actions" style={{ marginTop: '1.25rem' }}>
               <button 
                 type="button" 
-                className="btn btn--outline" 
-                onClick={() => openEdit(active)}
-              >
-                <Pencil size={15} /> Edit Profile
-              </button>
-              <button 
-                type="button" 
                 className="btn btn--danger" 
                 onClick={() => handleDelete(active)}
               >
@@ -580,10 +530,10 @@ export default function DonorsPage() {
         </div>
       )}
 
-      {(mode === 'create' || mode === 'edit') && (
+      {mode === 'create' && (
         <div className="admin-modal-overlay" onClick={() => setMode(null)}>
           <div className="admin-modal admin-modal--wide" onClick={(e) => e.stopPropagation()}>
-            <ModalHeader title={mode === 'edit' ? 'Edit Donor' : 'Add Donor'} onClose={() => setMode(null)} />
+            <ModalHeader title="Add Donor" onClose={() => setMode(null)} />
             <form onSubmit={handleSave}>
               <label>
                 <Req required>Donor Type</Req>
@@ -839,22 +789,13 @@ export default function DonorsPage() {
                       onChange={(e) => setForm({
                         ...form,
                         createAccount: e.target.checked,
-                        acceptedTerms: e.target.checked ? form.acceptedTerms : false,
-                        acceptedPrivacy: e.target.checked ? form.acceptedPrivacy : false,
-                        acceptedPolicies: e.target.checked ? (form.acceptedTerms && form.acceptedPrivacy) : false,
+                        acceptedTerms: true,
+                        acceptedPrivacy: true,
+                        acceptedPolicies: true,
                       })}
                     />
                     <span>Create portal account and email login credentials</span>
                   </label>
-                  {form.createAccount && (
-                    <PolicyConsentBox
-                      acceptedTerms={form.acceptedTerms}
-                      onTermsChange={(acceptedTerms) => setForm({ ...form, acceptedTerms, acceptedPolicies: acceptedTerms && form.acceptedPrivacy })}
-                      acceptedPrivacy={form.acceptedPrivacy}
-                      onPrivacyChange={(acceptedPrivacy) => setForm({ ...form, acceptedPrivacy, acceptedPolicies: form.acceptedTerms && acceptedPrivacy })}
-                      entityLabel="Donor"
-                    />
-                  )}
                 </div>
               )}
 
@@ -862,8 +803,7 @@ export default function DonorsPage() {
                 <button
                   type="submit"
                   className="btn btn--primary"
-                  disabled={saving || (form.createAccount && (!form.acceptedTerms || !form.acceptedPrivacy))}
-                  title={form.createAccount && (!form.acceptedTerms || !form.acceptedPrivacy) ? 'Please accept both agreements to create credentials' : ''}
+                  disabled={saving}
                 >
                   {saving ? 'Saving...' : form.createAccount ? 'Create & Save Donor' : 'Save Donor'}
                 </button>

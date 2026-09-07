@@ -39,6 +39,13 @@ const milestoneIconMap = {
   badgeCheck: BadgeCheck,
 }
 
+const DONOR_STAT_LINKS = {
+  'Total Donated': '/donor/donations?type=Monetary',
+  'In-Kind Contributions': '/donor/donations?type=In-Kind',
+  'Pending Verification': '/donor/donations?status=Pending+Verification',
+  'Certificates': '/donor/certificates',
+}
+
 function formatProgress(milestone) {
   if (milestone.unit === 'peso') {
     const cur = Number(milestone.current || 0).toLocaleString('en-PH', { maximumFractionDigits: 0 })
@@ -64,8 +71,14 @@ export default function DonorDashboard() {
           <div className="portal-stats">
             {(data.stats || []).map((item) => {
               const Icon = iconMap[item.icon]
+              const destination = DONOR_STAT_LINKS[item.label] || '/donor/donations'
               return (
-                <div key={item.label} className="portal-stat-card">
+                <Link
+                  key={item.label}
+                  to={destination}
+                  className="portal-stat-card portal-stat-card--clickable"
+                  title={`View ${item.label}`}
+                >
                   {Icon && (
                     <div className="portal-stat-card__icon">
                       <Icon size={20} />
@@ -73,7 +86,7 @@ export default function DonorDashboard() {
                   )}
                   <span className="portal-stat-card__value">{item.value}</span>
                   <span className="portal-stat-card__label">{item.label}</span>
-                </div>
+                </Link>
               )
             })}
           </div>

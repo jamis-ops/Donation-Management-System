@@ -67,7 +67,7 @@ export function LoadingProvider({ children }) {
     }
 
     const elapsed = Date.now() - showTimeRef.current
-    const minDisplay = 750 // ms: ensures user can clearly see and enjoy the heart + butterfly animation
+    const minDisplay = 320 // ms: ensures smooth fast transitions without flashing
     const remainingTime = Math.max(0, minDisplay - elapsed)
 
     if (hideTimerRef.current) clearTimeout(hideTimerRef.current)

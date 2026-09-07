@@ -24,15 +24,46 @@ const activityIconMap = {
   fileCheck: FileCheck,
 }
 
+function parseEventDate(dateStr, defaultIndex = 1) {
+  if (!dateStr || dateStr === '—' || dateStr === 'TBD' || dateStr === 'Invalid Date') {
+    return { day: '—', month: 'TBD' }
+  }
+
+  const cleanStr = String(dateStr).trim()
+  const match = cleanStr.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/)
+  if (match) {
+    const year = parseInt(match[1], 10)
+    const month = parseInt(match[2], 10) - 1
+    const day = parseInt(match[3], 10)
+    const d = new Date(year, month, day)
+    if (!Number.isNaN(d.getTime())) {
+      return {
+        day: String(d.getDate()),
+        month: d.toLocaleDateString('en-US', { month: 'short' }),
+      }
+    }
+  }
+
+  const d = new Date(cleanStr.includes('T') ? cleanStr : cleanStr.replace(/-/g, '/'))
+  if (!Number.isNaN(d.getTime())) {
+    return {
+      day: String(d.getDate()),
+      month: d.toLocaleDateString('en-US', { month: 'short' }),
+    }
+  }
+
+  return { day: '—', month: 'TBD' }
+}
+
 export default function BeneficiaryDashboard() {
   const { data, loading, error, reload } = useApiObject(() => getPortalData())
 
   const profile = data?.profile || {
     name: 'Barangay Beneficiary Portal',
     barangay: 'Barangay Office',
-    municipality: 'Cebu Province',
+    municipality: '',
     representative: 'Official Representative',
-    families: 150,
+    families: 0,
     status: 'Active',
   }
 
@@ -55,11 +86,11 @@ export default function BeneficiaryDashboard() {
                 </span>
               </div>
               <p className="barangay-hero-meta">
-                <span>📍 {profile.municipality}</span>
+                {profile.municipality && <span>📍 {profile.municipality}</span>}
+                {profile.municipality && <span>•</span>}
+                <span>Representative: <strong>{profile.representative || profile.name}</strong></span>
                 <span>•</span>
-                <span>Representative: <strong>{profile.representative}</strong></span>
-                <span>•</span>
-                <span>Registered Families: <strong>{profile.families}</strong></span>
+                <span>Registered Families: <strong>{profile.families ?? 0}</strong></span>
               </p>
             </div>
             <Link to="/beneficiary/requests" className="btn btn--primary" style={{ whiteSpace: 'nowrap' }}>
@@ -72,21 +103,36 @@ export default function BeneficiaryDashboard() {
             {(data.stats || []).map((item) => {
               const Icon = iconMap[item.icon] || Package
               let cardModifier = 'volunteer-kpi-card--total'
-              if (item.label.includes('Active Requests')) cardModifier = 'volunteer-kpi-card--total'
-              else if (item.label.includes('Approved')) cardModifier = 'volunteer-kpi-card--completed'
-              else if (item.label.includes('Deliveries') || item.label.includes('Schedule')) cardModifier = 'volunteer-kpi-card--ongoing'
-              else if (item.label.includes('Completed') || item.label.includes('Received')) cardModifier = 'volunteer-kpi-card--hours'
+              let destination = '/beneficiary/requests'
+              if (item.label.includes('Received') || item.label.includes('Completed')) {
+                cardModifier = 'volunteer-kpi-card--hours'
+                destination = '/beneficiary/distributions'
+              } else if (item.label.includes('Total Requests')) {
+                cardModifier = 'volunteer-kpi-card--total'
+                destination = '/beneficiary/requests'
+              } else if (item.label.includes('Active Requests') || item.label.includes('Approved') || item.label.includes('Review')) {
+                cardModifier = 'volunteer-kpi-card--completed'
+                destination = '/beneficiary/requests?status=Under+Review'
+              } else if (item.label.includes('Deliveries') || item.label.includes('Schedule')) {
+                cardModifier = 'volunteer-kpi-card--ongoing'
+                destination = '/beneficiary/distributions'
+              }
 
               return (
-                <div key={item.label} className={`volunteer-kpi-card ${cardModifier}`}>
+                <Link
+                  key={item.label}
+                  to={destination}
+                  className={`volunteer-kpi-card volunteer-kpi-card--clickable ${cardModifier}`}
+                  title={`View ${item.label}`}
+                >
                   <div className="volunteer-kpi-card__icon">
                     <Icon size={20} />
                   </div>
                   <div>
-                    <div className="volunteer-kpi-card__value">{item.value}</div>
+                    <div className="volunteer-kpi-card__value">{item.value ?? 0}</div>
                     <div className="volunteer-kpi-card__label">{item.label}</div>
                   </div>
-                </div>
+                </Link>
               )
             })}
           </div>
@@ -131,30 +177,29 @@ export default function BeneficiaryDashboard() {
                 <Link to="/beneficiary/distributions" className="portal-panel__link">View All Schedule</Link>
               </div>
               <div className="beneficiary-upcoming-events">
-                {data.upcomingSchedule.slice(0, 3).map((schedule, idx) => (
-                  <div key={idx} className="beneficiary-upcoming-event">
-                    <div className="beneficiary-upcoming-event__date">
-                      <span className="beneficiary-upcoming-event__day">
-                        {new Date(schedule.date).getDate() || idx + 1}
-                      </span>
-                      <span className="beneficiary-upcoming-event__month">
-                        {new Date(schedule.date).toLocaleDateString('en-US', { month: 'short' }) || 'Aug'}
-                      </span>
+                {data.upcomingSchedule.slice(0, 3).map((schedule, idx) => {
+                  const dateInfo = parseEventDate(schedule.date, idx + 1)
+                  return (
+                    <div key={idx} className="beneficiary-upcoming-event">
+                      <div className="beneficiary-upcoming-event__date" title={schedule.date || 'Scheduled'}>
+                        <span className="beneficiary-upcoming-event__day">{dateInfo.day}</span>
+                        <span className="beneficiary-upcoming-event__month">{dateInfo.month}</span>
+                      </div>
+                      <div className="beneficiary-upcoming-event__content">
+                        <strong>{schedule.event || 'Relief Goods Distribution'}</strong>
+                        <span className="beneficiary-upcoming-event__location">
+                          <MapPin size={14} /> {schedule.location || 'Barangay Hall'}
+                        </span>
+                        <span className="beneficiary-upcoming-event__time">
+                          <Clock size={14} /> {schedule.time || '9:00 AM'} · {schedule.items || 'Relief Goods'}
+                        </span>
+                      </div>
+                      <div className="beneficiary-upcoming-event__type">
+                        <StatusBadge status={schedule.status || 'Scheduled'} />
+                      </div>
                     </div>
-                    <div className="beneficiary-upcoming-event__content">
-                      <strong>{schedule.event}</strong>
-                      <span className="beneficiary-upcoming-event__location">
-                        <MapPin size={14} /> {schedule.location}
-                      </span>
-                      <span className="beneficiary-upcoming-event__time">
-                        <Clock size={14} /> {schedule.time || '9:00 AM'} · {schedule.items || 'Relief Goods'}
-                      </span>
-                    </div>
-                    <div className="beneficiary-upcoming-event__type">
-                      <StatusBadge status={schedule.status || 'Scheduled'} />
-                    </div>
-                  </div>
-                ))}
+                  )
+                })}
               </div>
               <div className="beneficiary-reminder">
                 <AlertCircle size={16} style={{ flexShrink: 0 }} />
@@ -195,7 +240,7 @@ export default function BeneficiaryDashboard() {
                 {(data.requests || []).length === 0 && (
                   <li className="portal-empty">
                     <Inbox size={24} />
-                    <p>No active requests. Submit a new relief request when assistance is needed.</p>
+                    <p>No requests yet. Submit a new relief request when assistance is needed.</p>
                   </li>
                 )}
               </ul>
@@ -221,6 +266,12 @@ export default function BeneficiaryDashboard() {
                     </li>
                   )
                 })}
+                {(data.recentActivity || []).length === 0 && (
+                  <li className="portal-empty">
+                    <Clock size={24} />
+                    <p>No activity yet. Activities will appear here as requests and deliveries progress.</p>
+                  </li>
+                )}
               </ul>
             </section>
           </div>
@@ -243,6 +294,12 @@ export default function BeneficiaryDashboard() {
                   </div>
                 </div>
               ))}
+              {(data.benefitsByProgram || []).length === 0 && (
+                <div className="portal-empty" style={{ gridColumn: '1 / -1', padding: '1.5rem 1rem' }}>
+                  <Package size={24} />
+                  <p>No assistance received yet. Records will appear here once relief is delivered.</p>
+                </div>
+              )}
             </div>
           </section>
         </>

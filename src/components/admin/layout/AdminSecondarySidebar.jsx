@@ -91,9 +91,9 @@ export default function AdminSecondarySidebar({
           {showFullPanel && (
             <div className="admin-secondary__title-wrap">
               <BuildingIcon />
-              <div>
+              <div className="admin-secondary__title-text">
                 <strong>Barangays</strong>
-                <span>{barangays.length} partners</span>
+                <span className="admin-secondary__title-subtitle">{barangays.length} partners</span>
               </div>
             </div>
           )}
@@ -226,8 +226,8 @@ export default function AdminSecondarySidebar({
 
 function BuildingIcon() {
   return (
-    <span className="admin-secondary__title-icon" aria-hidden>
-      <MapPin size={18} />
-    </span>
+    <div className="admin-secondary__title-icon" aria-hidden="true">
+      <MapPin size={18} strokeWidth={2.2} />
+    </div>
   )
 }

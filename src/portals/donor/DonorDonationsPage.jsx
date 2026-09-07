@@ -1,5 +1,5 @@
-import { useState } from 'react'
-import { Link } from 'react-router-dom'
+import { useState, useEffect } from 'react'
+import { Link, useSearchParams } from 'react-router-dom'
 import { Search, Download, TrendingUp, DollarSign, Package, Calendar, Users, MapPin } from 'lucide-react'
 import StatusBadge from '../../components/admin/shared/StatusBadge'
 import ApiState from '../../components/admin/shared/ApiState'
@@ -15,13 +15,21 @@ import { DONATION_STATUSES } from '../../constants/options'
 import { useLoading } from '../../context/LoadingContext'
 
 export default function DonorDonationsPage() {
+  const [searchParams] = useSearchParams()
   const { showLoading, hideLoading } = useLoading()
   const { data, loading, error, reload } = useApiList(() => donationsApi.list())
   const [selected, setSelected] = useState(null)
-  const [search, setSearch] = useState('')
-  const [typeFilter, setTypeFilter] = useState('All')
-  const [statusFilter, setStatusFilter] = useState('All')
+  const [search, setSearch] = useState(() => searchParams.get('q') || searchParams.get('search') || '')
+  const [typeFilter, setTypeFilter] = useState(() => searchParams.get('type') || 'All')
+  const [statusFilter, setStatusFilter] = useState(() => searchParams.get('status') || 'All')
   const [busy, setBusy] = useState(false)
+
+  useEffect(() => {
+    const t = searchParams.get('type')
+    if (t) setTypeFilter(t)
+    const st = searchParams.get('status')
+    if (st) setStatusFilter(st)
+  }, [searchParams])
 
   // Calculate statistics
   const totalMonetary = data
@@ -139,7 +147,14 @@ export default function DonorDonationsPage() {
     <ApiState loading={loading} error={error} onRetry={reload}>
       {/* Analytics Cards */}
       <div className="donor-analytics-cards">
-        <div className="donor-analytics-card">
+        <div 
+          className={`donor-analytics-card portal-stat-card--clickable ${typeFilter === 'Monetary' ? 'donor-analytics-card--active' : ''}`}
+          onClick={() => setTypeFilter(typeFilter === 'Monetary' ? 'All' : 'Monetary')}
+          role="button"
+          tabIndex={0}
+          onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setTypeFilter(typeFilter === 'Monetary' ? 'All' : 'Monetary') } }}
+          title="Filter: Monetary Donations"
+        >
           <div className="donor-analytics-card__icon">
             <DollarSign size={20} />
           </div>
@@ -148,30 +163,51 @@ export default function DonorDonationsPage() {
             <span className="donor-analytics-card__label">Total Monetary</span>
           </div>
         </div>
-        <div className="donor-analytics-card donor-analytics-card--blue">
+        <div 
+          className={`donor-analytics-card donor-analytics-card--blue portal-stat-card--clickable ${typeFilter === 'In-Kind' ? 'donor-analytics-card--active' : ''}`}
+          onClick={() => setTypeFilter(typeFilter === 'In-Kind' ? 'All' : 'In-Kind')}
+          role="button"
+          tabIndex={0}
+          onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setTypeFilter(typeFilter === 'In-Kind' ? 'All' : 'In-Kind') } }}
+          title="Filter: In-Kind Donations"
+        >
           <div className="donor-analytics-card__icon">
             <Package size={20} />
           </div>
           <div className="donor-analytics-card__content">
-            <span className="donor-analytics-card__value">{inKindCount}</span>
+            <span className="donor-analytics-card__value">{totalInKind}</span>
             <span className="donor-analytics-card__label">In-Kind Donations</span>
           </div>
         </div>
-        <div className="donor-analytics-card donor-analytics-card--green">
+        <div 
+          className={`donor-analytics-card donor-analytics-card--green portal-stat-card--clickable ${statusFilter === 'Distributed' ? 'donor-analytics-card--active' : ''}`}
+          onClick={() => setStatusFilter(statusFilter === 'Distributed' ? 'All' : 'Distributed')}
+          role="button"
+          tabIndex={0}
+          onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setStatusFilter(statusFilter === 'Distributed' ? 'All' : 'Distributed') } }}
+          title="Filter: Distributed Donations"
+        >
           <div className="donor-analytics-card__icon">
             <TrendingUp size={20} />
           </div>
           <div className="donor-analytics-card__content">
-            <span className="donor-analytics-card__value">{distributedCount}</span>
+            <span className="donor-analytics-card__value">{completedDonations}</span>
             <span className="donor-analytics-card__label">Distributed</span>
           </div>
         </div>
-        <div className="donor-analytics-card donor-analytics-card--purple">
+        <div 
+          className={`donor-analytics-card donor-analytics-card--purple portal-stat-card--clickable ${statusFilter === 'All' && typeFilter === 'All' ? 'donor-analytics-card--active' : ''}`}
+          onClick={() => { setStatusFilter('All'); setTypeFilter('All') }}
+          role="button"
+          tabIndex={0}
+          onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setStatusFilter('All'); setTypeFilter('All') } }}
+          title="View all donations"
+        >
           <div className="donor-analytics-card__icon">
             <Users size={20} />
           </div>
           <div className="donor-analytics-card__content">
-            <span className="donor-analytics-card__value">{totalBeneficiaries}</span>
+            <span className="donor-analytics-card__value">{data.reduce((sum, d) => sum + (Number(d.beneficiaries) || 0), 0)}</span>
             <span className="donor-analytics-card__label">Lives Impacted</span>
           </div>
         </div>

@@ -76,11 +76,11 @@ function generate_code(string $prefix): string
 
 function format_date(?string $date): string
 {
-  if (!$date) {
+  if (!$date || $date === '0000-00-00' || $date === '0000-00-00 00:00:00') {
     return '—';
   }
   $ts = strtotime($date);
-  return $ts ? date('Y-m-d', $ts) : '—';
+  return ($ts && $ts > 0) ? date('Y-m-d', $ts) : '—';
 }
 
 function format_duty_time(?string $time): string
@@ -1665,11 +1665,17 @@ function distribution_belongs_to_beneficiary(array $dist, array $ben): bool
     return (int) $dist['beneficiary_id'] === $benId;
   }
   $location = strtolower((string) ($dist['location'] ?? ''));
-  if ($location === '') {
+  $eventName = strtolower((string) ($dist['event_name'] ?? ''));
+  if ($location === '' && $eventName === '') {
     return false;
   }
-  foreach (beneficiary_location_keys($ben) as $key) {
-    if ($key !== '' && str_contains($location, strtolower($key))) {
+  $brgyName = trim((string) ($ben['barangay'] ?? ($ben['full_name'] ?? '')));
+  if ($brgyName !== '') {
+    $stripped = trim((string) preg_replace('/^(brgy\.?|barangay)\s+/i', '', $brgyName));
+    if ($stripped !== '' && (stripos($location, $stripped) !== false || stripos($eventName, $stripped) !== false)) {
+      return true;
+    }
+    if (stripos($location, $brgyName) !== false || stripos($eventName, $brgyName) !== false) {
       return true;
     }
   }

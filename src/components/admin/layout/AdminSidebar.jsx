@@ -16,6 +16,7 @@ import {
   FileBadge,
   Globe,
   ChevronDown,
+  Settings,
 } from 'lucide-react'
 import { useAuth } from '../../../context/AuthContext'
 import Logo from '../../shared/Logo'
@@ -23,7 +24,7 @@ import { adminBadgesApi } from '../../../api/resources'
 import { BADGES_CHANGED } from '../../../utils/badgeSync'
 
 function buildNav(isSuperAdmin) {
-  // Super Admin: strictly Admin Management only
+  // Super Admin: Admin Management & Settings
   if (isSuperAdmin) {
     return [
       {
@@ -31,6 +32,7 @@ function buildNav(isSuperAdmin) {
         label: 'Administration',
         items: [
           { to: '/admin/admins', label: 'Admin Management', icon: Shield },
+          { to: '/admin/settings', label: 'Settings', icon: Settings },
         ],
       },
     ]
@@ -201,7 +203,10 @@ export default function AdminSidebar({ open, onClose }) {
       )}
       <aside className={`admin-sidebar${open ? ' admin-sidebar--open' : ''}`}>
         <div className="admin-sidebar__brand">
-          <Logo to={isSuperAdmin ? '/admin/admins' : '/admin'} size="sm" />
+          <Logo
+            to={isSuperAdmin ? (pathname === '/admin/database' ? '/admin/admins' : '/admin/database') : '/admin'}
+            size="sm"
+          />
         </div>
 
         <nav className="admin-sidebar__nav" aria-label="Admin navigation">

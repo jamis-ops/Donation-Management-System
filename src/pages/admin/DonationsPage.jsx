@@ -113,7 +113,7 @@ function toastVerifyResult(res, status) {
 
 export default function DonationsPage() {
   const [searchParams, setSearchParams] = useSearchParams()
-  const activeSection = searchParams.get('tab') === 'monetary' ? 'monetary' : 'in-kind'
+  const activeSection = (searchParams.get('tab') || '').toLowerCase() === 'monetary' || (searchParams.get('type') || '').toLowerCase() === 'monetary' ? 'monetary' : 'in-kind'
 
   const { data: donations, loading, error, reload } = useApiList(() => donationsApi.list())
   const [selected, setSelected] = useState(null)
@@ -645,7 +645,14 @@ export default function DonationsPage() {
       {/* Metric Cards tailored per active section */}
       {activeSection === 'in-kind' ? (
         <div className="donation-metrics-row">
-          <div className="donation-metric-card">
+          <div
+            className={`donation-metric-card donation-metric-card--clickable ${inKindFilters.values.status === 'all' ? 'donation-metric-card--active' : ''}`}
+            onClick={() => inKindFilters.setValue('status', 'all')}
+            role="button"
+            tabIndex={0}
+            onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); inKindFilters.setValue('status', 'all') } }}
+            title="View all in-kind donations"
+          >
             <div className="donation-metric-card__header">
               <span className="donation-metric-card__label">Total In-Kind</span>
               <div className="donation-metric-card__icon">
@@ -656,7 +663,14 @@ export default function DonationsPage() {
             <div className="donation-metric-card__subtext">Physical relief items received</div>
           </div>
 
-          <div className="donation-metric-card">
+          <div
+            className={`donation-metric-card donation-metric-card--clickable ${inKindFilters.values.status === 'Pending Verification' ? 'donation-metric-card--active' : ''}`}
+            onClick={() => inKindFilters.setValue('status', inKindFilters.values.status === 'Pending Verification' ? 'all' : 'Pending Verification')}
+            role="button"
+            tabIndex={0}
+            onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); inKindFilters.setValue('status', inKindFilters.values.status === 'Pending Verification' ? 'all' : 'Pending Verification') } }}
+            title="Filter by Pending Verification donations"
+          >
             <div className="donation-metric-card__header">
               <span className="donation-metric-card__label">Pending Verification</span>
               <div className="donation-metric-card__icon donation-metric-card__icon--warning">
@@ -667,7 +681,14 @@ export default function DonationsPage() {
             <div className="donation-metric-card__subtext">Awaiting proof & inspection</div>
           </div>
 
-          <div className="donation-metric-card">
+          <div
+            className={`donation-metric-card donation-metric-card--clickable ${['Verified', 'In Inventory', 'Allocated'].includes(inKindFilters.values.status) ? 'donation-metric-card--active' : ''}`}
+            onClick={() => inKindFilters.setValue('status', inKindFilters.values.status === 'Verified' ? 'all' : 'Verified')}
+            role="button"
+            tabIndex={0}
+            onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); inKindFilters.setValue('status', inKindFilters.values.status === 'Verified' ? 'all' : 'Verified') } }}
+            title="Filter by In Inventory / Active donations"
+          >
             <div className="donation-metric-card__header">
               <span className="donation-metric-card__label">In Inventory / Active</span>
               <div className="donation-metric-card__icon donation-metric-card__icon--info">
@@ -678,7 +699,14 @@ export default function DonationsPage() {
             <div className="donation-metric-card__subtext">Ready / allocated for packs</div>
           </div>
 
-          <div className="donation-metric-card">
+          <div
+            className={`donation-metric-card donation-metric-card--clickable ${['Distributed', 'Completed'].includes(inKindFilters.values.status) ? 'donation-metric-card--active' : ''}`}
+            onClick={() => inKindFilters.setValue('status', inKindFilters.values.status === 'Distributed' ? 'all' : 'Distributed')}
+            role="button"
+            tabIndex={0}
+            onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); inKindFilters.setValue('status', inKindFilters.values.status === 'Distributed' ? 'all' : 'Distributed') } }}
+            title="Filter by Distributed / Completed donations"
+          >
             <div className="donation-metric-card__header">
               <span className="donation-metric-card__label">Distributed / Done</span>
               <div className="donation-metric-card__icon donation-metric-card__icon--success">
@@ -691,7 +719,14 @@ export default function DonationsPage() {
         </div>
       ) : (
         <div className="donation-metrics-row">
-          <div className="donation-metric-card">
+          <div
+            className={`donation-metric-card donation-metric-card--clickable ${monetaryFilters.values.status === 'all' ? 'donation-metric-card--active' : ''}`}
+            onClick={() => monetaryFilters.setValue('status', 'all')}
+            role="button"
+            tabIndex={0}
+            onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); monetaryFilters.setValue('status', 'all') } }}
+            title="View all monetary donations"
+          >
             <div className="donation-metric-card__header">
               <span className="donation-metric-card__label">Total Funds Raised</span>
               <div className="donation-metric-card__icon">
@@ -704,7 +739,14 @@ export default function DonationsPage() {
             <div className="donation-metric-card__subtext">{monetaryDonations.length} total donations recorded</div>
           </div>
 
-          <div className="donation-metric-card">
+          <div
+            className={`donation-metric-card donation-metric-card--clickable ${monetaryFilters.values.status === 'Verified' ? 'donation-metric-card--active' : ''}`}
+            onClick={() => monetaryFilters.setValue('status', monetaryFilters.values.status === 'Verified' ? 'all' : 'Verified')}
+            role="button"
+            tabIndex={0}
+            onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); monetaryFilters.setValue('status', monetaryFilters.values.status === 'Verified' ? 'all' : 'Verified') } }}
+            title="Filter by Verified funds"
+          >
             <div className="donation-metric-card__header">
               <span className="donation-metric-card__label">Verified Funds</span>
               <div className="donation-metric-card__icon donation-metric-card__icon--success">
@@ -717,7 +759,14 @@ export default function DonationsPage() {
             <div className="donation-metric-card__subtext">Cleared & available for relief</div>
           </div>
 
-          <div className="donation-metric-card">
+          <div
+            className={`donation-metric-card donation-metric-card--clickable ${monetaryFilters.values.status === 'Pending Verification' ? 'donation-metric-card--active' : ''}`}
+            onClick={() => monetaryFilters.setValue('status', monetaryFilters.values.status === 'Pending Verification' ? 'all' : 'Pending Verification')}
+            role="button"
+            tabIndex={0}
+            onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); monetaryFilters.setValue('status', monetaryFilters.values.status === 'Pending Verification' ? 'all' : 'Pending Verification') } }}
+            title="Filter by Pending Verification donations"
+          >
             <div className="donation-metric-card__header">
               <span className="donation-metric-card__label">Pending Verification</span>
               <div className="donation-metric-card__icon donation-metric-card__icon--warning">
@@ -728,9 +777,16 @@ export default function DonationsPage() {
             <div className="donation-metric-card__subtext">Awaiting bank/GCash receipt check</div>
           </div>
 
-          <div className="donation-metric-card">
+          <div
+            className={`donation-metric-card donation-metric-card--clickable ${monetaryFilters.values.status === 'Completed' ? 'donation-metric-card--active' : ''}`}
+            onClick={() => monetaryFilters.setValue('status', monetaryFilters.values.status === 'Completed' ? 'all' : 'Completed')}
+            role="button"
+            tabIndex={0}
+            onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); monetaryFilters.setValue('status', monetaryFilters.values.status === 'Completed' ? 'all' : 'Completed') } }}
+            title="Filter by Completed donations"
+          >
             <div className="donation-metric-card__header">
-              <span className="donation-metric-card__label">Average Donation</span>
+              <span className="donation-metric-card__label">Completed / Allocated</span>
               <div className="donation-metric-card__icon donation-metric-card__icon--info">
                 <TrendingUp size={16} />
               </div>
@@ -738,20 +794,10 @@ export default function DonationsPage() {
             <div className="donation-metric-card__value">
               ₱{monetaryStats.avgDonation.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
             </div>
-            <div className="donation-metric-card__subtext">Per donor transaction</div>
+            <div className="donation-metric-card__subtext">Avg donation: ₱{monetaryStats.avgDonation.toFixed(0)}</div>
           </div>
         </div>
       )}
-
-      {/* Lifecycle Progress Bar */}
-      <div className="admin-lifecycle">
-        {(activeSection === 'in-kind' ? IN_KIND_LIFECYCLE : MONETARY_LIFECYCLE).map((step, i, arr) => (
-          <span key={step} className="admin-lifecycle__step">
-            {step}
-            {i < arr.length - 1 && <span className="admin-lifecycle__arrow">›</span>}
-          </span>
-        ))}
-      </div>
 
       {/* Filter and Search Bar */}
       <FilterBar
