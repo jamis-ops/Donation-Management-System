@@ -26,6 +26,9 @@ api/logs/mail_outbox/*.html
 Backend/api/logs/mail_outbox/*.html
 mail-service/.env
 Backend/mail-service/.env
+.env
+Backend/.env
+Backend/api/.env
 
 # Editor directories and files
 .vscode/*

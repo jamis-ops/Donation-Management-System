@@ -13,6 +13,28 @@ declare(strict_types=1);
  * users table — do NOT put it here.
  */
 
+// Auto-load .env file if present
+$envPaths = [__DIR__ . '/.env', __DIR__ . '/../.env'];
+foreach ($envPaths as $envFile) {
+  if (file_exists($envFile)) {
+    $lines = file($envFile, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
+    foreach ($lines as $line) {
+      $line = trim($line);
+      if ($line === '' || str_starts_with($line, '#')) continue;
+      if (strpos($line, '=') !== false) {
+        [$key, $val] = explode('=', $line, 2);
+        $key = trim($key);
+        $val = trim($val, " \t\n\r\0\x0B\"'");
+        if (getenv($key) === false) {
+          putenv("{$key}={$val}");
+          $_ENV[$key] = $val;
+        }
+      }
+    }
+    break;
+  }
+}
+
 $DB_HOST = getenv('DB_HOST') ?: '127.0.0.1';
 $DB_PORT = getenv('DB_PORT') ?: '3306';
 $DB_NAME = getenv('DB_NAME') ?: 'donation_system';
