@@ -4,14 +4,14 @@ import {
   CheckCircle2, AlertTriangle, Calendar as CalendarIcon, MapPin, Clock,
   Package, Truck, MessageSquare, Camera, ArrowRight, Check, Users,
 } from 'lucide-react'
-import StatusBadge from '../../components/admin/shared/StatusBadge'
-import ApiState from '../../components/admin/shared/ApiState'
+import StatusBadge from '../../admin/components/shared/StatusBadge'
+import ApiState from '../../admin/components/shared/ApiState'
 import { distributionsApi } from '../../api/resources'
 import { useApiList } from '../../hooks/useApiList'
 import { usePagination, DEFAULT_PAGE_SIZE } from '../../hooks/usePagination'
 import { useHashScroll, useQueryFocus } from '../../hooks/useDeepLinkFocus'
-import ModalHeader from '../../components/admin/shared/ModalHeader'
-import Pagination from '../../components/admin/shared/Pagination'
+import ModalHeader from '../../admin/components/shared/ModalHeader'
+import Pagination from '../../admin/components/shared/Pagination'
 import { notify } from '../../utils/toast'
 import { useLoading } from '../../context/LoadingContext'
 

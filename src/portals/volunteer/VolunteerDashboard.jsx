@@ -4,8 +4,8 @@ import {
   FileText, CheckCircle, Inbox, TrendingUp, Clock
 } from 'lucide-react'
 import { Link } from 'react-router-dom'
-import StatusBadge from '../../components/admin/shared/StatusBadge'
-import ApiState from '../../components/admin/shared/ApiState'
+import StatusBadge from '../../admin/components/shared/StatusBadge'
+import ApiState from '../../admin/components/shared/ApiState'
 import { getPortalData } from '../../api/resources'
 import { useApiObject } from '../../hooks/useApiList'
 

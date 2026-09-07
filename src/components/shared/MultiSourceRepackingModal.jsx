@@ -1,10 +1,10 @@
 import { useState } from 'react'
 import { FileCheck } from 'lucide-react'
-import ModalHeader from '../admin/shared/ModalHeader'
+import ModalHeader from '../../admin/components/shared/ModalHeader'
 import BarangayNeedsAnalyzer from './BarangayNeedsAnalyzer'
 import PackContentBuilder from './PackContentBuilder'
 import RepackingSummaryCard from './RepackingSummaryCard'
-import StatusBadge from '../admin/shared/StatusBadge'
+import StatusBadge from '../../admin/components/shared/StatusBadge'
 import { notify } from '../../utils/toast'
 import { useLoading } from '../../context/LoadingContext'
 

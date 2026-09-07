@@ -6,8 +6,8 @@ import {
 import { catalogItemsApi } from '../../api/resources'
 import { NEEDS as FALLBACK_NEEDS } from '../../constants/options'
 import { useSeeMore } from '../../hooks/useSeeMore'
-import { SeeMoreToggle } from '../admin/shared/SeeMoreList'
-import CatalogQuickAdd from '../admin/shared/CatalogQuickAdd'
+import { SeeMoreToggle } from '../../admin/components/shared/SeeMoreList'
+import CatalogQuickAdd from '../../admin/components/shared/CatalogQuickAdd'
 import { CATALOG_CHANGED_EVENT } from '../../utils/catalogSync'
 import { sortLabelsAz } from '../../utils/sortLabels'
 

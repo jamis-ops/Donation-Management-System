@@ -1,10 +1,10 @@
 import { useState } from 'react'
 import { Calendar, Download, TrendingUp, Package, Printer, CheckCircle2, MapPin, Layers } from 'lucide-react'
-import ApiState from '../../components/admin/shared/ApiState'
+import ApiState from '../../admin/components/shared/ApiState'
 import { getPortalData } from '../../api/resources'
 import { useApiObject } from '../../hooks/useApiList'
 import { usePagination, DEFAULT_PAGE_SIZE } from '../../hooks/usePagination'
-import Pagination from '../../components/admin/shared/Pagination'
+import Pagination from '../../admin/components/shared/Pagination'
 import { notify } from '../../utils/toast'
 
 function parseDateBits(dateStr) {

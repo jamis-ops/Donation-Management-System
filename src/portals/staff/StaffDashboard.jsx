@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { ClipboardCheck, Package, Truck, CheckSquare, AlertTriangle, Clock, TrendingUp, ChevronRight, Inbox } from 'lucide-react'
-import ApiState from '../../components/admin/shared/ApiState'
+import ApiState from '../../admin/components/shared/ApiState'
 import { getPortalData } from '../../api/resources'
 import { useApiObject } from '../../hooks/useApiList'
 

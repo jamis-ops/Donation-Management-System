@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { Outlet, useLocation } from 'react-router-dom'
 import { Menu } from 'lucide-react'
 import PortalSidebar from './PortalSidebar'
-import NotificationBell from '../../components/admin/shared/NotificationBell'
+import NotificationBell from '../../admin/components/shared/NotificationBell'
 import UserProfileMenu from '../../components/shared/UserProfileMenu'
 
 const titles = {

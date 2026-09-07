@@ -8,9 +8,9 @@ import { distributionsApi, getDistributionProofs, uploadDistributionProof } from
 import { useApiList } from '../../hooks/useApiList'
 import { usePagination, DEFAULT_PAGE_SIZE } from '../../hooks/usePagination'
 import { useHashScroll, useQueryFocus } from '../../hooks/useDeepLinkFocus'
-import ApiState from '../../components/admin/shared/ApiState'
-import StatusBadge from '../../components/admin/shared/StatusBadge'
-import Pagination from '../../components/admin/shared/Pagination'
+import ApiState from '../../admin/components/shared/ApiState'
+import StatusBadge from '../../admin/components/shared/StatusBadge'
+import Pagination from '../../admin/components/shared/Pagination'
 import { notify } from '../../utils/toast'
 import { useLoading } from '../../context/LoadingContext'
 

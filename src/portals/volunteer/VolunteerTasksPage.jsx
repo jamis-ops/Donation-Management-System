@@ -18,12 +18,12 @@ import {
   Sparkles,
   CheckCircle2,
 } from 'lucide-react'
-import StatusBadge from '../../components/admin/shared/StatusBadge'
-import ApiState from '../../components/admin/shared/ApiState'
+import StatusBadge from '../../admin/components/shared/StatusBadge'
+import ApiState from '../../admin/components/shared/ApiState'
 import { tasksApi } from '../../api/resources'
 import { useApiList } from '../../hooks/useApiList'
 import { usePagination, DEFAULT_PAGE_SIZE } from '../../hooks/usePagination'
-import Pagination from '../../components/admin/shared/Pagination'
+import Pagination from '../../admin/components/shared/Pagination'
 import { notify } from '../../utils/toast'
 import { confirmAction, showSuccessModal } from '../../utils/confirm'
 import { useLoading } from '../../context/LoadingContext'
