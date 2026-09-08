@@ -13,34 +13,10 @@ declare(strict_types=1);
  * users table — do NOT put it here.
  */
 
-// Auto-load .env file if present
-$envPaths = [__DIR__ . '/.env', __DIR__ . '/../.env'];
-foreach ($envPaths as $envFile) {
-  if (file_exists($envFile)) {
-    $lines = file($envFile, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
-    foreach ($lines as $line) {
-      $line = trim($line);
-      if ($line === '' || str_starts_with($line, '#')) continue;
-      if (strpos($line, '=') !== false) {
-        [$key, $val] = explode('=', $line, 2);
-        $key = trim($key);
-        $val = trim($val, " \t\n\r\0\x0B\"'");
-        if (getenv($key) === false) {
-          putenv("{$key}={$val}");
-          $_ENV[$key] = $val;
-        }
-      }
-    }
-    break;
-  }
-}
-
-$DB_HOST = getenv('DB_HOST') ?: '127.0.0.1';
-$DB_PORT = getenv('DB_PORT') ?: '3306';
-$DB_NAME = getenv('DB_NAME') ?: 'donation_system';
-$DB_USER = getenv('DB_USER') ?: 'root';
-$DB_PASS = getenv('DB_PASS') !== false ? getenv('DB_PASS') : '';
-$DB_SSL  = filter_var(getenv('DB_SSL') ?: false, FILTER_VALIDATE_BOOLEAN);
+$DB_HOST = '127.0.0.1';
+$DB_NAME = 'donation_system';
+$DB_USER = 'root';   // MySQL username (NOT your admin email)
+$DB_PASS = '';       // MySQL password (XAMPP default is empty)
 
 /**
  * GOOGLE GEMINI AI CONFIGURATION (ai.google.dev)
@@ -55,23 +31,13 @@ if (file_exists(__DIR__ . '/ai_config.php')) {
 
 
 function db(): PDO {
-  global $DB_HOST, $DB_PORT, $DB_NAME, $DB_USER, $DB_PASS, $DB_SSL;
+  global $DB_HOST, $DB_NAME, $DB_USER, $DB_PASS;
 
-  $dsn = "mysql:host={$DB_HOST};port={$DB_PORT};dbname={$DB_NAME};charset=utf8mb4";
-  
-  $options = [
+  $dsn = "mysql:host={$DB_HOST};dbname={$DB_NAME};charset=utf8mb4";
+  $pdo = new PDO($dsn, $DB_USER, $DB_PASS, [
     PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
     PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
-  ];
-
-  // TiDB Cloud / Remote SSL configuration
-  if ($DB_SSL || (int)$DB_PORT === 4000 || str_contains($DB_HOST, 'tidbcloud.com')) {
-    if (defined('PDO::MYSQL_ATTR_SSL_VERIFY_SERVER_CERT')) {
-      $options[PDO::MYSQL_ATTR_SSL_VERIFY_SERVER_CERT] = false;
-    }
-  }
-
-  $pdo = new PDO($dsn, $DB_USER, $DB_PASS, $options);
+  ]);
   return $pdo;
 }
 
