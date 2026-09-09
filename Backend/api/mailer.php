@@ -21,53 +21,50 @@ if (!defined('MAIL_FROM_EMAIL')) {
 }
 
 if (!defined('MAIL_FROM_EMAIL')) {
-  define('MAIL_FROM_EMAIL', 'no-reply@riseabovefoundation.org');
+  define('MAIL_FROM_EMAIL', getenv('MAIL_FROM_EMAIL') ?: 'no-reply@riseabovefoundation.org');
 }
 if (!defined('MAIL_FROM_NAME')) {
-  define('MAIL_FROM_NAME', 'Rise Above Foundation');
+  define('MAIL_FROM_NAME', getenv('MAIL_FROM_NAME') ?: 'Rise Above Foundation');
 }
 if (!defined('MAIL_REPLY_TO')) {
-  define('MAIL_REPLY_TO', '');
+  define('MAIL_REPLY_TO', getenv('MAIL_REPLY_TO') ?: '');
 }
 if (!defined('MAIL_ENABLED')) {
-  define('MAIL_ENABLED', true);
+  define('MAIL_ENABLED', getenv('MAIL_ENABLED') !== 'false' && getenv('MAIL_ENABLED') !== '0');
 }
 if (!defined('MAIL_TRANSPORT')) {
-  // nodemailer | smtp | mail | outbox
-  define('MAIL_TRANSPORT', 'nodemailer');
+  define('MAIL_TRANSPORT', getenv('MAIL_TRANSPORT') ?: 'auto');
 }
 if (!defined('MAIL_NODE_URL')) {
-  define('MAIL_NODE_URL', 'http://127.0.0.1:8025');
+  define('MAIL_NODE_URL', getenv('MAIL_NODE_URL') ?: 'http://127.0.0.1:8025');
 }
 if (!defined('MAIL_NODE_API_KEY')) {
-  define('MAIL_NODE_API_KEY', '');
+  define('MAIL_NODE_API_KEY', getenv('MAIL_NODE_API_KEY') ?: '');
 }
 if (!defined('RECOVERY_URL')) {
-  define('RECOVERY_URL', '');
+  define('RECOVERY_URL', getenv('RECOVERY_URL') ?: '');
 }
 if (!defined('MAIL_OUTBOX_DIR')) {
-  define('MAIL_OUTBOX_DIR', __DIR__ . '/logs/mail_outbox');
+  define('MAIL_OUTBOX_DIR', getenv('MAIL_OUTBOX_DIR') ?: (__DIR__ . '/logs/mail_outbox'));
 }
 if (!defined('SMTP_HOST')) {
-  define('SMTP_HOST', '');
+  define('SMTP_HOST', getenv('SMTP_HOST') ?: '');
 }
 if (!defined('SMTP_PORT')) {
-  define('SMTP_PORT', 587);
+  define('SMTP_PORT', getenv('SMTP_PORT') ? (int) getenv('SMTP_PORT') : 587);
 }
 if (!defined('SMTP_USER')) {
-  define('SMTP_USER', '');
+  define('SMTP_USER', getenv('SMTP_USER') ?: '');
 }
 if (!defined('SMTP_PASS')) {
-  define('SMTP_PASS', '');
+  define('SMTP_PASS', getenv('SMTP_PASS') ?: '');
 }
 if (!defined('BREVO_API_KEY')) {
   define('BREVO_API_KEY', getenv('BREVO_API_KEY') ?: '');
 }
 if (!defined('SMTP_SECURE')) {
-  define('SMTP_SECURE', 'tls');
+  define('SMTP_SECURE', getenv('SMTP_SECURE') ?: 'tls');
 }
-// Do not hardcode FRONTEND_URL to localhost — api/app_url.php resolves
-// APP_URL / FRONTEND_URL / Origin / Host dynamically for every environment.
 if (!defined('API_PUBLIC_URL')) {
   define('API_PUBLIC_URL', '');
 }
@@ -524,15 +521,17 @@ if (!function_exists('smtp_send')) {
         }
       }
 
+      $smtpUser = trim((string) SMTP_USER);
+      $smtpPass = str_replace(' ', '', trim((string) SMTP_PASS));
       $write('AUTH LOGIN');
       if (!$expect($read(), '334')) {
         throw new RuntimeException('AUTH LOGIN not accepted');
       }
-      $write(base64_encode(SMTP_USER));
+      $write(base64_encode($smtpUser));
       if (!$expect($read(), '334')) {
         throw new RuntimeException('SMTP username rejected');
       }
-      $write(base64_encode(SMTP_PASS));
+      $write(base64_encode($smtpPass));
       if (!$expect($read(), '235')) {
         throw new RuntimeException('SMTP password rejected — use a Gmail App Password');
       }
