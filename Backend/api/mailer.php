@@ -101,15 +101,21 @@ if (!function_exists('mail_set_result')) {
 if (!function_exists('mail_resolved_transport')) {
   function mail_resolved_transport(): string
   {
+    $explicit = strtolower(trim((string) (defined('MAIL_TRANSPORT') ? MAIL_TRANSPORT : (getenv('MAIL_TRANSPORT') ?: ''))));
+    if ($explicit !== '' && $explicit !== 'auto') {
+      return $explicit;
+    }
+    $smtpHost = trim((string) (defined('SMTP_HOST') ? SMTP_HOST : (getenv('SMTP_HOST') ?: '')));
+    $smtpUser = trim((string) (defined('SMTP_USER') ? SMTP_USER : (getenv('SMTP_USER') ?: '')));
+    $smtpPass = trim((string) (defined('SMTP_PASS') ? SMTP_PASS : (getenv('SMTP_PASS') ?: '')));
+    if ($smtpHost !== '' && $smtpUser !== '' && $smtpPass !== '') {
+      return 'smtp';
+    }
     $brevoKey = trim((string) (defined('BREVO_API_KEY') ? BREVO_API_KEY : (getenv('BREVO_API_KEY') ?: '')));
     if ($brevoKey !== '') {
       return 'brevo';
     }
-    $transport = strtolower(trim((string) MAIL_TRANSPORT));
-    if ($transport === '' || $transport === 'auto') {
-      return 'nodemailer';
-    }
-    return $transport;
+    return 'nodemailer';
   }
 }
 
