@@ -303,7 +303,7 @@ if ($method === 'PUT') {
       'ok' => true,
       'data' => map_donor($pdo, $stmt->fetch()),
       'accountCreated' => true,
-      'credentialsSent' => $sent && in_array($transport, ['nodemailer', 'smtp'], true),
+      'credentialsSent' => $sent && in_array($transport, ['brevo', 'nodemailer', 'smtp'], true),
       'mailTransport' => $transport,
       'mailError' => (string) ($mail['error'] ?? ''),
       'temporaryPassword' => (!$sent || $transport === 'outbox') ? $tempPassword : null,

@@ -157,7 +157,7 @@ if ($method === 'POST') {
   $mail = send_account_credentials($email, $name, $email, $password, $role);
   $sent = (bool) ($mail['sent'] ?? false);
   $transport = (string) ($mail['transport'] ?? '');
-  $credentialsSent = $sent && in_array($transport, ['nodemailer', 'smtp', 'outbox', 'mail'], true);
+  $credentialsSent = $sent && in_array($transport, ['brevo', 'nodemailer', 'smtp', 'outbox', 'mail'], true);
 
   $payload = [
     'ok' => true,

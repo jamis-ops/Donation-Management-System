@@ -1033,7 +1033,7 @@ function provision_beneficiary_account(PDO $pdo, array $benRow, ?string $customP
     $pdo->commit();
     
     $transport = (string) ($mail['transport'] ?? '');
-    $includeTemp = $transport === 'outbox' || !in_array($transport, ['nodemailer', 'smtp'], true);
+    $includeTemp = $transport === 'outbox' || !in_array($transport, ['brevo', 'nodemailer', 'smtp'], true);
     return [
       'created' => true,
       'userId' => $userId,
@@ -1095,7 +1095,7 @@ function provision_volunteer_account(PDO $pdo, array $volunteerRow): array
   $mail = send_account_credentials($email, $name, $email, $tempPassword, 'Volunteer');
   $sent = !empty($mail['sent']);
   $transport = (string) ($mail['transport'] ?? '');
-  $includeTemp = !$sent || $transport === 'outbox' || !in_array($transport, ['nodemailer', 'smtp'], true);
+  $includeTemp = !$sent || $transport === 'outbox' || !in_array($transport, ['brevo', 'nodemailer', 'smtp'], true);
   return [
     'created' => true,
     'userId' => $userId,
