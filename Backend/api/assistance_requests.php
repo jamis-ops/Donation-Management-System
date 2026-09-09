@@ -37,6 +37,18 @@ function encode_request_needs($needs): ?string
 
 function map_request(array $row, string $beneficiaryName, ?array $extra = null): array
 {
+  $families = 0;
+  if (!empty($extra['affectedFamilies'])) {
+    $families = (int) $extra['affectedFamilies'];
+  }
+  if ($families <= 0 && !empty($row['notes'])) {
+    if (preg_match('/Families\s*Affected\s*:\s*(\d+)/i', (string) $row['notes'], $m)) {
+      $families = (int) $m[1];
+    } elseif (preg_match('/(\d+)\s*families/i', (string) $row['notes'], $m)) {
+      $families = (int) $m[1];
+    }
+  }
+
   $mapped = [
     'id' => $row['reference_code'],
     'dbId' => (int) $row['id'],
@@ -48,6 +60,7 @@ function map_request(array $row, string $beneficiaryName, ?array $extra = null):
     'requestDate' => $row['request_date'],
     'priority' => $row['priority'],
     'notes' => $row['notes'],
+    'affectedFamilies' => $families,
     'needs' => [],
     'isEmergency' => !empty($row['is_emergency']),
     'calamityTags' => [],
@@ -60,6 +73,14 @@ function map_request(array $row, string $beneficiaryName, ?array $extra = null):
     $decoded = json_decode((string) $row['calamity_tags'], true);
     if (is_array($decoded)) {
       $mapped['calamityTags'] = $decoded;
+    }
+  }
+  if (empty($mapped['calamityTags']) && !empty($row['notes'])) {
+    if (preg_match('/Calamity\/Program:\s*([^\n\r]+)/i', (string) $row['notes'], $m)) {
+      $calamityVal = trim($m[1]);
+      if ($calamityVal !== '') {
+        $mapped['calamityTags'] = [$calamityVal];
+      }
     }
   }
   if (!empty($row['needs_json'])) {

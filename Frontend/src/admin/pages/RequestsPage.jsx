@@ -133,10 +133,10 @@ const styles = `
 }
 
 .request-card {
-  background: var(--admin-surface);
-  border-radius: var(--admin-radius-lg);
-  border: 1px solid var(--admin-border);
-  box-shadow: var(--admin-shadow);
+  background: var(--admin-surface, #ffffff);
+  border-radius: 14px;
+  border: 1px solid var(--admin-border, #e2e8f0);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04), 0 1px 2px rgba(0, 0, 0, 0.02);
   display: flex;
   flex-direction: column;
   position: relative;
@@ -144,12 +144,13 @@ const styles = `
   height: 100%;
   min-height: 100%;
   box-sizing: border-box;
-  transition: transform 0.2s, box-shadow 0.2s;
+  transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.2s ease, border-color 0.2s ease;
   font-family: var(--font-sans);
 }
 .request-card:hover {
   transform: translateY(-2px);
-  box-shadow: var(--admin-shadow-md);
+  box-shadow: 0 10px 24px -4px rgba(0, 0, 0, 0.08), 0 4px 8px -2px rgba(0, 0, 0, 0.04);
+  border-color: #cbd5e1;
 }
 .request-card.priority-critical { border-left: 4px solid #dc2626; }
 .request-card.priority-high { border-left: 4px solid #ea580c; }
@@ -165,22 +166,26 @@ const styles = `
   50% { border-color: #f87171; box-shadow: 0 0 0 4px rgba(239, 68, 68, 0.12); }
 }
 .emergency-label {
-  background: var(--admin-brand);
+  background: linear-gradient(90deg, #dc2626 0%, #b91c1c 100%);
   color: white;
-  font-size: 0.7rem;
-  font-weight: bold;
+  font-size: 0.68rem;
+  font-weight: 700;
   text-align: center;
-  padding: 2px;
+  padding: 3px 8px;
   text-transform: uppercase;
-  letter-spacing: 1px;
+  letter-spacing: 0.06em;
   font-family: var(--font-sans);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
 }
 
 .request-card__body {
-  padding: 1.25rem;
+  padding: 1.15rem 1.25rem 0.95rem;
   display: flex;
   flex-direction: column;
-  gap: 1rem;
+  gap: 0.85rem;
   flex: 1;
 }
 
@@ -188,117 +193,269 @@ const styles = `
   display: flex;
   justify-content: space-between;
   align-items: flex-start;
-  gap: 1rem;
+  gap: 0.75rem;
+}
+.request-card__title-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  min-width: 0;
 }
 .request-card__title {
   font-family: var(--font-sans);
   font-size: 1.05rem;
   font-weight: 700;
-  color: var(--admin-text);
-  margin: 0 0 0.25rem 0;
+  color: #0f172a;
+  margin: 0;
   line-height: 1.25;
+  letter-spacing: -0.01em;
+}
+.request-card__subtitle {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  font-size: 0.78rem;
+  color: #64748b;
+  font-weight: 500;
 }
 .request-card__ref {
-  font-family: ui-monospace, monospace;
-  font-size: 0.75rem;
-  color: var(--admin-text-muted);
-  background: var(--admin-bg);
-  padding: 0.25rem 0.5rem;
-  border-radius: 4px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: #475569;
+  background: #f1f5f9;
+  border: 1px solid #e2e8f0;
+  padding: 0.2rem 0.5rem;
+  border-radius: 6px;
+  letter-spacing: 0.02em;
+  flex-shrink: 0;
 }
+
 .request-card__badges {
   display: flex;
-  gap: 0.5rem;
+  gap: 0.4rem;
   flex-wrap: wrap;
+  align-items: center;
 }
 
 .priority-badge {
   display: inline-flex;
   align-items: center;
   gap: 0.25rem;
-  padding: 0.25rem 0.5rem;
+  padding: 0.2rem 0.55rem;
   border-radius: 9999px;
-  font-size: 0.75rem;
-  font-weight: 600;
+  font-size: 0.7rem;
+  font-weight: 700;
   text-transform: uppercase;
+  letter-spacing: 0.03em;
   font-family: var(--font-sans);
 }
-.priority-badge.critical { background: #fee2e2; color: #dc2626; }
-.priority-badge.high { background: #fff7ed; color: #ea580c; }
-.priority-badge.medium { background: #fefce8; color: #d97706; }
-.priority-badge.low { background: #f0fdf4; color: #16a34a; }
+.priority-badge.critical { background: #fee2e2; color: #b91c1c; border: 1px solid #fecaca; }
+.priority-badge.high { background: #fff7ed; color: #c2410c; border: 1px solid #ffedd5; }
+.priority-badge.medium { background: #fefce8; color: #a16207; border: 1px solid #fef08a; }
+.priority-badge.low { background: #f0fdf4; color: #15803d; border: 1px solid #dcfce7; }
 
-.request-card__desc {
-  font-size: 0.875rem;
-  color: var(--admin-text-muted);
+.calamity-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  background: #eff6ff;
+  color: #1e40af;
+  border: 1px solid #dbeafe;
+  padding: 0.2rem 0.55rem;
+  border-radius: 9999px;
+  font-size: 0.7rem;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+}
+
+/* Needs Chips Grid */
+.request-card__needs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  align-items: center;
+}
+.request-need-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  background: #f8fafc;
+  color: #334155;
+  border: 1px solid #e2e8f0;
+  padding: 0.25rem 0.55rem;
+  border-radius: 6px;
+  font-size: 0.76rem;
+  font-weight: 500;
+  line-height: 1.2;
+}
+.request-need-tag svg {
+  color: #AF101A;
+  flex-shrink: 0;
+}
+
+.request-card__excerpt {
+  font-size: 0.77rem;
+  color: #64748b;
+  line-height: 1.4;
   margin: 0;
-  line-height: 1.45;
-  flex: 1;
+  background: #f8fafc;
+  border-left: 2px solid #cbd5e1;
+  padding: 0.3rem 0.6rem;
+  border-radius: 0 6px 6px 0;
+  font-style: italic;
   display: -webkit-box;
-  -webkit-line-clamp: 3;
+  -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
   overflow: hidden;
-  overflow-wrap: anywhere;
-  word-break: break-word;
-  min-width: 0;
 }
-.request-card__meta {
+
+.request-card__meta-bar {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  font-size: 0.75rem;
-  color: var(--admin-text-muted);
+  gap: 0.5rem;
+  padding-top: 0.4rem;
+  border-top: 1px dashed #e2e8f0;
+  margin-top: auto;
 }
-.request-card__meta-item {
-  display: flex;
-  align-items: center;
-  gap: 0.375rem;
-}
-
-.request-card__sla {
-  font-size: 0.75rem;
-  font-weight: 600;
-  padding: 0.375rem 0.5rem;
-  border-radius: 4px;
+.request-card__meta-metric {
   display: inline-flex;
   align-items: center;
-  gap: 0.375rem;
-  font-family: var(--font-sans);
+  gap: 0.35rem;
+  font-size: 0.8125rem;
+  color: #334155;
 }
-.sla-green { background: rgba(22, 163, 74, 0.1); color: #15803d; }
-.sla-yellow { background: rgba(217, 119, 6, 0.1); color: #b45309; }
-.sla-red { background: rgba(220, 38, 38, 0.1); color: #b91c1c; }
+.request-card__meta-metric strong {
+  color: #0f172a;
+  font-weight: 700;
+}
+.request-card__meta-time {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  font-size: 0.75rem;
+  color: #64748b;
+}
+
+.request-card__sla-wrapper {
+  margin-top: 0.1rem;
+}
+.request-card__sla {
+  font-size: 0.73rem;
+  font-weight: 600;
+  padding: 0.25rem 0.55rem;
+  border-radius: 6px;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-family: var(--font-sans);
+  width: fit-content;
+}
+.sla-green { background: #f0fdf4; color: #15803d; border: 1px solid #dcfce7; }
+.sla-yellow { background: #fffbeb; color: #b45309; border: 1px solid #fef3c7; }
+.sla-red { background: #fef2f2; color: #b91c1c; border: 1px solid #fee2e2; }
 
 .request-card__actions {
-  border-top: 1px solid var(--admin-border);
-  padding: 0.75rem 1.25rem;
+  border-top: 1px solid #f1f5f9;
+  padding: 0.65rem 1.1rem;
   display: flex;
   gap: 0.5rem;
   justify-content: space-between;
   align-items: center;
-  flex-wrap: wrap;
-  margin-top: auto;
-  background: var(--admin-bg);
+  background: #fbfcfe;
+  border-bottom-left-radius: 14px;
+  border-bottom-right-radius: 14px;
 }
 
-.btn-icon {
-  background: transparent;
-  border: none;
-  color: var(--admin-text-muted);
+.btn-pin {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  color: #64748b;
   cursor: pointer;
-  padding: 0.5rem;
-  border-radius: 4px;
-  display: flex;
+  width: 34px;
+  height: 34px;
+  border-radius: 8px;
+  display: inline-flex;
   align-items: center;
   justify-content: center;
-  transition: all 0.2s;
+  transition: all 0.15s ease;
 }
-.btn-icon:hover {
-  background: var(--admin-brand-muted);
-  color: var(--admin-brand);
+.btn-pin:hover {
+  background: #f1f5f9;
+  color: #0f172a;
+  border-color: #cbd5e1;
 }
-.btn-icon.active {
-  color: var(--admin-danger);
+.btn-pin.active {
+  background: #fef2f2;
+  color: #dc2626;
+  border-color: #fecaca;
+  box-shadow: 0 0 0 2px rgba(220, 38, 38, 0.12);
+}
+
+.btn-action-review {
+  background: #ffffff !important;
+  border: 1px solid #cbd5e1 !important;
+  color: #334155 !important;
+  font-weight: 600 !important;
+  font-size: 0.8125rem !important;
+  padding: 0.4rem 0.85rem !important;
+  border-radius: 8px !important;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+.btn-action-review:hover {
+  background: #f8fafc !important;
+  border-color: #94a3b8 !important;
+  color: #0f172a !important;
+}
+
+.btn-action-approve {
+  background: #16a34a !important;
+  border: 1px solid #15803d !important;
+  color: #ffffff !important;
+  width: 34px;
+  height: 34px;
+  border-radius: 8px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  cursor: pointer;
+  box-shadow: 0 1px 2px rgba(22, 163, 74, 0.25);
+  transition: all 0.15s ease;
+}
+.btn-action-approve:hover {
+  background: #15803d !important;
+  transform: translateY(-1px);
+  box-shadow: 0 3px 6px rgba(22, 163, 74, 0.35);
+}
+.btn-action-approve:active {
+  transform: scale(0.96);
+}
+
+.btn-action-reject {
+  background: #dc2626 !important;
+  border: 1px solid #b91c1c !important;
+  color: #ffffff !important;
+  width: 34px;
+  height: 34px;
+  border-radius: 8px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  cursor: pointer;
+  box-shadow: 0 1px 2px rgba(220, 38, 38, 0.25);
+  transition: all 0.15s ease;
+}
+.btn-action-reject:hover {
+  background: #b91c1c !important;
+  transform: translateY(-1px);
+  box-shadow: 0 3px 6px rgba(220, 38, 38, 0.35);
+}
+.btn-action-reject:active {
+  transform: scale(0.96);
 }
 
 .requests-page .btn--outline {
@@ -810,6 +967,52 @@ function iconForNeed(label) {
   return Tag;
 }
 
+function parseRequestDetails(req) {
+  // 1. Extract individual needs
+  let needsList = [];
+  if (Array.isArray(req.needs) && req.needs.length > 0) {
+    needsList = req.needs;
+  } else if (req.type) {
+    needsList = req.type.split(/[,;\n]/).map(s => s.trim()).filter(Boolean);
+  } else if (req.notes) {
+    const m = req.notes.match(/Type\s*of\s*Needs\s*:\s*([^\n\r]+)/i);
+    if (m) {
+      needsList = m[1].split(/[,;\n]/).map(s => s.trim()).filter(Boolean);
+    }
+  }
+  // Deduplicate and filter out noisy entries
+  needsList = Array.from(new Set(needsList.filter(n => n && !n.toLowerCase().startsWith('calamity/'))));
+
+  // 2. Calamity Tag
+  let calamity = null;
+  if (Array.isArray(req.calamityTags) && req.calamityTags.length > 0) {
+    calamity = req.calamityTags[0];
+  } else if (req.notes) {
+    const m = req.notes.match(/Calamity\/Program\s*:\s*([^\n\r]+)/i);
+    if (m) calamity = m[1].trim();
+  }
+
+  // 3. Clean Notes Excerpt (stripping repetitive boilerplate headers)
+  let excerpt = '';
+  if (req.notes) {
+    const m = req.notes.match(/Additional\s*Notes\s*:\s*([^\n\r]+)/i);
+    if (m) {
+      excerpt = m[1].trim();
+    } else {
+      const clean = req.notes
+        .replace(/Calamity\/Program:\s*[^\n\r]+/gi, '')
+        .replace(/Type\s*of\s*Needs:\s*[^\n\r]+/gi, '')
+        .replace(/Families\s*Affected:\s*[^\n\r]+/gi, '')
+        .trim();
+      if (clean && clean.length > 3 && !needsList.some(n => n.toLowerCase() === clean.toLowerCase())) {
+        excerpt = clean;
+      }
+    }
+  }
+
+  return { needsList, calamity, excerpt };
+}
+
 export default function RequestsPage() {
   const navigate = useNavigate();
   const { showLoading, hideLoading } = useLoading();
@@ -835,11 +1038,25 @@ export default function RequestsPage() {
     const bMap = new Map(beneficiariesData.map(b => [b.dbId, b]));
     return requestsData.map(req => {
       const b = bMap.get(req.beneficiaryId);
+
+      let families = Number(req.affectedFamilies || req.familiesAffected || 0);
+      if (!families && req.notes) {
+        const match = req.notes.match(/Families\s*Affected\s*:\s*(\d+)/i) || req.notes.match(/(\d+)\s*families/i);
+        if (match) families = parseInt(match[1], 10);
+      }
+      if (!families && b) {
+        families = Number(b.affectedFamilies || b.affected_families || b.population || 0);
+        if (!families && b.notes) {
+          const matchB = b.notes.match(/Families\s*Affected\s*:\s*(\d+)/i) || b.notes.match(/(\d+)\s*families/i);
+          if (matchB) families = parseInt(matchB[1], 10);
+        }
+      }
+
       return {
         ...req,
-        affectedFamilies: b?.affectedFamilies || b?.population || 0,
-        municipality: b?.municipality || 'Cebu',
-        representative: b?.representative || 'Unknown'
+        affectedFamilies: families,
+        municipality: b?.municipality || req.municipality || 'Cebu City',
+        representative: b?.representative || b?.representativeName || req.representative || 'Barangay Official'
       };
     });
   }, [requestsData, beneficiariesData]);
@@ -1081,40 +1298,82 @@ export default function RequestsPage() {
             const PIcon = pConf.icon;
             const isEmergency = emergencyIds.has(req.dbId);
             const sla = getSLALabel(req);
+            const { needsList, calamity, excerpt } = parseRequestDetails(req);
+            const rawDate = req.requestDate || req.date || req.createdAt;
+            const fullDate = rawDate ? new Date(rawDate).toLocaleString() : 'N/A';
 
             return (
               <div key={req.dbId} className={`request-card priority-${pConf.color} ${isEmergency ? 'is-emergency' : ''}`}>
-                {isEmergency && <div className="emergency-label">EMERGENCY PINNED</div>}
+                {isEmergency && (
+                  <div className="emergency-label">
+                    <Pin size={11} /> EMERGENCY PINNED
+                  </div>
+                )}
                 
                 <div className="request-card__body">
                   <div className="request-card__header">
-                    <div>
-                      <h3 className="request-card__title">{req.beneficiary} <span style={{fontSize: '0.875rem', color: '#94a3b8', fontWeight: 'normal'}}>| {req.municipality}</span></h3>
-                      <div className="request-card__badges">
-                        <span className={`priority-badge ${pConf.color}`}>
-                          <PIcon size={12} /> {pConf.label}
-                        </span>
-                        <StatusBadge status={req.status} />
-                      </div>
+                    <div className="request-card__title-group">
+                      <h3 className="request-card__title">{req.beneficiary}</h3>
+                      <span className="request-card__subtitle">
+                        <MapPin size={12} style={{ color: 'var(--admin-brand, #AF101A)' }} />
+                        {req.municipality || 'Cebu City'}
+                      </span>
                     </div>
-                    <span className="request-card__ref">{req.id}</span>
+                    <span className="request-card__ref" title="Reference Code">{req.id}</span>
                   </div>
 
-                  <p className="request-card__desc"><strong>{req.type}</strong> - {req.notes}</p>
+                  <div className="request-card__badges">
+                    <span className={`priority-badge ${pConf.color}`} title={`${pConf.label} Priority`}>
+                      <PIcon size={11} strokeWidth={2.5} /> {pConf.label}
+                    </span>
+                    <StatusBadge status={req.status} />
+                    {calamity && (
+                      <span className="calamity-badge" title="Calamity or Program">
+                        🏷️ {calamity}
+                      </span>
+                    )}
+                  </div>
+
+                  <div className="request-card__needs">
+                    {needsList.length > 0 ? (
+                      needsList.map((need, idx) => {
+                        const NIcon = iconForNeed(need);
+                        return (
+                          <span key={idx} className="request-need-tag">
+                            <NIcon size={12} strokeWidth={2.2} />
+                            <span>{need}</span>
+                          </span>
+                        );
+                      })
+                    ) : (
+                      <span className="request-need-tag">
+                        <Package size={12} />
+                        <span>{req.type || 'General Relief Assistance'}</span>
+                      </span>
+                    )}
+                  </div>
+
+                  {excerpt && (
+                    <p className="request-card__excerpt" title={excerpt}>
+                      &ldquo;{excerpt}&rdquo;
+                    </p>
+                  )}
                   
-                  <div className="request-card__meta">
-                    <div className="request-card__meta-item">
-                      <Users size={14} /> {req.affectedFamilies} families
+                  <div className="request-card__meta-bar">
+                    <div className="request-card__meta-metric" title="Number of affected families">
+                      <Users size={14} style={{ color: '#64748b' }} />
+                      <span><strong>{(req.affectedFamilies || 0).toLocaleString()}</strong> families</span>
                     </div>
-                    <div className="request-card__meta-item">
-                      <Clock size={14} /> {timeAgo(req.requestDate || req.date)}
+                    <div className="request-card__meta-time" title={`Requested: ${fullDate}`}>
+                      <Clock size={13} style={{ color: '#94a3b8' }} />
+                      <span>{timeAgo(req.requestDate || req.date || req.createdAt)}</span>
                     </div>
                   </div>
 
                   {!['Completed', 'Rejected', 'Allocated'].includes(req.status) && (
-                    <div style={{marginTop: 'auto'}}>
+                    <div className="request-card__sla-wrapper">
                       <span className={`request-card__sla sla-${sla.status}`}>
-                        {sla.status === 'red' ? <AlertTriangle size={12} /> : <Info size={12} />}
+                        {sla.status === 'red' ? <AlertTriangle size={12} strokeWidth={2.5} /> : <Clock size={12} strokeWidth={2} />}
                         {sla.text}
                       </span>
                     </div>
@@ -1122,25 +1381,61 @@ export default function RequestsPage() {
                 </div>
 
                 <div className="request-card__actions">
-                  <div style={{ display: 'flex', gap: '0.25rem' }}>
-                    <button className={`btn-icon ${isEmergency ? 'active' : ''}`} onClick={(e) => toggleEmergency(req.dbId, e)} title="Pin as Emergency">
-                      <Pin size={16} />
-                    </button>
-                  </div>
+                  <button 
+                    className={`btn-pin ${isEmergency ? 'active' : ''}`} 
+                    onClick={(e) => toggleEmergency(req.dbId, e)} 
+                    title={isEmergency ? "Unpin Emergency" : "Pin as Emergency"}
+                    aria-label="Pin Emergency"
+                  >
+                    <Pin size={15} />
+                  </button>
                   
-                  <div style={{ display: 'flex', gap: '0.5rem' }}>
+                  <div style={{ display: 'flex', gap: '0.45rem', alignItems: 'center' }}>
                     {req.status === 'Approved' ? (
-                      <button className="btn btn--sm btn--primary" onClick={() => navigate('/admin/allocation', { state: { prefillRequest: { requestId: req.dbId, beneficiaryId: req.beneficiaryId, type: req.type, notes: req.notes, beneficiaryName: req.beneficiary } } })}>
+                      <button 
+                        className="btn btn--sm btn--primary" 
+                        onClick={() => navigate('/admin/allocation', { 
+                          state: { 
+                            prefillRequest: { 
+                              requestId: req.dbId, 
+                              beneficiaryId: req.beneficiaryId, 
+                              type: req.type, 
+                              notes: req.notes, 
+                              beneficiaryName: req.beneficiary 
+                            } 
+                          } 
+                        })}
+                        style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem', fontWeight: 600 }}
+                      >
                         Create Allocation &rarr;
                       </button>
                     ) : (
                       <>
-                        <button className="btn btn--sm btn--outline" onClick={() => setSelectedRequest(req)}>Review</button>
+                        <button 
+                          className="btn-action-review" 
+                          onClick={() => setSelectedRequest(req)}
+                        >
+                          Review
+                        </button>
                         {req.status !== 'Rejected' && (
-                          <button className="btn btn--sm btn--success" onClick={() => handleUpdateStatus(req.dbId, { status: 'Approved' })}><Check size={14}/></button>
+                          <button 
+                            className="btn-action-approve" 
+                            onClick={() => handleUpdateStatus(req.dbId, { status: 'Approved' })}
+                            title="Approve Request"
+                            aria-label="Approve Request"
+                          >
+                            <Check size={16} strokeWidth={2.6} />
+                          </button>
                         )}
                         {req.status !== 'Rejected' && (
-                          <button className="btn btn--sm btn--danger" onClick={() => handleUpdateStatus(req.dbId, { status: 'Rejected' })}><X size={14}/></button>
+                          <button 
+                            className="btn-action-reject" 
+                            onClick={() => handleUpdateStatus(req.dbId, { status: 'Rejected' })}
+                            title="Reject Request"
+                            aria-label="Reject Request"
+                          >
+                            <X size={16} strokeWidth={2.6} />
+                          </button>
                         )}
                       </>
                     )}
