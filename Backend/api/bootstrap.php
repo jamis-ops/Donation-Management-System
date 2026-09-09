@@ -7,6 +7,16 @@ require_once __DIR__ . '/super_admin.php';
 require_once __DIR__ . '/mailer.php';
 
 if (session_status() !== PHP_SESSION_ACTIVE) {
+  $isHttps = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off')
+    || (!empty($_SERVER['HTTP_X_FORWARDED_PROTO']) && $_SERVER['HTTP_X_FORWARDED_PROTO'] === 'https');
+  
+  session_set_cookie_params([
+    'lifetime' => 0,
+    'path' => '/',
+    'secure' => $isHttps,
+    'httponly' => true,
+    'samesite' => $isHttps ? 'None' : 'Lax',
+  ]);
   session_start();
 }
 

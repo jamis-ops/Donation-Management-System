@@ -4,6 +4,16 @@ require __DIR__ . '/cors.php';
 require __DIR__ . '/config.php';
 require_once __DIR__ . '/super_admin.php';
 
+$isHttps = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off')
+  || (!empty($_SERVER['HTTP_X_FORWARDED_PROTO']) && $_SERVER['HTTP_X_FORWARDED_PROTO'] === 'https');
+
+session_set_cookie_params([
+  'lifetime' => 0,
+  'path' => '/',
+  'secure' => $isHttps,
+  'httponly' => true,
+  'samesite' => $isHttps ? 'None' : 'Lax',
+]);
 session_start();
 
 $user = $_SESSION['user'] ?? null;

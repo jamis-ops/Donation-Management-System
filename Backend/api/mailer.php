@@ -60,6 +60,9 @@ if (!defined('SMTP_USER')) {
 if (!defined('SMTP_PASS')) {
   define('SMTP_PASS', '');
 }
+if (!defined('BREVO_API_KEY')) {
+  define('BREVO_API_KEY', getenv('BREVO_API_KEY') ?: '');
+}
 if (!defined('SMTP_SECURE')) {
   define('SMTP_SECURE', 'tls');
 }
@@ -98,6 +101,10 @@ if (!function_exists('mail_set_result')) {
 if (!function_exists('mail_resolved_transport')) {
   function mail_resolved_transport(): string
   {
+    $brevoKey = trim((string) (defined('BREVO_API_KEY') ? BREVO_API_KEY : (getenv('BREVO_API_KEY') ?: '')));
+    if ($brevoKey !== '') {
+      return 'brevo';
+    }
     $transport = strtolower(trim((string) MAIL_TRANSPORT));
     if ($transport === '' || $transport === 'auto') {
       return 'nodemailer';
@@ -589,6 +596,109 @@ if (!function_exists('smtp_send')) {
   }
 }
 
+if (!function_exists('brevo_send')) {
+  /**
+   * Send transactional email directly via Brevo REST API v3.
+   * Does not require a separate Node.js service or local SMTP daemon.
+   */
+  function brevo_send(string $toEmail, string $toName, string $subject, string $html): bool
+  {
+    $apiKey = trim((string) (defined('BREVO_API_KEY') ? BREVO_API_KEY : (getenv('BREVO_API_KEY') ?: '')));
+    if ($apiKey === '') {
+      mail_set_result(false, 'brevo', 'BREVO_API_KEY environment variable is not configured.');
+      return false;
+    }
+
+    $fromEmail = mail_from_address();
+    $fromName = defined('MAIL_FROM_NAME') ? (string) MAIL_FROM_NAME : 'Rise Above Foundation Cebu';
+    $plain = mail_html_to_text($html);
+
+    $payload = [
+      'sender' => [
+        'name' => $fromName,
+        'email' => $fromEmail,
+      ],
+      'to' => [
+        [
+          'email' => $toEmail,
+          'name' => $toName !== '' ? $toName : $toEmail,
+        ],
+      ],
+      'subject' => $subject,
+      'htmlContent' => $html,
+      'textContent' => $plain,
+    ];
+
+    $replyTo = mail_reply_to_address();
+    if ($replyTo !== '' && $replyTo !== $fromEmail) {
+      $payload['replyTo'] = [
+        'email' => $replyTo,
+        'name' => $fromName,
+      ];
+    }
+
+    $json = json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+    $headers = [
+      'api-key: ' . $apiKey,
+      'Content-Type: application/json',
+      'Accept: application/json',
+    ];
+
+    if (function_exists('curl_init')) {
+      $ch = curl_init('https://api.brevo.com/v3/smtp/email');
+      curl_setopt_array($ch, [
+        CURLOPT_POST => true,
+        CURLOPT_POSTFIELDS => $json,
+        CURLOPT_HTTPHEADER => $headers,
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_CONNECTTIMEOUT => 10,
+        CURLOPT_TIMEOUT => 30,
+      ]);
+      $raw = curl_exec($ch);
+      $errno = curl_errno($ch);
+      $err = curl_error($ch);
+      $status = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
+      curl_close($ch);
+
+      if ($errno !== 0) {
+        mail_set_result(false, 'brevo', "Brevo connection failed: {$err}");
+        return false;
+      }
+      $decoded = json_decode((string) $raw, true);
+      if ($status >= 200 && $status < 300) {
+        mail_set_result(true, 'brevo', '');
+        return true;
+      }
+      $msg = $decoded['message'] ?? "Brevo API returned HTTP {$status}";
+      mail_set_result(false, 'brevo', (string) $msg);
+      return false;
+    }
+
+    $context = stream_context_create([
+      'http' => [
+        'method' => 'POST',
+        'header' => implode("\r\n", $headers),
+        'content' => $json,
+        'timeout' => 30,
+        'ignore_errors' => true,
+      ],
+    ]);
+    $raw = @file_get_contents('https://api.brevo.com/v3/smtp/email', false, $context);
+    if ($raw === false) {
+      mail_set_result(false, 'brevo', 'Brevo API connection failed via stream context');
+      return false;
+    }
+    $decoded = json_decode($raw, true);
+    if (!empty($decoded['messageId'])) {
+      mail_set_result(true, 'brevo', '');
+      return true;
+    }
+    $msg = $decoded['message'] ?? 'Brevo API send error';
+    mail_set_result(false, 'brevo', (string) $msg);
+    return false;
+  }
+}
+
 if (!function_exists('send_mail')) {
   function send_mail(string $toEmail, string $toName, string $subject, string $bodyHtml): bool
   {
@@ -606,6 +716,12 @@ if (!function_exists('send_mail')) {
       mail_archive_outbox($toEmail, $toName, $subject, $html, false, 'MAIL_ENABLED=false');
       mail_set_result(false, $transport, 'Mail is disabled (MAIL_ENABLED=false)');
       return false;
+    }
+
+    if ($transport === 'brevo') {
+      $sent = brevo_send($toEmail, $toName, $subject, $html);
+      mail_archive_outbox($toEmail, $toName, $subject, $html, $sent, $sent ? 'brevo-ok' : 'brevo-failed');
+      return $sent;
     }
 
     if ($transport === 'nodemailer') {
@@ -651,7 +767,7 @@ if (!function_exists('send_mail')) {
       $ok,
       'outbox',
       $ok
-        ? 'Saved to outbox only — run `npm run mail` with SMTP in mail-service/.env for real Gmail delivery.'
+        ? 'Saved to outbox only — configure BREVO_API_KEY in .env for real email delivery.'
         : 'Failed to write mail outbox file'
     );
     return $ok;

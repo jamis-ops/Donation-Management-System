@@ -15,7 +15,18 @@ Frontend/dist
 dist-ssr
 *.local
 
-# Email & Secrets
+# Environment & Secrets
+.env
+.env.*
+!.env.example
+Backend/.env
+Backend/.env.*
+!Backend/.env.example
+Frontend/.env
+Frontend/.env.*
+!Frontend/.env.example
+Backend/api/.env
+Backend/mail-service/.env
 api/mail_config.php
 Backend/api/mail_config.php
 api/super_admin_config.php
@@ -24,11 +35,6 @@ api/ai_config.php
 Backend/api/ai_config.php
 api/logs/mail_outbox/*.html
 Backend/api/logs/mail_outbox/*.html
-mail-service/.env
-Backend/mail-service/.env
-.env
-Backend/.env
-Backend/api/.env
 
 # Editor directories and files
 .vscode/*

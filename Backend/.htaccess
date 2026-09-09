@@ -1,0 +1,18 @@
+# Apache configuration for Rise Above Foundation Backend API
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+    RewriteBase /
+
+    # Handle CORS Preflight early if needed
+    RewriteCond %{REQUEST_METHOD} OPTIONS
+    RewriteRule ^(.*)$ - [L]
+
+    # Ensure /api/health routes to api/health.php
+    RewriteRule ^api/health/?$ api/health.php [L,QSA]
+</IfModule>
+
+# Security: Disable directory browsing
+Options -Indexes
+
+# UTF-8 Encoding default
+AddDefaultCharset UTF-8

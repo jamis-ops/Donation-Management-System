@@ -19,11 +19,15 @@ if ($email === '' || $password === '') {
 
 // Cookie lifetime before session_start (Remember me = 30 days, else browser session).
 $lifetime = $remember ? (60 * 60 * 24 * 30) : 0;
+$isHttps = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off')
+  || (!empty($_SERVER['HTTP_X_FORWARDED_PROTO']) && $_SERVER['HTTP_X_FORWARDED_PROTO'] === 'https');
+
 session_set_cookie_params([
   'lifetime' => $lifetime,
   'path' => '/',
+  'secure' => $isHttps,
   'httponly' => true,
-  'samesite' => 'Lax',
+  'samesite' => $isHttps ? 'None' : 'Lax',
 ]);
 if ($lifetime > 0) {
   ini_set('session.gc_maxlifetime', (string) $lifetime);

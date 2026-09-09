@@ -13,10 +13,43 @@ declare(strict_types=1);
  * users table — do NOT put it here.
  */
 
-$DB_HOST = '127.0.0.1';
-$DB_NAME = 'donation_system';
-$DB_USER = 'root';   // MySQL username (NOT your admin email)
-$DB_PASS = '';       // MySQL password (XAMPP default is empty)
+// Auto-load .env file if present in Backend or project root
+(function() {
+  $envFiles = [
+    dirname(__DIR__) . '/.env',
+    __DIR__ . '/.env',
+    dirname(__DIR__, 2) . '/.env',
+  ];
+  foreach ($envFiles as $file) {
+    if (is_file($file) && is_readable($file)) {
+      $lines = file($file, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
+      if ($lines !== false) {
+        foreach ($lines as $line) {
+          $line = trim($line);
+          if ($line === '' || str_starts_with($line, '#') || !str_contains($line, '=')) {
+            continue;
+          }
+          [$key, $value] = explode('=', $line, 2);
+          $key = trim($key);
+          $value = trim($value, " \t\n\r\0\x0B\"'");
+          if ($key !== '' && getenv($key) === false) {
+            putenv("{$key}={$value}");
+            $_ENV[$key] = $value;
+            $_SERVER[$key] = $value;
+          }
+        }
+      }
+      break;
+    }
+  }
+})();
+
+$DB_HOST = getenv('DB_HOST') ?: '127.0.0.1';
+$DB_PORT = (int) (getenv('DB_PORT') ?: 3306);
+$DB_NAME = getenv('DB_NAME') ?: 'donation_system';
+$DB_USER = getenv('DB_USER') ?: 'root';
+$DB_PASS = getenv('DB_PASSWORD') ?: (getenv('DB_PASS') ?: '');
+$DB_SSL  = strtolower((string)(getenv('DB_SSL') ?: '')) === 'true' || $DB_PORT === 4000 || str_contains($DB_HOST, 'tidbcloud.com');
 
 /**
  * GOOGLE GEMINI AI CONFIGURATION (ai.google.dev)
@@ -29,16 +62,28 @@ if (file_exists(__DIR__ . '/ai_config.php')) {
   require_once __DIR__ . '/ai_config.php';
 }
 
-
 function db(): PDO {
-  global $DB_HOST, $DB_NAME, $DB_USER, $DB_PASS;
+  global $DB_HOST, $DB_PORT, $DB_NAME, $DB_USER, $DB_PASS, $DB_SSL;
 
-  $dsn = "mysql:host={$DB_HOST};dbname={$DB_NAME};charset=utf8mb4";
-  $pdo = new PDO($dsn, $DB_USER, $DB_PASS, [
+  static $pdoInstance = null;
+  if ($pdoInstance !== null) {
+    return $pdoInstance;
+  }
+
+  $dsn = "mysql:host={$DB_HOST};port={$DB_PORT};dbname={$DB_NAME};charset=utf8mb4";
+  $options = [
     PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
     PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
-  ]);
-  return $pdo;
+  ];
+
+  // Enable SSL/TLS for TiDB Cloud or when DB_SSL is enabled
+  if ($DB_SSL) {
+    $options[PDO::MYSQL_ATTR_SSL_CA] = true;
+    $options[PDO::MYSQL_ATTR_SSL_VERIFY_SERVER_CERT] = false;
+  }
+
+  $pdoInstance = new PDO($dsn, $DB_USER, $DB_PASS, $options);
+  return $pdoInstance;
 }
 
 function json_response($data, int $status = 200): void {

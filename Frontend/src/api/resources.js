@@ -1,5 +1,15 @@
+export const API_BASE_URL = (import.meta.env.VITE_API_URL || '').replace(/\/$/, '')
+
+export function apiUrl(path) {
+  if (!path) return ''
+  if (/^https?:\/\//i.test(path)) return path
+  const cleanPath = path.startsWith('/') ? path : `/${path}`
+  return `${API_BASE_URL}${cleanPath}`
+}
+
 export async function apiFetch(path, options = {}) {
-  const res = await fetch(path, {
+  const url = apiUrl(path)
+  const res = await fetch(url, {
     credentials: 'include',
     headers: {
       'Content-Type': 'application/json',
@@ -169,7 +179,7 @@ export function deleteStaff(id) {
 export function submitPublicDonation(bodyOrFormData) {
   if (bodyOrFormData instanceof FormData) {
     if (!bodyOrFormData.has('public')) bodyOrFormData.append('public', '1')
-    return fetch('/api/donations.php', {
+    return fetch(apiUrl('/api/donations.php'), {
       method: 'POST',
       credentials: 'include',
       body: bodyOrFormData,
@@ -195,7 +205,7 @@ export function submitPublicAssistance(body) {
 export function submitPublicVolunteer(bodyOrFormData) {
   if (bodyOrFormData instanceof FormData) {
     if (!bodyOrFormData.has('public')) bodyOrFormData.append('public', '1')
-    return fetch('/api/volunteers.php', {
+    return fetch(apiUrl('/api/volunteers.php'), {
       method: 'POST',
       credentials: 'include',
       body: bodyOrFormData,
@@ -236,7 +246,7 @@ export function getDistributionProofs(beneficiaryId = null) {
 }
 
 export async function uploadDistributionProof(formData) {
-  const res = await fetch('/api/distribution_proofs.php', {
+  const res = await fetch(apiUrl('/api/distribution_proofs.php'), {
     method: 'POST',
     credentials: 'include',
     body: formData,
@@ -273,7 +283,7 @@ export const contentApi = {
 }
 
 export async function uploadProfilePhoto(formData) {
-  const res = await fetch('/api/account.php', {
+  const res = await fetch(apiUrl('/api/account.php'), {
     method: 'POST',
     credentials: 'include',
     body: formData,
