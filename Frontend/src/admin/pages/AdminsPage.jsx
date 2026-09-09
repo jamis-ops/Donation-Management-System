@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react'
 import { Navigate } from 'react-router-dom'
-import { Mail, Shield } from 'lucide-react'
-import { createStaffAccount, getStaff, updateStaff } from '../../api/resources'
+import { Mail, Shield, Trash2 } from 'lucide-react'
+import { createStaffAccount, deleteStaff, getStaff, updateStaff } from '../../api/resources'
 import { useApiList } from '../../hooks/useApiList'
 import { useFilters } from '../../hooks/useFilters'
 import { useAuth } from '../../context/AuthContext'
@@ -220,29 +220,26 @@ export default function AdminsPage() {
     }
   }
 
-  const toggleStatus = async (row) => {
-    const next = row.status === 'Active' ? 'Inactive' : 'Active'
+  const handleDelete = async (row) => {
     const ok = await confirmAction({
-      title: `${next === 'Inactive' ? 'Deactivate' : 'Activate'} Admin Account`,
-      message: `Are you sure you want to set ${row.name} to ${next}?`,
-      confirmText: next === 'Inactive' ? 'Deactivate' : 'Activate',
-      type: next === 'Inactive' ? 'warning' : 'primary',
+      title: 'Delete Admin Account',
+      message: `Are you sure you want to permanently delete admin account "${row.name}" (${row.email})? This action removes the account from the database and cannot be undone.`,
+      confirmText: 'Delete Admin',
+      type: 'danger',
     })
     if (!ok) return
 
-    showLoading('Updating status…')
+    showLoading('Deleting admin…')
     try {
-      const res = await updateStaff(row.dbId, { status: next })
-      const status = res?.data?.status || next
-      notify.success(`Status successfully updated to: ${status}.`)
-      showSuccessModal('Successfully updated.')
-      reload()
+      await deleteStaff(row.dbId)
+      notify.success(`Admin account "${row.name}" deleted from database.`)
+      showSuccessModal('Successfully deleted.')
       if (selected?.dbId === row.dbId) {
-        setSelected({ ...row, status })
-        setEditForm((f) => (f ? { ...f, status } : f))
+        setSelected(null)
       }
+      reload()
     } catch (err) {
-      notify.error(err.message)
+      notify.error(err.message || 'Failed to delete admin account')
     } finally {
       hideLoading()
     }
@@ -260,8 +257,8 @@ export default function AdminsPage() {
       render: (row) => (
         <div className="table-actions" onClick={(e) => e.stopPropagation()}>
           <button type="button" className="btn btn--sm btn--outline" onClick={() => openAdmin(row)}>Manage</button>
-          <button type="button" className="btn btn--sm btn--ghost" onClick={() => toggleStatus(row)}>
-            {row.status === 'Active' ? 'Deactivate' : 'Activate'}
+          <button type="button" className="btn btn--sm btn--danger" onClick={() => handleDelete(row)}>
+            Delete
           </button>
         </div>
       ),
@@ -390,9 +387,18 @@ export default function AdminsPage() {
                 <p className="volunteer-panel-hint">
                   <Shield size={14} /> Database Admin accounts access the Admin portal. This is separate from the hardcoded Super Admin.
                 </p>
-                <div className="admin-modal__actions">
-                  <button type="submit" className="btn btn--primary" disabled={saving}>Save Profile</button>
-                  <button type="button" className="btn btn--ghost" onClick={() => setSelected(null)}>Close</button>
+                <div className="admin-modal__actions" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <button
+                    type="button"
+                    className="btn btn--danger btn--sm"
+                    onClick={() => handleDelete(selected)}
+                  >
+                    <Trash2 size={14} style={{ marginRight: '4px' }} /> Delete Account
+                  </button>
+                  <div style={{ display: 'flex', gap: '0.5rem' }}>
+                    <button type="submit" className="btn btn--primary" disabled={saving}>Save Profile</button>
+                    <button type="button" className="btn btn--ghost" onClick={() => setSelected(null)}>Close</button>
+                  </div>
                 </div>
               </form>
             </section>
