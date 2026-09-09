@@ -61,10 +61,6 @@ export default function LoginPage() {
             <Logo className="admin-login__logo" />
             <h1>Admin Login</h1>
             <p>Rise Above Foundation Management System</p>
-            <p className="admin-login__hint">
-              Super Admin is hardcoded in server config (not in the database) and always remains after a DB wipe.
-              Regular Admin accounts are stored in MySQL and can only be created by the Super Admin.
-            </p>
           </div>
 
           <form onSubmit={handleSubmit} className="admin-login__form">
@@ -97,12 +93,6 @@ export default function LoginPage() {
               {loading ? 'Signing in...' : 'Sign In'}
             </button>
           </form>
-
-          <div className="admin-login__demo">
-            <p><strong>Demo credentials</strong></p>
-            <p>Super Admin (hardcoded): <code>superadmin@riseabovefoundation.org</code> / <code>SuperAdmin@RAFC2026!</code></p>
-            <p>Admin (database): <code>admin@riseabovefoundation.org</code> / <code>admin123</code></p>
-          </div>
 
           <Link to="/" className="admin-login__back">Back to public site</Link>
         </div>

@@ -1,7 +1,7 @@
 import { useState } from 'react'
-import { Link, useNavigate, useSearchParams } from 'react-router-dom'
+import { Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom'
 import { useAuth } from '../../context/AuthContext'
-import { getHomeForRole } from '../../utils/roleRoutes'
+import { getHomeForRole, isAdminPortalRole } from '../../utils/roleRoutes'
 import Logo from '../../components/shared/Logo'
 import Req from '../../components/shared/Req'
 import { heroBg } from '../../assets'
@@ -18,6 +18,8 @@ export default function LoginPage() {
   const { showLoading, hideLoading } = useLoading()
   const { login } = useAuth()
   const navigate = useNavigate()
+  const location = useLocation()
+  const from = location.state?.from?.pathname
   const [params] = useSearchParams()
   const justVerified = params.get('verified') === '1'
 
@@ -37,6 +39,10 @@ export default function LoginPage() {
       }
       if (result.user?.mustChangePassword) {
         navigate('/change-password', { replace: true })
+        return
+      }
+      if (from && (isAdminPortalRole(result.user?.role) || from.startsWith('/staff') || from.startsWith('/donor') || from.startsWith('/volunteer') || from.startsWith('/beneficiary'))) {
+        navigate(from, { replace: true })
         return
       }
       navigate(getHomeForRole(result.user?.role), { replace: true })
@@ -61,7 +67,7 @@ export default function LoginPage() {
         <div className="auth-card">
           <Logo className="auth-card__logo" />
           <h1>Welcome back</h1>
-          <p className="auth-card__subtitle">Sign in to access your donor, volunteer, or barangay portal.</p>
+          <p className="auth-card__subtitle">Sign in to access your portal or dashboard.</p>
 
           {justVerified && (
             <div className="auth-card__success auth-card__success--verified" role="status">

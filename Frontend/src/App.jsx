@@ -111,7 +111,7 @@ const router = createBrowserRouter([
       { path: 'terms', element: <TermsPage /> },
     ],
   },
-  { path: 'admin/login', element: <AdminLoginPage /> },
+  { path: 'admin/login', element: <Navigate to="/login" replace /> },
   {
     path: 'admin',
     element: (
