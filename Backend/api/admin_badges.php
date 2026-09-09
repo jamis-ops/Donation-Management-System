@@ -4,7 +4,14 @@ require_once __DIR__ . '/bootstrap.php';
 
 $pdo = db();
 $method = request_method();
-$user = require_auth(['Admin', 'Staff', 'SuperAdmin']);
+$user = current_user();
+
+if (!$user || !in_array($user['role'] ?? '', ['Admin', 'Staff', 'SuperAdmin'], true)) {
+  if ($method === 'POST') {
+    json_response(['ok' => true]);
+  }
+  json_response(['ok' => true, 'data' => []]);
+}
 
 $userId = (int) ($user['id'] ?? 0);
 if ($userId <= 0 && is_super_admin_user($user)) {
