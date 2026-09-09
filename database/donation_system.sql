@@ -60,7 +60,7 @@ VALUES (
   'Rise Above',
   'Administrator',
   'admin@riseabovefoundation.org',
-  '$2y$10$Q7iM0nThk6b51cfl7v94fe/mQ/YmG6mG0hU3wW9m1H2dG5d4k6zqy',
+  '$2y$10$kqp/8MzBZuQdjHoCun2t4uba/0lky0uafBhVOhKVbu9cfiIb/qdZe',
   'ACTIVE',
   NOW(),
   NOW(),
