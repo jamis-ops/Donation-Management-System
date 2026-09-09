@@ -102,36 +102,31 @@ if (!function_exists('mail_resolved_transport')) {
     if ($explicit !== '' && $explicit !== 'auto') {
       return $explicit;
     }
+    // Brevo HTTPS API uses standard HTTPS port 443 (never blocked by cloud firewalls / port 587 timeouts)
+    $brevoKey = trim((string) (defined('BREVO_API_KEY') ? BREVO_API_KEY : (getenv('BREVO_API_KEY') ?: '')));
+    if ($brevoKey !== '') {
+      return 'brevo';
+    }
     $smtpHost = trim((string) (defined('SMTP_HOST') ? SMTP_HOST : (getenv('SMTP_HOST') ?: '')));
     $smtpUser = trim((string) (defined('SMTP_USER') ? SMTP_USER : (getenv('SMTP_USER') ?: '')));
     $smtpPass = trim((string) (defined('SMTP_PASS') ? SMTP_PASS : (getenv('SMTP_PASS') ?: '')));
     if ($smtpHost !== '' && $smtpUser !== '' && $smtpPass !== '') {
       return 'smtp';
     }
-    $brevoKey = trim((string) (defined('BREVO_API_KEY') ? BREVO_API_KEY : (getenv('BREVO_API_KEY') ?: '')));
-    if ($brevoKey !== '') {
-      return 'brevo';
-    }
     return 'nodemailer';
   }
 }
 
 if (!function_exists('mail_from_address')) {
-  /**
-   * Prefer the authenticated SMTP mailbox as From (critical for Gmail inbox delivery).
-   */
   function mail_from_address(): string
   {
-    $user = trim((string) SMTP_USER);
-    $configured = trim((string) MAIL_FROM_EMAIL);
-    if ($user !== '' && filter_var($user, FILTER_VALIDATE_EMAIL)) {
-      if ($configured !== '' && strcasecmp($configured, $user) !== 0 && preg_match('/@(gmail|googlemail)\.com$/i', $user)) {
-        error_log("[mailer] MAIL_FROM_EMAIL ({$configured}) differs from SMTP_USER ({$user}); using SMTP_USER for deliverability.");
-      }
-      return $user;
-    }
+    $configured = trim((string) (defined('MAIL_FROM_EMAIL') ? MAIL_FROM_EMAIL : (getenv('MAIL_FROM_EMAIL') ?: '')));
     if ($configured !== '' && filter_var($configured, FILTER_VALIDATE_EMAIL)) {
       return $configured;
+    }
+    $user = trim((string) (defined('SMTP_USER') ? SMTP_USER : (getenv('SMTP_USER') ?: '')));
+    if ($user !== '' && filter_var($user, FILTER_VALIDATE_EMAIL)) {
+      return $user;
     }
     return 'no-reply@riseabovefoundation.org';
   }
