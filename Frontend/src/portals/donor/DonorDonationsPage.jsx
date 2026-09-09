@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
-import { Search, Download, TrendingUp, DollarSign, Package, Calendar, Users, MapPin } from 'lucide-react'
+import { Search, Download, TrendingUp, DollarSign, Package, Calendar, Users, MapPin, Heart } from 'lucide-react'
 import StatusBadge from '../../admin/components/shared/StatusBadge'
 import ApiState from '../../admin/components/shared/ApiState'
 import { donationsApi, certificatesApi } from '../../api/resources'
@@ -383,6 +383,75 @@ export default function DonorDonationsPage() {
                 </div>
               </div>
             </div>
+
+            {/* Fund Utilization & Impact Breakdown for Monetary Donations */}
+            {selected.type === 'Monetary' && Array.isArray(selected.procurements) && selected.procurements.length > 0 && (
+              <div className="donor-procurement-impact" style={{ margin: '1.25rem 0', padding: '1.25rem', background: '#f8fafc', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', marginBottom: '1rem' }}>
+                  <div style={{ width: '36px', height: '36px', borderRadius: '8px', background: '#fee2e2', color: '#AF101A', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <Heart size={20} />
+                  </div>
+                  <div>
+                    <h4 style={{ margin: 0, fontSize: '0.98rem', fontWeight: 600, color: '#1e293b' }}>
+                      Verified Community Impact & Fund Breakdown
+                    </h4>
+                    <span style={{ fontSize: '0.8rem', color: '#64748b' }}>
+                      Your financial gift has been directly converted into the following relief provisions:
+                    </span>
+                  </div>
+                </div>
+
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
+                  {selected.procurements.map((proc, idx) => (
+                    <div key={proc.id || idx} style={{ background: '#fff', borderRadius: '10px', border: '1px solid #e2e8f0', padding: '1rem', boxShadow: '0 1px 3px rgba(0,0,0,0.03)' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '0.5rem', marginBottom: '0.5rem' }}>
+                        <div>
+                          <span style={{ display: 'inline-block', padding: '3px 8px', borderRadius: '6px', fontSize: '0.75rem', fontWeight: 600, background: proc.procurement_type === 'pack_sponsorship' ? '#eff6ff' : '#f0fdf4', color: proc.procurement_type === 'pack_sponsorship' ? '#1d4ed8' : '#15803d', marginBottom: '4px' }}>
+                            {proc.procurement_type === 'pack_sponsorship' ? '📦 Relief Pack Sponsorship' : '🏬 Wholesale Store Purchase'}
+                          </span>
+                          <h5 style={{ margin: 0, fontSize: '0.92rem', color: '#0f172a' }}>
+                            {proc.procurement_type === 'pack_sponsorship' ? (proc.pack_type || 'Emergency Relief Food Pack') : (proc.store_name || 'Partner Supplier Purchase')}
+                          </h5>
+                          <div style={{ fontSize: '0.8rem', color: '#64748b', display: 'flex', alignItems: 'center', gap: '0.35rem', marginTop: '3px' }}>
+                            <MapPin size={13} color="#AF101A" />
+                            <span>
+                              Dispatched to: <strong>{proc.beneficiary_name || 'Relief Center'}</strong>{proc.municipality ? `, ${proc.municipality}` : ''}
+                            </span>
+                            {proc.receipt_number && <span> • Receipt #{proc.receipt_number}</span>}
+                          </div>
+                        </div>
+                        <div style={{ textAlign: 'right' }}>
+                          <span style={{ fontSize: '1.05rem', fontWeight: 700, color: '#047857' }}>
+                            ₱{Number(proc.total_amount || 0).toLocaleString('en-PH', { minimumFractionDigits: 2 })}
+                          </span>
+                          {proc.pack_count > 0 && (
+                            <div style={{ fontSize: '0.78rem', color: '#AF101A', fontWeight: 600, marginTop: '2px' }}>
+                              {proc.pack_count} Families Supported
+                            </div>
+                          )}
+                        </div>
+                      </div>
+
+                      {Array.isArray(proc.items) && proc.items.length > 0 && (
+                        <div style={{ marginTop: '0.65rem', paddingTop: '0.65rem', borderTop: '1px solid #f1f5f9' }}>
+                          <span style={{ fontSize: '0.75rem', fontWeight: 600, color: '#475569', display: 'block', marginBottom: '0.35rem' }}>
+                            Itemized Goods:
+                          </span>
+                          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: '0.4rem' }}>
+                            {proc.items.map((it, i) => (
+                              <div key={i} style={{ background: '#f8fafc', padding: '4px 8px', borderRadius: '6px', fontSize: '0.76rem', display: 'flex', justifyContent: 'space-between', border: '1px solid #edf2f7' }}>
+                                <span style={{ color: '#334155' }}>{it.item}</span>
+                                <strong style={{ color: '#0f172a' }}>{it.quantity} {it.unit}</strong>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
 
             {/* Live Progress Tracker */}
             <DonationProgressTracker donation={selected} donationId={selected.dbId} />

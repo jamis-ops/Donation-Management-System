@@ -14,12 +14,88 @@ function donation_proof_is_image(?string $mime, ?string $fileName): bool
     || (bool) preg_match('/\.(jpe?g|png|gif|webp)$/i', $fileName);
 }
 
-function map_donation(array $row): array
+function ensure_procurement_table(PDO $pdo): void
+{
+  static $done = false;
+  if ($done) {
+    return;
+  }
+  try {
+    $pdo->exec("
+      CREATE TABLE IF NOT EXISTS donation_procurements (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        donation_id INT NOT NULL,
+        mode VARCHAR(50) NOT NULL DEFAULT 'Pack Sponsorship',
+        beneficiary_id INT NULL,
+        assistance_request_id INT NULL,
+        allocation_id INT NULL,
+        total_amount DECIMAL(12,2) NOT NULL,
+        items_json TEXT NOT NULL,
+        receipt_number VARCHAR(100) NULL,
+        supplier_name VARCHAR(150) NULL,
+        families_supported INT UNSIGNED NOT NULL DEFAULT 0,
+        notes TEXT NULL,
+        created_by_user_id INT NULL,
+        created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        INDEX idx_proc_donation (donation_id),
+        INDEX idx_proc_ben (beneficiary_id)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+    ");
+  } catch (Throwable $e) {
+    // best-effort
+  }
+  $done = true;
+}
+
+function map_donation(array $row, ?PDO $pdo = null): array
 {
   $proofPath = $row['proof_path'] ?? null;
   $proofName = $row['proof_file_name'] ?? null;
   $proofType = $row['proof_file_type'] ?? null;
   $hasProof = !empty($proofPath);
+
+  $procurements = [];
+  $totalUtilized = 0.0;
+  $familiesSupported = 0;
+  if ($pdo) {
+    ensure_procurement_table($pdo);
+    try {
+      $stmt = $pdo->prepare("
+        SELECT dp.*, b.full_name AS beneficiary_name, b.municipality AS beneficiary_municipality
+        FROM donation_procurements dp
+        LEFT JOIN beneficiaries b ON b.id = dp.beneficiary_id
+        WHERE dp.donation_id = ?
+        ORDER BY dp.created_at DESC, dp.id DESC
+      ");
+      $stmt->execute([(int) $row['id']]);
+      $rows = $stmt->fetchAll();
+      foreach ($rows as $p) {
+        $items = json_decode((string) $p['items_json'], true) ?: [];
+        $pAmount = (float) $p['total_amount'];
+        $totalUtilized += $pAmount;
+        $familiesSupported += (int) $p['families_supported'];
+        $procurements[] = [
+          'id' => (int) $p['id'],
+          'mode' => $p['mode'],
+          'totalAmount' => $pAmount,
+          'items' => $items,
+          'receiptNumber' => $p['receipt_number'],
+          'supplierName' => $p['supplier_name'],
+          'familiesSupported' => (int) $p['families_supported'],
+          'beneficiaryId' => $p['beneficiary_id'] ? (int) $p['beneficiary_id'] : null,
+          'beneficiaryName' => $p['beneficiary_name'] ?? null,
+          'beneficiaryMunicipality' => $p['beneficiary_municipality'] ?? null,
+          'assistanceRequestId' => $p['assistance_request_id'] ? (int) $p['assistance_request_id'] : null,
+          'allocationId' => $p['allocation_id'] ? (int) $p['allocation_id'] : null,
+          'notes' => $p['notes'],
+          'createdAt' => $p['created_at'],
+        ];
+      }
+    } catch (Throwable $e) {}
+  }
+
+  $amountRaw = (float) ($row['amount'] ?? 0);
+  $remainingAmount = max(0.0, $amountRaw - $totalUtilized);
 
   return [
     'id' => $row['tracking_code'],
@@ -30,7 +106,11 @@ function map_donation(array $row): array
     'type' => $row['type'],
     'category' => $row['category'] ?? '',
     'amount' => money_display($row['type'], $row['amount'], $row['items_description']),
-    'amountRaw' => $row['amount'],
+    'amountRaw' => $amountRaw,
+    'totalUtilized' => $totalUtilized,
+    'remainingBalance' => $remainingAmount,
+    'familiesSupported' => $familiesSupported,
+    'procurements' => $procurements,
     'itemsDescription' => $row['items_description'],
     'status' => $row['status'],
     'date' => format_date($row['donation_date']),
@@ -97,7 +177,7 @@ if ($method === 'GET') {
     if ($user['role'] === 'Donor' && !donation_belongs_to_donor_user($pdo, $row, $user)) {
       json_response(['ok' => false, 'error' => 'Access denied'], 403);
     }
-    json_response(['ok' => true, 'data' => map_donation($row)]);
+    json_response(['ok' => true, 'data' => map_donation($row, $pdo)]);
   }
 
   if ($user['role'] === 'Donor') {
@@ -105,7 +185,7 @@ if ($method === 'GET') {
   } else {
     $rows = $pdo->query('SELECT * FROM donations ORDER BY created_at DESC, donation_date DESC, id DESC')->fetchAll();
   }
-  json_response(['ok' => true, 'data' => array_map('map_donation', $rows)]);
+  json_response(['ok' => true, 'data' => array_map(fn($r) => map_donation($r, $pdo), $rows)]);
 }
 
 if ($method === 'POST') {
@@ -119,6 +199,195 @@ if ($method === 'POST') {
     $body = read_json_body();
     $public = !empty($body['public']);
   }
+
+  $action = trim((string) ($_GET['action'] ?? $body['action'] ?? ''));
+
+  // ── Procurement & Fund Allocation Action ──
+  if ($action === 'procure' || $action === 'procure_or_allocate') {
+    $user = require_auth(['Admin', 'Staff']);
+    ensure_procurement_table($pdo);
+
+    $donationId = (int) ($body['donationId'] ?? $body['donation_id'] ?? 0);
+    if ($donationId <= 0) {
+      json_response(['ok' => false, 'error' => 'Valid donationId is required'], 400);
+    }
+
+    $dStmt = $pdo->prepare('SELECT * FROM donations WHERE id = ? LIMIT 1');
+    $dStmt->execute([$donationId]);
+    $donation = $dStmt->fetch();
+    if (!$donation) {
+      json_response(['ok' => false, 'error' => 'Donation record not found'], 404);
+    }
+
+    $mode = trim((string) ($body['mode'] ?? 'Pack Sponsorship'));
+    $totalAmount = (float) ($body['totalAmount'] ?? $body['total_amount'] ?? 0);
+    if ($totalAmount <= 0) {
+      json_response(['ok' => false, 'error' => 'Total amount utilized must be greater than 0'], 400);
+    }
+
+    $beneficiaryId = !empty($body['beneficiaryId']) ? (int) $body['beneficiaryId'] : (!empty($body['beneficiary_id']) ? (int) $body['beneficiary_id'] : null);
+    $assistanceRequestId = !empty($body['assistanceRequestId']) ? (int) $body['assistanceRequestId'] : (!empty($body['assistance_request_id']) ? (int) $body['assistance_request_id'] : null);
+    $items = is_array($body['items'] ?? null) ? $body['items'] : [];
+    $receiptNumber = trim((string) ($body['receiptNumber'] ?? $body['receipt_number'] ?? ''));
+    $supplierName = trim((string) ($body['supplierName'] ?? $body['supplier_name'] ?? ''));
+    $familiesSupported = (int) ($body['familiesSupported'] ?? $body['families_supported'] ?? 0);
+    $notes = trim((string) ($body['notes'] ?? ''));
+    $addToInventory = !empty($body['addToInventory']);
+
+    // Fetch beneficiary details if provided
+    $beneficiary = null;
+    $benName = 'General Community Aid';
+    if ($beneficiaryId && $beneficiaryId > 0) {
+      $bStmt = $pdo->prepare('SELECT * FROM beneficiaries WHERE id = ? LIMIT 1');
+      $bStmt->execute([$beneficiaryId]);
+      $beneficiary = $bStmt->fetch() ?: null;
+      if ($beneficiary) {
+        $benName = $beneficiary['full_name'] ?: ($beneficiary['barangay'] ?? 'Partner Community');
+        if ($familiesSupported <= 0) {
+          $familiesSupported = (int) ($beneficiary['affected_families'] ?? 1);
+        }
+      }
+    }
+
+    // Build items summary text
+    $summaryParts = [];
+    $totalQty = 0;
+    foreach ($items as $it) {
+      $itName = trim((string) ($it['item'] ?? $it['name'] ?? 'Relief Pack'));
+      $itQty = (int) ($it['quantity'] ?? 1);
+      $itUnit = trim((string) ($it['unit'] ?? 'packs'));
+      $totalQty += $itQty;
+      $summaryParts[] = "{$itName} ({$itQty} {$itUnit})";
+    }
+    $itemsSummary = !empty($summaryParts) ? implode(', ', $summaryParts) : "{$mode} (₱" . number_format($totalAmount, 2) . ")";
+
+    // Optionally create Allocation in allocations table
+    $allocationId = null;
+    if ($beneficiaryId && $beneficiaryId > 0) {
+      try {
+        $alcCode = generate_code('ALC');
+        $alcStmt = $pdo->prepare('
+          INSERT INTO allocations (code, resource_name, quantity, program, beneficiary_target, beneficiary_id, assistance_request_id, status, priority, allocation_date, notes)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ');
+        $alcStmt->execute([
+          $alcCode,
+          $itemsSummary,
+          max(1, $totalQty),
+          $donation['category'] ?: 'Disaster Relief',
+          $benName,
+          $beneficiaryId,
+          $assistanceRequestId,
+          'Allocated',
+          'High',
+          date('Y-m-d'),
+          "Funded from Donation {$donation['tracking_code']}" . ($receiptNumber !== '' ? " (OR: {$receiptNumber})" : ''),
+        ]);
+        $allocationId = (int) $pdo->lastInsertId();
+      } catch (Throwable $e) {
+        // best-effort
+      }
+    }
+
+    // Optionally add purchased goods into Inventory warehouse
+    if ($addToInventory && !empty($items)) {
+      foreach ($items as $it) {
+        $itemName = trim((string) ($it['item'] ?? $it['name'] ?? ''));
+        $itemQty = (int) ($it['quantity'] ?? 0);
+        $itemUnit = trim((string) ($it['unit'] ?? 'pcs'));
+        if ($itemName !== '' && $itemQty > 0) {
+          try {
+            $invCheck = $pdo->prepare('SELECT id FROM inventory_items WHERE LOWER(item_name) = LOWER(?) LIMIT 1');
+            $invCheck->execute([$itemName]);
+            $existingInvId = (int) $invCheck->fetchColumn();
+            if ($existingInvId > 0) {
+              $pdo->prepare('UPDATE inventory_items SET quantity = quantity + ? WHERE id = ?')->execute([$itemQty, $existingInvId]);
+            } else {
+              $itemCode = generate_code('INV');
+              $pdo->prepare('INSERT INTO inventory_items (code, item_name, category, quantity, unit, low_stock_threshold, stock_state) VALUES (?, ?, ?, ?, ?, ?, ?)')
+                ->execute([$itemCode, $itemName, $donation['category'] ?: 'Relief Goods', $itemQty, $itemUnit, 10, 'Available']);
+            }
+          } catch (Throwable $e) {}
+        }
+      }
+    }
+
+    // Insert Procurement Record
+    $procStmt = $pdo->prepare('
+      INSERT INTO donation_procurements (donation_id, mode, beneficiary_id, assistance_request_id, allocation_id, total_amount, items_json, receipt_number, supplier_name, families_supported, notes, created_by_user_id)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ');
+    $procStmt->execute([
+      $donationId,
+      $mode,
+      $beneficiaryId,
+      $assistanceRequestId,
+      $allocationId,
+      $totalAmount,
+      json_encode($items),
+      $receiptNumber !== '' ? $receiptNumber : null,
+      $supplierName !== '' ? $supplierName : null,
+      $familiesSupported,
+      $notes !== '' ? $notes : null,
+      (int) $user['id'],
+    ]);
+    $procurementId = (int) $pdo->lastInsertId();
+
+    // Update donation status to Allocated
+    $pdo->prepare("UPDATE donations SET status = 'Allocated' WHERE id = ?")->execute([$donationId]);
+
+    // Record timeline step
+    $timelineNote = "₱" . number_format($totalAmount, 2) . " converted into {$itemsSummary} for {$benName}." . ($receiptNumber !== '' ? " Ref: {$receiptNumber}" : '');
+    $updStmt = $pdo->prepare('
+      INSERT INTO donation_updates (donation_id, stage, note, created_by_user_id, created_by_name)
+      VALUES (?, ?, ?, ?, ?)
+    ');
+    $updStmt->execute([
+      $donationId,
+      'Scheduled for Distribution',
+      $timelineNote,
+      (int) $user['id'],
+      (string) ($user['name'] ?? 'Staff'),
+    ]);
+
+    // Trigger Brevo Email Notification to Donor
+    $donorEmail = trim((string) ($donation['donor_email'] ?? ''));
+    $donorName = trim((string) ($donation['donor_name'] ?? 'Donor'));
+    $emailSent = false;
+    if ($donorEmail !== '' && filter_var($donorEmail, FILTER_VALIDATE_EMAIL)) {
+      $procurementRecord = [
+        'mode' => $mode,
+        'total_amount' => $totalAmount,
+        'items' => $items,
+        'receipt_number' => $receiptNumber,
+        'supplier_name' => $supplierName,
+        'families_supported' => $familiesSupported,
+      ];
+      $emailSent = send_donation_allocated_email($donorEmail, $donorName, $donation, $procurementRecord, $beneficiary);
+    }
+
+    notify_admins(
+      $pdo,
+      'donation',
+      'Donation Allocated & Procured',
+      "{$donation['tracking_code']} allocated: ₱" . number_format($totalAmount, 2) . " for {$benName}",
+      '/admin/donations?tab=monetary'
+    );
+
+    // Return updated donation details
+    $refreshed = $pdo->prepare('SELECT * FROM donations WHERE id = ? LIMIT 1');
+    $refreshed->execute([$donationId]);
+    $updatedRow = $refreshed->fetch();
+
+    json_response([
+      'ok' => true,
+      'message' => "Donation successfully allocated for {$benName}!",
+      'emailSent' => $emailSent,
+      'procurementId' => $procurementId,
+      'data' => map_donation($updatedRow, $pdo),
+    ]);
+  }
+
   $user = $public ? null : require_auth(['Admin', 'Staff']);
 
   $type = (($body['type'] ?? 'Monetary') === 'In-Kind') ? 'In-Kind' : 'Monetary';

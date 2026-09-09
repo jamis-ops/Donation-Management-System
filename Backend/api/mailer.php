@@ -773,3 +773,107 @@ if (!function_exists('send_mail')) {
     return $ok;
   }
 }
+
+if (!function_exists('send_donation_allocated_email')) {
+  function send_donation_allocated_email(
+    string $toEmail,
+    string $toName,
+    array $donation,
+    array $procurement,
+    ?array $beneficiary = null
+  ): bool {
+    $tracking = htmlspecialchars((string) ($donation['tracking_code'] ?? $donation['id'] ?? ''));
+    $donorName = htmlspecialchars($toName ?: 'Valued Donor');
+    $totalAmount = number_format((float) ($procurement['total_amount'] ?? 0), 2);
+    $mode = htmlspecialchars((string) ($procurement['mode'] ?? 'Pack Sponsorship'));
+    $barangayName = htmlspecialchars((string) ($beneficiary['full_name'] ?? $beneficiary['barangay'] ?? 'Partner Community'));
+    $municipality = htmlspecialchars((string) ($beneficiary['municipality'] ?? 'Cebu'));
+    $familiesSupported = (int) ($procurement['families_supported'] ?? 0);
+    $items = is_array($procurement['items'] ?? null) ? $procurement['items'] : [];
+    $receiptNo = htmlspecialchars((string) ($procurement['receipt_number'] ?? ''));
+    $supplier = htmlspecialchars((string) ($procurement['supplier_name'] ?? ''));
+
+    $frontendUrl = rtrim(getenv('FRONTEND_URL') ?: 'https://donation-management-system-three.vercel.app', '/');
+    if (!str_starts_with($frontendUrl, 'http://') && !str_starts_with($frontendUrl, 'https://')) {
+      $frontendUrl = 'https://' . $frontendUrl;
+    }
+    $trackUrl = $frontendUrl . '/donor/donations';
+
+    $itemsHtml = '';
+    if (!empty($items)) {
+      $itemsHtml .= '<table style="width:100%; border-collapse:collapse; margin:16px 0; font-size:14px;">';
+      $itemsHtml .= '<tr style="background:#f8fafc; border-bottom:2px solid #e2e8f0; text-align:left;">';
+      $itemsHtml .= '<th style="padding:8px 12px; color:#475569;">Item / Package</th>';
+      $itemsHtml .= '<th style="padding:8px 12px; color:#475569; text-align:center;">Qty</th>';
+      $itemsHtml .= '<th style="padding:8px 12px; color:#475569; text-align:right;">Subtotal</th>';
+      $itemsHtml .= '</tr>';
+      foreach ($items as $it) {
+        $itemName = htmlspecialchars((string) ($it['item'] ?? $it['name'] ?? 'Relief Pack'));
+        $qty = htmlspecialchars((string) ($it['quantity'] ?? '1'));
+        $unit = htmlspecialchars((string) ($it['unit'] ?? 'packs'));
+        $cost = isset($it['totalCost']) ? '₱' . number_format((float) $it['totalCost'], 2) : (isset($it['unitCost']) ? '₱' . number_format((float) $it['unitCost'] * (float) $qty, 2) : '—');
+        $itemsHtml .= '<tr style="border-bottom:1px solid #f1f5f9;">';
+        $itemsHtml .= "<td style=\"padding:10px 12px; color:#1e293b; font-weight:500;\">{$itemName}</td>";
+        $itemsHtml .= "<td style=\"padding:10px 12px; color:#64748b; text-align:center;\">{$qty} {$unit}</td>";
+        $itemsHtml .= "<td style=\"padding:10px 12px; color:#0f172a; font-weight:600; text-align:right;\">{$cost}</td>";
+        $itemsHtml .= '</tr>';
+      }
+      $itemsHtml .= '</table>';
+    }
+
+    $receiptInfo = '';
+    if ($receiptNo !== '' || $supplier !== '') {
+      $receiptInfo = '<div style="background:#f1f5f9; padding:10px 14px; border-radius:6px; font-size:12px; color:#475569; margin-top:12px;">';
+      if ($receiptNo !== '') $receiptInfo .= "<strong>Official Receipt / Reference:</strong> {$receiptNo}<br/>";
+      if ($supplier !== '') $receiptInfo .= "<strong>Procured From:</strong> {$supplier}";
+      $receiptInfo .= '</div>';
+    }
+
+    $subject = "Donation Allocated: Your contribution ({$tracking}) is on its way to {$barangayName}!";
+
+    $bodyHtml = <<<HTML
+<div style="font-family: Arial, sans-serif; color: #1e293b; line-height: 1.6; max-width: 600px; margin: 0 auto; padding: 20px;">
+  <div style="text-align: center; margin-bottom: 24px;">
+    <h2 style="color: #AF101A; margin: 0 0 6px 0;">Rise Above Foundation Cebu</h2>
+    <p style="color: #64748b; font-size: 14px; margin: 0;">Donation Allocation & Impact Notice</p>
+  </div>
+
+  <div style="background: #ffffff; border: 1px solid #e2e8f0; border-radius: 12px; padding: 24px; box-shadow: 0 2px 8px rgba(0,0,0,0.04);">
+    <p style="font-size: 16px; margin-top: 0;">Dear <strong>{$donorName}</strong>,</p>
+    
+    <p style="font-size: 15px; color: #334155;">
+      We are pleased to inform you that your monetary contribution of <strong>₱{$totalAmount}</strong> (Tracking Code: <strong>{$tracking}</strong>) has been officially <strong>allocated and converted into emergency relief assistance</strong>!
+    </p>
+
+    <div style="background: #fff5f5; border-left: 4px solid #AF101A; padding: 12px 16px; border-radius: 4px; margin: 20px 0;">
+      <p style="margin: 0; font-size: 14px; color: #7f1d1d;">
+        <strong>Target Community:</strong> {$barangayName}, {$municipality}<br/>
+        <strong>Allocation Method:</strong> {$mode}<br/>
+        <strong>Families Supported:</strong> {$familiesSupported} affected households
+      </p>
+    </div>
+
+    <h4 style="color: #0f172a; margin: 20px 0 8px 0; font-size: 14px; text-transform: uppercase; letter-spacing: 0.05em;">
+      Procurement & Resource Summary
+    </h4>
+    
+    {$itemsHtml}
+    {$receiptInfo}
+
+    <div style="text-align: center; margin: 30px 0 10px 0;">
+      <a href="{$trackUrl}" style="background: #AF101A; color: #ffffff; padding: 12px 28px; border-radius: 8px; text-decoration: none; font-weight: bold; font-size: 14px; display: inline-block; box-shadow: 0 2px 5px rgba(175,16,26,0.25);">
+        Track Live Distribution Journey &rarr;
+      </a>
+    </div>
+  </div>
+
+  <div style="text-align: center; font-size: 12px; color: #94a3b8; margin-top: 24px;">
+    <p style="margin: 0 0 4px 0;">Rise Above Foundation Cebu &bull; 252 Forbes Street, Cebu City, Philippines</p>
+    <p style="margin: 0;">Thank you for making a real, tangible difference in our community.</p>
+  </div>
+</div>
+HTML;
+
+    return send_mail($toEmail, $toName, $subject, $bodyHtml);
+  }
+}

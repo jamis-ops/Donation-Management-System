@@ -131,6 +131,27 @@ CREATE TABLE IF NOT EXISTS donation_updates (
   INDEX idx_donation_updates_donation (donation_id, created_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
+CREATE TABLE IF NOT EXISTS donation_procurements (
+  id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  donation_id BIGINT UNSIGNED NOT NULL,
+  mode VARCHAR(50) NOT NULL DEFAULT 'Pack Sponsorship',
+  beneficiary_id BIGINT UNSIGNED NULL,
+  assistance_request_id BIGINT UNSIGNED NULL,
+  allocation_id BIGINT UNSIGNED NULL,
+  total_amount DECIMAL(12,2) NOT NULL,
+  items_json TEXT NOT NULL,
+  receipt_number VARCHAR(100) NULL,
+  supplier_name VARCHAR(150) NULL,
+  families_supported INT UNSIGNED NOT NULL DEFAULT 0,
+  notes TEXT NULL,
+  created_by_user_id BIGINT UNSIGNED NULL,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT fk_procurements_donation FOREIGN KEY (donation_id) REFERENCES donations(id) ON DELETE CASCADE,
+  CONSTRAINT fk_procurements_beneficiary FOREIGN KEY (beneficiary_id) REFERENCES beneficiaries(id) ON DELETE SET NULL,
+  INDEX idx_proc_donation (donation_id),
+  INDEX idx_proc_ben (beneficiary_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
 -- ------------------------------------------------------------
 -- 4. BENEFICIARIES (PARTNER BARANGAYS)
 -- ------------------------------------------------------------

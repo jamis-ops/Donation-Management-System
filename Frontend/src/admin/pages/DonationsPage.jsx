@@ -5,9 +5,10 @@ import {
   TrendingUp, Users, MapPin, FileCheck, Send, Printer, Heart,
   Calendar, Mail, Phone, Award, BarChart3, Coins, CreditCard,
   Banknote, Gift, ShieldAlert, Sparkles, Filter, Layers, DollarSign,
-  Trash2, Settings2, ExternalLink
+  Trash2, Settings2, ExternalLink, ShoppingCart
 } from 'lucide-react'
-import { donationsApi } from '../../api/resources'
+import { donationsApi, beneficiariesApi, assistanceRequestsApi } from '../../api/resources'
+import ProcurementModal from '../components/donations/ProcurementModal'
 import { useApiList } from '../../hooks/useApiList'
 import { useFilters } from '../../hooks/useFilters'
 import PageHeader from '../components/shared/PageHeader'
@@ -116,7 +117,10 @@ export default function DonationsPage() {
   const activeSection = (searchParams.get('tab') || '').toLowerCase() === 'monetary' || (searchParams.get('type') || '').toLowerCase() === 'monetary' ? 'monetary' : 'in-kind'
 
   const { data: donations, loading, error, reload } = useApiList(() => donationsApi.list())
+  const { data: beneficiaries } = useApiList(() => beneficiariesApi.list())
+  const { data: assistanceRequests } = useApiList(() => assistanceRequestsApi.list())
   const [selected, setSelected] = useState(null)
+  const [procuringDonation, setProcuringDonation] = useState(null)
   const { showLoading, hideLoading } = useLoading()
   const [showForm, setShowForm] = useState(false)
   const [form, setForm] = useState(emptyForm)
@@ -528,13 +532,25 @@ export default function DonationsPage() {
     { 
       key: 'amount', 
       label: 'Amount (PHP)',
-      render: (row) => (
-        <span className="donation-amount-value">
-          {typeof row.amountRaw === 'number'
-            ? `₱${row.amountRaw.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
-            : row.amount}
-        </span>
-      ),
+      render: (row) => {
+        const total = typeof row.amountRaw === 'number' ? row.amountRaw : (parseFloat(String(row.amount).replace(/[^0-9.]/g, '')) || 0)
+        const utilized = Number(row.totalUtilized || 0)
+        const remaining = Number(row.remainingBalance ?? (total - utilized))
+        const pct = Math.min(100, Math.round((utilized / (total || 1)) * 100))
+        return (
+          <div>
+            <span className="donation-amount-value">
+              ₱{total.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+            </span>
+            {utilized > 0 && (
+              <div style={{ fontSize: '0.75rem', marginTop: '3px', display: 'flex', alignItems: 'center', gap: '4px', color: remaining <= 0 ? '#059669' : '#d97706', fontWeight: 500 }}>
+                <CheckCircle2 size={11} />
+                <span>₱{utilized.toLocaleString('en-PH')} allocated ({pct}%)</span>
+              </div>
+            )}
+          </div>
+        )
+      },
     },
     { key: 'date', label: 'Date Received' },
     { key: 'status', label: 'Status', render: (row) => <StatusBadge status={row.status} /> },
@@ -561,6 +577,18 @@ export default function DonationsPage() {
               onClick={(e) => { e.stopPropagation(); handleVerify(row) }}
             >
               <CheckCircle2 size={15} />
+            </button>
+          )}
+          {['Verified', 'Allocated'].includes(row.status) && (
+            <button
+              type="button"
+              className="icon-btn"
+              style={{ color: '#AF101A' }}
+              title="Allocate / Procure Goods"
+              aria-label="Allocate / Procure Goods"
+              onClick={(e) => { e.stopPropagation(); setProcuringDonation(row) }}
+            >
+              <ShoppingCart size={15} />
             </button>
           )}
           <button
@@ -1188,6 +1216,32 @@ export default function DonationsPage() {
                     </div>
                   </div>
 
+                  {/* Monetary Allocation & Procurement */}
+                  {selected.type === 'Monetary' && selected.status !== 'Pending Verification' && (
+                    <div className="donation-action-card">
+                      <div className="donation-action-card__header">
+                        <div className="donation-action-card__icon" style={{ background: '#fee2e2', color: '#AF101A' }}>
+                          <ShoppingCart size={20} />
+                        </div>
+                        <div>
+                          <h4 className="donation-action-card__title">Fund Allocation & Goods Procurement</h4>
+                          <p className="donation-action-card__desc">
+                            Sponsor relief packs (Food, Hygiene, Medical) or itemize store wholesale purchases to directly allocate this donation to active barangay requests.
+                          </p>
+                        </div>
+                      </div>
+                      <div className="donation-action-card__controls">
+                        <button
+                          type="button"
+                          className="btn btn--primary"
+                          onClick={() => setProcuringDonation(selected)}
+                        >
+                          <ShoppingCart size={16} /> Allocate / Procure Goods
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
                   {/* Timeline & Progress Updates */}
                   <div className="donation-action-card">
                     <div className="donation-action-card__header">
@@ -1352,30 +1406,132 @@ export default function DonationsPage() {
                   </button>
                 </div>
 
+                {/* Monetary Procurement & Utilization Breakdown */}
+                {selected.type === 'Monetary' && selected.status !== 'Pending Verification' && (
+                  <div className="donation-procurement-card" style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '12px', padding: '1.25rem', marginTop: '1.25rem' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem', flexWrap: 'wrap', gap: '0.75rem' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                        <div style={{ width: '32px', height: '32px', borderRadius: '8px', background: '#fee2e2', color: '#AF101A', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                          <Coins size={18} />
+                        </div>
+                        <div>
+                          <h4 style={{ margin: 0, fontSize: '0.95rem', fontWeight: 600, color: '#1e293b' }}>Fund Utilization & Allocation Status</h4>
+                          <span style={{ fontSize: '0.78rem', color: '#64748b' }}>Monetary balance allocation towards relief packages & supplier purchases</span>
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        className="btn btn--primary"
+                        style={{ padding: '0.4rem 0.85rem', fontSize: '0.82rem', gap: '0.4rem' }}
+                        onClick={() => setProcuringDonation(selected)}
+                      >
+                        <ShoppingCart size={14} /> Allocate / Procure Goods
+                      </button>
+                    </div>
+
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: '0.75rem', marginBottom: '1rem' }}>
+                      <div style={{ background: '#fff', padding: '0.75rem', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
+                        <span style={{ fontSize: '0.75rem', color: '#64748b', display: 'block' }}>Total Donation</span>
+                        <strong style={{ fontSize: '1.1rem', color: '#0f172a' }}>
+                          ₱{((typeof selected.amountRaw === 'number' ? selected.amountRaw : (parseFloat(String(selected.amount).replace(/[^0-9.]/g, '')) || 0))).toLocaleString('en-PH', { minimumFractionDigits: 2 })}
+                        </strong>
+                      </div>
+                      <div style={{ background: '#fff', padding: '0.75rem', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
+                        <span style={{ fontSize: '0.75rem', color: '#64748b', display: 'block' }}>Allocated / Utilized</span>
+                        <strong style={{ fontSize: '1.1rem', color: '#047857' }}>
+                          ₱{(Number(selected.totalUtilized) || 0).toLocaleString('en-PH', { minimumFractionDigits: 2 })}
+                        </strong>
+                      </div>
+                      <div style={{ background: '#fff', padding: '0.75rem', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
+                        <span style={{ fontSize: '0.75rem', color: '#64748b', display: 'block' }}>Remaining Balance</span>
+                        <strong style={{ fontSize: '1.1rem', color: (Number(selected.remainingBalance ?? 0) <= 0 && Number(selected.totalUtilized) > 0) ? '#64748b' : '#d97706' }}>
+                          ₱{(Number(selected.remainingBalance ?? selected.amountRaw ?? 0)).toLocaleString('en-PH', { minimumFractionDigits: 2 })}
+                        </strong>
+                      </div>
+                      <div style={{ background: '#fff', padding: '0.75rem', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
+                        <span style={{ fontSize: '0.75rem', color: '#64748b', display: 'block' }}>Families Supported</span>
+                        <strong style={{ fontSize: '1.1rem', color: '#AF101A' }}>
+                          {selected.totalFamiliesSupported || (selected.procurements?.reduce((sum, p) => sum + (Number(p.families_supported) || Number(p.pack_count) || 0), 0)) || '—'}
+                        </strong>
+                      </div>
+                    </div>
+
+                    {/* Procurements List */}
+                    {selected.procurements && selected.procurements.length > 0 ? (
+                      <div style={{ background: '#fff', borderRadius: '8px', border: '1px solid #e2e8f0', padding: '0.75rem' }}>
+                        <div style={{ fontSize: '0.82rem', fontWeight: 600, color: '#334155', marginBottom: '0.5rem', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                          <CheckCircle2 size={14} color="#047857" /> Allocation & Procurement Log ({selected.procurements.length})
+                        </div>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
+                          {selected.procurements.map((proc, idx) => (
+                            <div key={proc.id || idx} style={{ padding: '0.65rem 0.8rem', background: '#f8fafc', borderRadius: '6px', border: '1px solid #edf2f7', fontSize: '0.82rem' }}>
+                              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '0.5rem' }}>
+                                <div>
+                                  <span style={{ fontWeight: 600, color: '#0f172a' }}>
+                                    {proc.procurement_type === 'pack_sponsorship' ? `📦 ${proc.pack_type || 'Relief Pack'} Sponsorship` : `🏬 Store Purchase: ${proc.store_name || 'Wholesale Supplier'}`}
+                                  </span>
+                                  <div style={{ color: '#64748b', fontSize: '0.75rem', marginTop: '2px' }}>
+                                    Target: {proc.beneficiary_name ? `${proc.beneficiary_name}${proc.municipality ? `, ${proc.municipality}` : ''}` : 'General Relief'}
+                                    {proc.receipt_number && ` • Receipt #${proc.receipt_number}`}
+                                    {proc.created_at && ` • ${new Date(proc.created_at).toLocaleDateString()}`}
+                                  </div>
+                                </div>
+                                <div style={{ textAlign: 'right' }}>
+                                  <span style={{ fontWeight: 600, color: '#047857' }}>
+                                    ₱{Number(proc.total_amount || 0).toLocaleString('en-PH', { minimumFractionDigits: 2 })}
+                                  </span>
+                                  {proc.pack_count > 0 && (
+                                    <div style={{ fontSize: '0.72rem', color: '#AF101A', fontWeight: 500 }}>
+                                      {proc.pack_count} packs sponsored
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+                              {/* If itemized line items */}
+                              {Array.isArray(proc.items) && proc.items.length > 0 && (
+                                <div style={{ marginTop: '0.5rem', paddingTop: '0.5rem', borderTop: '1px dashed #cbd5e1' }}>
+                                  <div style={{ fontSize: '0.72rem', color: '#64748b', marginBottom: '0.25rem' }}>Itemized Breakdown:</div>
+                                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.4rem' }}>
+                                    {proc.items.map((it, i) => (
+                                      <span key={i} style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: '4px', padding: '2px 6px', fontSize: '0.72rem', color: '#334155' }}>
+                                        {it.item} × {it.quantity} {it.unit} (₱{(it.quantity * it.unitCost).toLocaleString('en-PH')})
+                                      </span>
+                                    ))}
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    ) : (
+                      <div style={{ textAlign: 'center', padding: '1rem', background: '#fff', borderRadius: '8px', border: '1px dashed #cbd5e1', fontSize: '0.82rem', color: '#64748b' }}>
+                        No direct allocations recorded yet. Click <strong>"Allocate / Procure Goods"</strong> above to assign these funds to relief packs or record store purchases.
+                      </div>
+                    )}
+                  </div>
+                )}
+
                 {/* Impact Visualization */}
-                {selected.status !== 'Pending Verification' && (
+                {selected.status !== 'Pending Verification' && selected.type === 'In-Kind' && (
                   <div className="donation-impact">
                     <h3 className="donation-impact__title">
                       <Heart size={20} />
-                      {selected.type} Community Impact
+                      In-Kind Community Impact
                     </h3>
                     <div className="donation-impact__stats">
                       <div className="donation-impact-stat">
                         <div className="donation-impact-stat__icon">
                           <Users size={24} />
                         </div>
-                        <div className="donation-impact-stat__value">
-                          {selected.type === 'Monetary' ? '25+' : '40+'}
-                        </div>
+                        <div className="donation-impact-stat__value">40+</div>
                         <div className="donation-impact-stat__label">Beneficiaries Reached</div>
                       </div>
                       <div className="donation-impact-stat">
                         <div className="donation-impact-stat__icon">
                           <Package size={24} />
                         </div>
-                        <div className="donation-impact-stat__value">
-                          {selected.type === 'In-Kind' ? '15+ Packs' : 'Direct Assistance'}
-                        </div>
+                        <div className="donation-impact-stat__value">15+ Packs</div>
                         <div className="donation-impact-stat__label">Relief Distributed</div>
                       </div>
                       <div className="donation-impact-stat">
@@ -1569,6 +1725,23 @@ export default function DonationsPage() {
             </div>
           </div>
         </div>
+      )}
+
+      {/* Procurement & Allocation Modal */}
+      {procuringDonation && (
+        <ProcurementModal
+          donation={procuringDonation}
+          beneficiaries={beneficiaries || []}
+          assistanceRequests={assistanceRequests || []}
+          onClose={() => setProcuringDonation(null)}
+          onSuccess={() => {
+            setProcuringDonation(null)
+            reload()
+            if (selected && selected.dbId === procuringDonation.dbId) {
+              setSelected(null)
+            }
+          }}
+        />
       )}
     </>
   )
