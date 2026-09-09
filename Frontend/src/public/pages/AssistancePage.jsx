@@ -3,6 +3,7 @@ import { MUNICIPALITIES } from '../../constants/locations'
 import PhoneInput from '../../components/shared/PhoneInput'
 import { phoneError } from '../../utils/validation'
 import { useLoading } from '../../context/LoadingContext'
+import { apiUrl } from '../../api/resources'
 
 const emptyForm = {
   name: '',
@@ -41,7 +42,7 @@ export default function AssistancePage() {
         type: 'barangay_nomination'
       }
 
-      const res = await fetch('/api/contact.php', {
+      const res = await fetch(apiUrl('/api/contact.php'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(data),

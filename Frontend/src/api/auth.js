@@ -1,4 +1,7 @@
-const API_BASE_URL = (import.meta.env.VITE_API_URL || '').replace(/\/$/, '')
+const RAW_URL = (import.meta.env.VITE_API_URL || '').replace(/\/$/, '')
+export const API_BASE_URL = (!RAW_URL || RAW_URL.includes('donation-system-api.onrender.com'))
+  ? (typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') ? '' : 'https://donation-management-system-1.onrender.com')
+  : RAW_URL
 
 function apiUrl(path) {
   if (!path) return ''

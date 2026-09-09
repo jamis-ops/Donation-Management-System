@@ -10,6 +10,7 @@ import { MUNICIPALITIES, barangaysForMunicipality } from '../../constants/locati
 import PhoneInput from '../../components/shared/PhoneInput'
 import { phoneError } from '../../utils/validation'
 import { useLoading } from '../../context/LoadingContext'
+import { apiUrl } from '../../api/resources'
 
 const emptyForm = {
   barangay: '',
@@ -43,7 +44,7 @@ export default function AcceptInvitePage() {
     let active = true
     async function validateToken() {
       try {
-        const res = await fetch(`/api/beneficiaries.php?action=validate_token&token=${encodeURIComponent(token || '')}`)
+        const res = await fetch(apiUrl(`/api/beneficiaries.php?action=validate_token&token=${encodeURIComponent(token || '')}`))
         const data = await res.json().catch(() => null)
         if (!active) return
         if (!data?.valid) {
@@ -90,7 +91,7 @@ export default function AcceptInvitePage() {
     setSubmitting(true)
     showLoading('Submitting…')
     try {
-      const res = await fetch('/api/beneficiaries.php', {
+      const res = await fetch(apiUrl('/api/beneficiaries.php'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
