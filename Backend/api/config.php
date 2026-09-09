@@ -82,8 +82,20 @@ function db(): PDO {
     $options[PDO::MYSQL_ATTR_SSL_VERIFY_SERVER_CERT] = false;
   }
 
-  $pdoInstance = new PDO($dsn, $DB_USER, $DB_PASS, $options);
-  return $pdoInstance;
+  try {
+    $pdoInstance = new PDO($dsn, $DB_USER, $DB_PASS, $options);
+    return $pdoInstance;
+  } catch (PDOException $e) {
+    if (!headers_sent()) {
+      http_response_code(500);
+      header('Content-Type: application/json; charset=utf-8');
+    }
+    echo json_encode([
+      'ok' => false,
+      'error' => 'Database connection failed: ' . $e->getMessage(),
+    ]);
+    exit;
+  }
 }
 
 function json_response($data, int $status = 200): void {
