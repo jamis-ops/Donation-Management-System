@@ -1,6 +1,9 @@
 import { useEffect, useState } from 'react'
 import { useNavigate, useLocation, Link } from 'react-router-dom'
-import { Eye, Pencil, ArrowRightCircle, Truck, Sparkles, CheckCircle2, X, Plus } from 'lucide-react'
+import { 
+  Eye, Pencil, ArrowRightCircle, Truck, Sparkles, CheckCircle2, X, Plus,
+  Package, Users, Calendar, MapPin, FileText, Tag, Banknote, Clock, Check, AlertCircle, Trash2, ArrowRight
+} from 'lucide-react'
 import { allocationsApi, beneficiariesApi, needsStockApi, assistanceRequestsApi, inventoryApi } from '../../api/resources'
 import { useApiList } from '../../hooks/useApiList'
 import { useFilters } from '../../hooks/useFilters'
@@ -109,6 +112,256 @@ function suggestedQuantity(barangay) {
   return suggestedQuantityFromFamilies(barangay.affectedFamilies)
 }
 
+const styles = `
+.alloc-detail-modal {
+  max-width: 820px !important;
+  width: 95vw !important;
+  padding: 0 !important;
+  border-radius: 14px !important;
+  overflow: hidden !important;
+  display: flex !important;
+  flex-direction: column !important;
+  box-shadow: 0 20px 45px rgba(0, 0, 0, 0.22) !important;
+  border: 1px solid rgba(0, 0, 0, 0.08) !important;
+}
+
+.alloc-detail-strip {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.75rem 1.25rem;
+  background: #f8fafc;
+  border-bottom: 1px solid #e2e8f0;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.alloc-detail-badges {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.alloc-meta-strip {
+  display: flex;
+  align-items: center;
+  gap: 0.85rem;
+  font-size: 0.8125rem;
+  color: #64748b;
+}
+
+.alloc-detail-grid {
+  display: grid;
+  grid-template-columns: 1.1fr 0.9fr;
+  gap: 1rem;
+  padding: 1.25rem;
+  background: #ffffff;
+  overflow-y: auto;
+  max-height: calc(85vh - 180px);
+}
+
+.alloc-col {
+  display: flex;
+  flex-direction: column;
+  gap: 0.9rem;
+  min-width: 0;
+}
+
+.alloc-section-card {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  padding: 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.alloc-section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.alloc-section-title {
+  font-size: 0.76rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #64748b;
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.alloc-cargo-title {
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: #0f172a;
+  line-height: 1.35;
+  margin: 0;
+}
+
+.alloc-cargo-metric-box {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.alloc-qty-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  background: #eff6ff;
+  color: #1d4ed8;
+  border: 1px solid #bfdbfe;
+  padding: 0.35rem 0.7rem;
+  border-radius: 6px;
+  font-size: 0.88rem;
+  font-weight: 700;
+}
+
+.alloc-program-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  background: #f1f5f9;
+  color: #475569;
+  border: 1px solid #cbd5e1;
+  padding: 0.3rem 0.6rem;
+  border-radius: 6px;
+  font-size: 0.78rem;
+  font-weight: 600;
+}
+
+.alloc-funding-pill {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+  background: #fefce8;
+  border: 1px solid #fef08a;
+  color: #854d0e;
+  padding: 0.6rem 0.75rem;
+  border-radius: 8px;
+  font-size: 0.8rem;
+  line-height: 1.4;
+}
+
+.alloc-notes-box {
+  font-size: 0.82rem;
+  color: #334155;
+  line-height: 1.45;
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  padding: 0.65rem 0.75rem;
+  border-radius: 6px;
+  word-break: break-word;
+}
+
+.alloc-bstat-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 0.5rem;
+}
+
+.alloc-bstat {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  padding: 0.5rem 0.65rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+.alloc-bstat-label {
+  font-size: 0.7rem;
+  color: #64748b;
+  text-transform: uppercase;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+}
+.alloc-bstat-val {
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.alloc-req-box {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 0.65rem 0.75rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.alloc-dispatch-card {
+  grid-column: 1 / -1;
+  border-radius: 8px;
+  padding: 0.85rem 1rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+.alloc-dispatch-card--ready {
+  background: #f0fdf4;
+  border: 1px solid #bbf7d0;
+  color: #166534;
+}
+.alloc-dispatch-card--planned {
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
+  color: #1e40af;
+}
+
+.alloc-dispatch-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  background: linear-gradient(135deg, #AF101A 0%, #8E0D15 100%);
+  color: #ffffff !important;
+  border: none;
+  border-radius: 6px;
+  padding: 0.45rem 0.95rem;
+  font-size: 0.82rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  box-shadow: 0 1px 3px rgba(175, 16, 26, 0.25);
+  text-decoration: none;
+}
+.alloc-dispatch-btn:hover {
+  background: linear-gradient(135deg, #8E0D15 0%, #700a10 100%);
+  transform: translateY(-1px);
+  box-shadow: 0 3px 8px rgba(175, 16, 26, 0.35);
+}
+
+.alloc-detail-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.85rem 1.25rem;
+  background: #f8fafc;
+  border-top: 1px solid #e2e8f0;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+@media (max-width: 768px) {
+  .alloc-detail-grid {
+    grid-template-columns: 1fr;
+    padding: 0.85rem;
+  }
+}
+`;
+
 export default function AllocationPage() {
   const navigate = useNavigate()
   const location = useLocation()
@@ -130,6 +383,13 @@ export default function AllocationPage() {
   const [statusValue, setStatusValue] = useState('')
   const [showCreate, setShowCreate] = useState(false)
   const [form, setForm] = useState(emptyForm)
+
+  useEffect(() => {
+    const s = document.createElement('style')
+    s.textContent = styles
+    document.head.appendChild(s)
+    return () => s.remove()
+  }, [])
   const [saving, setSaving] = useState(false)
   const [recs, setRecs] = useState([])
   const [needsSummary, setNeedsSummary] = useState(null)
@@ -1016,65 +1276,17 @@ export default function AllocationPage() {
       </ApiState>
 
       {detailRow && (
-        <div className="admin-modal-overlay" onClick={() => setDetailRow(null)}>
-          <div className="admin-modal admin-modal--wide" onClick={(e) => e.stopPropagation()}>
-            <ModalHeader title="Allocation Details" onClose={() => setDetailRow(null)} />
-            <dl className="detail-list">
-              <dt>Resource</dt><dd>{detailRow.resource}</dd>
-              <dt>Quantity</dt><dd>{detailRow.quantity}</dd>
-              <dt>Program / Need</dt><dd>{detailRow.program || '—'}</dd>
-              <dt>Barangay</dt><dd>{detailRow.beneficiary || '—'}</dd>
-              <dt>Affected Families</dt><dd>{detailRow.affectedFamilies ?? '—'}</dd>
-              <dt>Barangay Needs</dt>
-              <dd>
-                {(detailRow.beneficiaryNeeds || []).length
-                  ? detailRow.beneficiaryNeeds.join(', ')
-                  : '—'}
-              </dd>
-              <dt>Priority</dt><dd><StatusBadge status={detailRow.priority} /></dd>
-              <dt>Status</dt><dd><StatusBadge status={detailRow.status} /></dd>
-              <dt>Linked Distribution</dt>
-              <dd>{detailRow.distributionId ? 'Planned' : 'Not planned yet'}</dd>
-              <dt>Date</dt><dd>{detailRow.date || detailRow.allocationDate || '—'}</dd>
-              <dt>Request ID</dt>
-              <dd>
-                {(() => {
-                  const req = linkedRequest(detailRow)
-                  const code = detailRow.assistanceRequestCode || req?.id
-                  if (!code && !detailRow.assistanceRequestId) return '—'
-                  return (
-                    <span className="alloc-request-id">
-                      {code || `#${detailRow.assistanceRequestId}`}
-                      {req ? ` · ${req.type} (${req.status})` : detailRow.assistanceRequestType ? ` · ${detailRow.assistanceRequestType}` : ''}
-                    </span>
-                  )
-                })()}
-              </dd>
-              <dt>Relief Request</dt>
-              <dd>
-                {(() => {
-                  const req = linkedRequest(detailRow)
-                  if (!req) return detailRow.assistanceRequestId ? 'Linked' : '—'
-                  return `${req.type} (${req.status})`
-                })()}
-              </dd>
-              <dt>Notes</dt><dd>{detailRow.notes || '—'}</dd>
-            </dl>
-            <div className="admin-modal__actions">
-              <button type="button" className="btn btn--primary" onClick={() => openEdit(detailRow)}>Edit</button>
-              {canPlan(detailRow) && (
-                <button type="button" className="btn btn--outline" onClick={() => planDistribution(detailRow)}>
-                  Plan Distribution
-                </button>
-              )}
-              {detailRow.status !== 'Delivered' && detailRow.status !== 'Cancelled' && (
-                <button type="button" className="btn btn--outline" onClick={() => openStatus(detailRow)}>Update Status</button>
-              )}
-              <button type="button" className="btn btn--outline" onClick={() => handleDelete(detailRow)}>Delete</button>
-              <button type="button" className="btn btn--ghost" onClick={() => setDetailRow(null)}>Close</button>
-            </div>
-          </div>
-        </div>
+        <AllocationDetailModal
+          detailRow={detailRow}
+          linkedReq={linkedRequest(detailRow)}
+          onClose={() => setDetailRow(null)}
+          onEdit={() => openEdit(detailRow)}
+          onUpdateStatus={() => openStatus(detailRow)}
+          onPlanDistribution={() => planDistribution(detailRow)}
+          onDelete={() => handleDelete(detailRow)}
+          canPlan={canPlan(detailRow)}
+          navigate={navigate}
+        />
       )}
 
       {statusRow && (
@@ -1124,5 +1336,336 @@ export default function AllocationPage() {
         </div>
       )}
     </>
+  )
+}
+
+function AllocationDetailModal({
+  detailRow,
+  linkedReq,
+  onClose,
+  onEdit,
+  onUpdateStatus,
+  onPlanDistribution,
+  onDelete,
+  canPlan,
+  navigate,
+}) {
+  const isMonetaryFunded = (detailRow.notes || '').toLowerCase().includes('funded from monetary donation') || 
+    (detailRow.notes || '').toLowerCase().includes('monetary donation') ||
+    (detailRow.notes || '').includes('DON-')
+
+  const formattedDate = (() => {
+    const raw = detailRow.date || detailRow.allocationDate || detailRow.createdAt
+    if (!raw) return 'N/A'
+    try {
+      return new Date(raw).toLocaleDateString(undefined, {
+        month: 'short',
+        day: 'numeric',
+        year: 'numeric',
+      })
+    } catch {
+      return raw
+    }
+  })()
+
+  return (
+    <div className="admin-modal-overlay" onClick={onClose}>
+      <div className="admin-modal alloc-detail-modal" onClick={(e) => e.stopPropagation()}>
+        <ModalHeader
+          title={`Allocation Details: ${detailRow.code || detailRow.id}`}
+          onClose={onClose}
+        />
+
+        {/* Overview Header Strip */}
+        <div className="alloc-detail-strip">
+          <div className="alloc-detail-badges">
+            <StatusBadge status={detailRow.priority} />
+            <StatusBadge status={detailRow.status} />
+            {isMonetaryFunded && (
+              <span className="badge" style={{ background: '#fefce8', color: '#854d0e', border: '1px solid #fef08a', display: 'inline-flex', alignItems: 'center', gap: '0.25rem', fontSize: '0.72rem', fontWeight: 600 }}>
+                <Banknote size={12} /> Cash Procured
+              </span>
+            )}
+          </div>
+
+          <div className="alloc-meta-strip">
+            <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}>
+              <Calendar size={13} style={{ color: '#94a3b8' }} />
+              <span>{formattedDate}</span>
+            </div>
+            {detailRow.code && (
+              <span style={{ fontSize: '0.75rem', fontFamily: 'monospace', color: '#64748b', background: '#e2e8f0', padding: '2px 6px', borderRadius: '4px' }}>
+                {detailRow.code}
+              </span>
+            )}
+          </div>
+        </div>
+
+        {/* Main Content Grid */}
+        <div className="alloc-detail-grid">
+          {/* Left Column: Cargo & Sourcing Specs */}
+          <div className="alloc-col">
+            <div className="alloc-section-card">
+              <div className="alloc-section-header">
+                <span className="alloc-section-title">
+                  <Package size={14} style={{ color: 'var(--admin-brand, #AF101A)' }} />
+                  <span>Allocated Cargo & Supplies</span>
+                </span>
+                {detailRow.program && (
+                  <span className="alloc-program-badge">
+                    🏷️ {detailRow.program}
+                  </span>
+                )}
+              </div>
+
+              <h3 className="alloc-cargo-title">{detailRow.resource}</h3>
+
+              <div className="alloc-cargo-metric-box">
+                <div className="alloc-qty-badge">
+                  <span>Quantity:</span>
+                  <strong>{detailRow.quantity}</strong>
+                  <span style={{ fontSize: '0.75rem', fontWeight: 500, color: '#3b82f6' }}>Packs / Units</span>
+                </div>
+              </div>
+
+              {isMonetaryFunded ? (
+                <div className="alloc-funding-pill">
+                  <Banknote size={16} style={{ flexShrink: 0, marginTop: '2px', color: '#ca8a04' }} />
+                  <div>
+                    <strong>Funded via Monetary Donation:</strong>
+                    <div style={{ fontSize: '0.78rem', marginTop: '2px', color: '#713f12' }}>
+                      {detailRow.notes || 'Procured with cash donation support.'}
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <div className="alloc-funding-pill" style={{ background: '#f0fdf4', borderColor: '#bbf7d0', color: '#166534' }}>
+                  <Package size={16} style={{ flexShrink: 0, marginTop: '2px', color: '#16a34a' }} />
+                  <div>
+                    <strong>Warehouse Sourced:</strong>
+                    <div style={{ fontSize: '0.78rem', marginTop: '2px', color: '#14532d' }}>
+                      Allocated from existing warehouse stock reserve.
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {detailRow.notes && !isMonetaryFunded && (
+              <div className="alloc-section-card">
+                <span className="alloc-section-title">
+                  <FileText size={13} />
+                  <span>Administrative Remarks</span>
+                </span>
+                <div className="alloc-notes-box">
+                  {detailRow.notes}
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Right Column: Barangay Destination & Linked Relief Request */}
+          <div className="alloc-col">
+            <div className="alloc-section-card">
+              <div className="alloc-section-header">
+                <span className="alloc-section-title">
+                  <MapPin size={14} style={{ color: 'var(--admin-brand, #AF101A)' }} />
+                  <span>Target Community</span>
+                </span>
+              </div>
+
+              <h4 style={{ margin: '0', fontSize: '1.05rem', fontWeight: 700, color: '#0f172a' }}>
+                {detailRow.beneficiary || 'Barangay'}
+              </h4>
+
+              <div className="alloc-bstat-grid">
+                <div className="alloc-bstat">
+                  <span className="alloc-bstat-label">
+                    <Users size={12} /> Affected Families
+                  </span>
+                  <span className="alloc-bstat-val">
+                    {(detailRow.affectedFamilies ?? 0).toLocaleString()}
+                  </span>
+                </div>
+
+                <div className="alloc-bstat">
+                  <span className="alloc-bstat-label">
+                    <Tag size={12} /> Reported Needs
+                  </span>
+                  <span className="alloc-bstat-val" style={{ fontSize: '0.82rem', fontWeight: 600 }}>
+                    {(detailRow.beneficiaryNeeds || []).length
+                      ? detailRow.beneficiaryNeeds.slice(0, 2).join(', ')
+                      : (detailRow.program || 'General Relief')}
+                  </span>
+                </div>
+              </div>
+
+              {detailRow.beneficiaryId && (
+                <button
+                  type="button"
+                  className="btn btn--outline btn--sm"
+                  style={{ width: '100%', justifyContent: 'center', fontSize: '0.78rem', padding: '0.4rem 0.6rem' }}
+                  onClick={() => {
+                    onClose()
+                    navigate(`/admin/beneficiaries/${detailRow.beneficiaryId}`)
+                  }}
+                >
+                  View Barangay Profile &rarr;
+                </button>
+              )}
+            </div>
+
+            <div className="alloc-section-card">
+              <div className="alloc-section-header">
+                <span className="alloc-section-title">
+                  <FileText size={14} />
+                  <span>Linked Relief Request</span>
+                </span>
+                {linkedReq && <StatusBadge status={linkedReq.status} />}
+              </div>
+
+              {linkedReq || detailRow.assistanceRequestId ? (
+                <div className="alloc-req-box">
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.5rem' }}>
+                    <span style={{ fontSize: '0.82rem', fontWeight: 700, color: '#0f172a', fontFamily: 'monospace' }}>
+                      {detailRow.assistanceRequestCode || linkedReq?.id || `#${detailRow.assistanceRequestId}`}
+                    </span>
+                    <span style={{ fontSize: '0.74rem', color: '#64748b' }}>
+                      {linkedReq?.priority || detailRow.priority || 'Medium'} Priority
+                    </span>
+                  </div>
+
+                  <div style={{ fontSize: '0.8rem', color: '#475569', lineHeight: 1.4 }}>
+                    {linkedReq?.type || detailRow.assistanceRequestType || 'General Relief Assistance'}
+                  </div>
+
+                  <button
+                    type="button"
+                    className="btn btn--ghost btn--sm"
+                    style={{ padding: '0.3rem 0.5rem', fontSize: '0.76rem', color: 'var(--admin-brand, #AF101A)', justifyContent: 'flex-start' }}
+                    onClick={() => {
+                      onClose()
+                      navigate('/admin/requests')
+                    }}
+                  >
+                    Open in Relief Requests &rarr;
+                  </button>
+                </div>
+              ) : (
+                <div style={{ fontSize: '0.8rem', color: '#94a3b8', fontStyle: 'italic', padding: '0.4rem 0' }}>
+                  Direct administrative allocation (no incoming relief request linked).
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Full Width Logistics & Dispatch Banner */}
+          <div className={`alloc-dispatch-card ${detailRow.distributionId ? 'alloc-dispatch-card--planned' : 'alloc-dispatch-card--ready'}`}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+              <div style={{
+                width: '36px', height: '36px', borderRadius: '8px',
+                background: detailRow.distributionId ? '#dbeafe' : '#dcfce7',
+                color: detailRow.distributionId ? '#1d4ed8' : '#15803d',
+                display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0
+              }}>
+                <Truck size={18} />
+              </div>
+              <div>
+                <div style={{ fontWeight: 700, fontSize: '0.88rem' }}>
+                  {detailRow.distributionId ? 'Distribution Scheduled' : 'Ready for Logistics Dispatch'}
+                </div>
+                <div style={{ fontSize: '0.78rem', opacity: 0.9 }}>
+                  {detailRow.distributionId
+                    ? 'This cargo is assigned to an active delivery schedule in Logistics & Distribution.'
+                    : `Cargo is allocated for ${detailRow.beneficiary || 'community'}. Click 'Plan Distribution' to schedule delivery date and assign trucks.`}
+                </div>
+              </div>
+            </div>
+
+            {canPlan ? (
+              <button
+                type="button"
+                className="alloc-dispatch-btn"
+                onClick={() => {
+                  onClose()
+                  onPlanDistribution()
+                }}
+              >
+                <Truck size={14} />
+                <span>Plan Distribution &rarr;</span>
+              </button>
+            ) : detailRow.distributionId ? (
+              <button
+                type="button"
+                className="btn btn--outline btn--sm"
+                onClick={() => {
+                  onClose()
+                  navigate('/admin/distributions')
+                }}
+              >
+                View in Distributions &rarr;
+              </button>
+            ) : null}
+          </div>
+        </div>
+
+        {/* Modal Footer Actions */}
+        <div className="alloc-detail-footer">
+          <button
+            type="button"
+            className="btn btn--danger btn--sm"
+            onClick={onDelete}
+            style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}
+          >
+            <Trash2 size={13} />
+            <span>Delete</span>
+          </button>
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+            <button
+              type="button"
+              className="btn btn--outline btn--sm"
+              onClick={onClose}
+            >
+              Close
+            </button>
+            <button
+              type="button"
+              className="btn btn--outline btn--sm"
+              onClick={onEdit}
+              style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}
+            >
+              <Pencil size={13} />
+              <span>Edit Details</span>
+            </button>
+            {detailRow.status !== 'Delivered' && detailRow.status !== 'Cancelled' && (
+              <button
+                type="button"
+                className="btn btn--outline btn--sm"
+                onClick={onUpdateStatus}
+                style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}
+              >
+                <ArrowRightCircle size={13} />
+                <span>Update Status</span>
+              </button>
+            )}
+            {canPlan && (
+              <button
+                type="button"
+                className="btn btn--primary btn--sm"
+                onClick={() => {
+                  onClose()
+                  onPlanDistribution()
+                }}
+                style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem', fontWeight: 600 }}
+              >
+                <Truck size={14} />
+                <span>Plan Distribution &rarr;</span>
+              </button>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
   )
 }
