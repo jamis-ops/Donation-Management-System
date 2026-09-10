@@ -812,7 +812,7 @@ if ($method === 'POST') {
     }
   }
 
-  $stmt = $pdo->prepare('INSERT INTO distributions (code, event_name, location, beneficiary_id, program, distribution_date, schedule_time, beneficiaries_count, volunteers_count, vehicles_count, distance_km, fuel_liters, fuel_cost, status, distribution_type, items_summary, coordinator, notes, proof_status, request_id, source_allocation_ids) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)');
+  $stmt = $pdo->prepare('INSERT INTO distributions (code, event_name, location, beneficiary_id, program, distribution_date, schedule_time, beneficiaries_count, volunteers_count, vehicles_count, distance_km, fuel_liters, fuel_cost, status, distribution_type, items_summary, coordinator, notes, proof_status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)');
   $stmt->execute([
     $code,
     $eventName,
@@ -833,8 +833,6 @@ if ($method === 'POST') {
     $body['coordinator'] ?? null,
     $notes,
     $proofStatus,
-    $requestId ? (int) $requestId : null,
-    $allocationIds ? json_encode($allocationIds) : null,
   ]);
   $newId = (int) $pdo->lastInsertId();
 
