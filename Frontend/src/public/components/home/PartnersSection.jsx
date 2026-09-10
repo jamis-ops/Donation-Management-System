@@ -59,7 +59,15 @@ export default function PartnersSection() {
     fetchPublishedContent('partners', []).then((items) => {
       if (cancelled) return
       if (items.length > 0 && items[0]?.title) {
-        setList(items.map(mapCmsPartner))
+        const mapped = items.map(mapCmsPartner)
+        const seen = new Set()
+        const unique = mapped.filter((p) => {
+          const key = (p.name || p.id || '').toString().trim().toLowerCase()
+          if (seen.has(key)) return false
+          seen.add(key)
+          return true
+        })
+        setList(unique)
       }
     })
     return () => { cancelled = true }

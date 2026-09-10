@@ -226,7 +226,20 @@ if ($method === 'GET' && isset($_GET['public']) && $_GET['public'] === '1') {
   ");
   $stmt->execute([$type]);
   $rows = $stmt->fetchAll();
-  json_response(['ok' => true, 'data' => array_map('map_cms_item', $rows)]);
+
+  $seen = [];
+  $uniqueRows = [];
+  foreach ($rows as $row) {
+    $key = mb_strtolower(trim((string) ($row['title'] ?? '')));
+    if ($key !== '' && !isset($seen[$key])) {
+      $seen[$key] = true;
+      $uniqueRows[] = $row;
+    } elseif ($key === '') {
+      $uniqueRows[] = $row;
+    }
+  }
+
+  json_response(['ok' => true, 'data' => array_map('map_cms_item', $uniqueRows)]);
 }
 
 // ---------- Authenticated admin/staff ----------

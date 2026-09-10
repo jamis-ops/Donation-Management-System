@@ -42,6 +42,17 @@ function cms_partners_catalog(): array
  */
 function sync_cms_catalog(PDO $pdo): void
 {
+  // Clean up any duplicate records by type and title
+  try {
+    $pdo->exec("
+      DELETE c1 FROM cms_items c1
+      INNER JOIN cms_items c2 
+      WHERE c1.id > c2.id AND c1.type = c2.type AND c1.title = c2.title
+    ");
+  } catch (Throwable) {
+    // Ignore if unsupported
+  }
+
   $find = $pdo->prepare('SELECT id, image_url, body, summary, meta_json FROM cms_items WHERE type = ? AND title = ? LIMIT 1');
   $ins = $pdo->prepare('
     INSERT INTO cms_items (type, title, summary, body, image_url, link_url, meta_json, status, sort_order, published_at)

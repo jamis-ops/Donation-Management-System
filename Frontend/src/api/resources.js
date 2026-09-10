@@ -304,7 +304,19 @@ export async function fetchPublishedContent(type, fallback = []) {
   try {
     const res = await contentApi.publicList(type)
     const data = Array.isArray(res.data) ? res.data : []
-    return data.length > 0 ? data : fallback
+    if (!data.length) return fallback
+    const seen = new Set()
+    const unique = []
+    for (const item of data) {
+      const key = (item.title || item.name || item.id || '').toString().trim().toLowerCase()
+      if (key && !seen.has(key)) {
+        seen.add(key)
+        unique.push(item)
+      } else if (!key) {
+        unique.push(item)
+      }
+    }
+    return unique.length > 0 ? unique : fallback
   } catch {
     return fallback
   }

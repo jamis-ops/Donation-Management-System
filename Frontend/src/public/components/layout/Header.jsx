@@ -134,14 +134,6 @@ export default function Header() {
           </ul>
 
           <div className="site-nav__actions">
-            <Link
-              to="/volunteer"
-              className="btn btn--ghost-dark btn--sm"
-              onClick={() => setMenuOpen(false)}
-            >
-              Volunteer
-            </Link>
-
             {isAuthenticated ? (
               <Link
                 to={getHomeForRole(user?.role)}

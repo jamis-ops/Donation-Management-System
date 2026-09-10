@@ -132,7 +132,15 @@ export default function ProgramsSection() {
     fetchPublishedContent('programs', []).then((items) => {
       if (cancelled) return
       if (items.length > 0 && items[0]?.title) {
-        setList(items.map(mapCmsProgram).filter((p) => p.active !== false))
+        const mapped = items.map(mapCmsProgram).filter((p) => p.active !== false)
+        const seen = new Set()
+        const unique = mapped.filter((p) => {
+          const key = (p.name || p.id || '').toString().trim().toLowerCase()
+          if (seen.has(key)) return false
+          seen.add(key)
+          return true
+        })
+        setList(unique)
       }
     })
     return () => { cancelled = true }

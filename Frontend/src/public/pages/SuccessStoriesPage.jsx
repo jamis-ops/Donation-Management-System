@@ -1,4 +1,4 @@
-﻿import { useEffect, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { successStories as mockStories } from '../../data/mockData'
 import { fetchPublishedContent } from '../../api/resources'
 import { findMockMatch, resolveCmsImage } from '../../utils/cmsMedia'
@@ -38,7 +38,15 @@ export default function SuccessStoriesPage() {
     fetchPublishedContent('stories', []).then((items) => {
       if (cancelled) return
       if (items.length > 0 && items[0]?.title) {
-        setStories(items.map(mapCmsStory))
+        const mapped = items.map(mapCmsStory)
+        const seen = new Set()
+        const unique = mapped.filter((s) => {
+          const key = (s.title || s.id || '').toString().trim().toLowerCase()
+          if (seen.has(key)) return false
+          seen.add(key)
+          return true
+        })
+        setStories(unique)
       }
     })
     return () => { cancelled = true }

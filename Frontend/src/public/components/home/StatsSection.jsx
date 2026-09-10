@@ -89,7 +89,15 @@ export default function StatsSection() {
     fetchPublishedContent('impact', []).then((items) => {
       if (cancelled) return
       if (items.length > 0 && items[0]?.title) {
-        setStats(items.map(mapCmsStat))
+        const mapped = items.map(mapCmsStat)
+        const seen = new Set()
+        const unique = mapped.filter((s) => {
+          const key = (s.label || '').toString().trim().toLowerCase()
+          if (seen.has(key)) return false
+          seen.add(key)
+          return true
+        })
+        setStats(unique)
       }
     })
     return () => { cancelled = true }

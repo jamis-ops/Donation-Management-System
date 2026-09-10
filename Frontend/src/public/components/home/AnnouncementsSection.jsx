@@ -91,7 +91,15 @@ export default function AnnouncementsSection() {
     fetchPublishedContent('announcements', []).then((items) => {
       if (cancelled) return
       if (items.length > 0 && items[0]?.title) {
-        setList(items.map(mapCmsAnnouncement))
+        const mapped = items.map(mapCmsAnnouncement)
+        const seen = new Set()
+        const unique = mapped.filter((a) => {
+          const key = (a.title || a.id || '').toString().trim().toLowerCase()
+          if (seen.has(key)) return false
+          seen.add(key)
+          return true
+        })
+        setList(unique)
       }
     })
     return () => { cancelled = true }
