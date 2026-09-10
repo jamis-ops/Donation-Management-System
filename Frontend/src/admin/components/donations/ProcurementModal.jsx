@@ -1,11 +1,11 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import { 
   Package, ShoppingBag, Plus, Trash2, CheckCircle2, 
   DollarSign, Users, MapPin, FileText, Send, AlertCircle, 
   Sparkles, Coins, Store, Receipt, ArrowRight
 } from 'lucide-react'
 import ModalHeader from '../shared/ModalHeader'
-import { donationsApi } from '../../../api/resources'
+import { donationsApi, beneficiariesApi, assistanceRequestsApi } from '../../../api/resources'
 import { notify } from '../../../utils/toast'
 import { showSuccessModal } from '../../../utils/confirm'
 import { useLoading } from '../../../context/LoadingContext'
@@ -22,6 +22,30 @@ export default function ProcurementModal({ donation, beneficiaries = [], assista
   const { showLoading, hideLoading } = useLoading()
   const [activeTab, setActiveTab] = useState('pack_sponsorship') // 'pack_sponsorship' | 'itemized_purchase'
   const [saving, setSaving] = useState(false)
+
+  const [internalBeneficiaries, setInternalBeneficiaries] = useState(beneficiaries || [])
+  const [internalRequests, setInternalRequests] = useState(assistanceRequests || [])
+
+  // Auto-fetch fresh list if empty or on mount to ensure accurate affected family counts
+  useEffect(() => {
+    if (beneficiaries && beneficiaries.length > 0) {
+      setInternalBeneficiaries(beneficiaries)
+    } else {
+      beneficiariesApi.list().then(res => {
+        if (res?.data) setInternalBeneficiaries(res.data)
+      }).catch(console.error)
+    }
+  }, [beneficiaries])
+
+  useEffect(() => {
+    if (assistanceRequests && assistanceRequests.length > 0) {
+      setInternalRequests(assistanceRequests)
+    } else {
+      assistanceRequestsApi.list().then(res => {
+        if (res?.data) setInternalRequests(res.data)
+      }).catch(console.error)
+    }
+  }, [assistanceRequests])
 
   const remainingBalance = useMemo(() => {
     return Math.max(0, (Number(donation?.remainingBalance ?? donation?.amountRaw ?? 0)))
@@ -51,14 +75,38 @@ export default function ProcurementModal({ donation, beneficiaries = [], assista
   // Filter requests for selected beneficiary
   const currentBeneficiaryId = activeTab === 'pack_sponsorship' ? packBeneficiaryId : itemBeneficiaryId
   const availableRequests = useMemo(() => {
-    if (!currentBeneficiaryId) return assistanceRequests || []
-    return (assistanceRequests || []).filter(r => String(r.beneficiaryId) === String(currentBeneficiaryId) && r.status !== 'Completed')
-  }, [assistanceRequests, currentBeneficiaryId])
+    if (!currentBeneficiaryId) return internalRequests || []
+    return (internalRequests || []).filter(r => (String(r.beneficiaryId) === String(currentBeneficiaryId) || String(r.beneficiary_id) === String(currentBeneficiaryId)) && r.status !== 'Completed')
+  }, [internalRequests, currentBeneficiaryId])
 
   const selectedBeneficiary = useMemo(() => {
     if (!currentBeneficiaryId) return null
-    return (beneficiaries || []).find(b => String(b.dbId || b.id) === String(currentBeneficiaryId))
-  }, [beneficiaries, currentBeneficiaryId])
+    return (internalBeneficiaries || []).find(b => 
+      String(b.dbId) === String(currentBeneficiaryId) || 
+      String(b.id) === String(currentBeneficiaryId) ||
+      Number(b.dbId) === Number(currentBeneficiaryId)
+    )
+  }, [internalBeneficiaries, currentBeneficiaryId])
+
+  const selectedRequest = useMemo(() => {
+    const rId = activeTab === 'pack_sponsorship' ? packRequestId : itemRequestId
+    if (!rId) return null
+    return (internalRequests || []).find(r => 
+      String(r.dbId) === String(rId) || 
+      String(r.id) === String(rId) ||
+      Number(r.dbId) === Number(rId)
+    )
+  }, [internalRequests, activeTab, packRequestId, itemRequestId])
+
+  const currentAffectedFamilies = useMemo(() => {
+    if (selectedRequest?.affectedFamilies && Number(selectedRequest.affectedFamilies) > 0) {
+      return Number(selectedRequest.affectedFamilies)
+    }
+    if (selectedBeneficiary) {
+      return Number(selectedBeneficiary.affectedFamilies || selectedBeneficiary.affected_families || selectedBeneficiary.families || 0)
+    }
+    return 0
+  }, [selectedBeneficiary, selectedRequest])
 
   // Computed Pack Sponsorship numbers
   const currentPackPreset = PACK_PRESETS[packPresetIndex] || PACK_PRESETS[0]
@@ -121,7 +169,7 @@ export default function ProcurementModal({ donation, beneficiaries = [], assista
           totalCost: Number(packAmountToAllocate),
         }
       ]
-      familiesCount = selectedBeneficiary?.affectedFamilies || computedPackCount
+      familiesCount = currentAffectedFamilies > 0 ? currentAffectedFamilies : computedPackCount
     } else {
       payloadItems = items.map(it => ({
         item: it.item.trim() || 'Procured Relief Supply',
@@ -130,7 +178,7 @@ export default function ProcurementModal({ donation, beneficiaries = [], assista
         unitCost: Number(it.unitCost) || 0,
         totalCost: (Number(it.quantity) || 1) * (Number(it.unitCost) || 0),
       }))
-      familiesCount = Number(familiesSupportedInput) || selectedBeneficiary?.affectedFamilies || 1
+      familiesCount = Number(familiesSupportedInput) || currentAffectedFamilies || 1
     }
 
     const payload = {
@@ -185,6 +233,12 @@ export default function ProcurementModal({ donation, beneficiaries = [], assista
           <ModalHeader 
             title="Monetary Fund Allocation & Procurement" 
             onClose={onClose} 
+            style={{
+              margin: 0,
+              top: 0,
+              position: 'static',
+              borderRadius: '14px 14px 0 0'
+            }}
           />
 
           {/* Top Fund Overview Bar */}
@@ -389,11 +443,16 @@ export default function ProcurementModal({ donation, beneficiaries = [], assista
                     required
                   >
                     <option value="">-- Select Barangay --</option>
-                    {beneficiaries.map(b => (
-                      <option key={b.dbId || b.id} value={b.dbId || b.id}>
-                        {b.full_name || b.name} ({b.municipality || 'Cebu'}) — {b.affectedFamilies || 0} families
-                      </option>
-                    ))}
+                    {internalBeneficiaries.map(b => {
+                      const famCount = Number(b.affectedFamilies || b.affected_families || b.families || 0)
+                      const displayName = b.full_name || b.name || b.barangay || 'Barangay'
+                      const muni = b.municipality || 'Cebu'
+                      return (
+                        <option key={b.dbId || b.id} value={b.dbId || b.id}>
+                          {displayName} ({muni}) — {famCount} affected families
+                        </option>
+                      )
+                    })}
                   </select>
                 </div>
 
@@ -436,7 +495,12 @@ export default function ProcurementModal({ donation, beneficiaries = [], assista
                     {computedPackCount} {currentPackPreset.name}s
                   </div>
                   <div style={{ fontSize: '0.78rem', color: '#166534', marginTop: '0.1rem' }}>
-                    Provides direct relief for <strong>{selectedBeneficiary?.full_name || 'partner households'}</strong>
+                    Provides direct relief for <strong>{selectedBeneficiary?.full_name || selectedBeneficiary?.name || selectedBeneficiary?.barangay || 'partner community'}</strong>
+                    {currentAffectedFamilies > 0 && (
+                      <span style={{ marginLeft: '0.4rem', color: '#15803d', fontWeight: 600 }}>
+                        ({currentAffectedFamilies.toLocaleString()} affected families recorded)
+                      </span>
+                    )}
                   </div>
                 </div>
 
@@ -502,18 +566,29 @@ export default function ProcurementModal({ donation, beneficiaries = [], assista
                   <select
                     value={itemBeneficiaryId}
                     onChange={e => {
-                      setItemBeneficiaryId(e.target.value)
+                      const val = e.target.value
+                      setItemBeneficiaryId(val)
                       setItemRequestId('')
+                      const matched = (internalBeneficiaries || []).find(b => String(b.dbId || b.id) === String(val))
+                      const fams = Number(matched?.affectedFamilies || matched?.affected_families || 0)
+                      if (fams > 0 && !familiesSupportedInput) {
+                        setFamiliesSupportedInput(String(fams))
+                      }
                     }}
                     style={{ width: '100%', padding: '0.6rem 0.75rem', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '0.88rem' }}
                     required
                   >
                     <option value="">-- Select Barangay --</option>
-                    {beneficiaries.map(b => (
-                      <option key={b.dbId || b.id} value={b.dbId || b.id}>
-                        {b.full_name || b.name} ({b.municipality || 'Cebu'})
-                      </option>
-                    ))}
+                    {internalBeneficiaries.map(b => {
+                      const famCount = Number(b.affectedFamilies || b.affected_families || b.families || 0)
+                      const displayName = b.full_name || b.name || b.barangay || 'Barangay'
+                      const muni = b.municipality || 'Cebu'
+                      return (
+                        <option key={b.dbId || b.id} value={b.dbId || b.id}>
+                          {displayName} ({muni}) — {famCount} affected families
+                        </option>
+                      )
+                    })}
                   </select>
                 </div>
 

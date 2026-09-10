@@ -466,6 +466,22 @@ if ($method === 'POST') {
 
   $newId = (int) $pdo->lastInsertId();
 
+  $reqFamilies = (int) ($body['familiesAffected'] ?? $body['affectedFamilies'] ?? $body['families'] ?? 0);
+  if ($reqFamilies <= 0 && !empty($notes)) {
+    if (preg_match('/Families\s*Affected\s*:\s*(\d+)/i', (string) $notes, $m)) {
+      $reqFamilies = (int) $m[1];
+    } elseif (preg_match('/(\d+)\s*families/i', (string) $notes, $m)) {
+      $reqFamilies = (int) $m[1];
+    }
+  }
+  if ($reqFamilies > 0) {
+    try {
+      $pdo->prepare('UPDATE beneficiaries SET affected_families = ? WHERE id = ? AND (affected_families IS NULL OR affected_families = 0)')->execute([$reqFamilies, $beneficiaryId]);
+    } catch (Throwable $e) {
+      // best-effort
+    }
+  }
+
   notify_admins(
     $pdo,
     'assistance',

@@ -217,10 +217,13 @@ if ($method === 'POST' && ($action === 'accept_invite' || $action === 'apply_inv
   }
   $repMiDb = $repMi !== '' ? strtoupper(substr(preg_replace('/[^a-zA-Z]/', '', $repMi) ?: '', 0, 1)) : null;
 
+  $affFamilies = (int) ($body['affectedFamilies'] ?? $body['affected_families'] ?? $body['families'] ?? $ben['affected_families'] ?? 0);
+
   try {
     $pdo->prepare('
       UPDATE beneficiaries SET
         full_name = ?, barangay = ?, municipality = ?,
+        affected_families = ?,
         representative_name = ?, representative_first_name = ?, representative_last_name = ?,
         representative_middle_initial = ?, representative_position = ?, representative_phone = ?,
         representative_email = ?, notes = ?,
@@ -230,6 +233,7 @@ if ($method === 'POST' && ($action === 'accept_invite' || $action === 'apply_inv
       $barangay,
       $barangay,
       $municipality,
+      $affFamilies,
       $repName,
       $repFirst,
       $repLast,
@@ -287,6 +291,27 @@ function map_beneficiary(PDO $pdo, array $row): array
     $needs = is_array($decoded) ? $decoded : [];
   }
 
+  $affectedFamilies = (int) ($row['affected_families'] ?? 0);
+  if ($affectedFamilies <= 0) {
+    try {
+      $reqNotesStmt = $pdo->prepare('SELECT notes FROM assistance_requests WHERE beneficiary_id = ? AND notes IS NOT NULL ORDER BY id DESC LIMIT 5');
+      $reqNotesStmt->execute([$row['id']]);
+      foreach ($reqNotesStmt->fetchAll() as $reqRow) {
+        if (!empty($reqRow['notes'])) {
+          if (preg_match('/Families\s*Affected\s*:\s*(\d+)/i', (string) $reqRow['notes'], $m)) {
+            $affectedFamilies = (int) $m[1];
+            if ($affectedFamilies > 0) break;
+          } elseif (preg_match('/(\d+)\s*families/i', (string) $reqRow['notes'], $m)) {
+            $affectedFamilies = (int) $m[1];
+            if ($affectedFamilies > 0) break;
+          }
+        }
+      }
+    } catch (Throwable $e) {
+      // fallback
+    }
+  }
+
   return [
     'id' => $row['code'],
     'dbId' => (int) $row['id'],
@@ -295,7 +320,7 @@ function map_beneficiary(PDO $pdo, array $row): array
     'barangayType' => $row['barangay_type'] ?? '',
     'municipality' => $row['municipality'] ?? '',
     'address' => $row['address'] ?? '',
-    'affectedFamilies' => (int) ($row['affected_families'] ?? 0),
+    'affectedFamilies' => $affectedFamilies,
     'representativeName' => $row['representative_name'] ?? '',
     'representativeFirstName' => $row['representative_first_name'] ?? '',
     'representativeLastName' => $row['representative_last_name'] ?? '',
@@ -684,7 +709,7 @@ if ($method === 'PUT') {
     json_response(['ok' => false, 'error' => 'Rejected barangay applications are finalized and cannot be modified or reactivated.'], 400);
   }
 
-  // After approval, only status/notes changes are allowed (prevents rewriting partnership identity).
+  // After approval, check status transitions
   if (in_array($existingStatus, ['Active', 'Approved'], true)) {
     if ($newStatus === 'Pending Approval') {
       json_response(['ok' => false, 'error' => 'Cannot revert an approved barangay back to Pending Approval. The status workflow is one-way.'], 400);
@@ -692,15 +717,6 @@ if ($method === 'PUT') {
     if (!in_array($newStatus, ['Active', 'Approved', 'Suspended', 'Rejected'], true)) {
       json_response(['ok' => false, 'error' => 'Invalid status for an approved barangay.'], 400);
     }
-    $notesOnly = trim((string) ($body['notes'] ?? $existing['notes'] ?? ''));
-    $pdo->prepare('UPDATE beneficiaries SET status = ?, notes = ? WHERE id = ?')
-      ->execute([$newStatus, $notesOnly, $id]);
-    if ($newStatus !== $existingStatus) {
-      notify_admins($pdo, 'status_update', 'Barangay status updated', "{$existing['full_name']} status changed to {$newStatus}", '/admin/beneficiaries');
-    }
-    $stmt = $pdo->prepare('SELECT * FROM beneficiaries WHERE id = ?');
-    $stmt->execute([$id]);
-    json_response(['ok' => true, 'data' => map_beneficiary($pdo, $stmt->fetch())]);
   }
 
   $barangay = trim((string) ($body['barangay'] ?? $body['name'] ?? $existing['full_name']));
@@ -744,6 +760,12 @@ if ($method === 'PUT') {
     'Representative email'
   );
 
+  $affFamilies = isset($body['affectedFamilies'])
+    ? (int) $body['affectedFamilies']
+    : (isset($body['affected_families'])
+      ? (int) $body['affected_families']
+      : (isset($body['families']) ? (int) $body['families'] : (int) ($existing['affected_families'] ?? 0)));
+
   $update = $pdo->prepare('
     UPDATE beneficiaries SET full_name = ?, category = ?, barangay_type = ?, barangay = ?, municipality = ?, address = ?, affected_families = ?,
     representative_name = ?, representative_first_name = ?, representative_last_name = ?, representative_middle_initial = ?,
@@ -757,7 +779,7 @@ if ($method === 'PUT') {
     $barangay,
     $municipality,
     $body['address'] ?? $existing['address'],
-    (int) ($body['affectedFamilies'] ?? $existing['affected_families']),
+    $affFamilies,
     $repName !== '' ? $repName : ($existing['representative_name'] ?? null),
     $repFirst !== '' ? $repFirst : null,
     $repLast !== '' ? $repLast : null,
