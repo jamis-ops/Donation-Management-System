@@ -169,114 +169,127 @@ export default function ProcurementModal({ donation, beneficiaries = [], assista
       <div 
         className="admin-modal admin-modal--wide" 
         onClick={e => e.stopPropagation()}
-        style={{ maxWidth: '820px', width: '95vw', borderRadius: '14px', overflow: 'hidden' }}
+        style={{
+          maxWidth: '820px',
+          width: '95vw',
+          maxHeight: '92vh',
+          borderRadius: '14px',
+          padding: 0,
+          display: 'flex',
+          flexDirection: 'column',
+          overflow: 'hidden',
+          background: '#ffffff'
+        }}
       >
-        <ModalHeader 
-          title="Monetary Fund Allocation & Procurement" 
-          onClose={onClose} 
-        />
+        <div style={{ flexShrink: 0 }}>
+          <ModalHeader 
+            title="Monetary Fund Allocation & Procurement" 
+            onClose={onClose} 
+          />
 
-        {/* Top Fund Overview Bar */}
-        <div style={{
-          background: 'linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%)',
-          padding: '1.1rem 1.4rem',
-          borderBottom: '1px solid #e2e8f0',
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          flexWrap: 'wrap',
-          gap: '1rem'
-        }}>
-          <div>
-            <div style={{ fontSize: '0.78rem', fontWeight: 600, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-              Donor Contribution
+          {/* Top Fund Overview Bar */}
+          <div style={{
+            background: 'linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%)',
+            padding: '1.1rem 1.4rem',
+            borderBottom: '1px solid #e2e8f0',
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            flexWrap: 'wrap',
+            gap: '1rem'
+          }}>
+            <div>
+              <div style={{ fontSize: '0.78rem', fontWeight: 600, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                Donor Contribution
+              </div>
+              <div style={{ fontSize: '1.05rem', fontWeight: 700, color: '#0f172a' }}>
+                {donation.donor} <span style={{ fontSize: '0.85rem', fontWeight: 500, color: '#64748b' }}>({donation.trackingCode})</span>
+              </div>
             </div>
-            <div style={{ fontSize: '1.05rem', fontWeight: 700, color: '#0f172a' }}>
-              {donation.donor} <span style={{ fontSize: '0.85rem', fontWeight: 500, color: '#64748b' }}>({donation.trackingCode})</span>
+
+            <div style={{ display: 'flex', gap: '1.25rem', alignItems: 'center' }}>
+              <div style={{ textAlign: 'right' }}>
+                <div style={{ fontSize: '0.72rem', fontWeight: 600, color: '#64748b', textTransform: 'uppercase' }}>
+                  Total Donated
+                </div>
+                <div style={{ fontSize: '1.15rem', fontWeight: 700, color: '#0f172a' }}>
+                  ₱{Number(donation.amountRaw || 0).toLocaleString('en-PH', { minimumFractionDigits: 2 })}
+                </div>
+              </div>
+
+              <div style={{ 
+                background: '#f0fdf4', 
+                border: '1px solid #bbf7d0', 
+                borderRadius: '8px', 
+                padding: '0.4rem 0.8rem',
+                textAlign: 'right'
+              }}>
+                <div style={{ fontSize: '0.68rem', fontWeight: 700, color: '#166534', textTransform: 'uppercase' }}>
+                  Available to Allocate
+                </div>
+                <div style={{ fontSize: '1.15rem', fontWeight: 800, color: '#15803d' }}>
+                  ₱{remainingBalance.toLocaleString('en-PH', { minimumFractionDigits: 2 })}
+                </div>
+              </div>
             </div>
           </div>
 
-          <div style={{ display: 'flex', gap: '1.25rem', alignItems: 'center' }}>
-            <div style={{ textAlign: 'right' }}>
-              <div style={{ fontSize: '0.72rem', fontWeight: 600, color: '#64748b', textTransform: 'uppercase' }}>
-                Total Donated
-              </div>
-              <div style={{ fontSize: '1.15rem', fontWeight: 700, color: '#0f172a' }}>
-                ₱{Number(donation.amountRaw || 0).toLocaleString('en-PH', { minimumFractionDigits: 2 })}
-              </div>
-            </div>
+          {/* Tab Switcher: Pack Sponsorship vs Itemized Purchase */}
+          <div style={{
+            display: 'flex',
+            borderBottom: '1px solid #e2e8f0',
+            background: '#ffffff',
+            padding: '0 1.25rem'
+          }}>
+            <button
+              type="button"
+              onClick={() => setActiveTab('pack_sponsorship')}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '0.45rem',
+                padding: '0.85rem 1.1rem',
+                fontSize: '0.88rem',
+                fontWeight: 600,
+                border: 'none',
+                background: 'transparent',
+                cursor: 'pointer',
+                borderBottom: activeTab === 'pack_sponsorship' ? '3px solid #AF101A' : '3px solid transparent',
+                color: activeTab === 'pack_sponsorship' ? '#AF101A' : '#64748b',
+                transition: 'all 0.15s ease'
+              }}
+            >
+              <Package size={17} />
+              <span>Quick Pack Sponsorship (Auto-Convert)</span>
+            </button>
 
-            <div style={{ 
-              background: '#f0fdf4', 
-              border: '1px solid #bbf7d0', 
-              borderRadius: '8px', 
-              padding: '0.4rem 0.8rem',
-              textAlign: 'right'
-            }}>
-              <div style={{ fontSize: '0.68rem', fontWeight: 700, color: '#166534', textTransform: 'uppercase' }}>
-                Available to Allocate
-              </div>
-              <div style={{ fontSize: '1.15rem', fontWeight: 800, color: '#15803d' }}>
-                ₱{remainingBalance.toLocaleString('en-PH', { minimumFractionDigits: 2 })}
-              </div>
-            </div>
+            <button
+              type="button"
+              onClick={() => setActiveTab('itemized_purchase')}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '0.45rem',
+                padding: '0.85rem 1.1rem',
+                fontSize: '0.88rem',
+                fontWeight: 600,
+                border: 'none',
+                background: 'transparent',
+                cursor: 'pointer',
+                borderBottom: activeTab === 'itemized_purchase' ? '3px solid #AF101A' : '3px solid transparent',
+                color: activeTab === 'itemized_purchase' ? '#AF101A' : '#64748b',
+                transition: 'all 0.15s ease'
+              }}
+            >
+              <ShoppingBag size={17} />
+              <span>Itemized Store Purchase (Wholesale Receipt)</span>
+            </button>
           </div>
-        </div>
-
-        {/* Tab Switcher: Pack Sponsorship vs Itemized Purchase */}
-        <div style={{
-          display: 'flex',
-          borderBottom: '1px solid #e2e8f0',
-          background: '#ffffff',
-          padding: '0 1.25rem'
-        }}>
-          <button
-            type="button"
-            onClick={() => setActiveTab('pack_sponsorship')}
-            style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: '0.45rem',
-              padding: '0.85rem 1.1rem',
-              fontSize: '0.88rem',
-              fontWeight: 600,
-              border: 'none',
-              background: 'transparent',
-              cursor: 'pointer',
-              borderBottom: activeTab === 'pack_sponsorship' ? '3px solid #AF101A' : '3px solid transparent',
-              color: activeTab === 'pack_sponsorship' ? '#AF101A' : '#64748b',
-              transition: 'all 0.15s ease'
-            }}
-          >
-            <Package size={17} />
-            <span>Quick Pack Sponsorship (Auto-Convert)</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => setActiveTab('itemized_purchase')}
-            style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: '0.45rem',
-              padding: '0.85rem 1.1rem',
-              fontSize: '0.88rem',
-              fontWeight: 600,
-              border: 'none',
-              background: 'transparent',
-              cursor: 'pointer',
-              borderBottom: activeTab === 'itemized_purchase' ? '3px solid #AF101A' : '3px solid transparent',
-              color: activeTab === 'itemized_purchase' ? '#AF101A' : '#64748b',
-              transition: 'all 0.15s ease'
-            }}
-          >
-            <ShoppingBag size={17} />
-            <span>Itemized Store Purchase (Wholesale Receipt)</span>
-          </button>
         </div>
 
         {/* Form Body */}
-        <form onSubmit={handleSubmit} style={{ padding: '1.25rem 1.4rem', maxHeight: '70vh', overflowY: 'auto' }}>
+        <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0, overflow: 'hidden' }}>
+          <div style={{ flex: 1, overflowY: 'auto', padding: '1.25rem 1.4rem' }}>
           {activeTab === 'pack_sponsorship' ? (
             /* ========================================================= */
             /* TAB 1: QUICK PACK SPONSORSHIP                             */
@@ -670,21 +683,25 @@ export default function ProcurementModal({ donation, beneficiaries = [], assista
               style={{ width: '100%', padding: '0.5rem 0.75rem', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '0.84rem' }}
             />
           </div>
+          </div>
 
-          {/* Modal Actions */}
+          {/* Modal Actions (Always Visible Pinned Footer) */}
           <div style={{
             display: 'flex',
             justifyContent: 'space-between',
             alignItems: 'center',
-            marginTop: '1.25rem',
-            paddingTop: '1rem',
-            borderTop: '1px solid #e2e8f0'
+            padding: '1rem 1.4rem',
+            background: '#ffffff',
+            borderTop: '1px solid #e2e8f0',
+            flexShrink: 0,
+            gap: '1rem'
           }}>
             <button
               type="button"
               className="btn btn--outline"
               onClick={onClose}
               disabled={saving}
+              style={{ padding: '0.55rem 1.25rem', fontWeight: 600 }}
             >
               Cancel
             </button>
@@ -696,8 +713,8 @@ export default function ProcurementModal({ donation, beneficiaries = [], assista
               style={{
                 display: 'inline-flex',
                 alignItems: 'center',
-                gap: '0.45rem',
-                padding: '0.55rem 1.4rem',
+                gap: '0.5rem',
+                padding: '0.6rem 1.5rem',
                 fontSize: '0.88rem',
                 fontWeight: 700
               }}
