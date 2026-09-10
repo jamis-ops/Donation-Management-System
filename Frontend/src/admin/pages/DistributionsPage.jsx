@@ -3,8 +3,9 @@ import { useLocation, useNavigate, useSearchParams } from 'react-router-dom'
 import {
   Eye, Pencil, ArrowRightCircle, MapPin, Calendar, Package, Users,
   Truck, UserRound, FileCheck, ClipboardList, Route, Fuel, StickyNote,
+  Sparkles, Check, Plus, X, UserCheck, ShieldCheck, RefreshCw,
 } from 'lucide-react'
-import { distributionsApi, beneficiariesApi, volunteerMatchApi } from '../../api/resources'
+import { distributionsApi, beneficiariesApi, volunteerMatchApi, volunteersApi, getStaff, allocationsApi } from '../../api/resources'
 import { getTodayDateString, isPastDateString } from '../../utils/date'
 import { useApiList } from '../../hooks/useApiList'
 import { useFilters } from '../../hooks/useFilters'
@@ -37,6 +38,20 @@ import { useLoading } from '../../context/LoadingContext'
 const WORKFLOW = DISTRIBUTION_WORKFLOW
 const PROOF_STATUS = ['Not Required', 'Awaiting Proof', 'Proof Submitted', 'Proof Verified', 'Proof Rejected']
 
+const PROGRAM_REQUIRED_SKILLS = {
+  'Disaster Relief': ['Logistics / Driving', 'Packing / Repacking', 'Heavy Lifting', 'First Aid', 'Crowd Management'],
+  'Food Program': ['Meal Preparation', 'Food Distribution', 'Packing / Repacking', 'Kitchen Assistance', 'Logistics / Driving'],
+  'Feeding Program': ['Meal Preparation', 'Food Distribution', 'Packing / Repacking', 'Kitchen Assistance'],
+  'Medical Mission': ['First Aid', 'Medical Support', 'Nursing', 'Pharmacy Assistance', 'Patient Registration'],
+  'Dental Mission': ['Dental Support', 'Patient Assistance', 'Sanitation / Sterilization', 'Patient Registration'],
+  'Educational Sponsorship': ['Teaching / Tutoring', 'Child Care / Engagement', 'Student Registration', 'Mentorship'],
+  'Educational Support': ['Teaching / Tutoring', 'Child Care / Engagement', 'Student Registration', 'Mentorship'],
+  'Child-Minding Program': ['Child Care / Engagement', 'Arts & Crafts', 'Storytelling', 'First Aid'],
+  'Children\'s Library': ['Teaching / Tutoring', 'Storytelling', 'Reading / Literacy', 'Child Care / Engagement'],
+  'Community Outreach': ['Community Outreach', 'Logistics / Driving', 'Translation / Local Dialects', 'Crowd Management'],
+  'Livelihood Program': ['Vocational Training', 'Skills Development', 'Community Outreach'],
+}
+
 const filterConfig = {
   searchKeys: ['barangay', 'location', 'program', 'coordinator', 'eventName', 'itemsSummary'],
   filters: [
@@ -57,7 +72,7 @@ function formFromAllocations(allocs, barangays) {
   const first = allocs[0]
   const ben = barangays.find((b) => Number(b.dbId) === Number(first.beneficiaryId))
   const location = ben?.barangay || ben?.name || first.beneficiary || first.beneficiaryName || ''
-  const itemsSummary = allocs.map((a) => `${a.resource || a.resourceName || 'Relief Goods'} × ${a.quantity || 1}`).join('; ')
+  const itemsSummary = allocs.map((a) => `${a.resource || a.resourceName || a.resource_name || 'Relief Goods'} × ${a.quantity || 1}`).join('; ')
   const program = allocs.find((a) => a.program)?.program || ''
   const families = first.affectedFamilies || ben?.affectedFamilies || ''
   return {
@@ -68,8 +83,8 @@ function formFromAllocations(allocs, barangays) {
     program,
     beneficiaries: families ? String(families) : '',
     itemsSummary,
-    notes: `From allocation(s): ${allocs.map((a) => a.id || a.allocationId || 'ALC').join(', ')}`,
-    allocationIds: allocs.map((a) => a.dbId || a.allocationId).filter(Boolean),
+    notes: `From allocation(s): ${allocs.map((a) => a.id || a.allocationId || a.code || 'ALC').join(', ')}`,
+    allocationIds: allocs.map((a) => a.dbId || a.allocationId || a.id).filter(Boolean),
     status: 'Planning',
     type: 'Delivery',
     proofStatus: 'Awaiting Proof',
@@ -87,6 +102,22 @@ export default function DistributionsPage() {
   }))
   const { data, loading, error, reload } = useApiList(() => distributionsApi.list())
   const { data: barangays } = useApiList(() => beneficiariesApi.list())
+  const { data: staffData } = useApiList(() => getStaff())
+  const { data: allVolunteersData } = useApiList(() => volunteersApi.list())
+  const { data: allocationsData } = useApiList(() => allocationsApi.list())
+
+  const staffList = useMemo(() => {
+    return Array.isArray(staffData) ? staffData : (staffData?.staff || staffData?.data || [])
+  }, [staffData])
+
+  const allVolunteers = useMemo(() => {
+    return Array.isArray(allVolunteersData) ? allVolunteersData : (allVolunteersData?.data || [])
+  }, [allVolunteersData])
+
+  const allocationsList = useMemo(() => {
+    return Array.isArray(allocationsData) ? allocationsData : (allocationsData?.data || [])
+  }, [allocationsData])
+
   const filters = useFilters(data, filterConfig)
   const { showLoading, hideLoading } = useLoading()
   const [detailRow, setDetailRow] = useState(null)
@@ -100,7 +131,8 @@ export default function DistributionsPage() {
   const [saving, setSaving] = useState(false)
   const [manpowerSkills, setManpowerSkills] = useState(['Logistics / Driving', 'Packing / Repacking'])
   const [manpowerSuggestions, setManpowerSuggestions] = useState([])
-  const [showVolunteerHelp, setShowVolunteerHelp] = useState(false)
+  const [assignedVolunteers, setAssignedVolunteers] = useState([])
+  const [showVolunteerHelp, setShowVolunteerHelp] = useState(true)
   const [selectedDraftIds, setSelectedDraftIds] = useState([])
   const [grouping, setGrouping] = useState(false)
 
@@ -225,21 +257,131 @@ export default function DistributionsPage() {
   }, [deepLinkRow?.dbId])
 
   useEffect(() => {
-    if (!(showCreate || editRow) || !showVolunteerHelp) return
+    if (form.program && PROGRAM_REQUIRED_SKILLS[form.program]) {
+      setManpowerSkills(PROGRAM_REQUIRED_SKILLS[form.program])
+    }
+  }, [form.program])
+
+  useEffect(() => {
+    if (!(showCreate || editRow)) return
     if (!manpowerSkills.length) {
       setManpowerSuggestions([])
       return
     }
-    volunteerMatchApi.suggest({ skills: manpowerSkills, programs: form.program ? [form.program] : [], limit: 5 })
-      .then((res) => setManpowerSuggestions(Array.isArray(res.data) ? res.data : []))
+    volunteerMatchApi.suggest({
+      skills: manpowerSkills,
+      programs: form.program ? [form.program] : [],
+      limit: 8,
+    })
+      .then((res) => {
+        const raw = Array.isArray(res?.data) ? res.data : (Array.isArray(res) ? res : [])
+        setManpowerSuggestions(raw)
+      })
       .catch(() => setManpowerSuggestions([]))
-  }, [showCreate, editRow, showVolunteerHelp, manpowerSkills, form.program])
+  }, [showCreate, editRow, manpowerSkills, form.program])
+
+  const handleSyncFromAllocations = (customBenId = null) => {
+    const targetBenId = customBenId || form.beneficiaryId
+    if (!targetBenId) {
+      notify.warning('Please select a barangay first.')
+      return
+    }
+    const matching = allocationsList.filter(
+      (a) => Number(a.beneficiaryId) === Number(targetBenId) && a.status !== 'Delivered' && a.status !== 'Cancelled'
+    )
+    if (!matching.length) {
+      notify.info('No pending allocations found for this barangay.')
+      return
+    }
+    const items = matching
+      .map((a) => `${a.resource || a.resourceName || a.item || 'Relief Goods'} × ${a.quantity || 1}`)
+      .join('; ')
+    const allocIds = matching.map((a) => a.dbId || a.id).filter(Boolean)
+    const prog = form.program || matching.find((a) => a.program)?.program || ''
+
+    setForm((prev) => ({
+      ...prev,
+      itemsSummary: items,
+      allocationIds: allocIds.length ? allocIds : prev.allocationIds,
+      program: prog || prev.program,
+    }))
+    notify.success(`Synced ${matching.length} active allocation(s) for this barangay!`)
+  }
+
+  const handleAddVolunteer = (vol) => {
+    if (!vol) return
+    const volId = vol.dbId || vol.id
+    if (assignedVolunteers.some((v) => String(v.id) === String(volId))) {
+      notify.warning(`${vol.name || 'Volunteer'} is already assigned.`)
+      return
+    }
+    const newVol = {
+      id: volId,
+      name: vol.name || `${vol.firstName || ''} ${vol.lastName || ''}`.trim() || 'Volunteer',
+      type: vol.applicantType || vol.volunteerType || (vol.institution ? 'Intern' : 'Volunteer'),
+      skills: vol.skills || [],
+    }
+    const updated = [...assignedVolunteers, newVol]
+    setAssignedVolunteers(updated)
+    setForm((prev) => ({
+      ...prev,
+      volunteers: String(updated.length),
+    }))
+    notify.success(`Added ${newVol.name} (${newVol.type}) to delivery team!`)
+  }
+
+  const handleRemoveVolunteer = (volId) => {
+    const updated = assignedVolunteers.filter((v) => String(v.id) !== String(volId))
+    setAssignedVolunteers(updated)
+    setForm((prev) => ({
+      ...prev,
+      volunteers: updated.length ? String(updated.length) : '',
+    }))
+  }
 
   const openEdit = (row) => {
     setEditRow(row)
     setDetailRow(null)
     setStatusRow(null)
-    setShowVolunteerHelp(false)
+    setShowVolunteerHelp(true)
+
+    // Detect skills aligned to program
+    const prog = row.program || ''
+    const alignedSkills = PROGRAM_REQUIRED_SKILLS[prog] || ['Logistics / Driving', 'Packing / Repacking']
+    setManpowerSkills(alignedSkills)
+
+    // Parse items if empty
+    let items = row.itemsSummary || row.items || ''
+    if (!items && (row.allocations || []).length > 0) {
+      items = row.allocations.map((a) => `${a.resource || a.resourceName || 'Relief Goods'} × ${a.quantity || 1}`).join('; ')
+    } else if (!items && row.beneficiaryId && allocationsList.length > 0) {
+      const matchAllocs = allocationsList.filter((a) => Number(a.beneficiaryId) === Number(row.beneficiaryId) && a.status !== 'Cancelled')
+      if (matchAllocs.length > 0) {
+        items = matchAllocs.map((a) => `${a.resource || a.resourceName || a.item || 'Relief Goods'} × ${a.quantity || 1}`).join('; ')
+      }
+    }
+
+    // Parse assigned volunteers from notes if available
+    const parsedVolunteers = []
+    if (row.notes && row.notes.includes('Assigned Team:')) {
+      const match = row.notes.match(/Assigned Team:\s*([^\n]+)/)
+      if (match && match[1]) {
+        const parts = match[1].split(',').map((s) => s.trim()).filter(Boolean)
+        parts.forEach((p, idx) => {
+          const cleanName = p.replace(/\s*\((Volunteer|Intern)\)/i, '').trim()
+          const isIntern = /intern/i.test(p)
+          const matchVol = allVolunteers.find((v) => (v.name || `${v.firstName || ''} ${v.lastName || ''}`).trim().toLowerCase() === cleanName.toLowerCase())
+          parsedVolunteers.push({
+            id: matchVol?.dbId || matchVol?.id || `v-${idx}`,
+            name: matchVol?.name || cleanName,
+            type: matchVol?.applicantType || (isIntern ? 'Intern' : 'Volunteer'),
+            skills: matchVol?.skills || [],
+          })
+        })
+      }
+    }
+    setAssignedVolunteers(parsedVolunteers)
+
     setForm({
       eventName: row.eventName || '',
       location: row.location || '',
@@ -248,12 +390,12 @@ export default function DistributionsPage() {
       distributionDate: row.distributionDate || (row.date && row.date !== '—' ? row.date : '') || '',
       scheduleTime: row.scheduleTime || '',
       beneficiaries: row.beneficiaries || '',
-      volunteers: row.volunteers || '',
+      volunteers: row.volunteers || (parsedVolunteers.length ? String(parsedVolunteers.length) : ''),
       vehicles: row.vehicles || '',
       distanceKm: row.distanceKm ?? '',
       status: row.status,
       type: row.type || 'Delivery',
-      itemsSummary: row.itemsSummary || '',
+      itemsSummary: items,
       coordinator: row.coordinator || '',
       notes: row.notes || '',
       proofStatus: row.proofStatus || 'Awaiting Proof',
@@ -274,7 +416,8 @@ export default function DistributionsPage() {
   const closeForm = () => {
     setEditRow(null)
     setShowCreate(false)
-    setShowVolunteerHelp(false)
+    setShowVolunteerHelp(true)
+    setAssignedVolunteers([])
   }
 
   const handleSave = async (e) => {
@@ -306,6 +449,16 @@ export default function DistributionsPage() {
     setSaving(true)
     showLoading('Saving…')
     try {
+      let updatedNotes = form.notes || ''
+      if (assignedVolunteers.length > 0) {
+        const teamNames = assignedVolunteers.map((v) => `${v.name} (${v.type})`).join(', ')
+        if (updatedNotes.includes('Assigned Team:')) {
+          updatedNotes = updatedNotes.replace(/Assigned Team:[^\n]*/, `Assigned Team: ${teamNames}`)
+        } else {
+          updatedNotes = updatedNotes ? `${updatedNotes}\n\nAssigned Team: ${teamNames}` : `Assigned Team: ${teamNames}`
+        }
+      }
+
       const payload = {
         eventName: form.eventName,
         location: form.location,
@@ -314,14 +467,14 @@ export default function DistributionsPage() {
         distributionDate: form.distributionDate,
         scheduleTime: form.scheduleTime,
         beneficiaries: Number(form.beneficiaries) || 0,
-        volunteers: Number(form.volunteers) || 0,
+        volunteers: Number(form.volunteers) || assignedVolunteers.length || 0,
         vehicles: Number(form.vehicles) || 0,
         distanceKm: form.type === 'Delivery' && form.distanceKm !== '' ? Number(form.distanceKm) : '',
         status: form.status,
         type: form.type,
         itemsSummary: form.itemsSummary,
         coordinator: form.coordinator,
-        notes: form.notes,
+        notes: updatedNotes,
         proofStatus: form.proofStatus,
       }
 
@@ -335,7 +488,8 @@ export default function DistributionsPage() {
         await distributionsApi.create(payload)
         setShowCreate(false)
       }
-      setShowVolunteerHelp(false)
+      setShowVolunteerHelp(true)
+      setAssignedVolunteers([])
       reload()
       notifyBadgesChanged()
       notify.success(editRow ? 'Delivery updated.' : 'Delivery created.')
@@ -1113,25 +1267,73 @@ export default function DistributionsPage() {
 
                 {formTab === 'logistics' && (
                   <>
-                    <label>
-                      Items to Deliver
+                    <div>
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.35rem' }}>
+                        <label style={{ margin: 0, fontWeight: 600, fontSize: '0.85rem' }}>Items to Deliver</label>
+                        <button
+                          type="button"
+                          className="btn btn--outline btn--sm"
+                          style={{ padding: '0.2rem 0.55rem', fontSize: '0.76rem', display: 'inline-flex', alignItems: 'center', gap: '4px' }}
+                          onClick={() => handleSyncFromAllocations()}
+                          title="Re-sync cargo from active allocations for this barangay"
+                        >
+                          <RefreshCw size={12} /> Sync from Active Allocations
+                        </button>
+                      </div>
                       <textarea
                         rows={2}
                         value={form.itemsSummary}
                         onChange={(e) => setForm({ ...form, itemsSummary: e.target.value })}
                         placeholder="e.g. Rice packs × 50; Hygiene kits × 30"
-                        readOnly={fromAllocation}
                       />
-                    </label>
+                      {form.allocationIds?.length > 0 && (
+                        <small style={{ display: 'block', color: '#64748b', fontSize: '0.75rem', marginTop: '2px' }}>
+                          📦 {form.allocationIds.length} allocation batch(es) linked to this distribution.
+                        </small>
+                      )}
+                    </div>
 
-                    <label>
-                      Coordinator in Charge
+                    <div>
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.35rem' }}>
+                        <label style={{ margin: 0, fontWeight: 600, fontSize: '0.85rem' }}>Coordinator in Charge</label>
+                        {staffList.length > 0 && (
+                          <select
+                            value=""
+                            onChange={(e) => {
+                              if (e.target.value) setForm((prev) => ({ ...prev, coordinator: e.target.value }))
+                            }}
+                            style={{ fontSize: '0.78rem', padding: '0.2rem 0.45rem', width: 'auto', borderRadius: '6px' }}
+                          >
+                            <option value="">Choose from Staff…</option>
+                            {staffList.map((s) => (
+                              <option key={s.id || s.name} value={s.name}>
+                                {s.name} ({s.role || 'Staff'})
+                              </option>
+                            ))}
+                          </select>
+                        )}
+                      </div>
                       <input
                         value={form.coordinator}
                         onChange={(e) => setForm({ ...form, coordinator: e.target.value })}
-                        placeholder="Staff / Volunteer in charge"
+                        placeholder="Staff / Coordinator in charge"
                       />
-                    </label>
+                      {staffList.length > 0 && (
+                        <div className="coord-chips-list" style={{ marginTop: '0.4rem' }}>
+                          <span style={{ fontSize: '0.75rem', color: '#64748b', fontWeight: 600 }}>💡 Suggestions:</span>
+                          {staffList.slice(0, 5).map((s) => (
+                            <button
+                              key={s.id || s.name}
+                              type="button"
+                              className={`coord-chip ${form.coordinator === s.name ? 'coord-chip--active' : ''}`}
+                              onClick={() => setForm((prev) => ({ ...prev, coordinator: s.name }))}
+                            >
+                              <UserRound size={11} /> {s.name} <small style={{ opacity: 0.75 }}>({s.role || 'Staff'})</small>
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
 
                     <div className="dist-form-grid-3">
                       <label>
@@ -1166,40 +1368,154 @@ export default function DistributionsPage() {
                       )}
                     </div>
 
-                    <div>
-                      <button
-                        type="button"
-                        className="btn btn--ghost btn--sm"
-                        style={{ fontSize: '0.78rem' }}
-                        onClick={() => setShowVolunteerHelp((v) => !v)}
-                      >
-                        {showVolunteerHelp ? 'Hide Volunteer Suggestions' : '🔍 Suggest Volunteers by Skill'}
-                      </button>
-
-                      {showVolunteerHelp && (
-                        <div className="suggested-volunteers" style={{ marginTop: '0.5rem', padding: '0.75rem' }}>
-                          <SkillTagPicker
-                            label="Skills needed"
-                            value={manpowerSkills}
-                            showOther={false}
-                            onChange={setManpowerSkills}
-                          />
-                          {manpowerSuggestions.length === 0 ? (
-                            <p className="beneficiary-view-empty" style={{ margin: '0.4rem 0', fontSize: '0.8rem' }}>No matches yet — adjust skills above.</p>
-                          ) : (
-                            <ul className="suggested-volunteers__list" style={{ marginTop: '0.4rem', gap: '0.4rem' }}>
-                              {manpowerSuggestions.map((s) => (
-                                <li key={s.dbId} className="suggested-volunteers__item" style={{ padding: '0.6rem 0.75rem' }}>
-                                  <div>
-                                    <strong style={{ fontSize: '0.85rem' }}>{s.name}</strong>
-                                    <p style={{ fontSize: '0.78rem', margin: 0 }}>{s.whyMatched}</p>
-                                  </div>
-                                </li>
-                              ))}
-                            </ul>
-                          )}
+                    {/* Assigned Team Section */}
+                    {assignedVolunteers.length > 0 && (
+                      <div className="assigned-vols-box">
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.4rem' }}>
+                          <strong style={{ fontSize: '0.82rem', color: '#14532d', display: 'flex', alignItems: 'center', gap: '5px' }}>
+                            <UserCheck size={14} /> Assigned Delivery Team ({assignedVolunteers.length})
+                          </strong>
+                          <small style={{ color: '#166534', fontSize: '0.75rem' }}>Auto-synced to volunteer count</small>
                         </div>
-                      )}
+                        <div className="assigned-vols-list">
+                          {assignedVolunteers.map((v) => (
+                            <span key={v.id} className="assigned-vol-chip">
+                              <span className={`vol-role-badge vol-role-badge--${v.type?.toLowerCase() === 'intern' ? 'intern' : 'volunteer'}`}>
+                                {v.type}
+                              </span>
+                              {v.name}
+                              <button
+                                type="button"
+                                title="Remove volunteer"
+                                onClick={() => handleRemoveVolunteer(v.id)}
+                              >
+                                &times;
+                              </button>
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Program-Aligned Skills Section */}
+                    {form.program && (
+                      <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '8px', padding: '0.75rem' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.4rem' }}>
+                          <span style={{ fontSize: '0.82rem', fontWeight: 600, color: '#0f172a', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                            <Sparkles size={14} style={{ color: '#AF101A' }} /> Program: <strong>{form.program}</strong>
+                          </span>
+                          <span style={{ fontSize: '0.74rem', color: '#64748b' }}>Click to toggle required skill</span>
+                        </div>
+                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.4rem' }}>
+                          {(PROGRAM_REQUIRED_SKILLS[form.program] || ['Logistics / Driving', 'Packing / Repacking', 'First Aid']).map((skill) => {
+                            const isReq = manpowerSkills.includes(skill)
+                            return (
+                              <button
+                                key={skill}
+                                type="button"
+                                className={`alloc-need-tag alloc-need-tag--clickable ${isReq ? 'alloc-need-tag--active' : ''}`}
+                                onClick={() => {
+                                  setManpowerSkills((prev) => isReq ? prev.filter((s) => s !== skill) : [...prev, skill])
+                                }}
+                                style={{ fontSize: '0.78rem', padding: '0.25rem 0.6rem' }}
+                              >
+                                {isReq ? '✓ ' : '+ '}{skill}
+                              </button>
+                            )
+                          })}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Prominent Volunteer & Intern Suggestions Panel */}
+                    <div className="dist-volunteer-panel">
+                      <div className="dist-volunteer-panel__header">
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                          <Users size={16} style={{ color: '#AF101A' }} />
+                          <strong style={{ fontSize: '0.9rem', color: '#0f172a' }}>
+                            Suggest Volunteers &amp; Interns by Skill
+                          </strong>
+                        </div>
+                        {allVolunteers.length > 0 && (
+                          <select
+                            value=""
+                            onChange={(e) => {
+                              const found = allVolunteers.find((v) => String(v.dbId || v.id) === String(e.target.value))
+                              if (found) handleAddVolunteer(found)
+                            }}
+                            style={{ fontSize: '0.76rem', padding: '0.2rem 0.45rem', width: 'auto', borderRadius: '6px' }}
+                          >
+                            <option value="">+ Assign Volunteer / Intern from directory…</option>
+                            {allVolunteers.map((v) => {
+                              const isAssigned = assignedVolunteers.some((av) => String(av.id) === String(v.dbId || v.id))
+                              return (
+                                <option key={v.dbId || v.id} value={v.dbId || v.id} disabled={isAssigned}>
+                                  {isAssigned ? '✓ ' : ''}{v.name} ({v.applicantType || 'Volunteer'})
+                                </option>
+                              )
+                            })}
+                          </select>
+                        )}
+                      </div>
+
+                      <SkillTagPicker
+                        label="Filter volunteers by specific skills"
+                        value={manpowerSkills}
+                        showOther={false}
+                        onChange={setManpowerSkills}
+                      />
+
+                      <div style={{ marginTop: '0.75rem' }}>
+                        {manpowerSuggestions.length === 0 ? (
+                          <p className="beneficiary-view-empty" style={{ margin: '0.4rem 0', fontSize: '0.8rem' }}>
+                            No matching volunteers or interns found for these skills. Use the dropdown above to assign directly.
+                          </p>
+                        ) : (
+                          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '0.6rem' }}>
+                            {manpowerSuggestions.map((s) => {
+                              const isAssigned = assignedVolunteers.some((av) => String(av.id) === String(s.dbId || s.id))
+                              const isConnectedProgram = form.program && (
+                                (s.programs || []).some((p) => p.toLowerCase().includes(form.program.toLowerCase())) ||
+                                (s.program && s.program.toLowerCase().includes(form.program.toLowerCase()))
+                              )
+                              return (
+                                <div key={s.dbId || s.id} className="vol-suggest-card">
+                                  <div className="vol-suggest-info">
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
+                                      <strong style={{ fontSize: '0.85rem', color: '#0f172a' }}>{s.name}</strong>
+                                      <span className={`vol-role-badge vol-role-badge--${s.applicantType?.toLowerCase() === 'intern' ? 'intern' : 'volunteer'}`}>
+                                        {s.applicantType || 'Volunteer'}
+                                      </span>
+                                      {isConnectedProgram && (
+                                        <span style={{ fontSize: '0.68rem', fontWeight: 600, color: '#15803d', background: '#dcfce7', padding: '1px 5px', borderRadius: '4px' }}>
+                                          🎯 {form.program}
+                                        </span>
+                                      )}
+                                    </div>
+                                    <p style={{ fontSize: '0.76rem', color: '#64748b', margin: '2px 0 0' }}>
+                                      {s.whyMatched || (s.skills || []).slice(0, 3).join(', ')}
+                                    </p>
+                                  </div>
+                                  <button
+                                    type="button"
+                                    className={`assign-vol-btn ${isAssigned ? 'assign-vol-btn--active' : ''}`}
+                                    onClick={() => {
+                                      if (isAssigned) {
+                                        handleRemoveVolunteer(s.dbId || s.id)
+                                      } else {
+                                        handleAddVolunteer(s)
+                                      }
+                                    }}
+                                  >
+                                    {isAssigned ? <Check size={12} /> : <Plus size={12} />}
+                                    {isAssigned ? 'Assigned' : 'Assign'}
+                                  </button>
+                                </div>
+                              )
+                            })}
+                          </div>
+                        )}
+                      </div>
                     </div>
                   </>
                 )}

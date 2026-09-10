@@ -155,6 +155,7 @@ foreach ($rows as $row) {
     'dbId' => (int) $row['id'],
     'id' => $row['code'],
     'name' => $row['full_name'],
+    'applicantType' => !empty($row['applicant_type']) && strcasecmp((string) $row['applicant_type'], 'Intern') === 0 ? 'Intern' : 'Volunteer',
     'email' => $row['email'],
     'userId' => $row['user_id'] ? (int) $row['user_id'] : null,
     'status' => $row['status'],
