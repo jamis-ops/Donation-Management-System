@@ -1,35 +1,22 @@
 <?php
 declare(strict_types=1);
-require __DIR__ . '/cors.php';
-require __DIR__ . '/config.php';
-require_once __DIR__ . '/super_admin.php';
+require_once __DIR__ . '/bootstrap.php';
 
-$isHttps = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off')
-  || (!empty($_SERVER['HTTP_X_FORWARDED_PROTO']) && $_SERVER['HTTP_X_FORWARDED_PROTO'] === 'https');
-
-session_set_cookie_params([
-  'lifetime' => 0,
-  'path' => '/',
-  'secure' => $isHttps,
-  'httponly' => true,
-  'samesite' => $isHttps ? 'None' : 'Lax',
-]);
-session_start();
-
-$user = $_SESSION['user'] ?? null;
+$user = current_user();
 if (!$user) {
   json_response(['ok' => false, 'user' => null], 200);
 }
 
+$token = generate_auth_token($user, 86400 * 30);
+
 // Super Admin is not a database user — return session as-is.
 if (is_super_admin_user($user)) {
   $user = array_merge(make_super_admin_session_user(), [
-    // Preserve any session-only display tweaks if present.
     'name' => $user['name'] ?? SUPER_ADMIN_NAME,
   ]);
   $user['isSuperAdmin'] = true;
   $_SESSION['user'] = $user;
-  json_response(['ok' => true, 'user' => $user], 200);
+  json_response(['ok' => true, 'user' => $user, 'token' => $token], 200);
 }
 
 // Refresh must_change_password / photo from DB when possible
@@ -53,4 +40,4 @@ try {
   // ignore — session user still returned
 }
 
-json_response(['ok' => true, 'user' => $user], 200);
+json_response(['ok' => true, 'user' => $user, 'token' => $token], 200);

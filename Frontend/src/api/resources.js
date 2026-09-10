@@ -10,14 +10,29 @@ export function apiUrl(path) {
   return `${API_BASE_URL}${cleanPath}`
 }
 
+function getStoredToken() {
+  try {
+    if (typeof localStorage !== 'undefined') {
+      return localStorage.getItem('auth_token') || ''
+    }
+  } catch {
+    return ''
+  }
+  return ''
+}
+
 export async function apiFetch(path, options = {}) {
   const url = apiUrl(path)
+  const token = getStoredToken()
+  const isFormData = options.body instanceof FormData
+  const headers = {
+    ...(isFormData ? {} : { 'Content-Type': 'application/json' }),
+    ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
+    ...(options.headers || {}),
+  }
   const res = await fetch(url, {
     credentials: 'include',
-    headers: {
-      'Content-Type': 'application/json',
-      ...(options.headers || {}),
-    },
+    headers,
     ...options,
   })
 

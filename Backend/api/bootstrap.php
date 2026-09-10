@@ -5,11 +5,30 @@ require_once __DIR__ . '/cors.php';
 require_once __DIR__ . '/config.php';
 require_once __DIR__ . '/super_admin.php';
 require_once __DIR__ . '/mailer.php';
+require_once __DIR__ . '/auth_token.php';
+
+function is_https_request(): bool
+{
+  if (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') {
+    return true;
+  }
+  if (!empty($_SERVER['HTTP_X_FORWARDED_PROTO']) && stripos((string) $_SERVER['HTTP_X_FORWARDED_PROTO'], 'https') !== false) {
+    return true;
+  }
+  if (!empty($_SERVER['HTTP_X_FORWARDED_SSL']) && strtolower((string) $_SERVER['HTTP_X_FORWARDED_SSL']) === 'on') {
+    return true;
+  }
+  if (!empty($_SERVER['SERVER_PORT']) && (int) $_SERVER['SERVER_PORT'] === 443) {
+    return true;
+  }
+  if (isset($_SERVER['HTTP_HOST']) && str_contains((string) $_SERVER['HTTP_HOST'], 'onrender.com')) {
+    return true;
+  }
+  return false;
+}
 
 if (session_status() !== PHP_SESSION_ACTIVE) {
-  $isHttps = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off')
-    || (!empty($_SERVER['HTTP_X_FORWARDED_PROTO']) && $_SERVER['HTTP_X_FORWARDED_PROTO'] === 'https');
-  
+  $isHttps = is_https_request();
   session_set_cookie_params([
     'lifetime' => 0,
     'path' => '/',
@@ -17,12 +36,72 @@ if (session_status() !== PHP_SESSION_ACTIVE) {
     'httponly' => true,
     'samesite' => $isHttps ? 'None' : 'Lax',
   ]);
-  session_start();
+  @session_start();
 }
 
 function current_user(): ?array
 {
-  return $_SESSION['user'] ?? null;
+  if (!empty($_SESSION['user']) && is_array($_SESSION['user'])) {
+    return $_SESSION['user'];
+  }
+
+  // Fallback: Verify Authorization: Bearer <token> for cross-site requests
+  $token = get_bearer_token();
+  if ($token) {
+    $tokenUser = verify_auth_token($token);
+    if ($tokenUser) {
+      if (!empty($tokenUser['isSuperAdmin'])) {
+        $user = array_merge(make_super_admin_session_user(), [
+          'name' => $tokenUser['name'] ?? SUPER_ADMIN_NAME,
+        ]);
+        $user['isSuperAdmin'] = true;
+        $_SESSION['user'] = $user;
+        return $user;
+      }
+
+      try {
+        $pdo = db();
+        $stmt = $pdo->prepare("
+          SELECT u.id, u.full_name, u.email, u.status, u.must_change_password, u.profile_photo, r.name AS role
+          FROM users u
+          JOIN roles r ON r.id = u.role_id
+          WHERE u.id = ? AND u.status = 'ACTIVE'
+          LIMIT 1
+        ");
+        $stmt->execute([(int) $tokenUser['id']]);
+        $row = $stmt->fetch();
+        if ($row) {
+          $user = [
+            'id' => (int) $row['id'],
+            'name' => $row['full_name'],
+            'email' => $row['email'],
+            'role' => $row['role'],
+            'isSuperAdmin' => false,
+            'mustChangePassword' => (bool) ($row['must_change_password'] ?? false),
+            'profilePhoto' => !empty($row['profile_photo'])
+              ? ('/api/uploads/profiles/' . basename((string) $row['profile_photo']))
+              : null,
+          ];
+          $_SESSION['user'] = $user;
+          return $user;
+        }
+      } catch (Throwable) {
+        $user = [
+          'id' => (int) $tokenUser['id'],
+          'name' => $tokenUser['name'] ?? '',
+          'email' => $tokenUser['email'] ?? '',
+          'role' => $tokenUser['role'] ?? '',
+          'isSuperAdmin' => false,
+          'mustChangePassword' => false,
+          'profilePhoto' => null,
+        ];
+        $_SESSION['user'] = $user;
+        return $user;
+      }
+    }
+  }
+
+  return null;
 }
 
 function require_auth(?array $roles = null): array

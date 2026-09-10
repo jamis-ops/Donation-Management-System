@@ -10,14 +10,29 @@ function apiUrl(path) {
   return `${API_BASE_URL}${cleanPath}`
 }
 
+function getStoredToken() {
+  try {
+    if (typeof localStorage !== 'undefined') {
+      return localStorage.getItem('auth_token') || ''
+    }
+  } catch {
+    return ''
+  }
+  return ''
+}
+
 async function apiFetch(path, options = {}) {
   const url = apiUrl(path)
+  const token = getStoredToken()
+  const isFormData = options.body instanceof FormData
+  const headers = {
+    ...(isFormData ? {} : { 'Content-Type': 'application/json' }),
+    ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
+    ...(options.headers || {}),
+  }
   const res = await fetch(url, {
     credentials: 'include',
-    headers: {
-      'Content-Type': 'application/json',
-      ...(options.headers || {}),
-    },
+    headers,
     ...options,
   })
 
@@ -35,10 +50,16 @@ async function apiFetch(path, options = {}) {
 }
 
 export async function login(email, password, { remember = false } = {}) {
-  return apiFetch('/api/login.php', {
+  const res = await apiFetch('/api/login.php', {
     method: 'POST',
     body: JSON.stringify({ email, password, remember: !!remember }),
   })
+  if (res?.token && typeof localStorage !== 'undefined') {
+    try {
+      localStorage.setItem('auth_token', res.token)
+    } catch {}
+  }
+  return res
 }
 
 export async function register(payload) {
@@ -49,11 +70,22 @@ export async function register(payload) {
 }
 
 export async function logout() {
+  if (typeof localStorage !== 'undefined') {
+    try {
+      localStorage.removeItem('auth_token')
+    } catch {}
+  }
   return apiFetch('/api/logout.php', { method: 'POST', body: '{}' })
 }
 
 export async function me() {
-  return apiFetch('/api/me.php', { method: 'GET' })
+  const res = await apiFetch('/api/me.php', { method: 'GET' })
+  if (res?.token && typeof localStorage !== 'undefined') {
+    try {
+      localStorage.setItem('auth_token', res.token)
+    } catch {}
+  }
+  return res
 }
 
 export async function updateAccount(payload) {

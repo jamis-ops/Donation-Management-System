@@ -1,8 +1,6 @@
 <?php
 declare(strict_types=1);
-require __DIR__ . '/cors.php';
-require __DIR__ . '/config.php';
-require_once __DIR__ . '/super_admin.php';
+require_once __DIR__ . '/bootstrap.php';
 
 $body = read_json_body();
 $email = strtolower(trim((string) ($body['email'] ?? '')));
@@ -17,22 +15,7 @@ if ($email === '' || $password === '') {
   json_response(['ok' => false, 'error' => 'Email and password are required'], 400);
 }
 
-// Cookie lifetime before session_start (Remember me = 30 days, else browser session).
-$lifetime = $remember ? (60 * 60 * 24 * 30) : 0;
-$isHttps = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off')
-  || (!empty($_SERVER['HTTP_X_FORWARDED_PROTO']) && $_SERVER['HTTP_X_FORWARDED_PROTO'] === 'https');
-
-session_set_cookie_params([
-  'lifetime' => $lifetime,
-  'path' => '/',
-  'secure' => $isHttps,
-  'httponly' => true,
-  'samesite' => $isHttps ? 'None' : 'Lax',
-]);
-if ($lifetime > 0) {
-  ini_set('session.gc_maxlifetime', (string) $lifetime);
-}
-session_start();
+$tokenLifetime = $remember ? (86400 * 30) : (86400 * 7);
 
 // ── Super Admin (config / env — never looked up in MySQL) ──
 if (is_super_admin_email($email)) {
@@ -40,7 +23,8 @@ if (is_super_admin_email($email)) {
     json_response(['ok' => false, 'error' => 'Invalid email or password'], 401);
   }
   $_SESSION['user'] = make_super_admin_session_user();
-  json_response(['ok' => true, 'user' => $_SESSION['user']]);
+  $token = generate_auth_token($_SESSION['user'], $tokenLifetime);
+  json_response(['ok' => true, 'user' => $_SESSION['user'], 'token' => $token]);
 }
 
 $pdo = db();
@@ -81,4 +65,6 @@ $_SESSION['user'] = [
     : null,
 ];
 
-json_response(['ok' => true, 'user' => $_SESSION['user']]);
+$token = generate_auth_token($_SESSION['user'], $tokenLifetime);
+
+json_response(['ok' => true, 'user' => $_SESSION['user'], 'token' => $token]);
