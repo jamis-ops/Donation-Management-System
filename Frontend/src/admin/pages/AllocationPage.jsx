@@ -510,8 +510,6 @@ export default function AllocationPage() {
     return (requests || []).find((r) => Number(r.dbId) === Number(row.assistanceRequestId))
   }
 
-  const canPlan = (row) => ['Reserved', 'Allocated'].includes(row.status) && !row.distributionId
-
   const closeForm = () => {
     setEditRow(null)
     setShowCreate(false)

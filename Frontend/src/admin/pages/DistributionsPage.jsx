@@ -56,8 +56,8 @@ function formFromAllocations(allocs, barangays) {
   if (!allocs?.length) return null
   const first = allocs[0]
   const ben = barangays.find((b) => Number(b.dbId) === Number(first.beneficiaryId))
-  const location = ben?.barangay || ben?.name || first.beneficiary || ''
-  const itemsSummary = allocs.map((a) => `${a.resource} × ${a.quantity}`).join('; ')
+  const location = ben?.barangay || ben?.name || first.beneficiary || first.beneficiaryName || ''
+  const itemsSummary = allocs.map((a) => `${a.resource || a.resourceName || 'Relief Goods'} × ${a.quantity || 1}`).join('; ')
   const program = allocs.find((a) => a.program)?.program || ''
   const families = first.affectedFamilies || ben?.affectedFamilies || ''
   return {
@@ -68,8 +68,8 @@ function formFromAllocations(allocs, barangays) {
     program,
     beneficiaries: families ? String(families) : '',
     itemsSummary,
-    notes: `From allocation(s): ${allocs.map((a) => a.id).join(', ')}`,
-    allocationIds: allocs.map((a) => a.dbId),
+    notes: `From allocation(s): ${allocs.map((a) => a.id || a.allocationId || 'ALC').join(', ')}`,
+    allocationIds: allocs.map((a) => a.dbId || a.allocationId).filter(Boolean),
     status: 'Planning',
     type: 'Delivery',
     proofStatus: 'Awaiting Proof',
@@ -169,7 +169,7 @@ export default function DistributionsPage() {
   }
 
   useEffect(() => {
-    const incoming = location.state?.fromAllocations
+    const incoming = location.state?.fromAllocations || (location.state?.prefillAllocation ? [location.state.prefillAllocation] : null)
     if (!incoming?.length || !barangays.length) return
     const prefilled = formFromAllocations(incoming, barangays)
     if (prefilled) {

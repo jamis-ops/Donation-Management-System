@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { assistanceRequestsApi, beneficiariesApi } from '../../api/resources';
+import { assistanceRequestsApi, beneficiariesApi, inventoryApi, donationsApi } from '../../api/resources';
+import ProcurementModal from '../components/donations/ProcurementModal';
 import { useApiList } from '../../hooks/useApiList';
 import { useFilters } from '../../hooks/useFilters';
 import { 
@@ -877,6 +878,103 @@ const styles = `
   font-size: 0.78rem;
 }
 
+/* Stock Feasibility & AI Procurement Card */
+.relief-stock-feasibility {
+  border-radius: 8px;
+  padding: 0.75rem 0.85rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  font-size: 0.8rem;
+}
+.relief-stock-feasibility--in-stock {
+  background: #f0fdf4;
+  border: 1px solid #bbf7d0;
+}
+.relief-stock-feasibility--deficit {
+  background: #fffbeb;
+  border: 1px solid #fde68a;
+}
+.relief-stock-feasibility__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+.relief-stock-feasibility__title {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-weight: 700;
+  font-size: 0.82rem;
+}
+.relief-stock-feasibility--in-stock .relief-stock-feasibility__title {
+  color: #15803d;
+}
+.relief-stock-feasibility--deficit .relief-stock-feasibility__title {
+  color: #b45309;
+}
+.relief-stock-feasibility__items {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  margin-top: 0.15rem;
+}
+.relief-stock-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.2rem 0.45rem;
+  border-radius: 4px;
+  font-size: 0.74rem;
+  font-weight: 600;
+}
+.relief-stock-tag--available {
+  background: #dcfce7;
+  color: #166534;
+  border: 1px solid #86efac;
+}
+.relief-stock-tag--shortage {
+  background: #fee2e2;
+  color: #991b1b;
+  border: 1px solid #fca5a5;
+}
+.relief-procure-action-box {
+  margin-top: 0.35rem;
+  padding-top: 0.5rem;
+  border-top: 1px dashed #fcd34d;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+.relief-procure-action-text {
+  font-size: 0.76rem;
+  color: #78350f;
+  line-height: 1.3;
+}
+.relief-procure-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  background: linear-gradient(135deg, #b45309 0%, #92400e 100%);
+  color: #ffffff;
+  border: none;
+  border-radius: 6px;
+  padding: 0.38rem 0.75rem;
+  font-size: 0.77rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  box-shadow: 0 1px 3px rgba(180, 83, 9, 0.25);
+}
+.relief-procure-btn:hover {
+  background: linear-gradient(135deg, #92400e 0%, #78350f 100%);
+  transform: translateY(-1px);
+  box-shadow: 0 3px 8px rgba(180, 83, 9, 0.35);
+}
+
 .relief-review-footer {
   display: flex;
   align-items: center;
@@ -1018,10 +1116,22 @@ export default function RequestsPage() {
   const { showLoading, hideLoading } = useLoading();
   const { data: requestsData, loading: reqLoading, error: reqError, reload: reqReload } = useApiList(() => assistanceRequestsApi.list());
   const { data: beneficiariesData } = useApiList(() => beneficiariesApi.list());
+  const { data: inventoryData } = useApiList(() => inventoryApi.list());
+  const { data: donationsData, reload: reloadDonations } = useApiList(() => donationsApi.list());
   
   const [emergencyIds, setEmergencyIds] = useState(() => new Set());
   const [selectedRequest, setSelectedRequest] = useState(null);
+  const [procuringDonation, setProcuringDonation] = useState(null);
+  const [procuringRequest, setProcuringRequest] = useState(null);
   const [isUpdating, setIsUpdating] = useState(false);
+
+  const availableMonetaryDonations = useMemo(() => {
+    return (donationsData || []).filter(d => 
+      d.type === 'Monetary' && 
+      Number(d.remainingBalance ?? d.amountRaw ?? 0) > 0 && 
+      d.status !== 'Rejected'
+    );
+  }, [donationsData]);
 
   useEffect(() => {
     const s = document.createElement('style');
@@ -1468,10 +1578,35 @@ export default function RequestsPage() {
         <ReviewModal 
           request={selectedRequest} 
           allRequests={enrichedData}
+          inventoryData={inventoryData}
+          availableMonetaryDonations={availableMonetaryDonations}
           onClose={() => setSelectedRequest(null)}
           onUpdate={handleUpdateStatus}
+          onProcure={(req, donation) => {
+            setSelectedRequest(null);
+            setProcuringRequest(req);
+            setProcuringDonation(donation || availableMonetaryDonations[0] || null);
+          }}
           isUpdating={isUpdating}
           navigate={navigate}
+        />
+      )}
+
+      {procuringDonation && (
+        <ProcurementModal
+          donation={procuringDonation}
+          availableDonations={availableMonetaryDonations}
+          initialBeneficiaryId={procuringRequest?.beneficiaryId}
+          initialRequestId={procuringRequest?.dbId}
+          onClose={() => {
+            setProcuringDonation(null);
+            setProcuringRequest(null);
+          }}
+          onSuccess={async () => {
+            setProcuringDonation(null);
+            setProcuringRequest(null);
+            await Promise.all([reqReload(), reloadDonations()]);
+          }}
         />
       )}
 
@@ -1494,7 +1629,17 @@ function PriorityBadge({ priority }) {
   );
 }
 
-function ReviewModal({ request, allRequests, onClose, onUpdate, isUpdating, navigate }) {
+function ReviewModal({ 
+  request, 
+  allRequests, 
+  inventoryData, 
+  availableMonetaryDonations, 
+  onClose, 
+  onUpdate, 
+  onProcure,
+  isUpdating, 
+  navigate 
+}) {
   const [notes, setNotes] = useState(request.notes || '');
   
   const activeCriticalRequests = useMemo(() => {
@@ -1530,6 +1675,42 @@ function ReviewModal({ request, allRequests, onClose, onUpdate, isUpdating, navi
   }, [allRequests, request]);
 
   const slaInfo = useMemo(() => getSLALabel(request), [request]);
+
+  // Real-time Warehouse Inventory Stock Feasibility Check
+  const stockFeasibility = useMemo(() => {
+    const items = inventoryData || [];
+    const availableItems = [];
+    const shortageNeeds = [];
+
+    const effectiveNeeds = requestedNeeds.length > 0 ? requestedNeeds : [request.type || 'Relief Goods'];
+
+    effectiveNeeds.forEach(need => {
+      const needLower = need.toLowerCase().trim();
+      const matched = items.filter(inv => {
+        const name = (inv.item || inv.name || '').toLowerCase();
+        const cat = (inv.category || '').toLowerCase();
+        const avail = Math.max(0, Number(inv.quantity || 0) - Number(inv.allocated || 0));
+        return (name.includes(needLower) || needLower.includes(name) || cat.includes(needLower) || needLower.includes(cat)) && avail > 0;
+      });
+
+      if (matched.length > 0) {
+        const totalAvail = matched.reduce((acc, m) => acc + Math.max(0, Number(m.quantity || 0) - Number(m.allocated || 0)), 0);
+        availableItems.push({ need, matched, totalAvail, unit: matched[0]?.unit || 'units' });
+      } else {
+        shortageNeeds.push(need);
+      }
+    });
+
+    const hasShortage = shortageNeeds.length > 0 || availableItems.length === 0;
+    const totalCashAvailable = (availableMonetaryDonations || []).reduce((acc, d) => acc + Number(d.remainingBalance ?? d.amountRaw ?? 0), 0);
+
+    return {
+      availableItems,
+      shortageNeeds,
+      hasShortage,
+      totalCashAvailable,
+    };
+  }, [inventoryData, requestedNeeds, request.type, availableMonetaryDonations]);
 
   const handleSave = async (status) => {
     await onUpdate(request.dbId, { status, notes, type: request.type });
@@ -1587,7 +1768,7 @@ function ReviewModal({ request, allRequests, onClose, onUpdate, isUpdating, navi
 
         {/* Modal Main Content Grid */}
         <div className="relief-review-grid">
-          {/* Left Column: Needs & Notes */}
+          {/* Left Column: Needs, Stock Feasibility & Notes */}
           <div className="relief-review-col">
             {activeCriticalRequests.length > 0 && request.priority === 'Critical' && (
               <div className="relief-duplicate-alert">
@@ -1620,6 +1801,58 @@ function ReviewModal({ request, allRequests, onClose, onUpdate, isUpdating, navi
                   <span style={{ fontSize: '0.78rem', color: '#94a3b8' }}>General Relief Assistance</span>
                 )}
               </div>
+            </div>
+
+            {/* Warehouse Stock Feasibility & AI Monetary Procurement Suggestion */}
+            <div className={`relief-stock-feasibility ${stockFeasibility.hasShortage ? 'relief-stock-feasibility--deficit' : 'relief-stock-feasibility--in-stock'}`}>
+              <div className="relief-stock-feasibility__header">
+                <span className="relief-stock-feasibility__title">
+                  {stockFeasibility.hasShortage ? (
+                    <>
+                      <AlertCircle size={15} color="#b45309" />
+                      <span>Warehouse Stock Shortage Detected</span>
+                    </>
+                  ) : (
+                    <>
+                      <CheckCircle size={15} color="#15803d" />
+                      <span>Warehouse Stock Available</span>
+                    </>
+                  )}
+                </span>
+                <span style={{ fontSize: '0.74rem', color: '#64748b' }}>
+                  Live Stock Feasibility
+                </span>
+              </div>
+
+              <div className="relief-stock-feasibility__items">
+                {stockFeasibility.availableItems.map((item, idx) => (
+                  <span key={idx} className="relief-stock-tag relief-stock-tag--available">
+                    <Check size={11} /> {item.need}: {item.totalAvail} {item.unit} available
+                  </span>
+                ))}
+                {stockFeasibility.shortageNeeds.map((need, idx) => (
+                  <span key={idx} className="relief-stock-tag relief-stock-tag--shortage">
+                    <X size={11} /> {need}: 0 in stock
+                  </span>
+                ))}
+              </div>
+
+              {stockFeasibility.hasShortage && (
+                <div className="relief-procure-action-box">
+                  <div className="relief-procure-action-text">
+                    <strong>₱{stockFeasibility.totalCashAvailable.toLocaleString()}</strong> unallocated monetary donations available to procure missing goods.
+                  </div>
+                  <button
+                    type="button"
+                    className="relief-procure-btn"
+                    onClick={() => onProcure(request, availableMonetaryDonations[0] || null)}
+                    title="Match and procure goods using available monetary donations"
+                  >
+                    <Sparkles size={13} />
+                    <span>AI Cash Procurement</span>
+                  </button>
+                </div>
+              )}
             </div>
 
             <div className="relief-review-section" style={{ flex: 1 }}>
@@ -1736,27 +1969,39 @@ function ReviewModal({ request, allRequests, onClose, onUpdate, isUpdating, navi
                 <Check size={14} /> Approve Request
               </button>
             ) : (
-              <button 
-                type="button" 
-                className="btn btn--primary btn--sm" 
-                onClick={() => {
-                  onClose();
-                  navigate('/admin/allocation', { 
-                    state: { 
-                      prefillRequest: { 
-                        requestId: request.dbId, 
-                        beneficiaryId: request.beneficiaryId, 
-                        type: request.type, 
-                        notes: request.notes, 
-                        beneficiaryName: request.beneficiary 
+              <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+                {stockFeasibility.hasShortage && (
+                  <button
+                    type="button"
+                    className="relief-procure-btn"
+                    onClick={() => onProcure(request, availableMonetaryDonations[0] || null)}
+                    style={{ padding: '0.45rem 0.85rem' }}
+                  >
+                    <Sparkles size={14} /> Procure Missing Goods
+                  </button>
+                )}
+                <button 
+                  type="button" 
+                  className="btn btn--primary btn--sm" 
+                  onClick={() => {
+                    onClose();
+                    navigate('/admin/allocation', { 
+                      state: { 
+                        prefillRequest: { 
+                          requestId: request.dbId, 
+                          beneficiaryId: request.beneficiaryId, 
+                          type: request.type, 
+                          notes: request.notes, 
+                          beneficiaryName: request.beneficiary 
+                        } 
                       } 
-                    } 
-                  });
-                }} 
-                style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem' }}
-              >
-                Create Allocation &rarr;
-              </button>
+                    });
+                  }} 
+                  style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem' }}
+                >
+                  Allocate Warehouse Stock &rarr;
+                </button>
+              </div>
             )}
           </div>
         </div>

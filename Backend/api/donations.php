@@ -261,7 +261,7 @@ if ($method === 'POST') {
     }
     $itemsSummary = !empty($summaryParts) ? implode(', ', $summaryParts) : "{$mode} (₱" . number_format($totalAmount, 2) . ")";
 
-    // Optionally create Allocation in allocations table
+    // Create Allocation in allocations table
     $allocationId = null;
     if ($beneficiaryId && $beneficiaryId > 0) {
       try {
@@ -270,6 +270,7 @@ if ($method === 'POST') {
           INSERT INTO allocations (code, resource_name, quantity, program, beneficiary_target, beneficiary_id, assistance_request_id, status, priority, allocation_date, notes)
           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ');
+        $donorLabel = !empty($donation['donor_name']) ? $donation['donor_name'] : 'Donor';
         $alcStmt->execute([
           $alcCode,
           $itemsSummary,
@@ -281,9 +282,14 @@ if ($method === 'POST') {
           'Allocated',
           'High',
           date('Y-m-d'),
-          "Funded from Donation {$donation['tracking_code']}" . ($receiptNumber !== '' ? " (OR: {$receiptNumber})" : ''),
+          "Funded from Monetary Donation {$donation['tracking_code']} ({$donorLabel})",
         ]);
         $allocationId = (int) $pdo->lastInsertId();
+
+        // Automatically sync Assistance Request status to 'Allocated'
+        if ($assistanceRequestId && $assistanceRequestId > 0) {
+          $pdo->prepare("UPDATE assistance_requests SET status = 'Allocated' WHERE id = ?")->execute([$assistanceRequestId]);
+        }
       } catch (Throwable $e) {
         // best-effort
       }
@@ -384,6 +390,7 @@ if ($method === 'POST') {
       'message' => "Donation successfully allocated for {$benName}!",
       'emailSent' => $emailSent,
       'procurementId' => $procurementId,
+      'allocationId' => $allocationId,
       'data' => map_donation($updatedRow, $pdo),
     ]);
   }

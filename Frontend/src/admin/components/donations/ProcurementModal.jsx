@@ -1,4 +1,5 @@
 import { useState, useMemo, useEffect } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { 
   Package, ShoppingBag, Plus, Trash2, CheckCircle2, 
   DollarSign, Users, MapPin, FileText, Send, AlertCircle, 
@@ -7,7 +8,7 @@ import {
 import ModalHeader from '../shared/ModalHeader'
 import { donationsApi, beneficiariesApi, assistanceRequestsApi } from '../../../api/resources'
 import { notify } from '../../../utils/toast'
-import { showSuccessModal } from '../../../utils/confirm'
+import { confirmAction, showSuccessModal } from '../../../utils/confirm'
 import { useLoading } from '../../../context/LoadingContext'
 
 const PACK_PRESETS = [
@@ -35,9 +36,18 @@ const AI_CATALOG = [
   { item: 'Student School Supplies Bundle (Notebooks, Pens, Bags)', category: 'Educational Support', unit: 'bundles', unitCost: 400, keywords: ['education', 'school', 'student', 'supplies', 'books'] },
 ]
 
-export default function ProcurementModal({ donation, beneficiaries = [], assistanceRequests = [], onClose, onSuccess }) {
+export default function ProcurementModal({ 
+  donation, 
+  beneficiaries = [], 
+  assistanceRequests = [], 
+  initialBeneficiaryId = '',
+  initialRequestId = '',
+  onClose, 
+  onSuccess 
+}) {
+  const navigate = useNavigate()
   const { showLoading, hideLoading } = useLoading()
-  const [activeTab, setActiveTab] = useState('pack_sponsorship') // 'pack_sponsorship' | 'itemized_purchase'
+  const [activeTab, setActiveTab] = useState(initialRequestId ? 'itemized_purchase' : 'pack_sponsorship')
   const [saving, setSaving] = useState(false)
 
   const [internalBeneficiaries, setInternalBeneficiaries] = useState(beneficiaries || [])
@@ -72,12 +82,12 @@ export default function ProcurementModal({ donation, beneficiaries = [], assista
   const [packPresetIndex, setPackPresetIndex] = useState(0)
   const [packUnitCost, setPackUnitCost] = useState(PACK_PRESETS[0].defaultCost)
   const [packAmountToAllocate, setPackAmountToAllocate] = useState(remainingBalance || 500)
-  const [packBeneficiaryId, setPackBeneficiaryId] = useState('')
-  const [packRequestId, setPackRequestId] = useState('')
+  const [packBeneficiaryId, setPackBeneficiaryId] = useState(initialBeneficiaryId ? String(initialBeneficiaryId) : '')
+  const [packRequestId, setPackRequestId] = useState(initialRequestId ? String(initialRequestId) : '')
 
   // --- Itemized Purchase State ---
-  const [itemBeneficiaryId, setItemBeneficiaryId] = useState('')
-  const [itemRequestId, setItemRequestId] = useState('')
+  const [itemBeneficiaryId, setItemBeneficiaryId] = useState(initialBeneficiaryId ? String(initialBeneficiaryId) : '')
+  const [itemRequestId, setItemRequestId] = useState(initialRequestId ? String(initialRequestId) : '')
   const [addToInventory, setAddToInventory] = useState(false)
   const [familiesSupportedInput, setFamiliesSupportedInput] = useState('')
   const [items, setItems] = useState([
@@ -366,9 +376,40 @@ export default function ProcurementModal({ donation, beneficiaries = [], assista
     try {
       const res = await donationsApi.procure(payload)
       notify.success(res.message || 'Donation successfully allocated and converted to relief goods!')
-      showSuccessModal('Funds Allocated & Donor Notified')
-      if (onSuccess) onSuccess(res.data)
+      
+      const createdAllocId = res?.allocationId
+      const targetBenId = currentBeneficiaryId
+      const targetBenName = selectedBeneficiary?.full_name || selectedBeneficiary?.name || selectedBeneficiary?.barangay || 'Barangay'
+
+      if (onSuccess) onSuccess(res?.data || res)
       onClose()
+
+      // Prompt admin to schedule distribution or view allocations
+      const scheduleNow = await confirmAction({
+        title: 'Procurement & Allocation Complete',
+        message: `Successfully allocated ₱${effectiveTotalAmount.toLocaleString()} to procure relief resources for ${targetBenName}! Would you like to schedule the delivery in Logistics & Distribution now?`,
+        confirmText: 'Schedule Distribution Now →',
+        cancelText: 'View in Allocations',
+        type: 'primary',
+      })
+
+      if (scheduleNow) {
+        navigate('/admin/distributions', {
+          state: {
+            prefillAllocation: {
+              allocationId: createdAllocId,
+              beneficiaryId: targetBenId,
+              beneficiaryName: targetBenName,
+              resourceName: payloadItems.map(p => `${p.item} (${p.quantity} ${p.unit})`).join(', '),
+              quantity: payloadItems.reduce((s, p) => s + (Number(p.quantity) || 1), 0),
+              program: donation.category || 'Disaster Relief',
+              notes: `Funded from Monetary Donation ${donation.trackingCode || donation.code || ''}`,
+            },
+          },
+        })
+      } else {
+        navigate('/admin/allocation')
+      }
     } catch (err) {
       notify.error(err?.message || 'Failed to allocate donation')
     } finally {
