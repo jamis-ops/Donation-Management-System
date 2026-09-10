@@ -356,20 +356,24 @@ if ($method === 'POST') {
       (string) ($user['name'] ?? 'Staff'),
     ]);
 
-    // Trigger Brevo Email Notification to Donor
+    // Trigger Email Notification to Donor (non-blocking / safe)
     $donorEmail = trim((string) ($donation['donor_email'] ?? ''));
     $donorName = trim((string) ($donation['donor_name'] ?? 'Donor'));
     $emailSent = false;
     if ($donorEmail !== '' && filter_var($donorEmail, FILTER_VALIDATE_EMAIL)) {
-      $procurementRecord = [
-        'mode' => $mode,
-        'total_amount' => $totalAmount,
-        'items' => $items,
-        'receipt_number' => $receiptNumber,
-        'supplier_name' => $supplierName,
-        'families_supported' => $familiesSupported,
-      ];
-      $emailSent = send_donation_allocated_email($donorEmail, $donorName, $donation, $procurementRecord, $beneficiary);
+      try {
+        $procurementRecord = [
+          'mode' => $mode,
+          'total_amount' => $totalAmount,
+          'items' => $items,
+          'receipt_number' => $receiptNumber,
+          'supplier_name' => $supplierName,
+          'families_supported' => $familiesSupported,
+        ];
+        $emailSent = (bool) send_donation_allocated_email($donorEmail, $donorName, $donation, $procurementRecord, $beneficiary);
+      } catch (Throwable $e) {
+        $emailSent = false;
+      }
     }
 
     notify_admins(

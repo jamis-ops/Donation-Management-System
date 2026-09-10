@@ -263,8 +263,8 @@ if (!function_exists('mail_node_request')) {
         CURLOPT_POSTFIELDS => $json,
         CURLOPT_HTTPHEADER => $headers,
         CURLOPT_RETURNTRANSFER => true,
-        CURLOPT_CONNECTTIMEOUT => 8,
-        CURLOPT_TIMEOUT => 30,
+        CURLOPT_CONNECTTIMEOUT => 2,
+        CURLOPT_TIMEOUT => 5,
       ]);
       $raw = curl_exec($ch);
       $errno = curl_errno($ch);

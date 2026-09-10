@@ -375,6 +375,8 @@ export default function ProcurementModal({
     showLoading('Allocating funds and notifying donor…')
     try {
       const res = await donationsApi.procure(payload)
+      hideLoading()
+      setSaving(false)
       notify.success(res.message || 'Donation successfully allocated and converted to relief goods!')
       
       const createdAllocId = res?.allocationId
@@ -411,10 +413,9 @@ export default function ProcurementModal({
         navigate('/admin/allocation')
       }
     } catch (err) {
-      notify.error(err?.message || 'Failed to allocate donation')
-    } finally {
       hideLoading()
       setSaving(false)
+      notify.error(err?.message || 'Failed to allocate donation')
     }
   }
 
