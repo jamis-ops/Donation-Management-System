@@ -21,30 +21,30 @@ import { notify } from '../../utils/toast'
 import { forgotPasswordApi } from '../../api/resources'
 
 /**
- * Custom SVG Vector Artwork for Step 1: Smartphone with Password Lock
+ * Custom SVG Vector Artwork for Step 1: Smartphone with Password Lock (Rise Above Crimson Theme)
  */
 function PhoneLockIllustration() {
   return (
     <div className="forgot-art-wrap" aria-hidden="true">
       <svg width="180" height="180" viewBox="0 0 180 180" fill="none" xmlns="http://www.w3.org/2000/svg">
-        {/* Soft Ambient Background Glow */}
-        <circle cx="90" cy="90" r="68" fill="#F1F5F9" />
-        <circle cx="90" cy="90" r="54" fill="#E2E8F0" opacity="0.6" />
+        {/* Soft Warm Brand Ambient Glow */}
+        <circle cx="90" cy="90" r="68" fill="#FFF1F2" />
+        <circle cx="90" cy="90" r="54" fill="#FFE4E6" opacity="0.75" />
         
         {/* Sparkles / Decorative Elements */}
-        <path d="M42 56L44 48L52 46L44 44L42 36L40 44L32 46L40 48L42 56Z" fill="#1E293B" opacity="0.85" />
-        <path d="M142 62L143.5 56L149.5 54.5L143.5 53L142 47L140.5 53L134.5 54.5L140.5 56L142 62Z" fill="#1E293B" opacity="0.85" />
-        <circle cx="36" cy="120" r="3" fill="#94A3B8" />
-        <circle cx="146" cy="116" r="3.5" fill="#94A3B8" />
+        <path d="M42 56L44 48L52 46L44 44L42 36L40 44L32 46L40 48L42 56Z" fill="#AF101A" opacity="0.85" />
+        <path d="M142 62L143.5 56L149.5 54.5L143.5 53L142 47L140.5 53L134.5 54.5L140.5 56L142 62Z" fill="#AF101A" opacity="0.85" />
+        <circle cx="36" cy="120" r="3" fill="#FDA4AF" />
+        <circle cx="146" cy="116" r="3.5" fill="#FDA4AF" />
 
         {/* Smartphone Body */}
-        <g filter="drop-shadow(0px 8px 16px rgba(15, 23, 42, 0.12))">
+        <g filter="drop-shadow(0px 8px 16px rgba(175, 16, 26, 0.15))">
           {/* Outer Frame */}
           <rect x="62" y="32" width="56" height="112" rx="14" fill="#0F172A" />
           {/* Inner Screen */}
-          <rect x="65.5" y="35.5" width="49" height="105" rx="10.5" fill="#2563EB" />
+          <rect x="65.5" y="35.5" width="49" height="105" rx="10.5" fill="#AF101A" />
           {/* Screen Glass Reflection */}
-          <rect x="65.5" y="35.5" width="49" height="105" rx="10.5" fill="url(#blue_grad_1)" />
+          <rect x="65.5" y="35.5" width="49" height="105" rx="10.5" fill="url(#brand_grad_1)" />
           {/* Speaker Notch */}
           <rect x="83" y="38.5" width="14" height="2.5" rx="1.25" fill="#0F172A" />
           {/* Home Indicator */}
@@ -55,7 +55,7 @@ function PhoneLockIllustration() {
             {/* Lock Icon */}
             <rect x="9" y="10" width="16" height="12" rx="2.5" fill="#FFFFFF" />
             <path d="M12 10V6.5C12 4.01472 14.0147 2 16.5 2V2C18.9853 2 21 4.01472 21 6.5V10" stroke="#FFFFFF" strokeWidth="2.2" strokeLinecap="round" />
-            <circle cx="17" cy="15" r="1.5" fill="#2563EB" />
+            <circle cx="17" cy="15" r="1.5" fill="#AF101A" />
             
             {/* Password Dots XXX */}
             <g transform="translate(5, 28)">
@@ -67,9 +67,9 @@ function PhoneLockIllustration() {
         </g>
 
         <defs>
-          <linearGradient id="blue_grad_1" x1="65.5" y1="35.5" x2="114.5" y2="140.5" gradientUnits="userSpaceOnUse">
-            <stop stopColor="#3B82F6" />
-            <stop offset="1" stopColor="#1D4ED8" />
+          <linearGradient id="brand_grad_1" x1="65.5" y1="35.5" x2="114.5" y2="140.5" gradientUnits="userSpaceOnUse">
+            <stop stopColor="#D64545" />
+            <stop offset="1" stopColor="#8B0D15" />
           </linearGradient>
         </defs>
       </svg>
@@ -78,30 +78,30 @@ function PhoneLockIllustration() {
 }
 
 /**
- * Custom SVG Vector Artwork for Step 2: Smartphone with Email Notification
+ * Custom SVG Vector Artwork for Step 2: Smartphone with Email Notification (Rise Above Crimson Theme)
  */
 function PhoneMailIllustration() {
   return (
     <div className="forgot-art-wrap" aria-hidden="true">
       <svg width="180" height="180" viewBox="0 0 180 180" fill="none" xmlns="http://www.w3.org/2000/svg">
-        {/* Soft Ambient Background Glow */}
-        <circle cx="90" cy="90" r="68" fill="#F1F5F9" />
-        <circle cx="90" cy="90" r="54" fill="#E2E8F0" opacity="0.6" />
+        {/* Soft Warm Brand Ambient Glow */}
+        <circle cx="90" cy="90" r="68" fill="#FFF1F2" />
+        <circle cx="90" cy="90" r="54" fill="#FFE4E6" opacity="0.75" />
         
         {/* Sparkles / Decorative Elements */}
-        <path d="M42 56L44 48L52 46L44 44L42 36L40 44L32 46L40 48L42 56Z" fill="#1E293B" opacity="0.85" />
-        <path d="M142 62L143.5 56L149.5 54.5L143.5 53L142 47L140.5 53L134.5 54.5L140.5 56L142 62Z" fill="#1E293B" opacity="0.85" />
-        <circle cx="36" cy="120" r="3" fill="#94A3B8" />
-        <circle cx="146" cy="116" r="3.5" fill="#94A3B8" />
+        <path d="M42 56L44 48L52 46L44 44L42 36L40 44L32 46L40 48L42 56Z" fill="#AF101A" opacity="0.85" />
+        <path d="M142 62L143.5 56L149.5 54.5L143.5 53L142 47L140.5 53L134.5 54.5L140.5 56L142 62Z" fill="#AF101A" opacity="0.85" />
+        <circle cx="36" cy="120" r="3" fill="#FDA4AF" />
+        <circle cx="146" cy="116" r="3.5" fill="#FDA4AF" />
 
         {/* Smartphone Body */}
-        <g filter="drop-shadow(0px 8px 16px rgba(15, 23, 42, 0.12))">
+        <g filter="drop-shadow(0px 8px 16px rgba(175, 16, 26, 0.15))">
           {/* Outer Frame */}
           <rect x="62" y="32" width="56" height="112" rx="14" fill="#0F172A" />
           {/* Inner Screen */}
-          <rect x="65.5" y="35.5" width="49" height="105" rx="10.5" fill="#2563EB" />
+          <rect x="65.5" y="35.5" width="49" height="105" rx="10.5" fill="#AF101A" />
           {/* Screen Glass Reflection */}
-          <rect x="65.5" y="35.5" width="49" height="105" rx="10.5" fill="url(#blue_grad_2)" />
+          <rect x="65.5" y="35.5" width="49" height="105" rx="10.5" fill="url(#brand_grad_2)" />
           {/* Speaker Notch */}
           <rect x="83" y="38.5" width="14" height="2.5" rx="1.25" fill="#0F172A" />
           {/* Home Indicator */}
@@ -112,7 +112,7 @@ function PhoneMailIllustration() {
             {/* Envelope Base */}
             <rect x="3" y="10" width="28" height="20" rx="3" fill="#FFFFFF" />
             {/* Envelope Flap Lines */}
-            <path d="M4 11L17 21L30 11" stroke="#2563EB" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+            <path d="M4 11L17 21L30 11" stroke="#AF101A" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
             <path d="M4 29L13 20" stroke="#CBD5E1" strokeWidth="1.5" strokeLinecap="round" />
             <path d="M30 29L21 20" stroke="#CBD5E1" strokeWidth="1.5" strokeLinecap="round" />
             {/* Flying Sparkle */}
@@ -121,9 +121,9 @@ function PhoneMailIllustration() {
         </g>
 
         <defs>
-          <linearGradient id="blue_grad_2" x1="65.5" y1="35.5" x2="114.5" y2="140.5" gradientUnits="userSpaceOnUse">
-            <stop stopColor="#3B82F6" />
-            <stop offset="1" stopColor="#1D4ED8" />
+          <linearGradient id="brand_grad_2" x1="65.5" y1="35.5" x2="114.5" y2="140.5" gradientUnits="userSpaceOnUse">
+            <stop stopColor="#D64545" />
+            <stop offset="1" stopColor="#8B0D15" />
           </linearGradient>
         </defs>
       </svg>
@@ -132,30 +132,30 @@ function PhoneMailIllustration() {
 }
 
 /**
- * Custom SVG Vector Artwork for Step 3: Smartphone with Shield Security Lock
+ * Custom SVG Vector Artwork for Step 3: Smartphone with Shield Security Lock (Rise Above Crimson Theme)
  */
 function PhoneShieldIllustration() {
   return (
     <div className="forgot-art-wrap" aria-hidden="true">
       <svg width="180" height="180" viewBox="0 0 180 180" fill="none" xmlns="http://www.w3.org/2000/svg">
-        {/* Soft Ambient Background Glow */}
-        <circle cx="90" cy="90" r="68" fill="#F1F5F9" />
-        <circle cx="90" cy="90" r="54" fill="#E2E8F0" opacity="0.6" />
+        {/* Soft Warm Brand Ambient Glow */}
+        <circle cx="90" cy="90" r="68" fill="#FFF1F2" />
+        <circle cx="90" cy="90" r="54" fill="#FFE4E6" opacity="0.75" />
         
         {/* Sparkles / Decorative Elements */}
-        <path d="M42 56L44 48L52 46L44 44L42 36L40 44L32 46L40 48L42 56Z" fill="#1E293B" opacity="0.85" />
-        <path d="M142 62L143.5 56L149.5 54.5L143.5 53L142 47L140.5 53L134.5 54.5L140.5 56L142 62Z" fill="#1E293B" opacity="0.85" />
-        <circle cx="36" cy="120" r="3" fill="#94A3B8" />
-        <circle cx="146" cy="116" r="3.5" fill="#94A3B8" />
+        <path d="M42 56L44 48L52 46L44 44L42 36L40 44L32 46L40 48L42 56Z" fill="#AF101A" opacity="0.85" />
+        <path d="M142 62L143.5 56L149.5 54.5L143.5 53L142 47L140.5 53L134.5 54.5L140.5 56L142 62Z" fill="#AF101A" opacity="0.85" />
+        <circle cx="36" cy="120" r="3" fill="#FDA4AF" />
+        <circle cx="146" cy="116" r="3.5" fill="#FDA4AF" />
 
         {/* Smartphone Body */}
-        <g filter="drop-shadow(0px 8px 16px rgba(15, 23, 42, 0.12))">
+        <g filter="drop-shadow(0px 8px 16px rgba(175, 16, 26, 0.15))">
           {/* Outer Frame */}
           <rect x="62" y="32" width="56" height="112" rx="14" fill="#0F172A" />
           {/* Inner Screen */}
-          <rect x="65.5" y="35.5" width="49" height="105" rx="10.5" fill="#2563EB" />
+          <rect x="65.5" y="35.5" width="49" height="105" rx="10.5" fill="#AF101A" />
           {/* Screen Glass Reflection */}
-          <rect x="65.5" y="35.5" width="49" height="105" rx="10.5" fill="url(#blue_grad_3)" />
+          <rect x="65.5" y="35.5" width="49" height="105" rx="10.5" fill="url(#brand_grad_3)" />
           {/* Speaker Notch */}
           <rect x="83" y="38.5" width="14" height="2.5" rx="1.25" fill="#0F172A" />
           {/* Home Indicator */}
@@ -171,7 +171,7 @@ function PhoneShieldIllustration() {
             {/* Checkmark inside Shield */}
             <path
               d="M12 18.5L15.5 22L22 14"
-              stroke="#2563EB"
+              stroke="#AF101A"
               strokeWidth="2.4"
               strokeLinecap="round"
               strokeLinejoin="round"
@@ -180,9 +180,9 @@ function PhoneShieldIllustration() {
         </g>
 
         <defs>
-          <linearGradient id="blue_grad_3" x1="65.5" y1="35.5" x2="114.5" y2="140.5" gradientUnits="userSpaceOnUse">
-            <stop stopColor="#3B82F6" />
-            <stop offset="1" stopColor="#1D4ED8" />
+          <linearGradient id="brand_grad_3" x1="65.5" y1="35.5" x2="114.5" y2="140.5" gradientUnits="userSpaceOnUse">
+            <stop stopColor="#D64545" />
+            <stop offset="1" stopColor="#8B0D15" />
           </linearGradient>
         </defs>
       </svg>
