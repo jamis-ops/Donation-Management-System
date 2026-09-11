@@ -89,6 +89,12 @@ export default function LoginPage() {
               />
             </label>
 
+            <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '1rem', marginTop: '-0.35rem' }}>
+              <Link to="/forgot-password" style={{ fontSize: '0.85rem', color: '#AF101A', textDecoration: 'none', fontWeight: 600 }}>
+                Forgot password?
+              </Link>
+            </div>
+
             <button type="submit" className="btn btn--primary btn--lg admin-login__submit" disabled={loading}>
               {loading ? 'Signing in...' : 'Sign In'}
             </button>

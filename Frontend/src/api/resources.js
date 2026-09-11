@@ -387,3 +387,22 @@ export const databaseManagementApi = {
     body: JSON.stringify({ action: 'wipe_except', preserveTables, confirmation }),
   }),
 }
+
+export const forgotPasswordApi = {
+  sendCode: (email) => apiFetch('/api/forgot_password.php', {
+    method: 'POST',
+    body: JSON.stringify({ action: 'send_code', email }),
+  }),
+  resendCode: (email) => apiFetch('/api/forgot_password.php', {
+    method: 'POST',
+    body: JSON.stringify({ action: 'resend_code', email }),
+  }),
+  verifyCode: (email, code) => apiFetch('/api/forgot_password.php', {
+    method: 'POST',
+    body: JSON.stringify({ action: 'verify_code', email, code }),
+  }),
+  resetPassword: (email, resetToken, newPassword, confirmPassword) => apiFetch('/api/forgot_password.php', {
+    method: 'POST',
+    body: JSON.stringify({ action: 'reset_password', email, resetToken, newPassword, confirmPassword }),
+  }),
+}

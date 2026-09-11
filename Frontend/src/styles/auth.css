@@ -352,3 +352,281 @@
   color: #AF101A;
   font-weight: 600;
 }
+
+/* =========================================================
+   FORGOT PASSWORD FLOW (Reference UI Theme)
+   ========================================================= */
+
+.forgot-pw-card {
+  width: 100%;
+  max-width: 460px;
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 20px;
+  padding: 2rem 2.25rem 2.5rem;
+  box-shadow: 0 20px 45px -10px rgba(15, 23, 42, 0.08);
+  position: relative;
+}
+
+.forgot-pw-back-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  background: none;
+  border: none;
+  color: #2b5c8f;
+  font-size: 1.15rem;
+  font-weight: 700;
+  cursor: pointer;
+  padding: 0;
+  margin-bottom: 1.25rem;
+  transition: all 0.15s ease;
+  font-family: inherit;
+}
+
+.forgot-pw-back-btn:hover {
+  color: #1e3a8a;
+  transform: translateX(-2px);
+}
+
+.forgot-pw-form {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  width: 100%;
+}
+
+/* Artwork / Illustration Container */
+.forgot-art-wrap {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0.5rem 0 1.25rem;
+  width: 100%;
+  animation: fadeIn 0.4s ease-out;
+}
+
+.forgot-art-wrap svg {
+  max-width: 170px;
+  height: auto;
+}
+
+/* Text Headers */
+.forgot-pw-text-block {
+  text-align: left;
+  width: 100%;
+  margin-bottom: 1.25rem;
+}
+
+.forgot-pw-title {
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: #1e3a8a;
+  margin: 0 0 0.25rem;
+  line-height: 1.35;
+}
+
+.forgot-pw-subtitle {
+  font-size: 0.82rem;
+  color: #64748b;
+  margin: 0;
+  line-height: 1.45;
+}
+
+/* Input Styles */
+.forgot-pw-input-field {
+  width: 100%;
+  margin-bottom: 1.25rem;
+  text-align: left;
+}
+
+.forgot-pw-input-wrap {
+  display: flex;
+  align-items: center;
+  position: relative;
+  background: #ffffff;
+  border-bottom: 2px solid #cbd5e1;
+  transition: all 0.2s ease;
+  padding: 0.35rem 0;
+}
+
+.forgot-pw-input-wrap:focus-within {
+  border-bottom-color: #2b5c8f;
+}
+
+.forgot-pw-input-icon {
+  color: #2b5c8f;
+  margin-right: 0.65rem;
+  flex-shrink: 0;
+}
+
+.forgot-pw-input {
+  flex: 1;
+  border: none !important;
+  outline: none !important;
+  background: transparent !important;
+  padding: 0.5rem 0 !important;
+  font-size: 0.95rem !important;
+  color: #0f172a !important;
+  box-shadow: none !important;
+}
+
+.forgot-pw-input::placeholder {
+  color: #94a3b8;
+  font-size: 0.9rem;
+}
+
+.forgot-pw-eye-btn {
+  background: none;
+  border: none;
+  color: #2b5c8f;
+  cursor: pointer;
+  padding: 0.35rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: color 0.15s ease;
+}
+
+.forgot-pw-eye-btn:hover {
+  color: #1e3a8a;
+}
+
+/* 6-Digit OTP Box Grid */
+.forgot-pw-otp-container {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.55rem;
+  width: 100%;
+  margin: 0.75rem 0 1.25rem;
+}
+
+.forgot-pw-otp-box {
+  width: 48px;
+  height: 54px;
+  text-align: center;
+  font-size: 1.45rem;
+  font-weight: 700;
+  color: #0f172a;
+  background: #f1f5f9;
+  border: 1.5px solid #cbd5e1;
+  border-radius: 8px;
+  outline: none;
+  transition: all 0.2s ease;
+  font-family: ui-monospace, Menlo, Consolas, monospace;
+}
+
+.forgot-pw-otp-box:focus {
+  border-color: #2b5c8f;
+  background: #ffffff;
+  box-shadow: 0 0 0 3px rgba(43, 92, 143, 0.15);
+  transform: translateY(-2px);
+}
+
+.forgot-pw-otp-box--filled {
+  background: #ffffff;
+  border-color: #94a3b8;
+}
+
+/* Resend Row */
+.forgot-pw-resend-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  font-size: 0.82rem;
+  color: #64748b;
+  margin-bottom: 1.25rem;
+}
+
+.forgot-pw-resend-timer {
+  color: #dc2626;
+  font-weight: 600;
+}
+
+.forgot-pw-resend-btn {
+  background: none;
+  border: none;
+  color: #2b5c8f;
+  font-weight: 700;
+  font-size: 0.82rem;
+  cursor: pointer;
+  padding: 0;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.forgot-pw-resend-btn:hover:not(:disabled) {
+  color: #1e3a8a;
+}
+
+/* Submit Button */
+.forgot-pw-submit {
+  width: 100%;
+  background: #2b5c8f;
+  color: #ffffff;
+  border: none;
+  border-radius: 8px;
+  padding: 0.85rem 1.5rem;
+  font-size: 0.95rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  box-shadow: 0 4px 12px rgba(43, 92, 143, 0.2);
+}
+
+.forgot-pw-submit:hover:not(:disabled) {
+  background: #1e3a8a;
+  transform: translateY(-1px);
+  box-shadow: 0 6px 16px rgba(43, 92, 143, 0.28);
+}
+
+.forgot-pw-submit:disabled {
+  opacity: 0.65;
+  cursor: not-allowed;
+}
+
+/* Footer Link */
+.forgot-pw-footer-nav {
+  margin-top: 1.25rem;
+  text-align: center;
+}
+
+/* Success View */
+.forgot-pw-success-view {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  padding: 1.5rem 0.5rem;
+  animation: fadeIn 0.4s ease-out;
+}
+
+.forgot-pw-success-icon-wrap {
+  width: 84px;
+  height: 84px;
+  border-radius: 50%;
+  background: #f0fdf4;
+  border: 2px solid #bbf7d0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0 auto;
+}
+
+.forgot-pw-success-icon {
+  color: #16a34a;
+}
+
+@media (max-width: 480px) {
+  .forgot-pw-card {
+    padding: 1.5rem 1.25rem 2rem;
+    border-radius: 14px;
+  }
+  .forgot-pw-otp-box {
+    width: 40px;
+    height: 48px;
+    font-size: 1.25rem;
+  }
+}

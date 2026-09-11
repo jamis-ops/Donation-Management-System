@@ -43,6 +43,19 @@ CREATE TABLE IF NOT EXISTS users (
   CONSTRAINT fk_users_role_id FOREIGN KEY (role_id) REFERENCES roles(id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
+-- ---------- PASSWORD RESETS ----------
+CREATE TABLE IF NOT EXISTS password_resets (
+  id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  email VARCHAR(190) NOT NULL,
+  code_hash VARCHAR(255) NOT NULL,
+  temp_token VARCHAR(64) NULL,
+  attempts INT UNSIGNED NOT NULL DEFAULT 0,
+  expires_at DATETIME NOT NULL,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  INDEX idx_password_resets_email (email),
+  INDEX idx_password_resets_temp_token (temp_token)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
 -- ---------- DONORS ----------
 CREATE TABLE IF NOT EXISTS donors (
   id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,

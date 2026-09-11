@@ -115,7 +115,7 @@ export default function LoginPage() {
                 />
                 Remember me
               </label>
-              <Link to="/contact" className="auth-link-btn">Forgot password?</Link>
+              <Link to="/forgot-password" className="auth-link-btn">Forgot password?</Link>
             </div>
 
             <button type="submit" className="btn btn--primary btn--lg auth-form__submit" disabled={loading}>

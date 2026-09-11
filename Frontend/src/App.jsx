@@ -25,6 +25,7 @@ import TermsPage from './public/pages/TermsPage'
 
 // Auth pages
 import UserLoginPage from './auth/pages/LoginPage'
+import ForgotPasswordPage from './auth/pages/ForgotPasswordPage'
 import ChangePasswordPage from './auth/pages/ChangePasswordPage'
 import VerifiedPage from './auth/pages/VerifiedPage'
 import AcceptInvitePage from './auth/pages/AcceptInvitePage'
@@ -86,6 +87,7 @@ function LegacyVerifyRedirect() {
 
 const router = createBrowserRouter([
   { path: 'login', element: <UserLoginPage /> },
+  { path: 'forgot-password', element: <ForgotPasswordPage /> },
   { path: 'register', element: <Navigate to="/contact" replace /> },
   { path: 'accept-invite/:token', element: <AcceptInvitePage /> },
   { path: 'change-password', element: <ChangePasswordPage /> },
