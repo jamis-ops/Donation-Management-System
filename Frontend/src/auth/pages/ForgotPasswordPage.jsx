@@ -448,10 +448,7 @@ export default function ForgotPasswordPage() {
       <div className="auth-page__visual">
         <img src={heroBg} alt="" className="auth-page__visual-image" />
         <div className="auth-page__visual-overlay">
-          <p>Rise Above Foundation Cebu</p>
-          <span style={{ fontSize: '0.95rem', opacity: 0.9, marginTop: '4px' }}>
-            Restoring Hope &amp; Rebuilding Lives
-          </span>
+          <p>Restoring Hope &amp; Rebuilding Lives</p>
         </div>
       </div>
 

@@ -27,7 +27,9 @@
   position: absolute;
   inset: 0;
   display: flex;
-  align-items: flex-end;
+  flex-direction: column;
+  justify-content: flex-end;
+  align-items: flex-start;
   padding: 2.5rem;
   background: linear-gradient(
     180deg,
