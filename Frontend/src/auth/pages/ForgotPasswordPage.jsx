@@ -497,9 +497,11 @@ export default function ForgotPasswordPage() {
                   <input
                     type="email"
                     required
+                    maxLength={100}
                     autoFocus
                     value={email}
-                    onChange={(e) => setEmail(e.target.value)}
+                    onChange={(e) => setEmail(e.target.value.replace(/\s/g, ''))}
+                    onKeyDown={(e) => { if (e.key === ' ') e.preventDefault() }}
                     placeholder="example@gmail.com"
                     autoComplete="email"
                     className="forgot-pw-input"
@@ -609,9 +611,11 @@ export default function ForgotPasswordPage() {
                   <input
                     type={showNewPassword ? 'text' : 'password'}
                     required
+                    maxLength={64}
                     autoFocus
                     value={newPassword}
-                    onChange={(e) => setNewPassword(e.target.value)}
+                    onChange={(e) => setNewPassword(e.target.value.replace(/\s/g, ''))}
+                    onKeyDown={(e) => { if (e.key === ' ') e.preventDefault() }}
                     placeholder="New Password"
                     autoComplete="new-password"
                     className="forgot-pw-input"
@@ -635,8 +639,10 @@ export default function ForgotPasswordPage() {
                   <input
                     type={showConfirmPassword ? 'text' : 'password'}
                     required
+                    maxLength={64}
                     value={confirmPassword}
-                    onChange={(e) => setConfirmPassword(e.target.value)}
+                    onChange={(e) => setConfirmPassword(e.target.value.replace(/\s/g, ''))}
+                    onKeyDown={(e) => { if (e.key === ' ') e.preventDefault() }}
                     placeholder="Re-enter Password"
                     autoComplete="new-password"
                     className="forgot-pw-input"

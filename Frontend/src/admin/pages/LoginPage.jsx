@@ -72,9 +72,11 @@ export default function LoginPage() {
               <Req required>Email</Req>
               <input
                 type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
                 required
+                maxLength={100}
+                value={email}
+                onChange={(e) => setEmail(e.target.value.replace(/\s/g, ''))}
+                onKeyDown={(e) => { if (e.key === ' ') e.preventDefault() }}
                 autoComplete="username"
               />
             </label>
@@ -84,9 +86,11 @@ export default function LoginPage() {
               <div className="password-input-wrap">
                 <input
                   type={showPassword ? 'text' : 'password'}
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
                   required
+                  maxLength={64}
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value.replace(/\s/g, ''))}
+                  onKeyDown={(e) => { if (e.key === ' ') e.preventDefault() }}
                   autoComplete="current-password"
                   placeholder="Enter password"
                 />

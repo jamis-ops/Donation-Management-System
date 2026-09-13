@@ -89,8 +89,10 @@ export default function LoginPage() {
               <input
                 type="email"
                 required
+                maxLength={100}
                 value={email}
-                onChange={(e) => setEmail(e.target.value)}
+                onChange={(e) => setEmail(e.target.value.replace(/\s/g, ''))}
+                onKeyDown={(e) => { if (e.key === ' ') e.preventDefault() }}
                 placeholder="you@email.com"
                 autoComplete="username"
               />
@@ -102,8 +104,10 @@ export default function LoginPage() {
                 <input
                   type={showPassword ? 'text' : 'password'}
                   required
+                  maxLength={64}
                   value={password}
-                  onChange={(e) => setPassword(e.target.value)}
+                  onChange={(e) => setPassword(e.target.value.replace(/\s/g, ''))}
+                  onKeyDown={(e) => { if (e.key === ' ') e.preventDefault() }}
                   placeholder="Enter your password"
                   autoComplete="current-password"
                 />

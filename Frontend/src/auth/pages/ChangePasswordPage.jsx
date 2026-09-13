@@ -90,8 +90,10 @@ export default function ChangePasswordPage() {
                 <input
                   type={showCurrentPassword ? 'text' : 'password'}
                   required
+                  maxLength={64}
                   value={currentPassword}
-                  onChange={(e) => setCurrentPassword(e.target.value)}
+                  onChange={(e) => setCurrentPassword(e.target.value.replace(/\s/g, ''))}
+                  onKeyDown={(e) => { if (e.key === ' ') e.preventDefault() }}
                   placeholder="Temporary or current password"
                   autoComplete="current-password"
                 />
@@ -115,8 +117,10 @@ export default function ChangePasswordPage() {
                   type={showNewPassword ? 'text' : 'password'}
                   required
                   minLength={8}
+                  maxLength={64}
                   value={newPassword}
-                  onChange={(e) => setNewPassword(e.target.value)}
+                  onChange={(e) => setNewPassword(e.target.value.replace(/\s/g, ''))}
+                  onKeyDown={(e) => { if (e.key === ' ') e.preventDefault() }}
                   placeholder="Min. 8 chars (upper, lower, digit, symbol)"
                   autoComplete="new-password"
                 />
@@ -142,8 +146,10 @@ export default function ChangePasswordPage() {
                   type={showConfirmPassword ? 'text' : 'password'}
                   required
                   minLength={6}
+                  maxLength={64}
                   value={confirmPassword}
-                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  onChange={(e) => setConfirmPassword(e.target.value.replace(/\s/g, ''))}
+                  onKeyDown={(e) => { if (e.key === ' ') e.preventDefault() }}
                   placeholder="Re-enter new password"
                   autoComplete="new-password"
                 />
