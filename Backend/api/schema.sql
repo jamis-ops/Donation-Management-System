@@ -32,7 +32,7 @@ CREATE TABLE IF NOT EXISTS users (
   privacy_accepted_at TIMESTAMP NULL,
   recovery_phone VARCHAR(40) NULL,
   must_change_password TINYINT(1) NOT NULL DEFAULT 0,
-  profile_photo VARCHAR(255) NULL,
+  profile_photo MEDIUMTEXT NULL,
   phone VARCHAR(40) NULL,
   birth_date DATE NULL,
   address VARCHAR(255) NULL,

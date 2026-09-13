@@ -297,7 +297,10 @@ try {
 
   // v16: First-login password change + profile photo + inventory lifecycle + CMS + contact
   addColumn($pdo, 'users', 'must_change_password', 'TINYINT(1) NOT NULL DEFAULT 0 AFTER recovery_phone');
-  addColumn($pdo, 'users', 'profile_photo', 'VARCHAR(255) NULL AFTER must_change_password');
+  addColumn($pdo, 'users', 'profile_photo', 'MEDIUMTEXT NULL AFTER must_change_password');
+  try {
+    $pdo->exec("ALTER TABLE users MODIFY profile_photo MEDIUMTEXT NULL");
+  } catch (Throwable) {}
   addColumn($pdo, 'users', 'phone', 'VARCHAR(40) NULL AFTER email');
   addColumn($pdo, 'inventory_items', 'stock_state', "VARCHAR(40) NOT NULL DEFAULT 'Available' AFTER unit");
   addColumn($pdo, 'allocations', 'assistance_request_id', 'BIGINT UNSIGNED NULL AFTER beneficiary_id');

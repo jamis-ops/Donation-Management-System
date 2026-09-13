@@ -115,6 +115,85 @@ if (!function_exists('verify_super_admin_password')) {
   }
 }
 
+if (!function_exists('get_super_admin_profile_photo')) {
+  function get_super_admin_profile_photo(): ?string
+  {
+    // 1. Check session first if available
+    if (!empty($_SESSION['user']['isSuperAdmin']) && !empty($_SESSION['user']['profilePhoto'])) {
+      $sessPhoto = (string) $_SESSION['user']['profilePhoto'];
+      if (trim($sessPhoto) !== '') {
+        return function_exists('format_profile_photo_url') ? format_profile_photo_url($sessPhoto) : $sessPhoto;
+      }
+    }
+
+    // 2. Check system_settings in DB
+    try {
+      if (function_exists('db')) {
+        $pdo = db();
+        $stmt = $pdo->prepare("SELECT setting_value FROM system_settings WHERE setting_key = 'super_admin_profile_photo' LIMIT 1");
+        $stmt->execute();
+        $val = $stmt->fetchColumn();
+        if ($val && is_string($val) && trim($val) !== '') {
+          return function_exists('format_profile_photo_url') ? format_profile_photo_url(trim($val)) : trim($val);
+        }
+      }
+    } catch (Throwable) {}
+
+    // 3. Check local file
+    $file = __DIR__ . '/uploads/profiles/super_admin_photo.dat';
+    if (is_file($file)) {
+      $val = @file_get_contents($file);
+      if ($val && is_string($val) && trim($val) !== '') {
+        return function_exists('format_profile_photo_url') ? format_profile_photo_url(trim($val)) : trim($val);
+      }
+    }
+
+    return null;
+  }
+}
+
+if (!function_exists('set_super_admin_profile_photo')) {
+  function set_super_admin_profile_photo(string $photo): void
+  {
+    $photo = trim($photo);
+    if ($photo === '') {
+      return;
+    }
+
+    // 1. Save to database
+    try {
+      if (function_exists('db')) {
+        $pdo = db();
+        $pdo->exec("
+          CREATE TABLE IF NOT EXISTS system_settings (
+            setting_key VARCHAR(100) PRIMARY KEY,
+            setting_value MEDIUMTEXT NOT NULL,
+            updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+          ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+        ");
+        $stmt = $pdo->prepare("
+          INSERT INTO system_settings (setting_key, setting_value)
+          VALUES ('super_admin_profile_photo', ?)
+          ON DUPLICATE KEY UPDATE setting_value = VALUES(setting_value)
+        ");
+        $stmt->execute([$photo]);
+      }
+    } catch (Throwable) {}
+
+    // 2. Save to local file
+    $dir = __DIR__ . '/uploads/profiles';
+    if (!is_dir($dir)) {
+      @mkdir($dir, 0755, true);
+    }
+    @file_put_contents($dir . '/super_admin_photo.dat', $photo);
+
+    // 3. Update session
+    if (isset($_SESSION['user']) && is_array($_SESSION['user'])) {
+      $_SESSION['user']['profilePhoto'] = $photo;
+    }
+  }
+}
+
 if (!function_exists('make_super_admin_session_user')) {
   /**
    * Synthetic session user — not backed by a users table row.
@@ -130,7 +209,7 @@ if (!function_exists('make_super_admin_session_user')) {
       'role' => 'SuperAdmin',
       'isSuperAdmin' => true,
       'mustChangePassword' => false,
-      'profilePhoto' => null,
+      'profilePhoto' => get_super_admin_profile_photo(),
       'phone' => '',
       'recoveryPhone' => '',
     ];

@@ -5,7 +5,8 @@ export const API_BASE_URL = (!RAW_URL || RAW_URL.includes('donation-system-api.o
 
 function apiUrl(path) {
   if (!path) return ''
-  if (/^https?:\/\//i.test(path)) return path
+  if (typeof path !== 'string') return ''
+  if (/^(https?:|data:|blob:)/i.test(path)) return path
   const cleanPath = path.startsWith('/') ? path : `/${path}`
   return `${API_BASE_URL}${cleanPath}`
 }

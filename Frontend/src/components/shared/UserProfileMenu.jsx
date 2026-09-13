@@ -28,10 +28,24 @@ export default function UserProfileMenu({ settingsPath = '/admin/settings', role
   const displayRole = roleLabel || (isSuperAdmin ? 'Super Admin' : (user?.role || 'System Admin'))
   const initials = getInitials(user?.name, user?.email)
 
+  const getSafeAvatarUrl = (photo) => {
+    if (!photo) return null
+    if (typeof photo === 'object' && photo.url) {
+      photo = photo.url
+    }
+    if (typeof photo !== 'string') return null
+    const trimmed = photo.trim()
+    if (!trimmed) return null
+    if (/^(https?:|data:|blob:)/i.test(trimmed)) return trimmed
+    return apiUrl(trimmed)
+  }
+
+  const profilePhotoUrl = getSafeAvatarUrl(user?.profilePhoto)
+
   useEffect(() => {
     setAvatarErr(false)
     setDropdownAvatarErr(false)
-  }, [user?.profilePhoto])
+  }, [profilePhotoUrl])
 
   useEffect(() => {
     function handleClickOutside(event) {
@@ -60,8 +74,6 @@ export default function UserProfileMenu({ settingsPath = '/admin/settings', role
       window.location.href = '/'
     }
   }
-
-  const profilePhotoUrl = user?.profilePhoto ? apiUrl(user.profilePhoto) : null
 
   return (
     <div className="user-profile-menu" ref={menuRef}>

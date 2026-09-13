@@ -11,8 +11,10 @@ $token = generate_auth_token($user, 86400 * 30);
 
 // Super Admin is not a database user — return session as-is.
 if (is_super_admin_user($user)) {
-  $user = array_merge(make_super_admin_session_user(), [
-    'name' => $user['name'] ?? SUPER_ADMIN_NAME,
+  $superUser = make_super_admin_session_user();
+  $user = array_merge($superUser, [
+    'name' => $user['name'] ?? $superUser['name'],
+    'profilePhoto' => $user['profilePhoto'] ?? $superUser['profilePhoto'] ?? get_super_admin_profile_photo(),
   ]);
   $user['isSuperAdmin'] = true;
   $_SESSION['user'] = $user;

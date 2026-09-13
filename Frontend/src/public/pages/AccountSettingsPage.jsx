@@ -41,11 +41,18 @@ export default function AccountSettingsPage() {
   const [confirmPassword, setConfirmPassword] = useState('')
   const [showConfirmPassword, setShowConfirmPassword] = useState(false)
   const [photoFile, setPhotoFile] = useState(null)
-  const [photoPreview, setPhotoPreview] = useState(null)
+  const [photoPreview, setPhotoPreview] = useState(user?.profilePhoto || null)
   const [imgError, setImgError] = useState(false)
   const [savingProfile, setSavingProfile] = useState(false)
   const [savingPassword, setSavingPassword] = useState(false)
   const [uploadingPhoto, setUploadingPhoto] = useState(false)
+
+  useEffect(() => {
+    if (user?.profilePhoto) {
+      setPhotoPreview(user.profilePhoto)
+      setImgError(false)
+    }
+  }, [user?.profilePhoto])
 
   // Volunteer-specific state
   const [volunteerDbId, setVolunteerDbId] = useState(null)
@@ -246,8 +253,9 @@ export default function AccountSettingsPage() {
       const fd = new FormData()
       fd.append('photo', processedFile)
       const res = await uploadProfilePhoto(fd)
-      if (res?.data?.profilePhoto) {
-        setPhotoPreview(res.data.profilePhoto)
+      const saved = res?.data?.profilePhoto || res?.user?.profilePhoto || res?.profilePhoto
+      if (saved) {
+        setPhotoPreview(saved)
         setImgError(false)
       }
       setPhotoFile(null)

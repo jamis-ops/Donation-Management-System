@@ -36,9 +36,13 @@ if ($kind === 'profiles') {
     if (preg_match('/^profile_(\d+)_/', $name, $matches)) {
       $uid = (int) $matches[1];
     }
-    $stmt = $pdo->prepare('SELECT profile_photo FROM users WHERE id = ? OR profile_photo LIKE ? LIMIT 1');
-    $stmt->execute([$uid, '%' . $name . '%']);
-    $photoData = $stmt->fetchColumn();
+    if ($uid === 0) {
+      $photoData = get_super_admin_profile_photo();
+    } else {
+      $stmt = $pdo->prepare('SELECT profile_photo FROM users WHERE id = ? OR profile_photo LIKE ? LIMIT 1');
+      $stmt->execute([$uid, '%' . $name . '%']);
+      $photoData = $stmt->fetchColumn();
+    }
     if ($photoData && str_starts_with($photoData, 'data:image/')) {
       if (preg_match('/^data:(image\/[a-zA-Z0-9\+\-\.]+);base64,(.+)$/', $photoData, $m)) {
         $mime = $m[1];

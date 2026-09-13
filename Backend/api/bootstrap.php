@@ -45,7 +45,14 @@ function format_profile_photo_url(?string $raw): ?string
     return null;
   }
   $raw = trim($raw);
-  if (str_starts_with($raw, 'data:image/') || preg_match('/^https?:\/\//i', $raw)) {
+  if (str_starts_with($raw, 'data:image/')) {
+    // If it's a corrupted/truncated data URI (e.g. from an old 255-char column), ignore it
+    if (strlen($raw) < 200) {
+      return null;
+    }
+    return $raw;
+  }
+  if (preg_match('/^https?:\/\//i', $raw) || str_starts_with($raw, '/api/file.php')) {
     return $raw;
   }
   $safe = basename($raw);
@@ -64,8 +71,10 @@ function current_user(): ?array
     $tokenUser = verify_auth_token($token);
     if ($tokenUser) {
       if (!empty($tokenUser['isSuperAdmin'])) {
-        $user = array_merge(make_super_admin_session_user(), [
-          'name' => $tokenUser['name'] ?? SUPER_ADMIN_NAME,
+        $superUser = make_super_admin_session_user();
+        $user = array_merge($superUser, [
+          'name' => $tokenUser['name'] ?? $superUser['name'],
+          'profilePhoto' => get_super_admin_profile_photo(),
         ]);
         $user['isSuperAdmin'] = true;
         $_SESSION['user'] = $user;

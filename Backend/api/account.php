@@ -44,7 +44,7 @@ if ($method === 'GET') {
         'email' => $user['email'] ?? super_admin_email(),
         'phone' => '',
         'recoveryPhone' => '',
-        'profilePhoto' => null,
+        'profilePhoto' => get_super_admin_profile_photo(),
         'mustChangePassword' => false,
         'role' => 'SuperAdmin',
         'isSuperAdmin' => true,
@@ -195,10 +195,19 @@ if ($method === 'POST') {
   } catch (Throwable) {}
 
   if ($uid > 0) {
-    $pdo->prepare('UPDATE users SET profile_photo = ? WHERE id = ?')->execute([$storeVal, $uid]);
+    try {
+      $pdo->prepare('UPDATE users SET profile_photo = ? WHERE id = ?')->execute([$storeVal, $uid]);
+    } catch (Throwable $e) {
+      // Fallback to storing relative path/filename if database rejected long data URI
+      try {
+        $pdo->prepare('UPDATE users SET profile_photo = ? WHERE id = ?')->execute([$safe, $uid]);
+        $storeVal = '/api/file.php?kind=profiles&name=' . rawurlencode($safe);
+      } catch (Throwable) {}
+    }
     $_SESSION['user']['profilePhoto'] = $storeVal;
     json_response(['ok' => true, 'data' => map_account_user($pdo, $uid)]);
   } else {
+    set_super_admin_profile_photo($storeVal);
     $_SESSION['user']['profilePhoto'] = $storeVal;
     json_response([
       'ok' => true,
