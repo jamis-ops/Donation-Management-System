@@ -191,6 +191,48 @@
 /* Form fields */
 .auth-form label { margin-bottom: 1.1rem; }
 
+.password-input-wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+  width: 100%;
+  margin-top: 0.4rem;
+}
+
+.password-input-wrap input {
+  margin-top: 0 !important;
+  padding-right: 2.75rem !important;
+  width: 100%;
+}
+
+.password-toggle-btn {
+  position: absolute;
+  right: 0.65rem;
+  top: 50%;
+  transform: translateY(-50%);
+  background: transparent;
+  border: none;
+  padding: 0.35rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: #64748b;
+  cursor: pointer;
+  border-radius: 6px;
+  transition: color 0.15s ease, background-color 0.15s ease;
+  line-height: 1;
+}
+
+.password-toggle-btn:hover {
+  color: var(--color-brand, #AF101A);
+  background: rgba(175, 16, 26, 0.08);
+}
+
+.password-toggle-btn:focus-visible {
+  outline: 2px solid var(--color-brand, #AF101A);
+  outline-offset: 2px;
+}
+
 .auth-form__row {
   display: flex;
   align-items: center;

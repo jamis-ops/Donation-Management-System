@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { Link, Navigate, useNavigate } from 'react-router-dom'
+import { Eye, EyeOff } from 'lucide-react'
 import { useAuth } from '../../context/AuthContext'
 import { getHomeForRole } from '../../utils/roleRoutes'
 import { passwordError } from '../../utils/validation'
@@ -13,9 +14,12 @@ export default function ChangePasswordPage() {
   const { user, loading: authLoading, isAuthenticated, changePassword, refreshUser } = useAuth()
   const navigate = useNavigate()
   const [currentPassword, setCurrentPassword] = useState('')
+  const [showCurrentPassword, setShowCurrentPassword] = useState(false)
   const { showLoading, hideLoading } = useLoading()
   const [newPassword, setNewPassword] = useState('')
+  const [showNewPassword, setShowNewPassword] = useState(false)
   const [confirmPassword, setConfirmPassword] = useState('')
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false)
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
 
@@ -82,42 +86,78 @@ export default function ChangePasswordPage() {
           <form onSubmit={handleSubmit} className="auth-form">
             <label>
               <Req required>Current password</Req>
-              <input
-                type="password"
-                required
-                value={currentPassword}
-                onChange={(e) => setCurrentPassword(e.target.value)}
-                placeholder="Temporary or current password"
-                autoComplete="current-password"
-              />
+              <div className="password-input-wrap">
+                <input
+                  type={showCurrentPassword ? 'text' : 'password'}
+                  required
+                  value={currentPassword}
+                  onChange={(e) => setCurrentPassword(e.target.value)}
+                  placeholder="Temporary or current password"
+                  autoComplete="current-password"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowCurrentPassword((v) => !v)}
+                  className="password-toggle-btn"
+                  title={showCurrentPassword ? 'Hide password' : 'Show password'}
+                  aria-label={showCurrentPassword ? 'Hide password' : 'Show password'}
+                  tabIndex={-1}
+                >
+                  {showCurrentPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                </button>
+              </div>
             </label>
 
             <label>
               <Req required>New password</Req>
-              <input
-                type="password"
-                required
-                minLength={8}
-                value={newPassword}
-                onChange={(e) => setNewPassword(e.target.value)}
-                placeholder="Min. 8 chars (upper, lower, digit, symbol)"
-                autoComplete="new-password"
-              />
+              <div className="password-input-wrap">
+                <input
+                  type={showNewPassword ? 'text' : 'password'}
+                  required
+                  minLength={8}
+                  value={newPassword}
+                  onChange={(e) => setNewPassword(e.target.value)}
+                  placeholder="Min. 8 chars (upper, lower, digit, symbol)"
+                  autoComplete="new-password"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowNewPassword((v) => !v)}
+                  className="password-toggle-btn"
+                  title={showNewPassword ? 'Hide password' : 'Show password'}
+                  aria-label={showNewPassword ? 'Hide password' : 'Show password'}
+                  tabIndex={-1}
+                >
+                  {showNewPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                </button>
+              </div>
             </label>
 
             <PasswordRequirements password={newPassword} />
 
             <label>
               <Req required>Confirm new password</Req>
-              <input
-                type="password"
-                required
-                minLength={6}
-                value={confirmPassword}
-                onChange={(e) => setConfirmPassword(e.target.value)}
-                placeholder="Re-enter new password"
-                autoComplete="new-password"
-              />
+              <div className="password-input-wrap">
+                <input
+                  type={showConfirmPassword ? 'text' : 'password'}
+                  required
+                  minLength={6}
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  placeholder="Re-enter new password"
+                  autoComplete="new-password"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowConfirmPassword((v) => !v)}
+                  className="password-toggle-btn"
+                  title={showConfirmPassword ? 'Hide password' : 'Show password'}
+                  aria-label={showConfirmPassword ? 'Hide password' : 'Show password'}
+                  tabIndex={-1}
+                >
+                  {showConfirmPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                </button>
+              </div>
             </label>
 
             <button type="submit" className="btn btn--primary btn--lg auth-form__submit" disabled={loading}>

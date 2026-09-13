@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom'
+import { Eye, EyeOff } from 'lucide-react'
 import { useAuth } from '../../context/AuthContext'
 import { getHomeForRole, isAdminPortalRole } from '../../utils/roleRoutes'
 import Logo from '../../components/shared/Logo'
@@ -12,6 +13,7 @@ export default function LoginPage() {
     localStorage.getItem('raf_remember') === '1' ? (localStorage.getItem('raf_remember_email') || '') : ''
   )
   const [password, setPassword] = useState('')
+  const [showPassword, setShowPassword] = useState(false)
   const [remember, setRemember] = useState(() => localStorage.getItem('raf_remember') === '1')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
@@ -96,14 +98,26 @@ export default function LoginPage() {
 
             <label>
               <Req required>Password</Req>
-              <input
-                type="password"
-                required
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                placeholder="Enter your password"
-                autoComplete="current-password"
-              />
+              <div className="password-input-wrap">
+                <input
+                  type={showPassword ? 'text' : 'password'}
+                  required
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  placeholder="Enter your password"
+                  autoComplete="current-password"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword((v) => !v)}
+                  className="password-toggle-btn"
+                  title={showPassword ? 'Hide password' : 'Show password'}
+                  aria-label={showPassword ? 'Hide password' : 'Show password'}
+                  tabIndex={-1}
+                >
+                  {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                </button>
+              </div>
             </label>
 
             <div className="auth-form__row">
