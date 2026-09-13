@@ -1702,10 +1702,10 @@
   background: #ffffff;
   border: 1px solid #e2e8f0;
   border-radius: 10px;
-  padding: 0.9rem 1.1rem;
+  padding: 0.85rem 1.1rem;
   display: flex;
   flex-direction: column;
-  gap: 0.5rem;
+  gap: 0.55rem;
 }
 
 .dist-form-card__header {
@@ -1722,6 +1722,201 @@
   color: #0f172a;
   display: flex;
   align-items: center;
-  gap: 0.4rem;
+  gap: 0.45rem;
 }
+
+/* Cargo & Logistics Context Ribbon */
+.dist-cargo-context-ribbon {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 0.5rem 0.75rem;
+  padding: 0.55rem 0.85rem;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+}
+
+.dist-cargo-context-pills {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+}
+
+.dist-context-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 0.74rem;
+  color: #475569;
+  background: #ffffff;
+  border: 1px solid #cbd5e1;
+  padding: 0.2rem 0.55rem;
+  border-radius: 6px;
+  font-weight: 500;
+}
+
+.dist-context-tag strong {
+  color: #0f172a;
+  font-weight: 600;
+}
+
+.dist-context-tag--program {
+  border-color: #fecaca;
+  background: #fef2f2;
+  color: #991b1b;
+}
+
+.dist-context-tag--program strong {
+  color: #AF101A;
+}
+
+.dist-context-tag--alloc {
+  border-color: #bbf7d0;
+  background: #f0fdf4;
+  color: #166534;
+}
+
+.dist-context-tag--alloc strong {
+  color: #15803d;
+}
+
+/* Dispatch Operations Grid (Coordinator + Fleet side-by-side) */
+.dist-dispatch-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr);
+  gap: 0.85rem;
+  align-items: flex-start;
+}
+
+.dist-dispatch-col {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.dist-dispatch-col-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.dist-input-subgroup {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0.45rem;
+}
+
+.dist-mini-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.dist-mini-field label {
+  font-size: 0.73rem;
+  font-weight: 600;
+  color: #475569;
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.dist-mini-field input {
+  font-size: 0.82rem;
+  padding: 0.4rem 0.55rem;
+  height: 36px;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  background: #ffffff;
+  color: #0f172a;
+  transition: all 0.15s ease;
+  width: 100%;
+}
+
+.dist-mini-field input:focus {
+  border-color: #AF101A;
+  outline: none;
+  box-shadow: 0 0 0 2px rgba(175, 16, 26, 0.12);
+}
+
+/* Unified Team & Manpower Section */
+.dist-team-roster-strip {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+  padding: 0.5rem 0.75rem;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  min-height: 42px;
+}
+
+.dist-team-empty-hint {
+  font-size: 0.76rem;
+  color: #64748b;
+  font-style: italic;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.dist-team-member-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  background: #ffffff;
+  border: 1px solid #cbd5e1;
+  padding: 0.2rem 0.5rem 0.2rem 0.4rem;
+  border-radius: 6px;
+  font-size: 0.76rem;
+  color: #0f172a;
+  box-shadow: 0 1px 2px rgba(0,0,0,0.03);
+  transition: all 0.15s ease;
+}
+
+.dist-team-member-pill:hover {
+  border-color: #94a3b8;
+}
+
+.dist-team-member-pill button {
+  background: transparent;
+  border: none;
+  color: #94a3b8;
+  cursor: pointer;
+  padding: 0 0 0 2px;
+  display: flex;
+  align-items: center;
+  font-size: 0.95rem;
+  line-height: 1;
+  transition: color 0.15s ease;
+}
+
+.dist-team-member-pill button:hover {
+  color: #ef4444;
+}
+
+.dist-skills-filter-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 0.35rem 0.65rem;
+  padding-top: 0.25rem;
+}
+
+.dist-candidate-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 0.45rem;
+  max-height: 190px;
+  overflow-y: auto;
+  padding-right: 2px;
+}
+
 

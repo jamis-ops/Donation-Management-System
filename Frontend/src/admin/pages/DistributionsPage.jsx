@@ -1527,29 +1527,59 @@ export default function DistributionsPage() {
                 {/* =========================================================
                     STEP 2: CARGO & LOGISTICS
                     ========================================================= */}
+                {/* =========================================================
+                    STEP 2: CARGO & LOGISTICS
+                    ========================================================= */}
                 {formTab === 'logistics' && (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
-                    {/* Card 1: Cargo to Deliver */}
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                    {/* Top Context Ribbon - Visually connects destination, program, and allocations */}
+                    <div className="dist-cargo-context-ribbon">
+                      <div className="dist-cargo-context-pills">
+                        <span className="dist-context-tag">
+                          <MapPin size={13} style={{ color: '#AF101A' }} />
+                          Target: <strong>{selectedBarangay?.barangay || selectedBarangay?.name || form.location || 'Not Selected'}</strong>
+                        </span>
+                        {form.program && (
+                          <span className="dist-context-tag dist-context-tag--program">
+                            <Sparkles size={13} style={{ color: '#AF101A' }} />
+                            Program: <strong>{form.program}</strong>
+                          </span>
+                        )}
+                        <span className={`dist-context-tag ${form.allocationIds?.length > 0 ? 'dist-context-tag--alloc' : ''}`}>
+                          <Package size={13} style={{ color: form.allocationIds?.length > 0 ? '#16a34a' : '#64748b' }} />
+                          Allocations: <strong>{form.allocationIds?.length > 0 ? `${form.allocationIds.length} batch(es) linked` : 'Direct Delivery'}</strong>
+                        </span>
+                      </div>
+                      {matchingActiveAllocs.length > 0 && (
+                        <button
+                          type="button"
+                          className="btn btn--outline btn--sm"
+                          style={{ padding: '0.2rem 0.65rem', fontSize: '0.76rem', display: 'inline-flex', alignItems: 'center', gap: '5px' }}
+                          onClick={() => handleSyncFromAllocations()}
+                          title="Re-sync cargo from active allocations for this barangay"
+                        >
+                          <RefreshCw size={12} /> Sync Active Allocations ({matchingActiveAllocs.length})
+                        </button>
+                      )}
+                    </div>
+
+                    {/* Section 1: Cargo to Deliver */}
                     <div className="dist-form-card">
                       <div className="dist-form-card__header">
                         <span className="dist-form-card__title">
                           <Package size={15} style={{ color: '#AF101A' }} /> Cargo to Deliver <span style={{ color: '#AF101A' }}>*</span>
-                          {form.program && (
-                            <span className="dist-program-pill">
-                              Program: {form.program}
-                            </span>
-                          )}
                         </span>
-                        <button
-                          type="button"
-                          className="btn btn--outline btn--sm"
-                          style={{ padding: '0.25rem 0.65rem', fontSize: '0.78rem', display: 'inline-flex', alignItems: 'center', gap: '5px' }}
-                          onClick={() => handleSyncFromAllocations()}
-                          title="Re-sync cargo from active allocations for this barangay"
-                        >
-                          <RefreshCw size={12} /> Sync from Active Allocations
-                          {matchingActiveAllocs.length > 0 && ` (${matchingActiveAllocs.length})`}
-                        </button>
+                        {matchingActiveAllocs.length === 0 && (
+                          <button
+                            type="button"
+                            className="btn btn--outline btn--sm"
+                            style={{ padding: '0.2rem 0.55rem', fontSize: '0.74rem', display: 'inline-flex', alignItems: 'center', gap: '4px' }}
+                            onClick={() => handleSyncFromAllocations()}
+                            title="Check active allocations"
+                          >
+                            <RefreshCw size={11} /> Re-sync
+                          </button>
+                        )}
                       </div>
                       <textarea
                         rows={2}
@@ -1568,190 +1598,157 @@ export default function DistributionsPage() {
                       {stepErrors.logistics?.itemsSummary && (
                         <span className="dist-field-error">{stepErrors.logistics.itemsSummary}</span>
                       )}
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '4px', marginTop: '4px' }}>
-                        {form.allocationIds?.length > 0 ? (
-                          <small style={{ color: '#166534', fontSize: '0.76rem', fontWeight: 500 }}>
-                            📦 {form.allocationIds.length} allocation batch(es) linked to this distribution.
-                          </small>
-                        ) : (
-                          <small style={{ color: '#64748b', fontSize: '0.76rem' }}>
-                            Specify items and quantities to be distributed.
-                          </small>
-                        )}
-                        {selectedBarangay && (
-                          <small style={{ color: '#64748b', fontSize: '0.76rem' }}>
-                            Target: <strong>{selectedBarangay.barangay || selectedBarangay.name}</strong>
-                          </small>
-                        )}
-                      </div>
+                      <small style={{ color: '#64748b', fontSize: '0.74rem', marginTop: '2px' }}>
+                        Specify the relief items, packages, and quantities to be loaded for dispatch.
+                      </small>
                     </div>
 
-                    {/* Card 2: Dispatch Leadership & Transport (2-Column Grid) */}
-                    <div style={{ display: 'grid', gridTemplateColumns: 'minmax(320px, 1.2fr) minmax(280px, 1fr)', gap: '0.85rem' }}>
-                      {/* Coordinator in Charge */}
-                      <div className="dist-form-card">
-                        <div className="dist-form-card__header">
-                          <span className="dist-form-card__title">
-                            <UserRound size={15} style={{ color: '#AF101A' }} /> Coordinator in Charge <span style={{ color: '#AF101A' }}>*</span>
-                          </span>
-                          {staffList.length > 0 && (
-                            <select
-                              value=""
-                              onChange={(e) => {
-                                if (e.target.value) {
-                                  setForm((prev) => ({ ...prev, coordinator: e.target.value }))
-                                  if (stepErrors.logistics?.coordinator) {
-                                    setStepErrors((prev) => ({ ...prev, logistics: { ...prev.logistics, coordinator: null } }))
-                                  }
-                                }
-                              }}
-                              style={{ fontSize: '0.76rem', padding: '0.2rem 0.45rem', width: 'auto', borderRadius: '6px' }}
-                            >
-                              <option value="">⚡ Quick Pick Staff…</option>
-                              {staffList.map((s) => (
-                                <option key={s.id || s.name} value={s.name}>
-                                  {s.name} ({s.role || 'Staff'})
-                                </option>
-                              ))}
-                            </select>
-                          )}
-                        </div>
-                        <input
-                          required
-                          className={stepErrors.logistics?.coordinator ? 'input-error' : ''}
-                          value={form.coordinator}
-                          onChange={(e) => {
-                            setForm({ ...form, coordinator: e.target.value })
-                            if (stepErrors.logistics?.coordinator) {
-                              setStepErrors((prev) => ({ ...prev, logistics: { ...prev.logistics, coordinator: null } }))
-                            }
-                          }}
-                          placeholder="Staff / Coordinator in charge"
-                          style={{ width: '100%' }}
-                        />
-                        {stepErrors.logistics?.coordinator && (
-                          <span className="dist-field-error">{stepErrors.logistics.coordinator}</span>
-                        )}
-                        {staffList.length > 0 && (
-                          <div className="coord-chips-list" style={{ marginTop: '0.35rem' }}>
-                            <span style={{ fontSize: '0.74rem', color: '#64748b', fontWeight: 600 }}>💡 Suggestions:</span>
-                            {staffList.slice(0, 4).map((s) => (
-                              <button
-                                key={s.id || s.name}
-                                type="button"
-                                className={`coord-chip ${form.coordinator === s.name ? 'coord-chip--active' : ''}`}
-                                onClick={() => {
-                                  setForm((prev) => ({ ...prev, coordinator: s.name }))
-                                  if (stepErrors.logistics?.coordinator) {
-                                    setStepErrors((prev) => ({ ...prev, logistics: { ...prev.logistics, coordinator: null } }))
-                                  }
-                                }}
-                              >
-                                {s.name} <small style={{ opacity: 0.75 }}>({s.role || 'Staff'})</small>
-                              </button>
-                            ))}
-                          </div>
-                        )}
+                    {/* Section 2: Dispatch Leadership & Transport (Cohesive 2-Column Grid) */}
+                    <div className="dist-form-card">
+                      <div className="dist-form-card__header">
+                        <span className="dist-form-card__title">
+                          <Truck size={15} style={{ color: '#AF101A' }} /> Dispatch Leadership &amp; Fleet
+                        </span>
+                        <span style={{ fontSize: '0.72rem', color: '#64748b', fontWeight: 500 }}>
+                          Mode: <strong>{form.type}</strong>
+                        </span>
                       </div>
 
-                      {/* Fleet & Resource Quotas */}
-                      <div className="dist-form-card">
-                        <div className="dist-form-card__header">
-                          <span className="dist-form-card__title">
-                            <Truck size={15} style={{ color: '#AF101A' }} /> Logistics &amp; Transport
-                          </span>
+                      <div className="dist-dispatch-grid">
+                        {/* Column 1: Coordinator in Charge */}
+                        <div className="dist-dispatch-col">
+                          <div className="dist-dispatch-col-header">
+                            <label style={{ fontSize: '0.74rem', fontWeight: 600, color: '#475569', margin: 0 }}>
+                              Coordinator in Charge <span style={{ color: '#AF101A' }}>*</span>
+                            </label>
+                            {staffList.length > 0 && (
+                              <select
+                                value=""
+                                onChange={(e) => {
+                                  if (e.target.value) {
+                                    setForm((prev) => ({ ...prev, coordinator: e.target.value }))
+                                    if (stepErrors.logistics?.coordinator) {
+                                      setStepErrors((prev) => ({ ...prev, logistics: { ...prev.logistics, coordinator: null } }))
+                                    }
+                                  }
+                                }}
+                                style={{ fontSize: '0.74rem', padding: '0.15rem 0.4rem', width: 'auto', borderRadius: '5px' }}
+                              >
+                                <option value="">⚡ Quick Pick Staff…</option>
+                                {staffList.map((s) => (
+                                  <option key={s.id || s.name} value={s.name}>
+                                    {s.name} ({s.role || 'Staff'})
+                                  </option>
+                                ))}
+                              </select>
+                            )}
+                          </div>
+                          <input
+                            required
+                            className={stepErrors.logistics?.coordinator ? 'input-error' : ''}
+                            value={form.coordinator}
+                            onChange={(e) => {
+                              setForm({ ...form, coordinator: e.target.value })
+                              if (stepErrors.logistics?.coordinator) {
+                                setStepErrors((prev) => ({ ...prev, logistics: { ...prev.logistics, coordinator: null } }))
+                              }
+                            }}
+                            placeholder="Staff / Coordinator in charge"
+                            style={{ width: '100%', height: '36px', fontSize: '0.82rem', padding: '0.4rem 0.6rem' }}
+                          />
+                          {stepErrors.logistics?.coordinator && (
+                            <span className="dist-field-error">{stepErrors.logistics.coordinator}</span>
+                          )}
+                          {staffList.length > 0 && (
+                            <div className="coord-chips-list" style={{ marginTop: '0.2rem' }}>
+                              <span style={{ fontSize: '0.72rem', color: '#64748b', fontWeight: 600 }}>💡 Suggestions:</span>
+                              {staffList.slice(0, 3).map((s) => (
+                                <button
+                                  key={s.id || s.name}
+                                  type="button"
+                                  className={`coord-chip ${form.coordinator === s.name ? 'coord-chip--active' : ''}`}
+                                  onClick={() => {
+                                    setForm((prev) => ({ ...prev, coordinator: s.name }))
+                                    if (stepErrors.logistics?.coordinator) {
+                                      setStepErrors((prev) => ({ ...prev, logistics: { ...prev.logistics, coordinator: null } }))
+                                    }
+                                  }}
+                                >
+                                  {s.name} <small style={{ opacity: 0.75 }}>({s.role || 'Staff'})</small>
+                                </button>
+                              ))}
+                            </div>
+                          )}
                         </div>
-                        <div style={{ display: 'grid', gridTemplateColumns: form.type === 'Delivery' ? 'repeat(3, 1fr)' : 'repeat(2, 1fr)', gap: '0.5rem' }}>
-                          <label style={{ fontSize: '0.78rem', margin: 0 }}>
-                            Volunteers
-                            <input
-                              type="number"
-                              min="0"
-                              value={form.volunteers}
-                              onChange={(e) => setForm({ ...form, volunteers: e.target.value })}
-                              style={{ width: '100%', marginTop: '0.2rem' }}
-                              placeholder={assignedVolunteers.length ? String(assignedVolunteers.length) : '0'}
-                            />
+
+                        {/* Column 2: Transport & Fleet Quota */}
+                        <div className="dist-dispatch-col">
+                          <label style={{ fontSize: '0.74rem', fontWeight: 600, color: '#475569', margin: 0 }}>
+                            Fleet Requirements &amp; Target Quota
                           </label>
-                          <label style={{ fontSize: '0.78rem', margin: 0 }}>
-                            Vehicles {form.type === 'Delivery' && <span style={{ color: '#AF101A' }}>*</span>}
-                            <input
-                              type="number"
-                              min="0"
-                              className={stepErrors.logistics?.vehicles ? 'input-error' : ''}
-                              value={form.vehicles}
-                              onChange={(e) => {
-                                setForm({ ...form, vehicles: e.target.value })
-                                if (stepErrors.logistics?.vehicles) {
-                                  setStepErrors((prev) => ({ ...prev, logistics: { ...prev.logistics, vehicles: null } }))
-                                }
-                              }}
-                              style={{ width: '100%', marginTop: '0.2rem' }}
-                              placeholder={form.type === 'Delivery' ? '1' : '0'}
-                            />
-                          </label>
-                          {form.type === 'Delivery' && (
-                            <label style={{ fontSize: '0.78rem', margin: 0 }}>
-                              Distance (km)
+                          <div className="dist-input-subgroup">
+                            <div className="dist-mini-field">
+                              <label>
+                                Vehicles {form.type === 'Delivery' && <span style={{ color: '#AF101A' }}>*</span>}
+                              </label>
+                              <input
+                                type="number"
+                                min="0"
+                                className={stepErrors.logistics?.vehicles ? 'input-error' : ''}
+                                value={form.vehicles}
+                                onChange={(e) => {
+                                  setForm({ ...form, vehicles: e.target.value })
+                                  if (stepErrors.logistics?.vehicles) {
+                                    setStepErrors((prev) => ({ ...prev, logistics: { ...prev.logistics, vehicles: null } }))
+                                  }
+                                }}
+                                placeholder={form.type === 'Delivery' ? '1' : '0'}
+                              />
+                            </div>
+                            <div className="dist-mini-field">
+                              <label>Distance (km)</label>
                               <input
                                 type="number"
                                 min="0"
                                 step="0.1"
                                 value={form.distanceKm}
                                 onChange={(e) => setForm({ ...form, distanceKm: e.target.value })}
-                                style={{ width: '100%', marginTop: '0.2rem' }}
                                 placeholder="e.g. 5.5"
                               />
-                            </label>
+                            </div>
+                            <div className="dist-mini-field">
+                              <label>Volunteers</label>
+                              <input
+                                type="number"
+                                min="0"
+                                value={form.volunteers}
+                                onChange={(e) => setForm({ ...form, volunteers: e.target.value })}
+                                placeholder={assignedVolunteers.length ? String(assignedVolunteers.length) : '0'}
+                                title="Target volunteer count (auto-updated when team members are assigned)"
+                              />
+                            </div>
+                          </div>
+                          {stepErrors.logistics?.vehicles && (
+                            <span className="dist-field-error">{stepErrors.logistics.vehicles}</span>
                           )}
+                          <small style={{ color: '#64748b', fontSize: '0.72rem', marginTop: '2px' }}>
+                            Transport capacity and minimum crew needed for this dispatch.
+                          </small>
                         </div>
-                        {stepErrors.logistics?.vehicles && (
-                          <span className="dist-field-error">{stepErrors.logistics.vehicles}</span>
-                        )}
                       </div>
                     </div>
 
-                    {/* Card 3: Assigned Delivery Team */}
-                    {assignedVolunteers.length > 0 && (
-                      <div className="assigned-vols-box">
-                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.35rem' }}>
-                          <strong style={{ fontSize: '0.84rem', color: '#14532d', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                            <UserCheck size={15} /> Assigned Delivery Team ({assignedVolunteers.length} members)
-                          </strong>
-                          <small style={{ color: '#166534', fontSize: '0.76rem' }}>Auto-synced to volunteer count</small>
-                        </div>
-                        <div className="assigned-vols-list">
-                          {assignedVolunteers.map((v) => (
-                            <span key={v.id} className="assigned-vol-chip">
-                              <span className={`vol-role-badge vol-role-badge--${v.type?.toLowerCase() === 'intern' ? 'intern' : 'volunteer'}`}>
-                                {v.type}
-                              </span>
-                              {v.name}
-                              <button
-                                type="button"
-                                title="Remove volunteer"
-                                onClick={() => handleRemoveVolunteer(v.id)}
-                              >
-                                &times;
-                              </button>
-                            </span>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-
-                    {/* Card 4: Volunteer & Intern Recommendations */}
-                    <div className="dist-volunteer-panel">
-                      <div className="dist-volunteer-panel__header">
-                        <div>
-                          <strong style={{ fontSize: '0.9rem', color: '#0f172a', display: 'flex', alignItems: 'center', gap: '7px' }}>
-                            <Users size={16} style={{ color: '#AF101A' }} />
-                            Recommended Volunteers &amp; Interns
-                          </strong>
-                          <span style={{ fontSize: '0.76rem', color: '#64748b' }}>
-                            Matched by required skills &amp; affiliated program ({form.program || 'All Programs'})
+                    {/* Section 3: Delivery Team & Volunteer Roster */}
+                    <div className="dist-form-card">
+                      <div className="dist-form-card__header">
+                        <span className="dist-form-card__title">
+                          <Users size={15} style={{ color: '#AF101A' }} />
+                          Delivery Team &amp; Volunteer Roster
+                          <span className="dist-section-badge">
+                            {assignedVolunteers.length} Assigned
+                            {form.volunteers ? ` / ${form.volunteers} Target` : ''}
                           </span>
-                        </div>
+                        </span>
                         {allVolunteers.length > 0 && (
                           <select
                             value=""
@@ -1759,7 +1756,7 @@ export default function DistributionsPage() {
                               const found = allVolunteers.find((v) => String(v.dbId || v.id) === String(e.target.value))
                               if (found) handleAddVolunteer(found)
                             }}
-                            style={{ fontSize: '0.78rem', padding: '0.25rem 0.55rem', width: 'auto', borderRadius: '6px' }}
+                            style={{ fontSize: '0.76rem', padding: '0.2rem 0.5rem', width: 'auto', borderRadius: '6px' }}
                           >
                             <option value="">+ Assign from Volunteer Directory…</option>
                             {allVolunteers.map((v) => {
@@ -1774,94 +1771,109 @@ export default function DistributionsPage() {
                         )}
                       </div>
 
-                      {/* Program-Aligned Skills Section */}
-                      {form.program && (
-                        <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '8px', padding: '0.65rem 0.85rem' }}>
-                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.35rem' }}>
-                            <span style={{ fontSize: '0.8rem', fontWeight: 600, color: '#0f172a', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                              <Sparkles size={13} style={{ color: '#AF101A' }} /> Aligned Program: <strong>{form.program}</strong>
+                      {/* Active Assigned Team Roster Strip */}
+                      <div className="dist-team-roster-strip">
+                        {assignedVolunteers.length > 0 ? (
+                          assignedVolunteers.map((v) => (
+                            <span key={v.id} className="dist-team-member-pill">
+                              <span className={`vol-role-badge vol-role-badge--${v.type?.toLowerCase() === 'intern' ? 'intern' : 'volunteer'}`}>
+                                {v.type}
+                              </span>
+                              <strong>{v.name}</strong>
+                              <button
+                                type="button"
+                                title="Remove volunteer from team"
+                                onClick={() => handleRemoveVolunteer(v.id)}
+                              >
+                                &times;
+                              </button>
                             </span>
-                            <span style={{ fontSize: '0.74rem', color: '#64748b' }}>Click skill badges to toggle recommendation filters</span>
-                          </div>
-                          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.35rem' }}>
-                            {(PROGRAM_REQUIRED_SKILLS[form.program] || ['Logistics / Driving', 'Packing / Repacking', 'First Aid']).map((skill) => {
-                              const isReq = manpowerSkills.includes(skill)
-                              return (
-                                <button
-                                  key={skill}
-                                  type="button"
-                                  className={`alloc-need-tag alloc-need-tag--clickable ${isReq ? 'alloc-need-tag--active' : ''}`}
-                                  onClick={() => {
-                                    setManpowerSkills((prev) => isReq ? prev.filter((s) => s !== skill) : [...prev, skill])
-                                  }}
-                                  style={{ fontSize: '0.76rem', padding: '0.2rem 0.55rem' }}
-                                >
-                                  {isReq ? '✓ ' : '+ '}{skill}
-                                </button>
-                              )
-                            })}
-                          </div>
-                        </div>
-                      )}
-
-                      <SkillTagPicker
-                        label="Filter skills"
-                        value={manpowerSkills}
-                        showOther={false}
-                        onChange={setManpowerSkills}
-                      />
-
-                      <div style={{ marginTop: '0.25rem' }}>
-                        {manpowerSuggestions.length === 0 ? (
-                          <p className="beneficiary-view-empty" style={{ margin: '0.4rem 0', fontSize: '0.8rem' }}>
-                            No matching volunteers or interns found for these skills. Use the dropdown above to assign directly from the directory.
-                          </p>
+                          ))
                         ) : (
-                          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(270px, 1fr))', gap: '0.55rem' }}>
-                            {manpowerSuggestions.map((s) => {
-                              const isAssigned = assignedVolunteers.some((av) => String(av.id) === String(s.dbId || s.id))
-                              const isConnectedProgram = form.program && (
-                                (s.programs || []).some((p) => p.toLowerCase().includes(form.program.toLowerCase())) ||
-                                (s.program && s.program.toLowerCase().includes(form.program.toLowerCase()))
-                              )
-                              return (
-                                <div key={s.dbId || s.id} className="vol-suggest-card">
-                                  <div className="vol-suggest-info">
-                                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
-                                      <strong style={{ fontSize: '0.85rem', color: '#0f172a' }}>{s.name}</strong>
-                                      <span className={`vol-role-badge vol-role-badge--${s.applicantType?.toLowerCase() === 'intern' ? 'intern' : 'volunteer'}`}>
-                                        {s.applicantType || 'Volunteer'}
-                                      </span>
-                                      {isConnectedProgram && (
-                                        <span style={{ fontSize: '0.68rem', fontWeight: 600, color: '#15803d', background: '#dcfce7', padding: '1px 5px', borderRadius: '4px' }}>
-                                          🎯 {form.program}
-                                        </span>
-                                      )}
-                                    </div>
-                                    <p style={{ fontSize: '0.75rem', color: '#64748b', margin: '2px 0 0' }}>
-                                      {s.whyMatched || (s.skills || []).slice(0, 3).join(', ')}
-                                    </p>
-                                  </div>
-                                  <button
-                                    type="button"
-                                    className={`assign-vol-btn ${isAssigned ? 'assign-vol-btn--active' : ''}`}
-                                    onClick={() => {
-                                      if (isAssigned) {
-                                        handleRemoveVolunteer(s.dbId || s.id)
-                                      } else {
-                                        handleAddVolunteer(s)
-                                      }
-                                    }}
-                                  >
-                                    {isAssigned ? <Check size={12} /> : <Plus size={12} />}
-                                    {isAssigned ? 'Assigned' : 'Assign'}
-                                  </button>
-                                </div>
-                              )
-                            })}
-                          </div>
+                          <span className="dist-team-empty-hint">
+                            <Users size={14} style={{ color: '#94a3b8' }} />
+                            No team members assigned yet. Pick recommended candidates below or assign from the directory.
+                          </span>
                         )}
                       </div>
+
+                      {/* Program-Aligned Skills Filter & Recommendations */}
+                      <div className="dist-skills-filter-row">
+                        <span style={{ fontSize: '0.74rem', fontWeight: 600, color: '#475569', display: 'flex', alignItems: 'center', gap: '5px' }}>
+                          <Sparkles size={12} style={{ color: '#AF101A' }} />
+                          Recommended for {form.program ? <strong>{form.program}</strong> : 'Delivery'}:
+                        </span>
+                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.3rem' }}>
+                          {(PROGRAM_REQUIRED_SKILLS[form.program] || ['Logistics / Driving', 'Packing / Repacking', 'First Aid']).map((skill) => {
+                            const isReq = manpowerSkills.includes(skill)
+                            return (
+                              <button
+                                key={skill}
+                                type="button"
+                                className={`alloc-need-tag alloc-need-tag--clickable ${isReq ? 'alloc-need-tag--active' : ''}`}
+                                onClick={() => {
+                                  setManpowerSkills((prev) => isReq ? prev.filter((s) => s !== skill) : [...prev, skill])
+                                }}
+                                style={{ fontSize: '0.72rem', padding: '0.15rem 0.45rem' }}
+                              >
+                                {isReq ? '✓ ' : '+ '}{skill}
+                              </button>
+                            )
+                          })}
+                        </div>
+                      </div>
+
+                      {/* Candidate Suggestions Grid */}
+                      {manpowerSuggestions.length === 0 ? (
+                        <p className="beneficiary-view-empty" style={{ margin: '0.3rem 0', fontSize: '0.78rem' }}>
+                          No matching volunteers found for these skills. Use the dropdown above to assign directly.
+                        </p>
+                      ) : (
+                        <div className="dist-candidate-grid">
+                          {manpowerSuggestions.map((s) => {
+                            const isAssigned = assignedVolunteers.some((av) => String(av.id) === String(s.dbId || s.id))
+                            const isConnectedProgram = form.program && (
+                              (s.programs || []).some((p) => p.toLowerCase().includes(form.program.toLowerCase())) ||
+                              (s.program && s.program.toLowerCase().includes(form.program.toLowerCase()))
+                            )
+                            return (
+                              <div key={s.dbId || s.id} className="vol-suggest-card">
+                                <div className="vol-suggest-info">
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: '5px', flexWrap: 'wrap' }}>
+                                    <strong style={{ fontSize: '0.82rem', color: '#0f172a' }}>{s.name}</strong>
+                                    <span className={`vol-role-badge vol-role-badge--${s.applicantType?.toLowerCase() === 'intern' ? 'intern' : 'volunteer'}`}>
+                                      {s.applicantType || 'Volunteer'}
+                                    </span>
+                                    {isConnectedProgram && (
+                                      <span style={{ fontSize: '0.66rem', fontWeight: 600, color: '#15803d', background: '#dcfce7', padding: '1px 4px', borderRadius: '4px' }}>
+                                        🎯 Match
+                                      </span>
+                                    )}
+                                  </div>
+                                  <p style={{ fontSize: '0.72rem', color: '#64748b', margin: '2px 0 0' }}>
+                                    {s.whyMatched || (s.skills || []).slice(0, 2).join(', ')}
+                                  </p>
+                                </div>
+                                <button
+                                  type="button"
+                                  className={`assign-vol-btn ${isAssigned ? 'assign-vol-btn--active' : ''}`}
+                                  onClick={() => {
+                                    if (isAssigned) {
+                                      handleRemoveVolunteer(s.dbId || s.id)
+                                    } else {
+                                      handleAddVolunteer(s)
+                                    }
+                                  }}
+                                  style={{ padding: '0.25rem 0.55rem', fontSize: '0.74rem' }}
+                                >
+                                  {isAssigned ? <Check size={11} /> : <Plus size={11} />}
+                                  {isAssigned ? 'Assigned' : 'Assign'}
+                                </button>
+                              </div>
+                            )
+                          })}
+                        </div>
+                      )}
                     </div>
                   </div>
                 )}
