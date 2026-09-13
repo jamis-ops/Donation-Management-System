@@ -3,12 +3,14 @@ import { useLocation, useNavigate, useSearchParams } from 'react-router-dom'
 import {
   Eye, Pencil, ArrowRightCircle, MapPin, Calendar, Package, Users,
   Truck, UserRound, FileCheck, ClipboardList, Route, Fuel, StickyNote,
-  Sparkles, Check, Plus, X, UserCheck, ShieldCheck, RefreshCw,
+  Sparkles, Check, Plus, X, UserCheck, ShieldCheck, RefreshCw, AlertCircle,
+  FileText,
 } from 'lucide-react'
 import { distributionsApi, beneficiariesApi, volunteerMatchApi, volunteersApi, getStaff, allocationsApi } from '../../api/resources'
 import { getTodayDateString, isPastDateString } from '../../utils/date'
 import { useApiList } from '../../hooks/useApiList'
 import { useFilters } from '../../hooks/useFilters'
+import { useCatalogOptions } from '../../hooks/useCatalogOptions'
 import PageHeader from '../components/shared/PageHeader'
 import DataTable from '../components/shared/DataTable'
 import StatusBadge from '../components/shared/StatusBadge'
@@ -38,18 +40,45 @@ import { useLoading } from '../../context/LoadingContext'
 const WORKFLOW = DISTRIBUTION_WORKFLOW
 const PROOF_STATUS = ['Not Required', 'Awaiting Proof', 'Proof Submitted', 'Proof Verified', 'Proof Rejected']
 
+const DEFAULT_PROGRAMS = [
+  'Disaster Relief and House Building Project',
+  'Community Feeding & Nutrition Program',
+  'Educational Sponsorship & Youth Development',
+  'Medical and Dental Missions',
+  'Family Hygiene & Preventive Health',
+  'Livelihood & Skills Training',
+]
+
 const PROGRAM_REQUIRED_SKILLS = {
+  'Disaster Relief and House Building Project': ['Logistics / Driving', 'Packing / Repacking', 'Heavy Lifting', 'First Aid', 'Crowd Management'],
   'Disaster Relief': ['Logistics / Driving', 'Packing / Repacking', 'Heavy Lifting', 'First Aid', 'Crowd Management'],
+  'Community Feeding & Nutrition Program': ['Meal Preparation', 'Food Distribution', 'Packing / Repacking', 'Kitchen Assistance', 'Logistics / Driving'],
   'Food Program': ['Meal Preparation', 'Food Distribution', 'Packing / Repacking', 'Kitchen Assistance', 'Logistics / Driving'],
   'Feeding Program': ['Meal Preparation', 'Food Distribution', 'Packing / Repacking', 'Kitchen Assistance'],
+  'Medical and Dental Missions': ['First Aid', 'Medical Support', 'Nursing', 'Sanitation / Sterilization', 'Patient Registration'],
   'Medical Mission': ['First Aid', 'Medical Support', 'Nursing', 'Pharmacy Assistance', 'Patient Registration'],
   'Dental Mission': ['Dental Support', 'Patient Assistance', 'Sanitation / Sterilization', 'Patient Registration'],
+  'Educational Sponsorship & Youth Development': ['Teaching / Tutoring', 'Child Care / Engagement', 'Student Registration', 'Mentorship'],
   'Educational Sponsorship': ['Teaching / Tutoring', 'Child Care / Engagement', 'Student Registration', 'Mentorship'],
   'Educational Support': ['Teaching / Tutoring', 'Child Care / Engagement', 'Student Registration', 'Mentorship'],
+  'Family Hygiene & Preventive Health': ['Hygiene Kit Assembly', 'Health Education', 'Sanitation / Sterilization', 'Logistics / Driving'],
+  'Livelihood & Skills Training': ['Vocational Training', 'Skills Development', 'Community Outreach'],
+  'Livelihood Program': ['Vocational Training', 'Skills Development', 'Community Outreach'],
   'Child-Minding Program': ['Child Care / Engagement', 'Arts & Crafts', 'Storytelling', 'First Aid'],
   'Children\'s Library': ['Teaching / Tutoring', 'Storytelling', 'Reading / Literacy', 'Child Care / Engagement'],
   'Community Outreach': ['Community Outreach', 'Logistics / Driving', 'Translation / Local Dialects', 'Crowd Management'],
-  'Livelihood Program': ['Vocational Training', 'Skills Development', 'Community Outreach'],
+}
+
+function getSkillsForProgram(prog) {
+  if (!prog) return ['Logistics / Driving', 'Packing / Repacking', 'First Aid']
+  if (PROGRAM_REQUIRED_SKILLS[prog]) return PROGRAM_REQUIRED_SKILLS[prog]
+  const pLower = prog.toLowerCase()
+  for (const [key, skills] of Object.entries(PROGRAM_REQUIRED_SKILLS)) {
+    if (pLower.includes(key.toLowerCase()) || key.toLowerCase().includes(pLower)) {
+      return skills
+    }
+  }
+  return ['Logistics / Driving', 'Packing / Repacking', 'First Aid']
 }
 
 const filterConfig = {
@@ -256,9 +285,113 @@ export default function DistributionsPage() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [deepLinkRow?.dbId])
 
+  const [stepErrors, setStepErrors] = useState({})
+
+  const { options: catalogPrograms } = useCatalogOptions('volunteer_programs', DEFAULT_PROGRAMS)
+  const availablePrograms = useMemo(() => {
+    const set = new Set([...catalogPrograms, ...DEFAULT_PROGRAMS, ...Object.keys(PROGRAM_REQUIRED_SKILLS)])
+    if (form.program) set.add(form.program)
+    return Array.from(set).filter(Boolean).sort()
+  }, [catalogPrograms, form.program])
+
+  const selectedBarangay = useMemo(() => {
+    return barangays.find((b) => String(b.dbId) === String(form.beneficiaryId)) || null
+  }, [barangays, form.beneficiaryId])
+
+  const matchingActiveAllocs = useMemo(() => {
+    if (!form.beneficiaryId) return []
+    return allocationsList.filter(
+      (a) => Number(a.beneficiaryId) === Number(form.beneficiaryId) && a.status !== 'Delivered' && a.status !== 'Cancelled'
+    )
+  }, [allocationsList, form.beneficiaryId])
+
+  const isStep1Complete = useMemo(() => {
+    return Boolean(
+      form.beneficiaryId &&
+      form.location?.trim() &&
+      form.program?.trim() &&
+      form.distributionDate &&
+      (!isPastDateString(form.distributionDate) || (editRow && form.distributionDate === editRow.distributionDate))
+    )
+  }, [form.beneficiaryId, form.location, form.program, form.distributionDate, editRow])
+
+  const isStep2Complete = useMemo(() => {
+    const hasItems = Boolean(form.itemsSummary?.trim())
+    const hasCoord = Boolean(form.coordinator?.trim())
+    const hasVehicles = form.type !== 'Delivery' || (Boolean(form.vehicles) && Number(form.vehicles) >= 1)
+    return hasItems && hasCoord && hasVehicles
+  }, [form.itemsSummary, form.coordinator, form.type, form.vehicles])
+
+  const validateStep = (stepName) => {
+    const errs = {}
+    if (stepName === 'destination') {
+      if (!form.beneficiaryId) errs.beneficiaryId = 'Destination barangay is required'
+      if (!form.location?.trim()) errs.location = 'Drop-off address is required'
+      if (!form.program?.trim()) errs.program = 'Program / Project is required'
+      if (!form.distributionDate) {
+        errs.distributionDate = 'Distribution date is required'
+      } else if (isPastDateString(form.distributionDate) && (!editRow || form.distributionDate !== editRow.distributionDate)) {
+        errs.distributionDate = 'Distribution date cannot be in the past'
+      }
+    }
+    if (stepName === 'logistics') {
+      if (!form.itemsSummary?.trim()) {
+        errs.itemsSummary = 'Items to deliver / cargo summary cannot be empty'
+      }
+      if (!form.coordinator?.trim()) {
+        errs.coordinator = 'Coordinator in charge is required'
+      }
+      if (form.type === 'Delivery' && (!form.vehicles || Number(form.vehicles) < 1)) {
+        errs.vehicles = 'At least 1 transport vehicle is required for delivery'
+      }
+    }
+    return errs
+  }
+
+  const handleGoToStep = (targetStep) => {
+    if (targetStep === formTab) return
+
+    // Allow backward navigation at any time
+    if (formTab === 'requirements' && (targetStep === 'logistics' || targetStep === 'destination')) {
+      setFormTab(targetStep)
+      setStepErrors({})
+      return
+    }
+    if (formTab === 'logistics' && targetStep === 'destination') {
+      setFormTab(targetStep)
+      setStepErrors({})
+      return
+    }
+
+    // Forward to Step 2: Validate Step 1
+    if (targetStep === 'logistics' || targetStep === 'requirements') {
+      const destErrors = validateStep('destination')
+      if (Object.keys(destErrors).length > 0) {
+        setStepErrors(destErrors)
+        setFormTab('destination')
+        notify.warning('Please complete all required fields in Destination & Time before proceeding.')
+        return
+      }
+    }
+
+    // Forward to Step 3: Validate Step 2
+    if (targetStep === 'requirements') {
+      const logErrors = validateStep('logistics')
+      if (Object.keys(logErrors).length > 0) {
+        setStepErrors(logErrors)
+        setFormTab('logistics')
+        notify.warning('Please complete all required fields in Cargo & Logistics before proceeding.')
+        return
+      }
+    }
+
+    setStepErrors({})
+    setFormTab(targetStep)
+  }
+
   useEffect(() => {
-    if (form.program && PROGRAM_REQUIRED_SKILLS[form.program]) {
-      setManpowerSkills(PROGRAM_REQUIRED_SKILLS[form.program])
+    if (form.program) {
+      setManpowerSkills(getSkillsForProgram(form.program))
     }
   }, [form.program])
 
@@ -305,6 +438,7 @@ export default function DistributionsPage() {
       allocationIds: allocIds.length ? allocIds : prev.allocationIds,
       program: prog || prev.program,
     }))
+    setStepErrors((prev) => ({ ...prev, itemsSummary: null, program: null }))
     notify.success(`Synced ${matching.length} active allocation(s) for this barangay!`)
   }
 
@@ -344,10 +478,12 @@ export default function DistributionsPage() {
     setDetailRow(null)
     setStatusRow(null)
     setShowVolunteerHelp(true)
+    setFormTab('destination')
+    setStepErrors({})
 
     // Detect skills aligned to program
     const prog = row.program || ''
-    const alignedSkills = PROGRAM_REQUIRED_SKILLS[prog] || ['Logistics / Driving', 'Packing / Repacking']
+    const alignedSkills = getSkillsForProgram(prog)
     setManpowerSkills(alignedSkills)
 
     // Parse items if empty
@@ -391,7 +527,7 @@ export default function DistributionsPage() {
       scheduleTime: row.scheduleTime || '',
       beneficiaries: row.beneficiaries || '',
       volunteers: row.volunteers || (parsedVolunteers.length ? String(parsedVolunteers.length) : ''),
-      vehicles: row.vehicles || '',
+      vehicles: row.vehicles || (row.type === 'Delivery' ? '1' : ''),
       distanceKm: row.distanceKm ?? '',
       status: row.status,
       type: row.type || 'Delivery',
@@ -418,14 +554,42 @@ export default function DistributionsPage() {
     setShowCreate(false)
     setShowVolunteerHelp(true)
     setAssignedVolunteers([])
+    setFormTab('destination')
+    setStepErrors({})
+  }
+
+  const handleFormSubmit = (e) => {
+    if (e?.preventDefault) e.preventDefault()
+    if (formTab === 'destination') {
+      handleGoToStep('logistics')
+    } else if (formTab === 'logistics') {
+      handleGoToStep('requirements')
+    } else {
+      handleSave(e)
+    }
   }
 
   const handleSave = async (e) => {
-    e.preventDefault()
-    if (!form.beneficiaryId) {
-      notify.warning('Please select a barangay for this delivery.')
+    if (e?.preventDefault) e.preventDefault()
+
+    // Validate Step 1
+    const destErrors = validateStep('destination')
+    if (Object.keys(destErrors).length > 0) {
+      setStepErrors(destErrors)
+      setFormTab('destination')
+      notify.error('Please complete all required fields in Destination & Time.')
       return
     }
+
+    // Validate Step 2
+    const logErrors = validateStep('logistics')
+    if (Object.keys(logErrors).length > 0) {
+      setStepErrors(logErrors)
+      setFormTab('logistics')
+      notify.error('Please complete all required fields in Cargo & Logistics.')
+      return
+    }
+
     if (editRow && form.status !== editRow.status) {
       const check = validateStatusTransition({
         entityName: 'Distribution',
@@ -460,12 +624,12 @@ export default function DistributionsPage() {
       }
 
       const payload = {
-        eventName: form.eventName,
+        eventName: form.eventName || (selectedBarangay ? `Delivery — ${selectedBarangay.barangay || selectedBarangay.name}` : 'Delivery'),
         location: form.location,
         beneficiaryId: Number(form.beneficiaryId),
-        program: form.program,
+        program: form.program || null,
         distributionDate: form.distributionDate,
-        scheduleTime: form.scheduleTime,
+        scheduleTime: form.scheduleTime || null,
         beneficiaries: Number(form.beneficiaries) || 0,
         volunteers: Number(form.volunteers) || assignedVolunteers.length || 0,
         vehicles: Number(form.vehicles) || 0,
@@ -490,10 +654,12 @@ export default function DistributionsPage() {
       }
       setShowVolunteerHelp(true)
       setAssignedVolunteers([])
+      setStepErrors({})
+      setFormTab('destination')
       reload()
       notifyBadgesChanged()
-      notify.success(editRow ? 'Delivery updated.' : 'Delivery created.')
-      showSuccessModal(editRow ? 'Successfully updated.' : 'Successfully added.')
+      notify.success(editRow ? 'Delivery updated successfully.' : 'Delivery scheduled successfully.')
+      showSuccessModal(editRow ? 'Successfully updated delivery.' : 'Successfully scheduled delivery.')
     } catch (err) {
       notify.error(err.message)
     } finally {
@@ -1145,55 +1311,95 @@ export default function DistributionsPage() {
               onClose={closeForm}
             />
 
-            <form onSubmit={handleSave}>
-              {fromAllocation && (
+            <form onSubmit={handleFormSubmit} noValidate>
+              {form.allocationIds?.length > 0 && (
                 <div className="alloc-handoff-banner" style={{ margin: 0, borderRadius: 0, borderLeft: 'none', borderRight: 'none' }}>
-                  Items and barangay pre-filled from Resource Allocation.
+                  📦 {form.allocationIds.length} Resource Allocation batch(es) linked to this distribution.
                 </div>
               )}
 
-              {/* Tabs for Form */}
-              <div className="dist-tabs-bar">
+              {/* Stepper Bar for Step-by-Step Flow */}
+              <div className="dist-stepper-bar">
                 <button
                   type="button"
-                  className={`dist-tab-btn ${formTab === 'destination' ? 'dist-tab-btn--active' : ''}`}
-                  onClick={() => setFormTab('destination')}
+                  className={`dist-step-btn ${formTab === 'destination' ? 'dist-step-btn--active' : ''} ${isStep1Complete ? 'dist-step-btn--complete' : ''}`}
+                  onClick={() => handleGoToStep('destination')}
                 >
-                  <MapPin size={14} /> 1. Destination &amp; Time
+                  <span className="dist-step-number">{isStep1Complete && formTab !== 'destination' ? '✓' : '1'}</span>
+                  <span className="dist-step-text">
+                    <strong>1. Destination &amp; Time</strong>
+                    <small>{selectedBarangay ? (selectedBarangay.barangay || selectedBarangay.name) : 'Location, Program & Date'}</small>
+                  </span>
                 </button>
+                <div className={`dist-step-connector ${isStep1Complete ? 'dist-step-connector--complete' : ''}`} />
                 <button
                   type="button"
-                  className={`dist-tab-btn ${formTab === 'logistics' ? 'dist-tab-btn--active' : ''}`}
-                  onClick={() => setFormTab('logistics')}
+                  className={`dist-step-btn ${formTab === 'logistics' ? 'dist-step-btn--active' : ''} ${isStep2Complete ? 'dist-step-btn--complete' : ''} ${!isStep1Complete ? 'dist-step-btn--disabled' : ''}`}
+                  onClick={() => handleGoToStep('logistics')}
+                  title={!isStep1Complete ? 'Complete Step 1 (Destination & Time) first' : ''}
                 >
-                  <Truck size={14} /> 2. Cargo &amp; Logistics
+                  <span className="dist-step-number">{isStep2Complete && formTab !== 'logistics' ? '✓' : '2'}</span>
+                  <span className="dist-step-text">
+                    <strong>2. Cargo &amp; Logistics</strong>
+                    <small>{form.coordinator ? `${form.coordinator} · ${assignedVolunteers.length} team` : 'Items, Coordinator & Fleet'}</small>
+                  </span>
                 </button>
+                <div className={`dist-step-connector ${isStep2Complete ? 'dist-step-connector--complete' : ''}`} />
                 <button
                   type="button"
-                  className={`dist-tab-btn ${formTab === 'requirements' ? 'dist-tab-btn--active' : ''}`}
-                  onClick={() => setFormTab('requirements')}
+                  className={`dist-step-btn ${formTab === 'requirements' ? 'dist-step-btn--active' : ''} ${(!isStep1Complete || !isStep2Complete) ? 'dist-step-btn--disabled' : ''}`}
+                  onClick={() => handleGoToStep('requirements')}
+                  title={(!isStep1Complete || !isStep2Complete) ? 'Complete Steps 1 & 2 first' : ''}
                 >
-                  <FileCheck size={14} /> 3. Status &amp; Notes
+                  <span className="dist-step-number">3</span>
+                  <span className="dist-step-text">
+                    <strong>3. Status &amp; Notes</strong>
+                    <small>{form.status || 'Review & Finalize'}</small>
+                  </span>
                 </button>
               </div>
 
+              {/* Validation Alert for Current Step */}
+              {stepErrors[formTab] && Object.keys(stepErrors[formTab]).length > 0 && (
+                <div className="dist-step-validation-alert">
+                  <AlertCircle size={16} style={{ flexShrink: 0, marginTop: '2px' }} />
+                  <div>
+                    <strong>Please complete all required fields before proceeding:</strong>
+                    <ul style={{ margin: '4px 0 0 16px', padding: 0 }}>
+                      {Object.values(stepErrors[formTab]).map((err, i) => (
+                        <li key={i}>{err}</li>
+                      ))}
+                    </ul>
+                  </div>
+                </div>
+              )}
+
               <div className="dist-tab-content-body">
+                {/* =========================================================
+                    STEP 1: DESTINATION & TIME
+                    ========================================================= */}
                 {formTab === 'destination' && (
                   <>
                     <div className="dist-form-grid-2">
                       <label>
-                        Delivery Event Name
+                        Delivery Event / Operation Name
                         <input
                           value={form.eventName}
-                          onChange={(e) => setForm({ ...form, eventName: e.target.value })}
+                          onChange={(e) => {
+                            setForm({ ...form, eventName: e.target.value })
+                            if (stepErrors.destination?.eventName) {
+                              setStepErrors((prev) => ({ ...prev, destination: { ...prev.destination, eventName: null } }))
+                            }
+                          }}
                           placeholder="e.g. Food pack delivery — Brgy. Talisay"
                         />
                       </label>
                       <label>
-                        Barangay *
+                        Destination Barangay <span style={{ color: '#AF101A' }}>*</span>
                         <select
                           required
-                          disabled={fromAllocation}
+                          disabled={form.allocationIds?.length > 0}
+                          className={stepErrors.destination?.beneficiaryId ? 'input-error' : ''}
                           value={form.beneficiaryId}
                           onChange={(e) => {
                             const id = e.target.value
@@ -1205,35 +1411,87 @@ export default function DistributionsPage() {
                               eventName: form.eventName || (brgy ? `Delivery — ${brgy.barangay || brgy.name}` : ''),
                               beneficiaries: form.beneficiaries || String(brgy?.affectedFamilies || ''),
                             })
+                            if (stepErrors.destination?.beneficiaryId) {
+                              setStepErrors((prev) => ({ ...prev, destination: { ...prev.destination, beneficiaryId: null } }))
+                            }
                           }}
                         >
                           <option value="">Select barangay…</option>
                           {barangays.map((b) => (
-                            <option key={b.dbId} value={b.dbId}>{b.barangay || b.name} — {b.affectedFamilies || 0} families</option>
+                            <option key={b.dbId} value={b.dbId}>
+                              {b.barangay || b.name} — {b.affectedFamilies || 0} families
+                            </option>
                           ))}
                         </select>
+                        {stepErrors.destination?.beneficiaryId && (
+                          <span className="dist-field-error">{stepErrors.destination.beneficiaryId}</span>
+                        )}
                       </label>
                     </div>
 
-                    <label>
-                      Drop-off Location / Address *
-                      <input
-                        required
-                        value={form.location}
-                        onChange={(e) => setForm({ ...form, location: e.target.value })}
-                        placeholder="e.g. Barangay Hall / Evacuation Center"
-                      />
-                    </label>
+                    <div className="dist-form-grid-2">
+                      <label>
+                        Drop-off Address / Specific Venue <span style={{ color: '#AF101A' }}>*</span>
+                        <input
+                          required
+                          className={stepErrors.destination?.location ? 'input-error' : ''}
+                          value={form.location}
+                          onChange={(e) => {
+                            setForm({ ...form, location: e.target.value })
+                            if (stepErrors.destination?.location) {
+                              setStepErrors((prev) => ({ ...prev, destination: { ...prev.destination, location: null } }))
+                            }
+                          }}
+                          placeholder="e.g. Barangay Hall / Evacuation Center / Covered Court"
+                        />
+                        {stepErrors.destination?.location && (
+                          <span className="dist-field-error">{stepErrors.destination.location}</span>
+                        )}
+                      </label>
+
+                      <label>
+                        Affiliated Program / Project <span style={{ color: '#AF101A' }}>*</span>
+                        <select
+                          required
+                          className={stepErrors.destination?.program ? 'input-error' : ''}
+                          value={form.program}
+                          onChange={(e) => {
+                            setForm({ ...form, program: e.target.value })
+                            if (stepErrors.destination?.program) {
+                              setStepErrors((prev) => ({ ...prev, destination: { ...prev.destination, program: null } }))
+                            }
+                          }}
+                        >
+                          <option value="">Select affiliated program…</option>
+                          {availablePrograms.map((p) => (
+                            <option key={p} value={p}>{p}</option>
+                          ))}
+                        </select>
+                        {stepErrors.destination?.program && (
+                          <span className="dist-field-error">{stepErrors.destination.program}</span>
+                        )}
+                      </label>
+                    </div>
 
                     <div className="dist-form-grid-2">
                       <label>
-                        Distribution Date
+                        Distribution Date <span style={{ color: '#AF101A' }}>*</span>
                         <input
                           type="date"
-                          min={getTodayDateString()}
+                          required
+                          min={editRow ? undefined : getTodayDateString()}
+                          className={stepErrors.destination?.distributionDate ? 'input-error' : ''}
                           value={form.distributionDate}
-                          onChange={(e) => setForm({ ...form, distributionDate: e.target.value })}
+                          onChange={(e) => {
+                            setForm({ ...form, distributionDate: e.target.value })
+                            if (stepErrors.destination?.distributionDate) {
+                              setStepErrors((prev) => ({ ...prev, destination: { ...prev.destination, distributionDate: null } }))
+                            }
+                          }}
                         />
+                        {stepErrors.destination?.distributionDate && (
+                          <span className="dist-field-error">{stepErrors.destination.distributionDate}</span>
+                        )}
                       </label>
                       <label>
                         Schedule Time
@@ -1259,19 +1517,28 @@ export default function DistributionsPage() {
                           min="0"
                           value={form.beneficiaries}
                           onChange={(e) => setForm({ ...form, beneficiaries: e.target.value })}
+                          placeholder={selectedBarangay?.affectedFamilies ? `e.g. ${selectedBarangay.affectedFamilies}` : 'e.g. 50'}
                         />
                       </label>
                     </div>
                   </>
                 )}
 
+                {/* =========================================================
+                    STEP 2: CARGO & LOGISTICS
+                    ========================================================= */}
                 {formTab === 'logistics' && (
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
                     {/* Card 1: Cargo to Deliver */}
                     <div className="dist-form-card">
                       <div className="dist-form-card__header">
                         <span className="dist-form-card__title">
-                          <Package size={15} style={{ color: '#AF101A' }} /> Items to Deliver
+                          <Package size={15} style={{ color: '#AF101A' }} /> Cargo to Deliver <span style={{ color: '#AF101A' }}>*</span>
+                          {form.program && (
+                            <span className="dist-program-pill">
+                              Program: {form.program}
+                            </span>
+                          )}
                         </span>
                         <button
                           type="button"
@@ -1281,35 +1548,62 @@ export default function DistributionsPage() {
                           title="Re-sync cargo from active allocations for this barangay"
                         >
                           <RefreshCw size={12} /> Sync from Active Allocations
+                          {matchingActiveAllocs.length > 0 && ` (${matchingActiveAllocs.length})`}
                         </button>
                       </div>
                       <textarea
                         rows={2}
+                        required
+                        className={stepErrors.logistics?.itemsSummary ? 'input-error' : ''}
                         value={form.itemsSummary}
-                        onChange={(e) => setForm({ ...form, itemsSummary: e.target.value })}
-                        placeholder="e.g. Rice packs × 50; Hygiene kits × 30"
+                        onChange={(e) => {
+                          setForm({ ...form, itemsSummary: e.target.value })
+                          if (stepErrors.logistics?.itemsSummary) {
+                            setStepErrors((prev) => ({ ...prev, logistics: { ...prev.logistics, itemsSummary: null } }))
+                          }
+                        }}
+                        placeholder="e.g. Emergency Relief Food Pack (1 packs) × 50; Family Hygiene Kits × 30"
                         style={{ width: '100%', resize: 'vertical' }}
                       />
-                      {form.allocationIds?.length > 0 && (
-                        <small style={{ color: '#64748b', fontSize: '0.76rem' }}>
-                          📦 {form.allocationIds.length} allocation batch(es) linked to this distribution.
-                        </small>
+                      {stepErrors.logistics?.itemsSummary && (
+                        <span className="dist-field-error">{stepErrors.logistics.itemsSummary}</span>
                       )}
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '4px', marginTop: '4px' }}>
+                        {form.allocationIds?.length > 0 ? (
+                          <small style={{ color: '#166534', fontSize: '0.76rem', fontWeight: 500 }}>
+                            📦 {form.allocationIds.length} allocation batch(es) linked to this distribution.
+                          </small>
+                        ) : (
+                          <small style={{ color: '#64748b', fontSize: '0.76rem' }}>
+                            Specify items and quantities to be distributed.
+                          </small>
+                        )}
+                        {selectedBarangay && (
+                          <small style={{ color: '#64748b', fontSize: '0.76rem' }}>
+                            Target: <strong>{selectedBarangay.barangay || selectedBarangay.name}</strong>
+                          </small>
+                        )}
+                      </div>
                     </div>
 
-                    {/* Card 2: Dispatch Leadership & Resource Count (2 Column Grid) */}
+                    {/* Card 2: Dispatch Leadership & Transport (2-Column Grid) */}
                     <div style={{ display: 'grid', gridTemplateColumns: 'minmax(320px, 1.2fr) minmax(280px, 1fr)', gap: '0.85rem' }}>
-                      {/* Coordinator Selector */}
+                      {/* Coordinator in Charge */}
                       <div className="dist-form-card">
                         <div className="dist-form-card__header">
                           <span className="dist-form-card__title">
-                            <UserRound size={15} style={{ color: '#AF101A' }} /> Coordinator in Charge
+                            <UserRound size={15} style={{ color: '#AF101A' }} /> Coordinator in Charge <span style={{ color: '#AF101A' }}>*</span>
                           </span>
                           {staffList.length > 0 && (
                             <select
                               value=""
                               onChange={(e) => {
-                                if (e.target.value) setForm((prev) => ({ ...prev, coordinator: e.target.value }))
+                                if (e.target.value) {
+                                  setForm((prev) => ({ ...prev, coordinator: e.target.value }))
+                                  if (stepErrors.logistics?.coordinator) {
+                                    setStepErrors((prev) => ({ ...prev, logistics: { ...prev.logistics, coordinator: null } }))
+                                  }
+                                }
                               }}
                               style={{ fontSize: '0.76rem', padding: '0.2rem 0.45rem', width: 'auto', borderRadius: '6px' }}
                             >
@@ -1323,11 +1617,21 @@ export default function DistributionsPage() {
                           )}
                         </div>
                         <input
+                          required
+                          className={stepErrors.logistics?.coordinator ? 'input-error' : ''}
                           value={form.coordinator}
-                          onChange={(e) => setForm({ ...form, coordinator: e.target.value })}
+                          onChange={(e) => {
+                            setForm({ ...form, coordinator: e.target.value })
+                            if (stepErrors.logistics?.coordinator) {
+                              setStepErrors((prev) => ({ ...prev, logistics: { ...prev.logistics, coordinator: null } }))
+                            }
+                          }}
                           placeholder="Staff / Coordinator in charge"
                           style={{ width: '100%' }}
                         />
+                        {stepErrors.logistics?.coordinator && (
+                          <span className="dist-field-error">{stepErrors.logistics.coordinator}</span>
+                        )}
                         {staffList.length > 0 && (
                           <div className="coord-chips-list" style={{ marginTop: '0.35rem' }}>
                             <span style={{ fontSize: '0.74rem', color: '#64748b', fontWeight: 600 }}>💡 Suggestions:</span>
@@ -1336,7 +1640,12 @@ export default function DistributionsPage() {
                                 key={s.id || s.name}
                                 type="button"
                                 className={`coord-chip ${form.coordinator === s.name ? 'coord-chip--active' : ''}`}
-                                onClick={() => setForm((prev) => ({ ...prev, coordinator: s.name }))}
+                                onClick={() => {
+                                  setForm((prev) => ({ ...prev, coordinator: s.name }))
+                                  if (stepErrors.logistics?.coordinator) {
+                                    setStepErrors((prev) => ({ ...prev, logistics: { ...prev.logistics, coordinator: null } }))
+                                  }
+                                }}
                               >
                                 {s.name} <small style={{ opacity: 0.75 }}>({s.role || 'Staff'})</small>
                               </button>
@@ -1361,16 +1670,24 @@ export default function DistributionsPage() {
                               value={form.volunteers}
                               onChange={(e) => setForm({ ...form, volunteers: e.target.value })}
                               style={{ width: '100%', marginTop: '0.2rem' }}
+                              placeholder={assignedVolunteers.length ? String(assignedVolunteers.length) : '0'}
                             />
                           </label>
                           <label style={{ fontSize: '0.78rem', margin: 0 }}>
-                            Vehicles
+                            Vehicles {form.type === 'Delivery' && <span style={{ color: '#AF101A' }}>*</span>}
                             <input
                               type="number"
                               min="0"
+                              className={stepErrors.logistics?.vehicles ? 'input-error' : ''}
                               value={form.vehicles}
-                              onChange={(e) => setForm({ ...form, vehicles: e.target.value })}
+                              onChange={(e) => {
+                                setForm({ ...form, vehicles: e.target.value })
+                                if (stepErrors.logistics?.vehicles) {
+                                  setStepErrors((prev) => ({ ...prev, logistics: { ...prev.logistics, vehicles: null } }))
+                                }
+                              }}
                               style={{ width: '100%', marginTop: '0.2rem' }}
+                              placeholder={form.type === 'Delivery' ? '1' : '0'}
                             />
                           </label>
                           {form.type === 'Delivery' && (
@@ -1383,10 +1700,14 @@ export default function DistributionsPage() {
                                 value={form.distanceKm}
                                 onChange={(e) => setForm({ ...form, distanceKm: e.target.value })}
                                 style={{ width: '100%', marginTop: '0.2rem' }}
+                                placeholder="e.g. 5.5"
                               />
                             </label>
                           )}
                         </div>
+                        {stepErrors.logistics?.vehicles && (
+                          <span className="dist-field-error">{stepErrors.logistics.vehicles}</span>
+                        )}
                       </div>
                     </div>
 
@@ -1397,7 +1718,7 @@ export default function DistributionsPage() {
                           <strong style={{ fontSize: '0.84rem', color: '#14532d', display: 'flex', alignItems: 'center', gap: '6px' }}>
                             <UserCheck size={15} /> Assigned Delivery Team ({assignedVolunteers.length} members)
                           </strong>
-                          <small style={{ color: '#166534', fontSize: '0.76rem' }}>Auto-synced to volunteer requirement</small>
+                          <small style={{ color: '#166534', fontSize: '0.76rem' }}>Auto-synced to volunteer count</small>
                         </div>
                         <div className="assigned-vols-list">
                           {assignedVolunteers.map((v) => (
@@ -1428,7 +1749,7 @@ export default function DistributionsPage() {
                             Recommended Volunteers &amp; Interns
                           </strong>
                           <span style={{ fontSize: '0.76rem', color: '#64748b' }}>
-                            Matched by required skills &amp; program affiliation
+                            Matched by required skills &amp; affiliated program ({form.program || 'All Programs'})
                           </span>
                         </div>
                         {allVolunteers.length > 0 && (
@@ -1458,9 +1779,9 @@ export default function DistributionsPage() {
                         <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '8px', padding: '0.65rem 0.85rem' }}>
                           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.35rem' }}>
                             <span style={{ fontSize: '0.8rem', fontWeight: 600, color: '#0f172a', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                              <Sparkles size={13} style={{ color: '#AF101A' }} /> Program: <strong>{form.program}</strong>
+                              <Sparkles size={13} style={{ color: '#AF101A' }} /> Aligned Program: <strong>{form.program}</strong>
                             </span>
-                            <span style={{ fontSize: '0.74rem', color: '#64748b' }}>Click to toggle required skills</span>
+                            <span style={{ fontSize: '0.74rem', color: '#64748b' }}>Click skill badges to toggle recommendation filters</span>
                           </div>
                           <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.35rem' }}>
                             {(PROGRAM_REQUIRED_SKILLS[form.program] || ['Logistics / Driving', 'Packing / Repacking', 'First Aid']).map((skill) => {
@@ -1493,7 +1814,7 @@ export default function DistributionsPage() {
                       <div style={{ marginTop: '0.25rem' }}>
                         {manpowerSuggestions.length === 0 ? (
                           <p className="beneficiary-view-empty" style={{ margin: '0.4rem 0', fontSize: '0.8rem' }}>
-                            No matching volunteers or interns found for these skills. Use the dropdown above to assign directly.
+                            No matching volunteers or interns found for these skills. Use the dropdown above to assign directly from the directory.
                           </p>
                         ) : (
                           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(270px, 1fr))', gap: '0.55rem' }}>
@@ -1545,8 +1866,64 @@ export default function DistributionsPage() {
                   </div>
                 )}
 
+                {/* =========================================================
+                    STEP 3: STATUS & NOTES (REVIEW & FINALIZE)
+                    ========================================================= */}
                 {formTab === 'requirements' && (
                   <>
+                    {/* Setup Review Card */}
+                    <div className="dist-summary-review-card">
+                      <div className="dist-summary-review-card__header">
+                        <FileText size={15} style={{ color: '#AF101A' }} />
+                        Delivery Setup Summary
+                      </div>
+                      <div className="dist-summary-review-grid">
+                        <div className="dist-summary-item">
+                          <span className="dist-summary-item__label">Destination</span>
+                          <span className="dist-summary-item__value">
+                            {selectedBarangay?.barangay || selectedBarangay?.name || form.location || '—'}
+                          </span>
+                          <small style={{ color: '#64748b', fontSize: '0.74rem' }}>{form.location}</small>
+                        </div>
+                        <div className="dist-summary-item">
+                          <span className="dist-summary-item__label">Program / Project</span>
+                          <span className="dist-summary-item__value">
+                            {form.program || '—'}
+                          </span>
+                        </div>
+                        <div className="dist-summary-item">
+                          <span className="dist-summary-item__label">Schedule Date &amp; Time</span>
+                          <span className="dist-summary-item__value">
+                            {form.distributionDate || '—'} {form.scheduleTime ? `at ${form.scheduleTime}` : ''}
+                          </span>
+                        </div>
+                        <div className="dist-summary-item">
+                          <span className="dist-summary-item__label">Coordinator in Charge</span>
+                          <span className="dist-summary-item__value">
+                            {form.coordinator || '—'}
+                          </span>
+                        </div>
+                        <div className="dist-summary-item">
+                          <span className="dist-summary-item__label">Fleet &amp; Transport</span>
+                          <span className="dist-summary-item__value">
+                            {form.vehicles || 0} vehicle(s) {form.distanceKm ? `· ${form.distanceKm} km` : ''}
+                          </span>
+                        </div>
+                        <div className="dist-summary-item">
+                          <span className="dist-summary-item__label">Assigned Team</span>
+                          <span className="dist-summary-item__value">
+                            {assignedVolunteers.length > 0
+                              ? `${assignedVolunteers.length} member(s): ${assignedVolunteers.map((v) => v.name).join(', ')}`
+                              : (form.volunteers ? `${form.volunteers} volunteer(s) quota` : 'None assigned yet')}
+                          </span>
+                        </div>
+                      </div>
+                      <div style={{ marginTop: '0.65rem', paddingTop: '0.65rem', borderTop: '1px solid #e2e8f0', fontSize: '0.82rem' }}>
+                        <strong style={{ color: '#334155' }}>Items Cargo:</strong>{' '}
+                        <span style={{ color: '#0f172a' }}>{form.itemsSummary || '—'}</span>
+                      </div>
+                    </div>
+
                     <div className="dist-form-grid-2">
                       <label>
                         Workflow Status
@@ -1576,27 +1953,80 @@ export default function DistributionsPage() {
                         </select>
                       </label>
                     </div>
+
                     <label>
                       Logistics Notes
                       <textarea
                         rows={3}
                         value={form.notes}
                         onChange={(e) => setForm({ ...form, notes: e.target.value })}
-                        placeholder="Optional instructions or notes for the delivery team"
+                        placeholder="Optional instructions or notes for the delivery team (assigned volunteers are automatically recorded)"
                       />
                     </label>
                   </>
                 )}
               </div>
 
-              {/* Form Footer */}
+              {/* Step-Contextual Modal Footer Navigation */}
               <div className="dist-modal-footer">
-                <button type="button" className="btn btn--ghost btn--sm" onClick={closeForm}>
-                  Cancel
-                </button>
-                <button type="submit" className="btn btn--primary btn--sm" disabled={saving}>
-                  {saving ? 'Saving...' : (editRow ? 'Save Changes' : 'Save Delivery')}
-                </button>
+                {formTab === 'destination' && (
+                  <>
+                    <button type="button" className="btn btn--ghost btn--sm" onClick={closeForm}>
+                      Cancel
+                    </button>
+                    <button
+                      type="button"
+                      className="btn btn--primary btn--sm"
+                      onClick={() => handleGoToStep('logistics')}
+                    >
+                      Continue to Cargo &amp; Logistics &rarr;
+                    </button>
+                  </>
+                )}
+
+                {formTab === 'logistics' && (
+                  <>
+                    <button
+                      type="button"
+                      className="btn btn--outline btn--sm"
+                      onClick={() => setFormTab('destination')}
+                    >
+                      &larr; Back to Destination
+                    </button>
+                    <div style={{ display: 'flex', gap: '0.5rem' }}>
+                      <button type="button" className="btn btn--ghost btn--sm" onClick={closeForm}>
+                        Cancel
+                      </button>
+                      <button
+                        type="button"
+                        className="btn btn--primary btn--sm"
+                        onClick={() => handleGoToStep('requirements')}
+                      >
+                        Continue to Status &amp; Notes &rarr;
+                      </button>
+                    </div>
+                  </>
+                )}
+
+                {formTab === 'requirements' && (
+                  <>
+                    <button
+                      type="button"
+                      className="btn btn--outline btn--sm"
+                      onClick={() => setFormTab('logistics')}
+                    >
+                      &larr; Back to Cargo
+                    </button>
+                    <div style={{ display: 'flex', gap: '0.5rem' }}>
+                      <button type="button" className="btn btn--ghost btn--sm" onClick={closeForm}>
+                        Cancel
+                      </button>
+                      <button type="submit" className="btn btn--primary btn--sm" disabled={saving}>
+                        {saving ? 'Saving...' : (editRow ? 'Save Changes' : 'Confirm & Save Delivery')}
+                      </button>
+                    </div>
+                  </>
+                )}
               </div>
             </form>
           </div>

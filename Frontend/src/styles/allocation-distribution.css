@@ -836,6 +836,212 @@
   background: #86efac;
 }
 
+/* Step-by-Step Stepper Navigation */
+.dist-stepper-bar {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.65rem 1.25rem;
+  background: #ffffff;
+  border-bottom: 1px solid #e2e8f0;
+  gap: 0.4rem;
+}
+
+.dist-step-btn {
+  background: transparent;
+  border: none;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.35rem 0.6rem;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.18s ease;
+  text-align: left;
+}
+
+.dist-step-btn:hover:not(.dist-step-btn--disabled) {
+  background: #f8fafc;
+}
+
+.dist-step-btn--disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.dist-step-number {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.74rem;
+  font-weight: 700;
+  background: #f1f5f9;
+  color: #64748b;
+  border: 1.5px solid #cbd5e1;
+  flex-shrink: 0;
+  transition: all 0.2s ease;
+}
+
+.dist-step-btn--active .dist-step-number {
+  background: #AF101A;
+  color: #ffffff;
+  border-color: #AF101A;
+  box-shadow: 0 0 0 3px rgba(175, 16, 26, 0.18);
+}
+
+.dist-step-btn--complete .dist-step-number {
+  background: #16a34a;
+  color: #ffffff;
+  border-color: #16a34a;
+}
+
+.dist-step-text {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.2;
+}
+
+.dist-step-text strong {
+  font-size: 0.8rem;
+  color: #475569;
+  transition: color 0.18s ease;
+}
+
+.dist-step-btn--active .dist-step-text strong {
+  color: #AF101A;
+  font-weight: 700;
+}
+
+.dist-step-btn--complete .dist-step-text strong {
+  color: #0f172a;
+}
+
+.dist-step-text small {
+  font-size: 0.68rem;
+  color: #94a3b8;
+}
+
+.dist-step-connector {
+  flex: 1;
+  height: 2px;
+  background: #e2e8f0;
+  margin: 0 0.35rem;
+  transition: background 0.2s ease;
+}
+
+.dist-step-connector--complete {
+  background: #86efac;
+}
+
+.req-star {
+  color: #dc2626;
+  font-weight: 700;
+  margin-left: 2px;
+}
+
+.input-error {
+  border-color: #ef4444 !important;
+  background-color: #fffaf0 !important;
+  box-shadow: 0 0 0 1px #ef4444 !important;
+}
+
+.dist-field-error {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  color: #dc2626;
+  font-size: 0.73rem;
+  font-weight: 600;
+  margin-top: 3px;
+}
+
+.dist-step-validation-alert {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  color: #991b1b;
+  padding: 0.55rem 0.85rem;
+  border-radius: 8px;
+  font-size: 0.78rem;
+  font-weight: 500;
+  margin-bottom: 0.5rem;
+}
+
+.dist-program-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  background: #fee2e2;
+  color: #991b1b;
+  padding: 2px 8px;
+  border-radius: 999px;
+}
+
+.dist-summary-review-card {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  padding: 0.85rem 1.1rem;
+}
+
+.dist-summary-review-card__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0.65rem;
+  padding-bottom: 0.5rem;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.dist-summary-review-badge {
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  background: #e2e8f0;
+  color: #334155;
+  padding: 2px 8px;
+  border-radius: 4px;
+}
+
+.dist-summary-review-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 0.75rem 1rem;
+}
+
+.dist-summary-review-item {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.dist-summary-review-label {
+  font-size: 0.68rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: #64748b;
+}
+
+.dist-summary-review-item strong {
+  font-size: 0.84rem;
+  color: #0f172a;
+}
+
+.dist-summary-review-item small {
+  font-size: 0.74rem;
+  color: #64748b;
+}
+
 /* Clean Tab Navigation */
 .dist-tabs-bar {
   flex-shrink: 0;
@@ -981,13 +1187,13 @@
 /* Modal Footer */
 .dist-modal-footer {
   flex-shrink: 0;
-  padding: 0.75rem 1.25rem;
+  padding: 0.85rem 1.4rem;
   background: #f8fafc;
   border-top: 1px solid #e2e8f0;
   display: flex;
   align-items: center;
-  justify-content: flex-end;
-  gap: 0.45rem;
+  justify-content: space-between;
+  gap: 0.75rem;
   border-bottom-left-radius: 14px;
   border-bottom-right-radius: 14px;
 }

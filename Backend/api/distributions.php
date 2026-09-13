@@ -757,6 +757,9 @@ if ($method === 'POST') {
   if ($location === '') {
     $location = trim((string) ($benInfo['barangay'] ?? $benInfo['full_name'] ?? ''));
   }
+  if ($location === '') {
+    json_response(['ok' => false, 'error' => 'Drop-off location / address is required for a distribution event'], 400);
+  }
 
   $itemsSummary = trim((string) ($body['itemsSummary'] ?? ''));
   if ($itemsSummary === '' && $fromAllocations) {
@@ -765,6 +768,9 @@ if ($method === 'POST') {
       $parts[] = trim($a['resource_name']) . ' × ' . (int) $a['quantity'];
     }
     $itemsSummary = implode('; ', $parts);
+  }
+  if ($itemsSummary === '') {
+    json_response(['ok' => false, 'error' => 'Items to deliver / cargo summary cannot be empty'], 400);
   }
 
   $program = $body['program'] ?? null;
@@ -915,7 +921,13 @@ if ($method === 'PUT') {
   if (array_key_exists('beneficiaryId', $body) && !$beneficiaryId) {
     json_response(['ok' => false, 'error' => 'Target barangay (beneficiary) is required for a distribution event'], 400);
   }
-  $location = $body['location'] ?? $existing['location'];
+  if (array_key_exists('location', $body) && trim((string) $body['location']) === '') {
+    json_response(['ok' => false, 'error' => 'Drop-off location / address is required for a distribution event'], 400);
+  }
+  if (array_key_exists('itemsSummary', $body) && trim((string) $body['itemsSummary']) === '') {
+    json_response(['ok' => false, 'error' => 'Items to deliver / cargo summary cannot be empty'], 400);
+  }
+  $location = trim((string) ($body['location'] ?? $existing['location']));
   $eventName = array_key_exists('eventName', $body)
     ? (trim((string) $body['eventName']) ?: null)
     : ($existing['event_name'] ?? null);
