@@ -99,6 +99,10 @@ function db(): PDO {
 }
 
 function json_response($data, int $status = 200): void {
+  // Discard any accidental notices, warnings, or byte order marks emitted prior to response
+  while (ob_get_level() > 0) {
+    ob_end_clean();
+  }
   http_response_code($status);
   header('Content-Type: application/json; charset=utf-8');
   echo json_encode($data);

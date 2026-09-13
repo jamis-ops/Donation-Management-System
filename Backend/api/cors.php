@@ -6,6 +6,11 @@ declare(strict_types=1);
  * Allows configured frontend origin(s), any Vercel deployment (*.vercel.app), plus local Vite ports.
  */
 
+// Start output buffering immediately to prevent any accidental output from breaking HTTP headers / JSON responses
+if (ob_get_level() === 0) {
+  ob_start();
+}
+
 // Auto-load .env file if present
 (function() {
   $envFiles = [
