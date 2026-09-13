@@ -184,11 +184,48 @@ export default function AccountSettingsPage() {
     }
   }
 
+  const compressImage = (file, maxDim = 400, quality = 0.85) => {
+    return new Promise((resolve) => {
+      const reader = new FileReader()
+      reader.onload = (e) => {
+        const img = new Image()
+        img.onload = () => {
+          let { width, height } = img
+          if (width > maxDim || height > maxDim) {
+            const scale = Math.min(maxDim / width, maxDim / height)
+            width = Math.round(width * scale)
+            height = Math.round(height * scale)
+          }
+          const canvas = document.createElement('canvas')
+          canvas.width = width
+          canvas.height = height
+          const ctx = canvas.getContext('2d')
+          ctx.drawImage(img, 0, 0, width, height)
+          canvas.toBlob(
+            (blob) => {
+              if (blob) {
+                resolve(new File([blob], file.name.replace(/\.[^/.]+$/, '.jpg'), { type: 'image/jpeg' }))
+              } else {
+                resolve(file)
+              }
+            },
+            'image/jpeg',
+            quality
+          )
+        }
+        img.onerror = () => resolve(file)
+        img.src = e.target.result
+      }
+      reader.onerror = () => resolve(file)
+      reader.readAsDataURL(file)
+    })
+  }
+
   const handlePhotoChange = (e) => {
     const file = e.target.files?.[0]
     if (!file) return
-    if (file.size > 3 * 1024 * 1024) {
-      notify.warning('Photo must be under 3MB.')
+    if (file.size > 8 * 1024 * 1024) {
+      notify.warning('Photo must be under 8MB.')
       return
     }
     setPhotoFile(file)
@@ -205,8 +242,9 @@ export default function AccountSettingsPage() {
     setUploadingPhoto(true)
     showLoading('Uploading photo…')
     try {
+      const processedFile = await compressImage(photoFile, 400, 0.85)
       const fd = new FormData()
-      fd.append('photo', photoFile)
+      fd.append('photo', processedFile)
       const res = await uploadProfilePhoto(fd)
       if (res?.data?.profilePhoto) {
         setPhotoPreview(res.data.profilePhoto)

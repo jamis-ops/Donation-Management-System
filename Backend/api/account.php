@@ -135,6 +135,7 @@ if ($method === 'POST') {
   if (!isset($allowedMime[$mime])) {
     json_response(['ok' => false, 'error' => 'Photo must be JPG, PNG, or WebP'], 400);
   }
+  $ext = $allowedMime[$mime];
   if ($file['size'] > 3 * 1024 * 1024) {
     json_response(['ok' => false, 'error' => 'Photo must be under 3MB'], 400);
   }
@@ -152,7 +153,7 @@ if ($method === 'POST') {
   $fileData = @file_get_contents($dir . '/' . $safe);
   $dataUri = null;
   if ($fileData !== false && strlen($fileData) > 0) {
-    if (function_exists('imagecreatefromstring')) {
+    if (function_exists('imagecreatefromstring') && function_exists('imagejpeg') && function_exists('imagecreatetruecolor')) {
       $srcImg = @imagecreatefromstring($fileData);
       if ($srcImg !== false) {
         $w = imagesx($srcImg);
