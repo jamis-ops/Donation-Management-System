@@ -72,18 +72,9 @@ const emptyDirectTaskForm = {
 
 const ACTIVE_DIST_STATUSES = ['Planning', 'Preparing', 'In Transit', 'Scheduled', 'In Progress', 'Pending']
 
-function isDistributionProgram(module, title = '') {
-  const m = String(module || '').toLowerCase()
-  const t = String(title || '').toLowerCase()
-  return (
-    m.includes('distribution') ||
-    m.includes('logistics') ||
-    m.includes('delivery') ||
-    m.includes('relief') ||
-    t.includes('distribution') ||
-    t.includes('delivery') ||
-    t.includes('logistics')
-  )
+function isDistributionProgram(module) {
+  const m = String(module || '').toLowerCase().trim()
+  return m.includes('distribution')
 }
 
 function ChipList({ items, empty = '—' }) {
@@ -259,7 +250,7 @@ export default function VolunteersPage() {
     setAiError(null)
     setAiSource('')
     setHasRecommendedPrograms(true)
-    const initialProg = row.programs?.[0] || programOptions[0] || (row.applicantType === 'Intern' ? 'Internship' : 'Volunteer')
+    const initialProg = row.programs?.[0] || (row.applicantType === 'Intern' ? 'Internship' : 'Volunteer')
     setDirectTaskForm({ ...emptyDirectTaskForm, module: initialProg })
     loadTasks(row)
 
@@ -509,7 +500,8 @@ export default function VolunteersPage() {
       notify.error(`Cannot assign task: ${selected.name}'s profile is ${selected.status} (finalized).`)
       return
     }
-    const initialProg = selected.programs?.[0] || programOptions[0] || (selected.applicantType === 'Intern' ? 'Internship' : 'Volunteer')
+    const enrolledProg = (selected.programs && selected.programs.length > 0) ? selected.programs[0] : ''
+    const initialProg = enrolledProg || (selected.applicantType === 'Intern' ? 'Internship' : 'Volunteer')
     setDirectTaskForm({ ...emptyDirectTaskForm, module: initialProg })
     setShowDirectTaskModal(true)
   }
@@ -531,11 +523,9 @@ export default function VolunteersPage() {
     setSaving(true)
     showLoading('Saving…')
     try {
-      const isDist = isDistributionProgram(generalTaskForm.module, generalTaskForm.title)
+      const isDist = isDistributionProgram(generalTaskForm.module)
       const distId = isDist && generalTaskForm.distributionId ? Number(generalTaskForm.distributionId) : null
-      const module = distId
-        ? (generalTaskForm.module && !['Volunteer', 'Internship'].includes(generalTaskForm.module) ? generalTaskForm.module : 'Distribution')
-        : (generalTaskForm.module || 'Volunteer')
+      const module = generalTaskForm.module || 'Volunteer'
       await tasksApi.create({
         title: generalTaskForm.title,
         priority: generalTaskForm.priority,
@@ -591,11 +581,11 @@ export default function VolunteersPage() {
     setSaving(true)
     showLoading('Saving…')
     try {
-      const isDist = isDistributionProgram(directTaskForm.module, directTaskForm.title)
+      const enrolledProg = (selected.programs && selected.programs.length > 0) ? selected.programs[0] : ''
+      const chosenModule = directTaskForm.module || enrolledProg || (selected.applicantType === 'Intern' ? 'Internship' : 'Volunteer')
+      const isDist = isDistributionProgram(chosenModule)
       const distId = isDist && directTaskForm.distributionId ? Number(directTaskForm.distributionId) : null
-      const module = distId
-        ? (directTaskForm.module && !['Volunteer', 'Internship'].includes(directTaskForm.module) ? directTaskForm.module : 'Distribution')
-        : (directTaskForm.module || selected.programs?.[0] || 'Volunteer')
+      const module = chosenModule
       const isIntern = selected.applicantType === 'Intern'
       await tasksApi.create({
         title: directTaskForm.title,
@@ -610,7 +600,7 @@ export default function VolunteersPage() {
         boardColumn: 'todo',
       })
       setShowDirectTaskModal(false)
-      setDirectTaskForm({ ...emptyDirectTaskForm, module: selected.programs?.[0] || programOptions[0] || 'Volunteer' })
+      setDirectTaskForm({ ...emptyDirectTaskForm, module: enrolledProg || (selected.applicantType === 'Intern' ? 'Internship' : 'Volunteer') })
       loadTasks(selected)
       reload()
       notifyBadgesChanged()
@@ -662,6 +652,15 @@ export default function VolunteersPage() {
   // Single enrolled program for currently selected
   const singleEnrolledProgram = useMemo(() => {
     return (selected?.programs || [])[0] || null
+  }, [selected])
+
+  // Enrolled programs list for currently selected (strictly limited to enrolled program)
+  const enrolledPrograms = useMemo(() => {
+    if (!selected) return []
+    if (Array.isArray(selected.programs) && selected.programs.length > 0) {
+      return selected.programs.filter(Boolean)
+    }
+    return []
   }, [selected])
 
   // Check if any recommendation is suitable
@@ -1542,25 +1541,46 @@ export default function VolunteersPage() {
 
                               <label>
                                 <Req required>Program / Project</Req>
-                                <select
-                                  required
-                                  disabled={saving || ['Completed', 'Rejected'].includes(selected.status)}
-                                  value={directTaskForm.module}
-                                  onChange={(e) => {
-                                    const nextModule = e.target.value
-                                    const isDist = isDistributionProgram(nextModule, directTaskForm.title)
-                                    setDirectTaskForm((prev) => ({
-                                      ...prev,
-                                      module: nextModule,
-                                      distributionId: isDist ? prev.distributionId : '',
-                                    }))
-                                  }}
-                                >
-                                  <option value="">Select a Program…</option>
-                                  {programOptions.map((p) => (
-                                    <option key={p} value={p}>{p}</option>
-                                  ))}
-                                </select>
+                                {enrolledPrograms.length > 0 ? (
+                                  <select
+                                    required
+                                    disabled={saving || ['Completed', 'Rejected'].includes(selected.status)}
+                                    value={directTaskForm.module || enrolledPrograms[0]}
+                                    onChange={(e) => {
+                                      const nextModule = e.target.value
+                                      const isDist = isDistributionProgram(nextModule)
+                                      setDirectTaskForm((prev) => ({
+                                        ...prev,
+                                        module: nextModule,
+                                        distributionId: isDist ? prev.distributionId : '',
+                                      }))
+                                    }}
+                                  >
+                                    {enrolledPrograms.map((p) => (
+                                      <option key={p} value={p}>{p}</option>
+                                    ))}
+                                  </select>
+                                ) : (
+                                  <select
+                                    required
+                                    disabled={saving || ['Completed', 'Rejected'].includes(selected.status)}
+                                    value={directTaskForm.module}
+                                    onChange={(e) => {
+                                      const nextModule = e.target.value
+                                      const isDist = isDistributionProgram(nextModule)
+                                      setDirectTaskForm((prev) => ({
+                                        ...prev,
+                                        module: nextModule,
+                                        distributionId: isDist ? prev.distributionId : '',
+                                      }))
+                                    }}
+                                  >
+                                    <option value="">Select a Program…</option>
+                                    {programOptions.map((p) => (
+                                      <option key={p} value={p}>{p}</option>
+                                    ))}
+                                  </select>
+                                )}
                               </label>
 
                               <div className="form-row">
@@ -1625,7 +1645,7 @@ export default function VolunteersPage() {
                               </label>
 
                               {/* Link to Distribution (Conditional) */}
-                              {isDistributionProgram(directTaskForm.module, directTaskForm.title) && (
+                              {isDistributionProgram(directTaskForm.module) && (
                                 <label>
                                   <Req required>Link to Distribution Event</Req>
                                   <select
@@ -2120,7 +2140,7 @@ export default function VolunteersPage() {
                   value={generalTaskForm.module}
                   onChange={(e) => {
                     const nextModule = e.target.value
-                    const isDist = isDistributionProgram(nextModule, generalTaskForm.title)
+                    const isDist = isDistributionProgram(nextModule)
                     setGeneralTaskForm((prev) => ({
                       ...prev,
                       module: nextModule,
@@ -2205,7 +2225,7 @@ export default function VolunteersPage() {
               )}
 
               {/* Link to Distribution (Conditional) */}
-              {isDistributionProgram(generalTaskForm.module, generalTaskForm.title) && (
+              {isDistributionProgram(generalTaskForm.module) && (
                 <label>
                   <Req required>Link to Distribution Event</Req>
                   <select
@@ -2336,24 +2356,44 @@ export default function VolunteersPage() {
               {/* Program Selector */}
               <label>
                 <Req required>Program / Project</Req>
-                <select
-                  required
-                  value={directTaskForm.module}
-                  onChange={(e) => {
-                    const nextModule = e.target.value
-                    const isDist = isDistributionProgram(nextModule, directTaskForm.title)
-                    setDirectTaskForm((prev) => ({
-                      ...prev,
-                      module: nextModule,
-                      distributionId: isDist ? prev.distributionId : '',
-                    }))
-                  }}
-                >
-                  <option value="">Select a Program…</option>
-                  {programOptions.map((p) => (
-                    <option key={p} value={p}>{p}</option>
-                  ))}
-                </select>
+                {enrolledPrograms.length > 0 ? (
+                  <select
+                    required
+                    value={directTaskForm.module || enrolledPrograms[0]}
+                    onChange={(e) => {
+                      const nextModule = e.target.value
+                      const isDist = isDistributionProgram(nextModule)
+                      setDirectTaskForm((prev) => ({
+                        ...prev,
+                        module: nextModule,
+                        distributionId: isDist ? prev.distributionId : '',
+                      }))
+                    }}
+                  >
+                    {enrolledPrograms.map((p) => (
+                      <option key={p} value={p}>{p}</option>
+                    ))}
+                  </select>
+                ) : (
+                  <select
+                    required
+                    value={directTaskForm.module}
+                    onChange={(e) => {
+                      const nextModule = e.target.value
+                      const isDist = isDistributionProgram(nextModule)
+                      setDirectTaskForm((prev) => ({
+                        ...prev,
+                        module: nextModule,
+                        distributionId: isDist ? prev.distributionId : '',
+                      }))
+                    }}
+                  >
+                    <option value="">Select a Program…</option>
+                    {programOptions.map((p) => (
+                      <option key={p} value={p}>{p}</option>
+                    ))}
+                  </select>
+                )}
               </label>
 
               <div className="form-row">
@@ -2417,7 +2457,7 @@ export default function VolunteersPage() {
               )}
 
               {/* Link to Distribution (Conditional) */}
-              {isDistributionProgram(directTaskForm.module, directTaskForm.title) && (
+              {isDistributionProgram(directTaskForm.module) && (
                 <label>
                   <Req required>Link to Distribution Event</Req>
                   <select

@@ -363,16 +363,39 @@ if ($method === 'POST') {
     }
   }
 
+  $singleVolId = !empty($body['volunteerId']) ? (int) $body['volunteerId'] : (count($volunteerIds) === 1 ? $volunteerIds[0] : null);
+
+  // If assigning to a single volunteer and module is empty or generic, resolve to their enrolled program
+  if (($module === null || $module === '' || $module === 'Volunteer' || $module === 'Internship') && $singleVolId) {
+    $vCheck = $pdo->prepare('SELECT programs_json FROM volunteers WHERE id = ? LIMIT 1');
+    $vCheck->execute([$singleVolId]);
+    $vRow = $vCheck->fetch();
+    if ($vRow && !empty($vRow['programs_json'])) {
+      $progs = json_decode((string) $vRow['programs_json'], true);
+      if (is_array($progs) && !empty($progs[0])) {
+        $module = trim((string) $progs[0]);
+      }
+    }
+  }
+
   if (count($volunteerIds) > 1) {
     $created = [];
     foreach ($volunteerIds as $vId) {
       $tCode = generate_code('TSK');
-      $vol = $pdo->prepare('SELECT full_name, user_id, applicant_type FROM volunteers WHERE id = ? LIMIT 1');
+      $vol = $pdo->prepare('SELECT full_name, user_id, applicant_type, programs_json FROM volunteers WHERE id = ? LIMIT 1');
       $vol->execute([$vId]);
       $volRow = $vol->fetch();
       $vAssignee = $volRow ? $volRow['full_name'] : null;
       $vAssigneeUserId = ($volRow && $volRow['user_id']) ? (int) $volRow['user_id'] : null;
       $isVIntern = ($volRow && strcasecmp((string)($volRow['applicant_type'] ?? ''), 'Intern') === 0);
+
+      $tModule = $module;
+      if (($tModule === null || $tModule === '' || $tModule === 'Volunteer' || $tModule === 'Internship') && !empty($volRow['programs_json'])) {
+        $vProgs = json_decode((string) $volRow['programs_json'], true);
+        if (is_array($vProgs) && !empty($vProgs[0])) {
+          $tModule = trim((string) $vProgs[0]);
+        }
+      }
 
       $tDutyStart = $isVIntern ? $dutyStart : null;
       $tDutyEnd = $isVIntern ? $dutyEnd : null;
@@ -390,7 +413,7 @@ if ($method === 'POST') {
         $tDutyStart,
         $tDutyEnd,
         $tDutyHours,
-        $module,
+        $tModule,
         encode_required_skills($body['requiredSkills'] ?? $body['skills'] ?? null),
         $column,
       ]);

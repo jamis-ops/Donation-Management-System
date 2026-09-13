@@ -441,7 +441,7 @@ CREATE TABLE IF NOT EXISTS tasks (
   duty_start VARCHAR(10) NULL,
   duty_end VARCHAR(10) NULL,
   duty_hours DECIMAL(5,2) NULL,
-  module VARCHAR(50) NULL,
+  module VARCHAR(191) NULL,
   required_skills_json JSON NULL,
   board_column ENUM('todo','inProgress','review','done') NOT NULL DEFAULT 'todo',
   completed_at TIMESTAMP NULL,

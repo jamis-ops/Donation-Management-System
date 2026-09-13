@@ -522,6 +522,14 @@ try {
   $pdo->exec("UPDATE volunteers SET hours = 0, required_hours = 0 WHERE applicant_type = 'Volunteer' OR applicant_type IS NULL");
   echo "Cleared duty hours from volunteer profiles\n";
 
+  // v28: Expand tasks module column to accommodate full program titles
+  try {
+    $pdo->exec("ALTER TABLE tasks MODIFY COLUMN module VARCHAR(191) NULL");
+    echo "Expanded tasks.module to VARCHAR(191)\n";
+  } catch (Throwable $e) {
+    // Ignore if already modified or table doesn't exist yet
+  }
+
   echo "\nMigration complete!\n";
 } catch (Throwable $e) {
   http_response_code(500);
