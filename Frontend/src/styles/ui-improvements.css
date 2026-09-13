@@ -76,15 +76,12 @@ label textarea:focus {
               0 1px 2px rgba(0, 0, 0, 0.05);
 }
 
-/* Input validation states */
 label input:invalid:not(:placeholder-shown),
-label select:invalid:not(:placeholder-shown),
 label textarea:invalid:not(:placeholder-shown) {
   border-color: #dc2626;
 }
 
 label input:valid:not(:placeholder-shown),
-label select:valid:not(:placeholder-shown),
 label textarea:valid:not(:placeholder-shown) {
   border-color: #16a34a;
 }

@@ -1073,7 +1073,12 @@ a.volunteer-kpi-card:hover,
 }
 
 /* Dropdown feel for select elements (subtle focus/hover polish) */
-select {
+select,
+select option,
+select optgroup,
+option,
+optgroup {
+  font-family: var(--font-sans, 'DM Sans', system-ui, sans-serif) !important;
   transition: border-color 0.16s ease, box-shadow 0.16s ease, background 0.16s ease;
   cursor: pointer;
 }
@@ -5219,7 +5224,17 @@ select {
   display: block;
   width: 100%;
   margin-top: 0.35rem;
+  font-family: var(--font-sans, 'DM Sans', system-ui, sans-serif) !important;
   box-sizing: border-box;
+}
+
+.admin-modal label select option,
+.admin-modal select option,
+.admin-modal option,
+.admin-modal optgroup {
+  font-family: var(--font-sans, 'DM Sans', system-ui, sans-serif) !important;
+  background: #ffffff;
+  color: var(--admin-text, #111827);
 }
 
 /* --- Ensure two-column form-row is clean in modal --- */

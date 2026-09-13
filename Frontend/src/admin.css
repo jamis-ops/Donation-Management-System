@@ -49,6 +49,12 @@
   color: var(--admin-text);
 }
 
+.admin-modal,
+.admin-modal-overlay {
+  font-family: var(--font-sans);
+  color: var(--admin-text);
+}
+
 .admin-layout h1,
 .admin-layout h2,
 .admin-layout h3,
@@ -56,9 +62,30 @@
 .admin-layout h5,
 .admin-layout h6,
 .admin-page-header h1,
-.admin-modal h2 {
+.admin-modal h1,
+.admin-modal h2,
+.admin-modal h3,
+.admin-modal h4,
+.admin-modal h5,
+.admin-modal h6,
+.admin-modal label,
+.admin-modal p,
+.admin-modal span,
+.admin-modal button,
+.admin-modal input,
+.admin-modal select,
+.admin-modal textarea,
+.admin-modal option,
+.admin-modal optgroup,
+.admin-layout button,
+.admin-layout input,
+.admin-layout select,
+.admin-layout textarea,
+.admin-layout option,
+.admin-layout optgroup,
+.admin-layout label,
+.admin-layout .btn {
   font-family: var(--font-sans) !important;
-  color: var(--admin-text);
 }
 
 .admin-main {
