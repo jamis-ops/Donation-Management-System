@@ -8,9 +8,62 @@ declare(strict_types=1);
  */
 require_once __DIR__ . '/bootstrap.php';
 
-$user = require_auth();
 $kind = preg_replace('/[^a-z_]/', '', strtolower((string) ($_GET['kind'] ?? ''))) ?: '';
 $name = basename((string) ($_GET['name'] ?? ''));
+
+// Profile photos are public assets — serve them without requiring auth
+if ($kind === 'profiles') {
+  if ($name === '') {
+    json_response(['ok' => false, 'error' => 'Invalid profile photo request'], 400);
+  }
+  $dir = __DIR__ . '/uploads/profiles';
+  $path = $dir . '/' . $name;
+  if (is_file($path)) {
+    $mime = mime_content_type($path) ?: 'image/jpeg';
+    header('Content-Type: ' . $mime);
+    header('Content-Length: ' . (string) filesize($path));
+    header('Content-Disposition: inline; filename="' . rawurlencode($name) . '"');
+    header('X-Content-Type-Options: nosniff');
+    header('Cache-Control: public, max-age=86400');
+    readfile($path);
+    exit;
+  }
+
+  // Fallback if file was deleted by container restart: check database for user's profile photo
+  try {
+    $pdo = db();
+    $uid = 0;
+    if (preg_match('/^profile_(\d+)_/', $name, $matches)) {
+      $uid = (int) $matches[1];
+    }
+    $stmt = $pdo->prepare('SELECT profile_photo FROM users WHERE id = ? OR profile_photo LIKE ? LIMIT 1');
+    $stmt->execute([$uid, '%' . $name . '%']);
+    $photoData = $stmt->fetchColumn();
+    if ($photoData && str_starts_with($photoData, 'data:image/')) {
+      if (preg_match('/^data:(image\/[a-zA-Z0-9\+\-\.]+);base64,(.+)$/', $photoData, $m)) {
+        $mime = $m[1];
+        $binary = base64_decode($m[2]);
+        if ($binary !== false) {
+          if (!is_dir($dir)) {
+            @mkdir($dir, 0755, true);
+          }
+          @file_put_contents($path, $binary);
+          header('Content-Type: ' . $mime);
+          header('Content-Length: ' . (string) strlen($binary));
+          header('Content-Disposition: inline; filename="' . rawurlencode($name) . '"');
+          header('X-Content-Type-Options: nosniff');
+          header('Cache-Control: public, max-age=86400');
+          echo $binary;
+          exit;
+        }
+      }
+    }
+  } catch (Throwable) {}
+
+  json_response(['ok' => false, 'error' => 'Profile photo not found'], 404);
+}
+
+$user = require_auth();
 
 $allowed = [
   'donation_proofs' => ['Admin', 'Staff', 'Donor'],

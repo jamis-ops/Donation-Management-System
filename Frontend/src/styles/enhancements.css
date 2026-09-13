@@ -4840,24 +4840,28 @@ select {
 }
 
 .settings-photo-preview {
-  width: 88px;
-  height: 88px;
+  width: 96px;
+  height: 96px;
   border-radius: 50%;
   overflow: hidden;
-  background: #AF101A;
+  background: linear-gradient(135deg, #AF101A 0%, #7A0B12 100%);
   color: #fff;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 1.75rem;
+  font-size: 2.25rem;
   font-weight: 700;
-  margin-bottom: 0.5rem;
+  margin-bottom: 0.75rem;
+  box-shadow: 0 4px 14px rgba(175, 16, 26, 0.25);
+  border: 3px solid #ffffff;
+  outline: 2px solid #e2e8f0;
 }
 
 .settings-photo-preview img {
   width: 100%;
   height: 100%;
   object-fit: cover;
+  display: block;
 }
 
 .settings-notice {

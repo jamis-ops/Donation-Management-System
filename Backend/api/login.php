@@ -60,9 +60,7 @@ $_SESSION['user'] = [
   'role' => $user['role'],
   'isSuperAdmin' => false,
   'mustChangePassword' => (bool) ($user['must_change_password'] ?? false),
-  'profilePhoto' => !empty($user['profile_photo'])
-    ? ('/api/uploads/profiles/' . basename((string) $user['profile_photo']))
-    : null,
+  'profilePhoto' => format_profile_photo_url($user['profile_photo'] ?? null),
 ];
 
 $token = generate_auth_token($_SESSION['user'], $tokenLifetime);

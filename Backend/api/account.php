@@ -27,9 +27,7 @@ function map_account_user(PDO $pdo, int $userId): array
     'email' => $row['email'],
     'phone' => $row['phone'] ?? '',
     'recoveryPhone' => $row['recovery_phone'] ?? '',
-    'profilePhoto' => $row['profile_photo']
-      ? ('/api/uploads/profiles/' . basename((string) $row['profile_photo']))
-      : null,
+    'profilePhoto' => format_profile_photo_url($row['profile_photo'] ?? null),
     'mustChangePassword' => (bool) ($row['must_change_password'] ?? false),
     'role' => $row['role'],
     'status' => $row['status'],
@@ -144,13 +142,79 @@ if ($method === 'POST') {
   if (!is_dir($dir)) {
     mkdir($dir, 0755, true);
   }
-  $ext = $allowedMime[$mime];
-  $safe = 'profile_' . (int) $user['id'] . '_' . time() . '.' . $ext;
+  $uid = (int) ($user['id'] ?? 0);
+  $safe = 'profile_' . $uid . '_' . time() . '.' . $ext;
   if (!move_uploaded_file($file['tmp_name'], $dir . '/' . $safe)) {
     json_response(['ok' => false, 'error' => 'Failed to save photo'], 500);
   }
-  $pdo->prepare('UPDATE users SET profile_photo = ? WHERE id = ?')->execute([$safe, (int) $user['id']]);
-  json_response(['ok' => true, 'data' => map_account_user($pdo, (int) $user['id'])]);
+
+  // Optimize & generate persistent base64 representation to survive container restarts
+  $fileData = @file_get_contents($dir . '/' . $safe);
+  $dataUri = null;
+  if ($fileData !== false && strlen($fileData) > 0) {
+    if (function_exists('imagecreatefromstring')) {
+      $srcImg = @imagecreatefromstring($fileData);
+      if ($srcImg !== false) {
+        $w = imagesx($srcImg);
+        $h = imagesy($srcImg);
+        $maxDim = 400;
+        if ($w > $maxDim || $h > $maxDim) {
+          $scale = min($maxDim / $w, $maxDim / $h);
+          $nw = (int) round($w * $scale);
+          $nh = (int) round($h * $scale);
+          $dstImg = imagecreatetruecolor($nw, $nh);
+          imagealphablending($dstImg, false);
+          imagesavealpha($dstImg, true);
+          imagecopyresampled($dstImg, $srcImg, 0, 0, 0, 0, $nw, $nh, $w, $h);
+          ob_start();
+          imagejpeg($dstImg, null, 85);
+          $optimized = ob_get_clean();
+          imagedestroy($dstImg);
+          imagedestroy($srcImg);
+          if ($optimized) {
+            $fileData = $optimized;
+            @file_put_contents($dir . '/' . $safe, $optimized);
+            $dataUri = 'data:image/jpeg;base64,' . base64_encode($optimized);
+          }
+        } else {
+          imagedestroy($srcImg);
+        }
+      }
+    }
+    if ($dataUri === null) {
+      $dataUri = 'data:' . $mime . ';base64,' . base64_encode($fileData);
+    }
+  }
+
+  $storeVal = $dataUri ?: $safe;
+
+  // Auto-upgrade column to MEDIUMTEXT if needed
+  try {
+    $pdo->exec("ALTER TABLE users MODIFY profile_photo MEDIUMTEXT NULL");
+  } catch (Throwable) {}
+
+  if ($uid > 0) {
+    $pdo->prepare('UPDATE users SET profile_photo = ? WHERE id = ?')->execute([$storeVal, $uid]);
+    $_SESSION['user']['profilePhoto'] = $storeVal;
+    json_response(['ok' => true, 'data' => map_account_user($pdo, $uid)]);
+  } else {
+    $_SESSION['user']['profilePhoto'] = $storeVal;
+    json_response([
+      'ok' => true,
+      'data' => [
+        'id' => 0,
+        'name' => $user['name'] ?? SUPER_ADMIN_NAME,
+        'email' => $user['email'] ?? super_admin_email(),
+        'phone' => '',
+        'recoveryPhone' => '',
+        'profilePhoto' => $storeVal,
+        'mustChangePassword' => false,
+        'role' => 'SuperAdmin',
+        'isSuperAdmin' => true,
+        'status' => 'ACTIVE',
+      ],
+    ]);
+  }
 }
 
 json_response(['ok' => false, 'error' => 'Method not allowed'], 405);

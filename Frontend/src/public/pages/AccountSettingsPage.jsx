@@ -1,7 +1,7 @@
-import { useEffect, useState } from 'react'
-import { Award, Clock, HeartHandshake, Sparkles } from 'lucide-react'
+import { useEffect, useState, useRef } from 'react'
+import { Award, Clock, HeartHandshake, Sparkles, Eye, EyeOff, Camera, Upload } from 'lucide-react'
 import { useAuth } from '../../context/AuthContext'
-import { apiFetch, uploadProfilePhoto, volunteersApi } from '../../api/resources'
+import { apiFetch, uploadProfilePhoto, volunteersApi, apiUrl } from '../../api/resources'
 import PageHeader from '../../admin/components/shared/PageHeader'
 import MasterDataSettings from '../../admin/components/shared/MasterDataSettings'
 import MultiSelectBox from '../../components/shared/MultiSelectBox'
@@ -14,21 +14,35 @@ import { phoneError, passwordError } from '../../utils/validation'
 import { VOLUNTEER_PROGRAMS, VOLUNTEER_SKILLS } from '../../constants/options'
 import { useLoading } from '../../context/LoadingContext'
 
+function getPhotoUrl(photo) {
+  if (!photo) return ''
+  if (typeof photo !== 'string') return ''
+  if (photo.startsWith('blob:') || photo.startsWith('data:') || /^https?:\/\//i.test(photo)) {
+    return photo
+  }
+  return apiUrl(photo)
+}
+
 export default function AccountSettingsPage() {
   const { user, updateAccount, changePassword, refreshUser } = useAuth()
   const canManageLists = user?.role === 'Admin' || isSuperAdminRole(user?.role, user)
   const isVolunteer = user?.role === 'Volunteer'
 
+  const fileInputRef = useRef(null)
   const [name, setName] = useState('')
   const { showLoading, hideLoading } = useLoading()
   const [phone, setPhone] = useState('')
   const [recoveryPhone, setRecoveryPhone] = useState('')
   const [email, setEmail] = useState('')
   const [currentPassword, setCurrentPassword] = useState('')
+  const [showCurrentPassword, setShowCurrentPassword] = useState(false)
   const [newPassword, setNewPassword] = useState('')
+  const [showNewPassword, setShowNewPassword] = useState(false)
   const [confirmPassword, setConfirmPassword] = useState('')
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false)
   const [photoFile, setPhotoFile] = useState(null)
   const [photoPreview, setPhotoPreview] = useState(null)
+  const [imgError, setImgError] = useState(false)
   const [savingProfile, setSavingProfile] = useState(false)
   const [savingPassword, setSavingPassword] = useState(false)
   const [uploadingPhoto, setUploadingPhoto] = useState(false)
@@ -54,7 +68,10 @@ export default function AccountSettingsPage() {
         setEmail(d.email || '')
         setPhone(d.phone || '')
         setRecoveryPhone(d.recoveryPhone || '')
-        setPhotoPreview(d.profilePhoto || null)
+        if (d.profilePhoto) {
+          setPhotoPreview(d.profilePhoto)
+          setImgError(false)
+        }
       })
       .catch(() => {
         if (cancelled || !user) return
@@ -62,7 +79,10 @@ export default function AccountSettingsPage() {
         setEmail(user.email || '')
         setPhone(user.phone || '')
         setRecoveryPhone(user.recoveryPhone || '')
-        setPhotoPreview(user.profilePhoto || null)
+        if (user.profilePhoto) {
+          setPhotoPreview(user.profilePhoto)
+          setImgError(false)
+        }
       })
 
     if (isVolunteer) {
@@ -85,7 +105,7 @@ export default function AccountSettingsPage() {
     }
 
     return () => { cancelled = true }
-  }, [user, isVolunteer])
+  }, [user?.id, user?.email, isVolunteer])
 
   const handleSaveProfile = async (e) => {
     e.preventDefault()
@@ -167,7 +187,12 @@ export default function AccountSettingsPage() {
   const handlePhotoChange = (e) => {
     const file = e.target.files?.[0]
     if (!file) return
+    if (file.size > 3 * 1024 * 1024) {
+      notify.warning('Photo must be under 3MB.')
+      return
+    }
     setPhotoFile(file)
+    setImgError(false)
     setPhotoPreview(URL.createObjectURL(file))
   }
 
@@ -183,10 +208,14 @@ export default function AccountSettingsPage() {
       const fd = new FormData()
       fd.append('photo', photoFile)
       const res = await uploadProfilePhoto(fd)
-      if (res?.data) {
-        setPhotoPreview(res.data.profilePhoto || photoPreview)
+      if (res?.data?.profilePhoto) {
+        setPhotoPreview(res.data.profilePhoto)
+        setImgError(false)
       }
       setPhotoFile(null)
+      if (fileInputRef.current) {
+        fileInputRef.current.value = ''
+      }
       notify.success('Profile photo updated.')
       await refreshUser()
     } catch (err) {
@@ -336,19 +365,32 @@ export default function AccountSettingsPage() {
           </div>
           <form onSubmit={handleUploadPhoto} className="settings-form settings-photo-form">
             <div className="settings-photo-preview">
-              {photoPreview ? (
-                <img src={photoPreview} alt="Profile" />
+              {photoPreview && !imgError ? (
+                <img
+                  src={getPhotoUrl(photoPreview)}
+                  alt=""
+                  onError={() => setImgError(true)}
+                />
               ) : (
-                <span>{(name || '?').charAt(0).toUpperCase()}</span>
+                <span>{(name || email || '?').charAt(0).toUpperCase()}</span>
               )}
             </div>
             <label>
               Upload image
-              <input type="file" accept="image/*" onChange={handlePhotoChange} />
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/jpeg,image/png,image/webp"
+                onChange={handlePhotoChange}
+              />
             </label>
             <p className="portal-hint">JPG, PNG, or WebP under 3MB.</p>
-            <button type="submit" className="btn btn--outline" disabled={uploadingPhoto || !photoFile}>
-              Upload photo
+            <button
+              type="submit"
+              className="btn btn--primary"
+              disabled={uploadingPhoto || !photoFile}
+            >
+              {uploadingPhoto ? 'Uploading…' : 'Upload photo'}
             </button>
           </form>
         </section>
@@ -360,38 +402,83 @@ export default function AccountSettingsPage() {
           <form onSubmit={handleChangePassword} className="settings-form settings-form--password">
             <label>
               <Req required>Current password</Req>
-              <input
-                type="password"
-                required
-                value={currentPassword}
-                onChange={(e) => setCurrentPassword(e.target.value)}
-                autoComplete="current-password"
-              />
+              <div className="password-input-wrap">
+                <input
+                  type={showCurrentPassword ? 'text' : 'password'}
+                  required
+                  maxLength={64}
+                  value={currentPassword}
+                  onChange={(e) => setCurrentPassword(e.target.value.replace(/\s/g, ''))}
+                  onKeyDown={(e) => { if (e.key === ' ') e.preventDefault() }}
+                  autoComplete="current-password"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowCurrentPassword((v) => !v)}
+                  className="password-toggle-btn"
+                  title={showCurrentPassword ? 'Hide password' : 'Show password'}
+                  aria-label={showCurrentPassword ? 'Hide password' : 'Show password'}
+                  tabIndex={-1}
+                >
+                  {showCurrentPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                </button>
+              </div>
             </label>
+
             <label>
               <Req required>New password</Req>
-              <input
-                type="password"
-                required
-                minLength={8}
-                value={newPassword}
-                onChange={(e) => setNewPassword(e.target.value)}
-                placeholder="Min. 8 chars (upper, lower, digit, symbol)"
-                autoComplete="new-password"
-              />
+              <div className="password-input-wrap">
+                <input
+                  type={showNewPassword ? 'text' : 'password'}
+                  required
+                  minLength={8}
+                  maxLength={64}
+                  value={newPassword}
+                  onChange={(e) => setNewPassword(e.target.value.replace(/\s/g, ''))}
+                  onKeyDown={(e) => { if (e.key === ' ') e.preventDefault() }}
+                  placeholder="Min. 8 chars (upper, lower, digit, symbol)"
+                  autoComplete="new-password"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowNewPassword((v) => !v)}
+                  className="password-toggle-btn"
+                  title={showNewPassword ? 'Hide password' : 'Show password'}
+                  aria-label={showNewPassword ? 'Hide password' : 'Show password'}
+                  tabIndex={-1}
+                >
+                  {showNewPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                </button>
+              </div>
             </label>
+
             <label>
               <Req required>Confirm new password</Req>
-              <input
-                type="password"
-                required
-                minLength={8}
-                value={confirmPassword}
-                onChange={(e) => setConfirmPassword(e.target.value)}
-                placeholder="Re-enter new password"
-                autoComplete="new-password"
-              />
+              <div className="password-input-wrap">
+                <input
+                  type={showConfirmPassword ? 'text' : 'password'}
+                  required
+                  minLength={8}
+                  maxLength={64}
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value.replace(/\s/g, ''))}
+                  onKeyDown={(e) => { if (e.key === ' ') e.preventDefault() }}
+                  placeholder="Re-enter new password"
+                  autoComplete="new-password"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowConfirmPassword((v) => !v)}
+                  className="password-toggle-btn"
+                  title={showConfirmPassword ? 'Hide password' : 'Show password'}
+                  aria-label={showConfirmPassword ? 'Hide password' : 'Show password'}
+                  tabIndex={-1}
+                >
+                  {showConfirmPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                </button>
+              </div>
             </label>
+
             <PasswordRequirements password={newPassword} />
             <button type="submit" className="btn btn--primary" disabled={savingPassword}>
               Update password

@@ -304,14 +304,10 @@ export const contentApi = {
 }
 
 export async function uploadProfilePhoto(formData) {
-  const res = await fetch(apiUrl('/api/account.php'), {
+  return apiFetch('/api/account.php', {
     method: 'POST',
-    credentials: 'include',
     body: formData,
   })
-  const data = await res.json().catch(() => null)
-  if (!res.ok) throw new Error(data?.error || 'Photo upload failed')
-  return data
 }
 
 /** Fetch published CMS items; return fallback when empty or request fails. */

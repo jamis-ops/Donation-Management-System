@@ -30,9 +30,7 @@ try {
     $user['name'] = $row['full_name'] ?? $user['name'];
     $user['phone'] = $row['phone'] ?? ($user['phone'] ?? '');
     $user['recoveryPhone'] = $row['recovery_phone'] ?? ($user['recoveryPhone'] ?? '');
-    $user['profilePhoto'] = !empty($row['profile_photo'])
-      ? ('/api/uploads/profiles/' . basename((string) $row['profile_photo']))
-      : null;
+    $user['profilePhoto'] = format_profile_photo_url($row['profile_photo'] ?? null);
     $user['isSuperAdmin'] = false;
     $_SESSION['user'] = $user;
   }

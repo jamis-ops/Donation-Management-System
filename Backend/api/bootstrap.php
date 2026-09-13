@@ -39,6 +39,19 @@ if (session_status() !== PHP_SESSION_ACTIVE) {
   @session_start();
 }
 
+function format_profile_photo_url(?string $raw): ?string
+{
+  if ($raw === null || trim($raw) === '') {
+    return null;
+  }
+  $raw = trim($raw);
+  if (str_starts_with($raw, 'data:image/') || preg_match('/^https?:\/\//i', $raw)) {
+    return $raw;
+  }
+  $safe = basename($raw);
+  return '/api/file.php?kind=profiles&name=' . rawurlencode($safe);
+}
+
 function current_user(): ?array
 {
   if (!empty($_SESSION['user']) && is_array($_SESSION['user'])) {
@@ -78,9 +91,7 @@ function current_user(): ?array
             'role' => $row['role'],
             'isSuperAdmin' => false,
             'mustChangePassword' => (bool) ($row['must_change_password'] ?? false),
-            'profilePhoto' => !empty($row['profile_photo'])
-              ? ('/api/uploads/profiles/' . basename((string) $row['profile_photo']))
-              : null,
+            'profilePhoto' => format_profile_photo_url($row['profile_photo'] ?? null),
           ];
           $_SESSION['user'] = $user;
           return $user;

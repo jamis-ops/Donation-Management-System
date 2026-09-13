@@ -2,6 +2,7 @@ import { useState, useRef, useEffect } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { Settings, LogOut, ChevronDown } from 'lucide-react'
 import { useAuth } from '../../context/AuthContext'
+import { apiUrl } from '../../api/resources'
 
 function getInitials(name, email) {
   if (!name && !email) return 'U'
@@ -17,6 +18,8 @@ export default function UserProfileMenu({ settingsPath = '/admin/settings', role
   const { user, logout } = useAuth()
   const navigate = useNavigate()
   const [open, setOpen] = useState(false)
+  const [avatarErr, setAvatarErr] = useState(false)
+  const [dropdownAvatarErr, setDropdownAvatarErr] = useState(false)
   const menuRef = useRef(null)
 
   const isSuperAdmin = user?.role === 'SuperAdmin' || !!user?.isSuperAdmin
@@ -24,6 +27,11 @@ export default function UserProfileMenu({ settingsPath = '/admin/settings', role
   const displayEmail = user?.email || 'admin@riseabove-cebu.org'
   const displayRole = roleLabel || (isSuperAdmin ? 'Super Admin' : (user?.role || 'System Admin'))
   const initials = getInitials(user?.name, user?.email)
+
+  useEffect(() => {
+    setAvatarErr(false)
+    setDropdownAvatarErr(false)
+  }, [user?.profilePhoto])
 
   useEffect(() => {
     function handleClickOutside(event) {
@@ -53,6 +61,8 @@ export default function UserProfileMenu({ settingsPath = '/admin/settings', role
     }
   }
 
+  const profilePhotoUrl = user?.profilePhoto ? apiUrl(user.profilePhoto) : null
+
   return (
     <div className="user-profile-menu" ref={menuRef}>
       <button
@@ -64,7 +74,15 @@ export default function UserProfileMenu({ settingsPath = '/admin/settings', role
         aria-label="User account menu"
       >
         <div className="user-profile-menu__avatar">
-          {initials}
+          {profilePhotoUrl && !avatarErr ? (
+            <img
+              src={profilePhotoUrl}
+              alt=""
+              onError={() => setAvatarErr(true)}
+            />
+          ) : (
+            initials
+          )}
         </div>
         <div className="user-profile-menu__info">
           <span className="user-profile-menu__name">{displayName}</span>
@@ -80,7 +98,15 @@ export default function UserProfileMenu({ settingsPath = '/admin/settings', role
         <div className="user-profile-menu__dropdown" role="menu">
           <div className="user-profile-menu__header">
             <div className="user-profile-menu__dropdown-avatar">
-              {initials}
+              {profilePhotoUrl && !dropdownAvatarErr ? (
+                <img
+                  src={profilePhotoUrl}
+                  alt=""
+                  onError={() => setDropdownAvatarErr(true)}
+                />
+              ) : (
+                initials
+              )}
             </div>
             <div className="user-profile-menu__dropdown-details">
               <strong className="user-profile-menu__dropdown-name">{displayName}</strong>

@@ -242,6 +242,7 @@
   width: 34px;
   height: 34px;
   border-radius: 50%;
+  overflow: hidden;
   background: #EAB308;
   background: linear-gradient(135deg, #FACC15 0%, #CA8A04 100%);
   color: #1c1917;
@@ -253,6 +254,14 @@
   flex-shrink: 0;
   box-shadow: 0 2px 5px rgba(0, 0, 0, 0.15);
   letter-spacing: 0.02em;
+}
+
+.user-profile-menu__avatar img,
+.user-profile-menu__dropdown-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
 }
 
 .user-profile-menu__info {
@@ -316,6 +325,7 @@
   width: 46px;
   height: 46px;
   border-radius: 50%;
+  overflow: hidden;
   background: var(--admin-brand, #AF101A);
   background: linear-gradient(135deg, #AF101A 0%, #7A0B12 100%);
   color: #ffffff;
