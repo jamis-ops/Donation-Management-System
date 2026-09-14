@@ -30,7 +30,7 @@ function map_distribution(PDO $pdo, array $row): array
 
   $linkedAllocs = [];
   try {
-    $aStmt = $pdo->prepare('SELECT id, code, resource_name, quantity, status FROM allocations WHERE distribution_id = ? ORDER BY id ASC');
+    $aStmt = $pdo->prepare('SELECT id, code, resource_name, quantity, program, status, allocation_date FROM allocations WHERE distribution_id = ? ORDER BY id ASC');
     $aStmt->execute([(int) $row['id']]);
     foreach ($aStmt->fetchAll() as $a) {
       $linkedAllocs[] = [
@@ -38,7 +38,9 @@ function map_distribution(PDO $pdo, array $row): array
         'id' => $a['code'],
         'resource' => $a['resource_name'],
         'quantity' => (int) $a['quantity'],
+        'program' => $a['program'] ?? '',
         'status' => $a['status'],
+        'date' => format_date($a['allocation_date'] ?? null),
       ];
     }
   } catch (Throwable $e) {
@@ -99,6 +101,36 @@ function map_distribution(PDO $pdo, array $row): array
     }
   }
 
+  if (!empty($sourceAllocIds)) {
+    $existingIds = array_map(fn($a) => $a['dbId'], $linkedAllocs);
+    $missingIds = array_values(array_diff($sourceAllocIds, $existingIds));
+    if (!empty($missingIds)) {
+      try {
+        $inClause = implode(',', array_fill(0, count($missingIds), '?'));
+        $mStmt = $pdo->prepare("SELECT id, code, resource_name, quantity, program, status, allocation_date FROM allocations WHERE id IN ($inClause)");
+        $mStmt->execute($missingIds);
+        foreach ($mStmt->fetchAll() as $a) {
+          $linkedAllocs[] = [
+            'dbId' => (int) $a['id'],
+            'id' => $a['code'],
+            'resource' => $a['resource_name'],
+            'quantity' => (int) $a['quantity'],
+            'program' => $a['program'] ?? '',
+            'status' => $a['status'],
+            'date' => format_date($a['allocation_date'] ?? null),
+          ];
+        }
+      } catch (Throwable $e) {
+        // ignore
+      }
+    }
+  }
+
+  $finalItemsSummary = trim((string) ($row['items_summary'] ?? ''));
+  if ($finalItemsSummary === '' && !empty($linkedAllocs)) {
+    $finalItemsSummary = implode('; ', array_map(fn($a) => "{$a['resource']} × {$a['quantity']}", $linkedAllocs));
+  }
+
   // Volunteer / staff status updates surface via admin notifications (audit trail for detail UI).
   $statusActivity = [];
   $code = (string) ($row['code'] ?? '');
@@ -148,8 +180,8 @@ function map_distribution(PDO $pdo, array $row): array
     'receivedAt' => format_date($row['received_at'] ?? null),
     'receiptNotes' => $row['receipt_notes'] ?? '',
     'type' => $row['distribution_type'],
-    'itemsSummary' => $row['items_summary'] ?? '',
-    'items' => $row['items_summary'] ?? '',
+    'itemsSummary' => $finalItemsSummary,
+    'items' => $finalItemsSummary,
     'quantity' => isset($row['beneficiaries_count']) ? (int) $row['beneficiaries_count'] : null,
     'coordinator' => $row['coordinator'] ?? '',
     'notes' => $row['notes'] ?? '',
@@ -967,6 +999,22 @@ if ($method === 'PUT') {
     $proofStatus,
     $id,
   ]);
+
+  if (isset($body['allocationIds']) && is_array($body['allocationIds'])) {
+    $allocIds = array_values(array_unique(array_filter(array_map('intval', $body['allocationIds']))));
+    if (!empty($allocIds)) {
+      $inClause = implode(',', array_fill(0, count($allocIds), '?'));
+      // Unlink allocations previously linked to this distribution that were removed
+      $pdo->prepare("UPDATE allocations SET distribution_id = NULL WHERE distribution_id = ? AND id NOT IN ($inClause)")
+        ->execute(array_merge([(int) $id], $allocIds));
+      // Link the updated allocation batch IDs
+      $pdo->prepare("UPDATE allocations SET distribution_id = ?, status = CASE WHEN status = 'Reserved' THEN 'Allocated' ELSE status END WHERE id IN ($inClause)")
+        ->execute(array_merge([(int) $id], $allocIds));
+    } else {
+      $pdo->prepare("UPDATE allocations SET distribution_id = NULL WHERE distribution_id = ?")
+        ->execute([(int) $id]);
+    }
+  }
 
   if ($newStatus !== $existing['status']) {
     notify_admins($pdo, 'status_update', 'Distribution status updated', "Distribution {$existing['code']} is now {$newStatus}", '/admin/distributions?id=' . (int) $id . '#distributions-table');

@@ -305,6 +305,72 @@ export default function DistributionsPage() {
     )
   }, [allocationsList, form.beneficiaryId])
 
+  // Resolve all cargo allocations actively linked to this delivery
+  const resolvedCargoAllocations = useMemo(() => {
+    const list = []
+    const seenIds = new Set()
+
+    if (editRow?.allocations?.length) {
+      editRow.allocations.forEach((a) => {
+        const key = a.dbId || a.id
+        if (!seenIds.has(key)) {
+          seenIds.add(key)
+          list.push(a)
+        }
+      })
+    }
+
+    if (editRow?.dbId) {
+      allocationsList.forEach((a) => {
+        const matchId = Number(a.distributionId || a.distribution_id || 0)
+        if (matchId === Number(editRow.dbId) && !seenIds.has(a.dbId || a.id)) {
+          seenIds.add(a.dbId || a.id)
+          list.push({
+            dbId: a.dbId || a.id,
+            id: a.code || a.id,
+            resource: a.resource || a.resourceName || 'Relief Goods',
+            quantity: a.quantity || 1,
+            program: a.program || '',
+            status: a.status || 'Allocated',
+          })
+        }
+      })
+    }
+
+    if (form.allocationIds?.length) {
+      form.allocationIds.forEach((allocId) => {
+        if (!seenIds.has(allocId)) {
+          const match = allocationsList.find((a) => Number(a.dbId || a.id) === Number(allocId))
+          if (match) {
+            seenIds.add(allocId)
+            list.push({
+              dbId: match.dbId || match.id,
+              id: match.code || match.id,
+              resource: match.resource || match.resourceName || 'Relief Goods',
+              quantity: match.quantity || 1,
+              program: match.program || '',
+              status: match.status || 'Allocated',
+            })
+          }
+        }
+      })
+    }
+
+    return list
+  }, [editRow, form.allocationIds, allocationsList])
+
+  // Allocations ready in inventory for this barangay not yet linked
+  const availableUnlinkedAllocs = useMemo(() => {
+    if (!form.beneficiaryId) return []
+    const linkedIds = new Set(resolvedCargoAllocations.map((a) => a.dbId || a.id))
+    return allocationsList.filter(
+      (a) => Number(a.beneficiaryId) === Number(form.beneficiaryId) &&
+             a.status !== 'Delivered' &&
+             a.status !== 'Cancelled' &&
+             !linkedIds.has(a.dbId || a.id)
+    )
+  }, [allocationsList, form.beneficiaryId, resolvedCargoAllocations])
+
   const isStep1Complete = useMemo(() => {
     return Boolean(
       form.beneficiaryId &&
@@ -419,6 +485,38 @@ export default function DistributionsPage() {
       .catch(() => setManpowerSuggestions([]))
   }, [showCreate, editRow, manpowerSkills, form.program])
 
+  const handleIncludeAllocation = (alloc) => {
+    if (!alloc) return
+    const allocId = alloc.dbId || alloc.id
+    const currentIds = form.allocationIds || []
+    if (currentIds.some((id) => String(id) === String(allocId))) {
+      notify.info('This allocation batch is already included.')
+      return
+    }
+    const nextIds = [...currentIds, allocId]
+
+    const itemDesc = `${alloc.resource || alloc.resourceName || 'Relief Goods'} × ${alloc.quantity || 1}`
+    let nextSummary = form.itemsSummary?.trim() || ''
+    if (!nextSummary.includes(alloc.resource || alloc.resourceName)) {
+      nextSummary = nextSummary ? `${nextSummary}; ${itemDesc}` : itemDesc
+    }
+
+    setForm((prev) => ({
+      ...prev,
+      allocationIds: nextIds,
+      itemsSummary: nextSummary,
+      program: prev.program || alloc.program || '',
+    }))
+    setStepErrors((prev) => ({ ...prev, itemsSummary: null }))
+    notify.success(`Included ${alloc.resource || alloc.resourceName} in delivery!`)
+  }
+
+  const handleUnlinkAllocation = (allocId) => {
+    const nextIds = (form.allocationIds || []).filter((id) => String(id) !== String(allocId))
+    setForm((prev) => ({ ...prev, allocationIds: nextIds }))
+    notify.info('Allocation batch unlinked from delivery.')
+  }
+
   const handleSyncFromAllocations = (customBenId = null) => {
     const targetBenId = customBenId || form.beneficiaryId
     if (!targetBenId) {
@@ -428,24 +526,25 @@ export default function DistributionsPage() {
     const matching = allocationsList.filter(
       (a) => Number(a.beneficiaryId) === Number(targetBenId) && a.status !== 'Delivered' && a.status !== 'Cancelled'
     )
-    if (!matching.length) {
-      notify.info('No pending allocations found for this barangay.')
+    const source = matching.length ? matching : resolvedCargoAllocations
+    if (!source.length) {
+      notify.info('No active allocations found for this barangay.')
       return
     }
-    const items = matching
+    const items = source
       .map((a) => `${a.resource || a.resourceName || a.item || 'Relief Goods'} × ${a.quantity || 1}`)
       .join('; ')
-    const allocIds = matching.map((a) => a.dbId || a.id).filter(Boolean)
-    const prog = form.program || matching.find((a) => a.program)?.program || ''
+    const allocIds = source.map((a) => a.dbId || a.id).filter(Boolean)
+    const prog = form.program || source.find((a) => a.program)?.program || ''
 
     setForm((prev) => ({
       ...prev,
       itemsSummary: items,
-      allocationIds: allocIds.length ? allocIds : prev.allocationIds,
+      allocationIds: Array.from(new Set([...(prev.allocationIds || []), ...allocIds])),
       program: prog || prev.program,
     }))
     setStepErrors((prev) => ({ ...prev, itemsSummary: null, program: null }))
-    notify.success(`Synced ${matching.length} active allocation(s) for this barangay!`)
+    notify.success(`Synced cargo with ${source.length} active allocation batch(es)!`)
   }
 
   const handleAddVolunteer = (vol) => {
@@ -492,10 +591,33 @@ export default function DistributionsPage() {
     const alignedSkills = getSkillsForProgram(prog)
     setManpowerSkills(alignedSkills)
 
-    // Parse items if empty
+    // Gather all linked allocations from row and global list
+    const linkedAllocs = [...(row.allocations || [])]
+    if (row.dbId && allocationsList.length > 0) {
+      allocationsList.forEach((a) => {
+        const matchId = Number(a.distributionId || a.distribution_id || 0)
+        if (matchId === Number(row.dbId) && !linkedAllocs.some((la) => (la.dbId || la.id) === (a.dbId || a.id))) {
+          linkedAllocs.push({
+            dbId: a.dbId || a.id,
+            id: a.code || a.id,
+            resource: a.resource || a.resourceName || 'Relief Goods',
+            quantity: a.quantity || 1,
+            program: a.program || '',
+            status: a.status || 'Allocated',
+          })
+        }
+      })
+    }
+
+    const allocIds = Array.from(new Set([
+      ...(row.allocationIds || []),
+      ...linkedAllocs.map((a) => a.dbId || a.id).filter(Boolean),
+    ]))
+
+    // Parse items if empty or format from allocations
     let items = row.itemsSummary || row.items || ''
-    if (!items && (row.allocations || []).length > 0) {
-      items = row.allocations.map((a) => `${a.resource || a.resourceName || 'Relief Goods'} × ${a.quantity || 1}`).join('; ')
+    if (!items && linkedAllocs.length > 0) {
+      items = linkedAllocs.map((a) => `${a.resource || a.resourceName || 'Relief Goods'} × ${a.quantity || 1}`).join('; ')
     } else if (!items && row.beneficiaryId && allocationsList.length > 0) {
       const matchAllocs = allocationsList.filter((a) => Number(a.beneficiaryId) === Number(row.beneficiaryId) && a.status !== 'Cancelled')
       if (matchAllocs.length > 0) {
@@ -527,7 +649,7 @@ export default function DistributionsPage() {
     setForm({
       eventName: row.eventName || '',
       location: row.location || '',
-      beneficiaryId: row.beneficiaryId || '',
+      beneficiaryId: row.beneficiaryId ? String(row.beneficiaryId) : '',
       program: row.program || '',
       distributionDate: row.distributionDate || (row.date && row.date !== '—' ? row.date : '') || '',
       scheduleTime: row.scheduleTime || '',
@@ -541,7 +663,7 @@ export default function DistributionsPage() {
       coordinator: row.coordinator || '',
       notes: row.notes || '',
       proofStatus: row.proofStatus || 'Awaiting Proof',
-      allocationIds: row.allocationIds || [],
+      allocationIds: allocIds,
     })
   }
 
@@ -1611,18 +1733,88 @@ export default function DistributionsPage() {
                           <Package size={14} style={{ color: '#AF101A' }} />
                           <span>Cargo to Deliver</span>
                           <span className="dist-cl-req-star">*</span>
+                          {resolvedCargoAllocations.length > 0 && (
+                            <span className="dist-cl-count-badge">
+                              {resolvedCargoAllocations.length} batch(es) linked
+                            </span>
+                          )}
                         </div>
-                        {matchingActiveAllocs.length === 0 && (
-                          <button
-                            type="button"
-                            className="dist-cl-ghost-btn"
-                            onClick={() => handleSyncFromAllocations()}
-                            title="Re-sync cargo description from active inventory allocations"
-                          >
-                            <RefreshCw size={10} /> Re-sync
-                          </button>
-                        )}
+                        <button
+                          type="button"
+                          className="dist-cl-ghost-btn"
+                          onClick={() => handleSyncFromAllocations()}
+                          title="Auto-format cargo description from linked inventory allocations"
+                        >
+                          <RefreshCw size={11} /> Sync Cargo
+                        </button>
                       </div>
+
+                      {/* Display linked allocations as structured batch cards */}
+                      {resolvedCargoAllocations.length > 0 && (
+                        <div className="dist-cargo-batches-list">
+                          {resolvedCargoAllocations.map((a) => {
+                            const allocKey = a.dbId || a.id
+                            const batchCode = `ALC-${String(allocKey).padStart(4, '0')}`
+                            const itemName = a.resource || a.resourceName || a.item || 'Relief Goods'
+                            const qty = a.quantity || 1
+                            return (
+                              <div key={allocKey} className="dist-cargo-batch-chip">
+                                <div className="dist-cargo-batch-chip__main">
+                                  <Package size={14} className="dist-cargo-batch-chip__icon" />
+                                  <div>
+                                    <div className="dist-cargo-batch-chip__title">{itemName}</div>
+                                    <div className="dist-cargo-batch-chip__meta">
+                                      <span className="dist-badge dist-badge--code">{batchCode}</span>
+                                      {a.program && <span>• {a.program}</span>}
+                                    </div>
+                                  </div>
+                                </div>
+                                <div className="dist-cargo-batch-chip__qty">
+                                  <span className="dist-badge dist-badge--qty">Qty: {qty}</span>
+                                  <span className="dist-badge dist-badge--status">{a.status || 'Allocated'}</span>
+                                  <button
+                                    type="button"
+                                    className="dist-cl-remove-btn"
+                                    onClick={() => handleUnlinkAllocation(allocKey)}
+                                    title="Unlink allocation from this delivery"
+                                  >
+                                    ×
+                                  </button>
+                                </div>
+                              </div>
+                            )
+                          })}
+                        </div>
+                      )}
+
+                      {/* Available inventory allocations for this barangay not yet linked */}
+                      {availableUnlinkedAllocs.length > 0 && (
+                        <div className="dist-cargo-available-box">
+                          <div className="dist-cargo-available-box__header">
+                            <Sparkles size={12} />
+                            <span>Available in Inventory for this Barangay ({availableUnlinkedAllocs.length} unlinked batch{availableUnlinkedAllocs.length > 1 ? 'es' : ''}):</span>
+                          </div>
+                          <div className="dist-cargo-available-chips">
+                            {availableUnlinkedAllocs.map((ua) => {
+                              const uKey = ua.dbId || ua.id
+                              const itemName = ua.resource || ua.resourceName || ua.item || 'Relief Items'
+                              return (
+                                <div key={uKey} className="dist-cargo-avail-chip">
+                                  <span><strong>ALC-{String(uKey).padStart(4, '0')}</strong>: {itemName} × {ua.quantity || 1}</span>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleIncludeAllocation(ua)}
+                                    title="Include this inventory allocation in this delivery"
+                                  >
+                                    + Include
+                                  </button>
+                                </div>
+                              )
+                            })}
+                          </div>
+                        </div>
+                      )}
+
                       <textarea
                         rows={2}
                         required
@@ -1661,6 +1853,26 @@ export default function DistributionsPage() {
                         <div className="dist-cl-dispatch-col">
                           <div className="dist-cl-col-header">
                             <span className="dist-cl-col-title">Lead Coordinator</span>
+                            <span className="dist-cl-col-badge">Operations Lead</span>
+                          </div>
+
+                          <label className="dist-cl-field-label">
+                            Coordinator in Charge <span className="dist-cl-req-star">*</span>
+                          </label>
+
+                          <div className="dist-cl-coord-combo">
+                            <input
+                              required
+                              className={`dist-cl-aligned-input ${stepErrors.logistics?.coordinator ? 'input-error' : ''}`}
+                              value={form.coordinator}
+                              onChange={(e) => {
+                                setForm({ ...form, coordinator: e.target.value })
+                                if (stepErrors.logistics?.coordinator) {
+                                  setStepErrors((prev) => ({ ...prev, logistics: { ...prev.logistics, coordinator: null } }))
+                                }
+                              }}
+                              placeholder="Staff / Coordinator in charge"
+                            />
                             {staffList.length > 0 && (
                               <select
                                 value=""
@@ -1675,7 +1887,7 @@ export default function DistributionsPage() {
                                 className="dist-cl-quick-pick"
                                 title="Quick pick coordinator from staff list"
                               >
-                                <option value="">⚡ Quick Pick Staff…</option>
+                                <option value="">⚡ Quick Pick…</option>
                                 {staffList.map((s) => (
                                   <option key={s.id || s.name} value={s.name}>
                                     {s.name} ({s.role || 'Staff'})
@@ -1683,25 +1895,6 @@ export default function DistributionsPage() {
                                 ))}
                               </select>
                             )}
-                          </div>
-
-                          <label className="dist-cl-field-label">
-                            Coordinator in Charge <span className="dist-cl-req-star">*</span>
-                          </label>
-
-                          <div className="dist-cl-input-box-wrap">
-                            <input
-                              required
-                              className={`dist-cl-aligned-input ${stepErrors.logistics?.coordinator ? 'input-error' : ''}`}
-                              value={form.coordinator}
-                              onChange={(e) => {
-                                setForm({ ...form, coordinator: e.target.value })
-                                if (stepErrors.logistics?.coordinator) {
-                                  setStepErrors((prev) => ({ ...prev, logistics: { ...prev.logistics, coordinator: null } }))
-                                }
-                              }}
-                              placeholder="Staff / Coordinator in charge"
-                            />
                           </div>
                           {stepErrors.logistics?.coordinator && (
                             <span className="dist-field-error">{stepErrors.logistics.coordinator}</span>

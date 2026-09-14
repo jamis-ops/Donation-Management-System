@@ -7587,7 +7587,7 @@ button:disabled,
 
 /* Standardized Input, Select, Textarea Sizes */
 .admin-modal input:not([type="checkbox"]):not([type="radio"]),
-.admin-modal select,
+.admin-modal select:not(.dist-cl-quick-pick):not(.dist-cl-dir-select),
 .admin-modal textarea {
   display: block;
   width: 100%;
@@ -7604,9 +7604,42 @@ button:disabled,
 }
 
 .admin-modal input:not([type="checkbox"]):not([type="radio"]),
-.admin-modal select {
+.admin-modal select:not(.dist-cl-quick-pick):not(.dist-cl-dir-select) {
   height: 40px !important;
   min-height: 40px !important;
+}
+
+/* Scoped inline modal selects */
+.admin-modal select.dist-cl-quick-pick {
+  display: inline-block !important;
+  width: auto !important;
+  min-width: 130px !important;
+  max-width: 180px !important;
+  height: 36px !important;
+  min-height: 36px !important;
+  font-size: 0.78rem !important;
+  padding: 0.2rem 0.5rem !important;
+  border: 1px solid #cbd5e1 !important;
+  border-radius: 7px !important;
+  background: #ffffff !important;
+  color: #334155 !important;
+  cursor: pointer !important;
+}
+
+.admin-modal select.dist-cl-dir-select {
+  display: inline-block !important;
+  width: auto !important;
+  min-width: 180px !important;
+  max-width: 250px !important;
+  height: 34px !important;
+  min-height: 34px !important;
+  font-size: 0.78rem !important;
+  padding: 0.2rem 0.6rem !important;
+  border: 1px solid #cbd5e1 !important;
+  border-radius: 6px !important;
+  background: #ffffff !important;
+  color: #334155 !important;
+  cursor: pointer !important;
 }
 
 .admin-modal textarea {
