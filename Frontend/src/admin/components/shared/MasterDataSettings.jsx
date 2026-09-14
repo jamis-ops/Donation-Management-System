@@ -1,8 +1,17 @@
 import { useState } from 'react'
-import { Building2, ClipboardList, HeartHandshake, Package, Sparkles } from 'lucide-react'
+import { Building2, ClipboardList, HeartHandshake, ListTodo, Package, Sparkles } from 'lucide-react'
 import CatalogManageModal from './CatalogManageModal'
+import TaskTitlesManageModal from './TaskTitlesManageModal'
 
 const SECTIONS = [
+  {
+    key: 'task_titles',
+    title: 'Task Titles CMS',
+    short: 'Program-linked task titles for Staff, Volunteers, and Interns.',
+    description: 'Manage standardized task titles, assign them to specific programs, and activate or deactivate them.',
+    icon: ListTodo,
+    isTaskTitles: true,
+  },
   {
     key: 'volunteer_programs',
     title: 'Volunteer Programs',
@@ -82,12 +91,18 @@ export default function MasterDataSettings() {
       </div>
 
       <CatalogManageModal
-        open={Boolean(current)}
+        open={Boolean(current && !current.isTaskTitles)}
         onClose={() => setActive(null)}
         catalog={current?.key}
         title={current ? `Manage ${current.title}` : ''}
         description={current?.description}
       />
+
+      <TaskTitlesManageModal
+        open={Boolean(current && current.isTaskTitles)}
+        onClose={() => setActive(null)}
+      />
     </section>
   )
 }
+

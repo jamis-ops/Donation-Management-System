@@ -76,6 +76,7 @@ function buildNav(isSuperAdmin) {
       { to: '/admin/reports', label: 'Reports', icon: BarChart3 },
       { to: '/admin/certificates', label: 'Certificates', icon: FileBadge },
       { to: '/admin/content', label: 'Content Management', icon: Globe },
+      { to: '/admin/settings', label: 'Settings', icon: Settings },
     ],
   }
 

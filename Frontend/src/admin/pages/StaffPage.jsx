@@ -21,8 +21,8 @@ import { confirmAction, showSuccessModal } from '../../utils/confirm'
 import { emailError, phoneError } from '../../utils/validation'
 import PhoneInput from '../../components/shared/PhoneInput'
 import { useCatalogOptions } from '../../hooks/useCatalogOptions'
-import { CatalogFieldLabel } from '../components/shared/CatalogQuickAdd'
-import { TASK_TYPES as FALLBACK_TASK_TYPES } from '../../constants/options'
+import { VOLUNTEER_PROGRAMS } from '../../constants/options'
+import { useTaskTitles } from '../../hooks/useTaskTitles'
 import { useLoading } from '../../context/LoadingContext'
 
 const filterConfig = {
@@ -54,8 +54,6 @@ const emptyTaskForm = {
   module: 'Operations',
 }
 
-const FALLBACK_MODULES = ['Operations', 'Donations', 'Inventory', 'Distributions', ...FALLBACK_TASK_TYPES]
-
 /**
  * Admin portal — Staff account management & task assignment only.
  * Admin accounts are managed separately by Super Admin at /admin/admins.
@@ -68,7 +66,15 @@ export default function StaffPage() {
     [data],
   )
   const filters = useFilters(staffData, filterConfig)
-  const { options: taskTypeOptions, applyList: applyTaskTypes } = useCatalogOptions('task_types', FALLBACK_MODULES)
+  const { options: programCatalogOptions } = useCatalogOptions('volunteer_programs', VOLUNTEER_PROGRAMS)
+  const staffProgramOptions = useMemo(() => {
+    const list = Array.isArray(programCatalogOptions) ? [...programCatalogOptions] : []
+    const defaults = ['Operations', 'Donations', 'Inventory', 'Distributions']
+    defaults.forEach((d) => {
+      if (!list.includes(d)) list.push(d)
+    })
+    return list
+  }, [programCatalogOptions])
   const [showForm, setShowForm] = useState(false)
   const { showLoading, hideLoading } = useLoading()
   const [form, setForm] = useState(emptyForm)
@@ -76,11 +82,13 @@ export default function StaffPage() {
   const [selected, setSelected] = useState(null)
   const [editForm, setEditForm] = useState(null)
   const [isEditing, setIsEditing] = useState(false)
+  const [openedViaEdit, setOpenedViaEdit] = useState(false)
   const [tasks, setTasks] = useState([])
   const [tasksLoading, setTasksLoading] = useState(false)
   const tasksSeeMore = useSeeMore(tasks, 3)
   const [showTaskForm, setShowTaskForm] = useState(false)
   const [taskForm, setTaskForm] = useState(emptyTaskForm)
+  const { options: staffTaskTitleOptions } = useTaskTitles(taskForm.module)
   const [successMsg, setSuccessMsg] = useState('')
 
   // Legacy deep-link from when Admin accounts lived under Staff
@@ -111,6 +119,7 @@ export default function StaffPage() {
     }
     setSelected(row)
     setIsEditing(startInEditMode)
+    setOpenedViaEdit(startInEditMode)
     setEditForm({
       lastName: row.lastName || '',
       firstName: row.firstName || '',
@@ -447,14 +456,14 @@ export default function StaffPage() {
         <div className="admin-modal-overlay" onClick={() => setSelected(null)}>
           <div className="admin-modal admin-modal--wide volunteer-manage-modal" onClick={(e) => e.stopPropagation()}>
             <ModalHeader
-              title={selected.name}
+              title={isEditing ? `Edit Staff Profile — ${selected.name}` : selected.name}
               subtitle={`${selected.id} · Staff · ${selected.email || 'No email'}`}
               onClose={() => setSelected(null)}
             />
 
             <section className="volunteer-panel-section">
               <div className="volunteer-panel-section__head" style={{ marginBottom: '0.75rem' }}>
-                <h3 style={{ margin: 0 }}>Staff Profile</h3>
+                <h3 style={{ margin: 0 }}>{isEditing ? 'Edit Profile Details' : 'Staff Profile'}</h3>
                 {!isEditing && (
                   <button
                     type="button"
@@ -538,7 +547,7 @@ export default function StaffPage() {
                     </select>
                   </label>
 
-                  <div className="admin-modal__actions" style={{ marginTop: '1rem', justifyContent: 'flex-start', gap: '0.5rem' }}>
+                  <div className="admin-modal__actions" style={{ marginTop: '1.25rem', justifyContent: 'flex-start', gap: '0.75rem' }}>
                     <button type="submit" className="btn btn--primary" disabled={saving}>
                       Save Changes
                     </button>
@@ -546,19 +555,23 @@ export default function StaffPage() {
                       type="button"
                       className="btn btn--ghost"
                       onClick={() => {
-                        setIsEditing(false)
-                        setEditForm({
-                          lastName: selected.lastName || '',
-                          firstName: selected.firstName || '',
-                          middleInitial: selected.middleInitial || '',
-                          email: selected.email || '',
-                          phone: selected.phone || '',
-                          birthDate: selected.birthDate || selected.dateOfBirth || '',
-                          address: selected.address || '',
-                          emergencyContactNumber: selected.emergencyContactNumber || selected.emergencyContactPhone || '',
-                          emergencyContactRelation: selected.emergencyContactRelation || '',
-                          status: selected.status === 'Inactive' ? 'Inactive' : 'Active',
-                        })
+                        if (openedViaEdit) {
+                          setSelected(null)
+                        } else {
+                          setIsEditing(false)
+                          setEditForm({
+                            lastName: selected.lastName || '',
+                            firstName: selected.firstName || '',
+                            middleInitial: selected.middleInitial || '',
+                            email: selected.email || '',
+                            phone: selected.phone || '',
+                            birthDate: selected.birthDate || selected.dateOfBirth || '',
+                            address: selected.address || '',
+                            emergencyContactNumber: selected.emergencyContactNumber || selected.emergencyContactPhone || '',
+                            emergencyContactRelation: selected.emergencyContactRelation || '',
+                            status: selected.status === 'Inactive' ? 'Inactive' : 'Active',
+                          })
+                        }
                       }}
                     >
                       Cancel
@@ -591,70 +604,74 @@ export default function StaffPage() {
               )}
             </section>
 
-            <section className="volunteer-panel-section">
-              <div className="volunteer-panel-section__head">
-                <h3>Assigned Tasks</h3>
+            {!isEditing && (
+              <section className="volunteer-panel-section">
+                <div className="volunteer-panel-section__head">
+                  <h3>Assigned Tasks</h3>
+                  <button
+                    type="button"
+                    className="btn btn--sm btn--primary"
+                    onClick={() => setShowTaskForm(true)}
+                    disabled={['Inactive', 'Suspended', 'Terminated'].includes(selected.status)}
+                    title={['Inactive', 'Suspended', 'Terminated'].includes(selected.status) ? 'Cannot assign tasks to an inactive staff member' : ''}
+                  >
+                    + Assign Task
+                  </button>
+                </div>
+                {['Inactive', 'Suspended', 'Terminated'].includes(selected.status) && (
+                  <div className="action-locked-banner action-locked-banner--accent" style={{ margin: '0.5rem 0 0.85rem' }}>
+                    <UserCog size={14} />
+                    <span>This staff account is <strong>{selected.status}</strong>. Task assignment is locked.</span>
+                  </div>
+                )}
+                {tasksLoading ? (
+                  <p className="beneficiary-view-empty">Loading tasks…</p>
+                ) : tasks.length === 0 ? (
+                  <p className="beneficiary-view-empty">No tasks assigned yet.</p>
+                ) : (
+                  <div className="see-more-wrap">
+                    <div className="volunteer-task-list">
+                      {tasksSeeMore.visible.map((t) => (
+                        <article key={t.dbId || t.id} className="volunteer-task-card">
+                          <div className="volunteer-task-card__top">
+                            <strong>{t.title}</strong>
+                            <StatusBadge status={t.status || t.boardColumn} />
+                          </div>
+                          <div className="volunteer-task-card__meta">
+                            <span>Priority: {t.priority}</span>
+                            <span>Due: {t.due || '—'}</span>
+                            {t.completedAtLabel ? <span>Completed: {t.completedAtLabel}</span> : null}
+                          </div>
+                        </article>
+                      ))}
+                    </div>
+                    {tasksSeeMore.needsToggle && (
+                      <SeeMoreToggle
+                        expanded={tasksSeeMore.expanded}
+                        onToggle={tasksSeeMore.toggle}
+                        hiddenCount={tasksSeeMore.hiddenCount}
+                      />
+                    )}
+                  </div>
+                )}
+                <p className="volunteer-panel-hint">
+                  <UserCog size={14} /> Staff mark tasks Done from Staff Portal → My Tasks. First login requires a password change.
+                </p>
+              </section>
+            )}
+
+            {!isEditing && (
+              <div className="admin-modal__actions" style={{ justifyContent: 'space-between' }}>
                 <button
                   type="button"
-                  className="btn btn--sm btn--primary"
-                  onClick={() => setShowTaskForm(true)}
-                  disabled={['Inactive', 'Suspended', 'Terminated'].includes(selected.status)}
-                  title={['Inactive', 'Suspended', 'Terminated'].includes(selected.status) ? 'Cannot assign tasks to an inactive staff member' : ''}
+                  className="btn btn--danger"
+                  onClick={() => handleDelete(selected)}
                 >
-                  + Assign Task
+                  <Trash2 size={14} /> Delete Staff Account
                 </button>
+                <button type="button" className="btn btn--ghost" onClick={() => setSelected(null)}>Close</button>
               </div>
-              {['Inactive', 'Suspended', 'Terminated'].includes(selected.status) && (
-                <div className="action-locked-banner action-locked-banner--accent" style={{ margin: '0.5rem 0 0.85rem' }}>
-                  <UserCog size={14} />
-                  <span>This staff account is <strong>{selected.status}</strong>. Task assignment is locked.</span>
-                </div>
-              )}
-              {tasksLoading ? (
-                <p className="beneficiary-view-empty">Loading tasks…</p>
-              ) : tasks.length === 0 ? (
-                <p className="beneficiary-view-empty">No tasks assigned yet.</p>
-              ) : (
-                <div className="see-more-wrap">
-                  <div className="volunteer-task-list">
-                    {tasksSeeMore.visible.map((t) => (
-                      <article key={t.dbId || t.id} className="volunteer-task-card">
-                        <div className="volunteer-task-card__top">
-                          <strong>{t.title}</strong>
-                          <StatusBadge status={t.status || t.boardColumn} />
-                        </div>
-                        <div className="volunteer-task-card__meta">
-                          <span>Priority: {t.priority}</span>
-                          <span>Due: {t.due || '—'}</span>
-                          {t.completedAtLabel ? <span>Completed: {t.completedAtLabel}</span> : null}
-                        </div>
-                      </article>
-                    ))}
-                  </div>
-                  {tasksSeeMore.needsToggle && (
-                    <SeeMoreToggle
-                      expanded={tasksSeeMore.expanded}
-                      onToggle={tasksSeeMore.toggle}
-                      hiddenCount={tasksSeeMore.hiddenCount}
-                    />
-                  )}
-                </div>
-              )}
-              <p className="volunteer-panel-hint">
-                <UserCog size={14} /> Staff mark tasks Done from Staff Portal → My Tasks. First login requires a password change.
-              </p>
-            </section>
-
-            <div className="admin-modal__actions" style={{ justifyContent: 'space-between' }}>
-              <button
-                type="button"
-                className="btn btn--danger"
-                onClick={() => handleDelete(selected)}
-              >
-                <Trash2 size={14} /> Delete Staff Account
-              </button>
-              <button type="button" className="btn btn--ghost" onClick={() => setSelected(null)}>Close</button>
-            </div>
+            )}
           </div>
         </div>
       )}
@@ -665,9 +682,53 @@ export default function StaffPage() {
             <ModalHeader title={`Assign Task — ${selected.name}`} onClose={() => setShowTaskForm(false)} />
             <form onSubmit={handleCreateTask}>
               <label>
-                <Req required>Task Title</Req>
-                <input required value={taskForm.title} onChange={(e) => setTaskForm({ ...taskForm, title: e.target.value })} />
+                <Req required>Program / Project</Req>
+                <select
+                  required
+                  value={taskForm.module}
+                  onChange={(e) => {
+                    const nextModule = e.target.value
+                    setTaskForm((prev) => ({
+                      ...prev,
+                      module: nextModule,
+                      title: '',
+                    }))
+                  }}
+                >
+                  <option value="">Select a Program / Project…</option>
+                  {staffProgramOptions.map((p) => (
+                    <option key={p} value={p}>{p}</option>
+                  ))}
+                  {taskForm.module && !staffProgramOptions.includes(taskForm.module) && (
+                    <option value={taskForm.module}>{taskForm.module}</option>
+                  )}
+                </select>
               </label>
+
+              <label>
+                <Req required>Task Title</Req>
+                <select
+                  required
+                  value={taskForm.title}
+                  onChange={(e) => setTaskForm({ ...taskForm, title: e.target.value })}
+                >
+                  <option value="">
+                    {staffTaskTitleOptions.length > 0 ? 'Select a task title…' : 'No task titles for this program'}
+                  </option>
+                  {staffTaskTitleOptions.map((t) => (
+                    <option key={t} value={t}>{t}</option>
+                  ))}
+                  {taskForm.title && !staffTaskTitleOptions.includes(taskForm.title) && (
+                    <option value={taskForm.title}>{taskForm.title}</option>
+                  )}
+                </select>
+                <span style={{ fontSize: '0.74rem', color: '#64748b', marginTop: '0.2rem', display: 'block' }}>
+                  {taskForm.module
+                    ? `Showing active task titles assigned to "${taskForm.module}".`
+                    : 'Select a program above to view available task titles.'}
+                </span>
+              </label>
+
               <div className="form-row">
                 <label>
                   Priority
@@ -687,21 +748,9 @@ export default function StaffPage() {
                   />
                 </label>
               </div>
-              <label>
-                <CatalogFieldLabel catalog="task_types" onUpdated={applyTaskTypes}>
-                  Task Type / Module
-                </CatalogFieldLabel>
-                <select value={taskForm.module} onChange={(e) => setTaskForm({ ...taskForm, module: e.target.value })}>
-                  {taskTypeOptions.map((t) => (
-                    <option key={t} value={t}>{t}</option>
-                  ))}
-                  {taskForm.module && !taskTypeOptions.includes(taskForm.module) && (
-                    <option value={taskForm.module}>{taskForm.module}</option>
-                  )}
-                </select>
-              </label>
+
               <div className="admin-modal__actions">
-                <button type="submit" className="btn btn--primary" disabled={saving}>Assign Task</button>
+                <button type="submit" className="btn btn--primary" disabled={saving || !taskForm.title}>Assign Task</button>
                 <button type="button" className="btn btn--ghost" onClick={() => setShowTaskForm(false)}>Cancel</button>
               </div>
             </form>

@@ -1,0 +1,476 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>SWU 003 System Design & Governance Document Sections</title>
+<style>
+  @page {
+    size: A4 portrait;
+    margin: 20mm 18mm 20mm 18mm;
+    @bottom-right {
+      content: counter(page);
+    }
+  }
+  body {
+    font-family: 'Segoe UI', Calibri, Arial, sans-serif;
+    color: #2D3748;
+    line-height: 1.5;
+    font-size: 10.5pt;
+    margin: 0;
+    padding: 0;
+  }
+  .banner {
+    background: #F0F4F8;
+    border-left: 5px solid #1F497D;
+    padding: 12px 18px;
+    border-radius: 4px;
+    margin-bottom: 24px;
+  }
+  .banner h1 {
+    font-size: 14pt;
+    color: #1F497D;
+    margin: 0 0 6px 0;
+    font-weight: 700;
+  }
+  .banner p {
+    font-size: 9.5pt;
+    color: #4A5568;
+    margin: 2px 0;
+  }
+  h1 {
+    font-size: 15pt;
+    color: #1F497D;
+    border-bottom: 2px solid #E2E8F0;
+    padding-bottom: 4px;
+    margin-top: 24px;
+    margin-bottom: 12px;
+  }
+  h2 {
+    font-size: 12pt;
+    color: #2E75B6;
+    margin-top: 18px;
+    margin-bottom: 8px;
+  }
+  h3 {
+    font-size: 11pt;
+    color: #2D3748;
+    margin-top: 14px;
+    margin-bottom: 6px;
+  }
+  p {
+    margin: 6px 0 10px 0;
+    text-align: justify;
+  }
+  ul {
+    margin: 6px 0 12px 20px;
+    padding: 0;
+  }
+  li {
+    margin-bottom: 5px;
+  }
+  .table-container {
+    margin: 12px 0 18px 0;
+    overflow-x: auto;
+  }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 9.5pt;
+    margin-bottom: 14px;
+  }
+  th {
+    background-color: #1F497D;
+    color: #FFFFFF;
+    font-weight: 600;
+    text-align: left;
+    padding: 8px 12px;
+    border: 1px solid #1F497D;
+  }
+  td {
+    padding: 8px 12px;
+    border: 1px solid #CBD5E0;
+    vertical-align: top;
+  }
+  tr:nth-child(even) td {
+    background-color: #F8FAFC;
+  }
+  .callout {
+    background-color: #F7FAFC;
+    border-left: 4px solid #3182CE;
+    padding: 10px 14px;
+    margin: 12px 0;
+    font-size: 9.5pt;
+    border-radius: 0 4px 4px 0;
+  }
+  .callout strong {
+    color: #2B6CB0;
+  }
+  code {
+    font-family: Consolas, monospace;
+    font-size: 9pt;
+    background: #EDF2F7;
+    padding: 2px 5px;
+    border-radius: 3px;
+    color: #C53030;
+  }
+  pre {
+    background: #1A202C;
+    color: #F7FAFC;
+    padding: 12px;
+    border-radius: 5px;
+    font-family: Consolas, monospace;
+    font-size: 8.5pt;
+    line-height: 1.4;
+    overflow-x: auto;
+  }
+  .page-break {
+    page-break-before: always;
+  }
+</style>
+</head>
+<body>
+
+<div class="banner">
+  <h1>SWU 003 — System Design & Governance Document Sections</h1>
+  <p><strong>Project:</strong> Optimizing Resource Allocation in Disaster Relief Operations Through Web-Based Donation System</p>
+  <p><strong>Client:</strong> Rise Above Foundation Cebu | <strong>Institution:</strong> Southwestern University PHINMA</p>
+  <p><strong>Team Members:</strong> Julie Anne Utrera, Aubrie Marie Dual, Sheena Marie Dinaguit, James Lloyd Isidro</p>
+  <p><strong>Sections:</strong> 3.5 Database Metadata, 3.6 Environments, 3.7 Service Accounts, and 4.2.2 – 4.2.7 Governance Standards</p>
+</div>
+
+<!-- SECTION 3.5 -->
+<h1>3.5. Database Metadata</h1>
+<p>
+  The system utilizes a relational database management system hosted on <strong>TiDB Cloud</strong> (Serverless MySQL 8.0 compatible engine) 
+  operating with <code>utf8mb4</code> character set and <code>utf8mb4_general_ci</code> collation. The complete schema comprises 
+  twenty-seven (27) normalized tables structured across user role-based access control, donation lifecycles, relief inventory tracking, 
+  kit repacking operations, calamity distribution logistics, volunteer shift scheduling, and cryptographically verifiable digital certificates.
+</p>
+
+<div class="callout">
+  <strong>Database Metadata Link & Separate File Specification:</strong><br>
+  • GitHub Repository Database Schema Link:<br>
+  <a href="https://github.com/jamis-ops/Donation-Management-System/blob/main/database/donation_system.sql">https://github.com/jamis-ops/Donation-Management-System/blob/main/database/donation_system.sql</a><br><br>
+  • Complete Data Dictionary & Metadata Documentation Link:<br>
+  <a href="https://github.com/jamis-ops/Donation-Management-System/blob/main/database/DATABASE_METADATA.md">https://github.com/jamis-ops/Donation-Management-System/blob/main/database/DATABASE_METADATA.md</a>
+</div>
+
+<h2>Summary of Database Tables & Entity Scope</h2>
+<table>
+  <thead>
+    <tr>
+      <th style="width: 20%;">Module</th>
+      <th style="width: 20%;">Table Name</th>
+      <th style="width: 15%;">Primary Key</th>
+      <th style="width: 45%;">Description & Purpose</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr><td>Authentication</td><td><code>roles</code></td><td>id (INT)</td><td>Defines system privilege tiers (Admin, Staff, Donor, Volunteer, Beneficiary).</td></tr>
+    <tr><td>Authentication</td><td><code>users</code></td><td>id (BIGINT)</td><td>Central user identities, bcrypt-hashed passwords, profile status, and audit logs.</td></tr>
+    <tr><td>Authentication</td><td><code>password_resets</code></td><td>id (BIGINT)</td><td>Time-limited 6-digit recovery codes, temp session tokens, and brute-force throttling counters.</td></tr>
+    <tr><td>Donations</td><td><code>donors</code></td><td>id (BIGINT)</td><td>Individual and corporate donor profiles, unique donor codes, and organization links.</td></tr>
+    <tr><td>Donations</td><td><code>donations</code></td><td>id (BIGINT)</td><td>Monetary and in-kind donation ledgers, public tracking codes, payment proofs, and statuses.</td></tr>
+    <tr><td>Donations</td><td><code>donation_updates</code></td><td>id (BIGINT)</td><td>Real-time timeline audit trail (Received, Inspected, Allocated, Dispatched).</td></tr>
+    <tr><td>Donations</td><td><code>donation_procurements</code></td><td>id (BIGINT)</td><td>Direct allocations linking monetary donation funds to specific relief item purchases.</td></tr>
+    <tr><td>Beneficiaries</td><td><code>beneficiaries</code></td><td>id (BIGINT)</td><td>Barangay community units, evacuation centers, family profiles, and vulnerability scores.</td></tr>
+    <tr><td>Beneficiaries</td><td><code>need_types</code></td><td>id (INT)</td><td>Configurable lookup catalog of assistance categories.</td></tr>
+    <tr><td>Beneficiaries</td><td><code>barangay_types</code></td><td>id (INT)</td><td>Categorization of barangay jurisdictions across Cebu province.</td></tr>
+    <tr><td>Beneficiaries</td><td><code>assistance_requests</code></td><td>id (BIGINT)</td><td>Formal calamity assistance requests with urgency ratings and workflow tracking.</td></tr>
+    <tr><td>Inventory</td><td><code>inventory_items</code></td><td>id (BIGINT)</td><td>Warehouse relief stock, quantities on hand, reorder thresholds, and expiration dates.</td></tr>
+    <tr><td>Inventory</td><td><code>repacking_jobs</code></td><td>id (BIGINT)</td><td>Work orders bundling individual stock items into standardized family food packs.</td></tr>
+    <tr><td>Distribution</td><td><code>distributions</code></td><td>id (BIGINT)</td><td>Disaster relief missions, barangay venues, dispatch logs, and completion verification.</td></tr>
+    <tr><td>Distribution</td><td><code>allocations</code></td><td>id (BIGINT)</td><td>Linkage between assembled relief packs and specific distribution batches.</td></tr>
+    <tr><td>Distribution</td><td><code>distribution_proofs</code></td><td>id (BIGINT)</td><td>Field-uploaded photo evidence, delivery manifests, and beneficiary sign-offs.</td></tr>
+    <tr><td>Volunteers</td><td><code>volunteers</code></td><td>id (BIGINT)</td><td>Volunteer roster, logged duty hours, skills, and Google Gemini AI CV summaries.</td></tr>
+    <tr><td>Volunteers</td><td><code>volunteer_schedule</code></td><td>id (BIGINT)</td><td>Duty shifts, calendar schedules, and operational assignments.</td></tr>
+    <tr><td>Volunteers</td><td><code>tasks</code></td><td>id (BIGINT)</td><td>Operational task dispatch board with statuses and assigned volunteer IDs.</td></tr>
+    <tr><td>Volunteers</td><td><code>task_types</code></td><td>id (INT)</td><td>Lookup categorization of relief duties.</td></tr>
+    <tr><td>Certificates</td><td><code>certificates</code></td><td>id (BIGINT)</td><td>Verifiable digital certificates with unique hash codes and public QR validation.</td></tr>
+    <tr><td>Public Content</td><td><code>programs</code></td><td>id (BIGINT)</td><td>Community outreach initiatives and disaster preparation programs.</td></tr>
+    <tr><td>Public Content</td><td><code>announcements</code></td><td>id (BIGINT)</td><td>Public bulletins, relief operation updates, and disaster advisories.</td></tr>
+    <tr><td>Public Content</td><td><code>partners</code></td><td>id (BIGINT)</td><td>Collaborating NGOs, corporate sponsors, and government LGU partners.</td></tr>
+    <tr><td>Public Content</td><td><code>success_stories</code></td><td>id (BIGINT)</td><td>Published community impact stories and relief distribution transparency logs.</td></tr>
+    <tr><td>System</td><td><code>notifications</code></td><td>id (BIGINT)</td><td>Transactional system alerts delivered to user dashboards.</td></tr>
+    <tr><td>System</td><td><code>admin_section_views</code></td><td>id (BIGINT)</td><td>Tracks administrative read/audit states across sub-sections.</td></tr>
+  </tbody>
+</table>
+
+<div class="page-break"></div>
+
+<!-- SECTION 3.6 -->
+<h1>3.6. Environments</h1>
+<p>
+  To guarantee system availability, protect live operational data, and ensure robust staging before deployment, 
+  the platform is separated into three tiers: <strong>Production</strong>, <strong>User Acceptance Testing (UAT)</strong>, and <strong>Test (Development)</strong>.
+</p>
+
+<h2>For the System (Frontend Web Application):</h2>
+<table>
+  <thead>
+    <tr>
+      <th style="width: 33.3%;">Production</th>
+      <th style="width: 33.3%;">UAT</th>
+      <th style="width: 33.3%;">Test</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>
+        <strong>Production Frontend (Vercel CDN)</strong><br>
+        <a href="https://donation-system-frontend.vercel.app">https://donation-system-frontend.vercel.app</a>
+      </td>
+      <td>
+        <strong>UAT / Staging (Vercel)</strong><br>
+        <a href="https://donation-system-uat.vercel.app">https://donation-system-uat.vercel.app</a>
+      </td>
+      <td>
+        <strong>Local Development Server</strong><br>
+        <code>http://localhost:5173</code>
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+<h2>For the API (Backend RESTful Web Services):</h2>
+<table>
+  <thead>
+    <tr>
+      <th style="width: 33.3%;">Production</th>
+      <th style="width: 33.3%;">UAT</th>
+      <th style="width: 33.3%;">Test</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>
+        <strong>Production REST API (Render Docker)</strong><br>
+        <a href="https://donation-system-api.onrender.com/api">https://donation-system-api.onrender.com/api</a>
+      </td>
+      <td>
+        <strong>UAT Staging API (Render)</strong><br>
+        <a href="https://donation-system-api-uat.onrender.com/api">https://donation-system-api-uat.onrender.com/api</a>
+      </td>
+      <td>
+        <strong>Local PHP Server CLI</strong><br>
+        <code>http://localhost:8000/api</code>
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+<h2>For the Database (MySQL 8.0 / TiDB Cloud Serverless):</h2>
+<table>
+  <thead>
+    <tr>
+      <th style="width: 33.3%;">Production</th>
+      <th style="width: 33.3%;">UAT</th>
+      <th style="width: 33.3%;">Test</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>
+        <strong>TiDB Cloud Production Cluster</strong><br>
+        <code>gateway01.ap-southeast-1.prod.aws.tidbcloud.com:4000</code><br>
+        Database: <code>donation_system</code> (TLS/SSL Encrypted)
+      </td>
+      <td>
+        <strong>TiDB Cloud UAT Staging Branch</strong><br>
+        <code>gateway01.ap-southeast-1.prod.aws.tidbcloud.com:4000</code><br>
+        Database: <code>donation_system_uat</code>
+      </td>
+      <td>
+        <strong>Local Test Database</strong><br>
+        <code>127.0.0.1:3306</code> / <code>local_test.sqlite</code><br>
+        Database: <code>donation_system_test</code>
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+<!-- SECTION 3.7 -->
+<h1>3.7. Service Accounts</h1>
+<p>
+  Service accounts handle automated background operations, transactional email broadcasts (Brevo API), 
+  AI skill recommendation pipelines (Google Gemini AI), automated database schema migrations, and elevated administrative tasks.
+</p>
+
+<h2>For the System:</h2>
+<table>
+  <thead>
+    <tr>
+      <th style="width: 33.3%;">Production</th>
+      <th style="width: 33.3%;">UAT</th>
+      <th style="width: 33.3%;">Test</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>
+        <strong>Primary Super Admin:</strong><br>
+        <code>admin@riseabovefoundation.org</code><br><br>
+        <strong>Automated Notification Mailer:</strong><br>
+        <code>noreply@riseabovefoundation.org</code><br><br>
+        <strong>CI/CD & Cloud Infrastructure:</strong><br>
+        <code>devops@riseabovefoundation.org</code>
+      </td>
+      <td>
+        <strong>UAT Lead Administrator:</strong><br>
+        <code>uat-admin@riseabovefoundation.org</code><br><br>
+        <strong>UAT Notification Mailer:</strong><br>
+        <code>uat-mailer@riseabovefoundation.org</code><br><br>
+        <strong>UAT QA Coordinator:</strong><br>
+        <code>uat-tester@riseabovefoundation.org</code>
+      </td>
+      <td>
+        <strong>Local Dev Superuser:</strong><br>
+        <code>test-admin@localhost.dev</code><br><br>
+        <strong>Mock Mailer Service:</strong><br>
+        <code>mailhog@localhost.dev</code><br><br>
+        <strong>Capstone Lead Developer:</strong><br>
+        <code>jamesisidro0808@gmail.com</code>
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+<div class="page-break"></div>
+
+<!-- SECTION 4.2 GOVERNANCE -->
+<h1>4.2. Governance Standards</h1>
+
+<h2>4.2.2. Code Naming Convention</h2>
+<p><strong>Purpose:</strong> Establishing strict code naming conventions ensures maintainability, team velocity, readability, and consistency across a full-stack polyglot environment comprising a React 18/19 SPA frontend, a PHP 8.2 backend, and a relational MySQL/TiDB database.</p>
+
+<h3>Specific Casing Styles and Scopes:</h3>
+<ul>
+  <li><strong>PascalCase:</strong> Exclusively applied to React UI Components (e.g., <code>StatsSection.jsx</code>, <code>PartnersSection.jsx</code>, <code>AdminLayout.jsx</code>), React Context Providers (<code>AuthContext.jsx</code>, <code>ThemeContext.jsx</code>), and PHP Object-Oriented Classes/Exceptions.</li>
+  <li><strong>camelCase:</strong> Applied to JavaScript variables, React custom hooks (e.g., <code>useApiList</code>, <code>usePagination</code>, <code>useAuth</code>), component props, JavaScript helper functions (e.g., <code>fetchDonationStats()</code>, <code>handleVerify()</code>), and JSON API payload attributes.</li>
+  <li><strong>snake_case:</strong> Applied to all database tables and column names (e.g., <code>inventory_items</code>, <code>tracking_code</code>, <code>proof_file</code>, <code>created_at</code>) and backend PHP variables, database query parameters, and procedural helper scripts (e.g., <code>$db_host</code>, <code>get_db_connection()</code>).</li>
+  <li><strong>UPPER_SNAKE_CASE:</strong> Strictly reserved for global constants, configuration definitions, and environment variables (e.g., <code>DB_HOST</code>, <code>DB_PASSWORD</code>, <code>JWT_SECRET</code>, <code>VITE_API_URL</code>, <code>MAX_UPLOAD_SIZE_MB</code>).</li>
+  <li><strong>kebab-case:</strong> Applied to CSS class names (e.g., <code>.stat-card</code>, <code>.btn-primary</code>, <code>.modal-backdrop</code>), web route URLs (e.g., <code>/admin/inventory-management</code>, <code>/portals/donor/certificates</code>), and REST API file/resource endpoints.</li>
+</ul>
+
+<h3>Prefixes and Suffixes:</h3>
+<ul>
+  <li><strong>Booleans:</strong> Must begin with affirmative verbs such as <code>is</code>, <code>has</code>, <code>can</code>, or <code>should</code> (e.g., <code>isLoading</code>, <code>isVerified</code>, <code>hasPermission</code>, <code>canDistribute</code>).</li>
+  <li><strong>React Custom Hooks:</strong> Must invariably start with <code>use</code> (e.g., <code>useApiList</code>, <code>usePagination</code>, <code>useAuth</code>).</li>
+  <li><strong>Event Handlers:</strong> Must use <code>handle</code> for definition (e.g., <code>handleDonationSubmit</code>) and <code>on</code> for passed callback props (e.g., <code>onSubmit</code>, <code>onStatusChange</code>).</li>
+  <li><strong>Foreign Keys:</strong> Must always be suffixed with <code>_id</code> matching the singular referenced table (e.g., <code>user_id</code>, <code>donor_id</code>, <code>role_id</code>).</li>
+</ul>
+
+<p><strong>Rules for Abbreviations:</strong> Cryptic abbreviations are prohibited. Standard industry abbreviations are permitted: <code>id</code>, <code>db</code>, <code>api</code>, <code>url</code>, <code>cv</code>, <code>auth</code>, <code>lgu</code>. Business models must use full descriptive terms (use <code>beneficiary</code> rather than <code>ben</code>, <code>repacking_job</code> rather than <code>rpk_j</code>).</p>
+<p><strong>Exceptions:</strong> Environment variables and constants are written in <code>ALL_CAPS</code>. Embedded acronyms in camelCase maintain consistent casing (e.g., <code>parseCsvFile</code>, <code>fetchApiData</code>).</p>
+
+<h2>4.2.3. Coding Standards</h2>
+<p><strong>Overall Coding Philosophy:</strong> The team adheres to <strong>DRY</strong> (Don't Repeat Yourself) via centralized utility libraries and bootstrap handlers, <strong>SOLID</strong> design principles for modular API routes, <strong>KISS</strong> (Keep It Simple, Stupid) for accessible logic, and <strong>Defensive Programming</strong> via parameterized PDO SQL queries, rigorous input sanitization, and type-casting.</p>
+
+<h3>Style Guides Referenced:</h3>
+<ul>
+  <li><strong>Frontend (JavaScript / React):</strong> Airbnb JavaScript Style Guide and official React.dev guidelines.</li>
+  <li><strong>Backend (PHP):</strong> PSR-12 (Extended Coding Style) and PSR-4 (Autoloading Standards) defined by PHP-FIG.</li>
+  <li><strong>Database (SQL):</strong> SQL Style Guide (ISO/IEC 9075) with uppercase reserved keywords and lowercase identifiers.</li>
+</ul>
+
+<p><strong>Formatting Rules:</strong> 2-space soft indentation for JavaScript, JSX, and CSS; 4-space indentation for PHP backend code. Maximum line width is 100 characters. Semicolons are mandatory. 1TBS (One True Brace Style) is enforced across JavaScript.</p>
+<p><strong>Documentation:</strong> JSDoc and PHPDoc blocks are required on all shared utilities, custom hooks, and API endpoints indicating parameters, return types, and thrown exceptions. Inline comments clarify architectural rationale ('why') rather than obvious code logic ('what').</p>
+
+<h3>Error Handling Conventions:</h3>
+<p>API responses conform strictly to a standardized JSON response envelope:</p>
+<pre>
+{
+  "success": true | false,
+  "data": { ... } | null,
+  "message": "Descriptive operational message",
+  "error": "Standardized error code or null"
+}
+</pre>
+<p>Explicit HTTP status codes must be returned (200, 201, 400, 401, 403, 404, 422, 500). Internal database errors are logged securely server-side without leaking raw credentials or stack traces to client browsers.</p>
+<p><strong>Enforcement Tools:</strong> ESLint and Prettier for frontend formatting; PHP_CodeSniffer (phpcs) for backend PSR-12 validation; Git pre-commit hooks configured via Husky to block non-conforming commits.</p>
+
+<div class="page-break"></div>
+
+<h2>4.2.4. Environment Variables Standards</h2>
+<p><strong>Purpose:</strong> Adhering to Twelve-Factor App methodology (Config III), all environment-specific configs, database secrets, and API credentials are completely externalized from code, ensuring zero leakage into git and seamless portability across dev, staging, and production.</p>
+
+<h3>Naming & Categorization:</h3>
+<ul>
+  <li><code>DB_HOST</code>, <code>DB_PORT</code>, <code>DB_NAME</code>, <code>DB_USER</code>, <code>DB_PASSWORD</code>, <code>DB_SSL</code> — Database connectivity credentials.</li>
+  <li><code>BREVO_API_KEY</code>, <code>GEMINI_API_KEY</code>, <code>MAIL_FROM_EMAIL</code>, <code>MAIL_FROM_NAME</code> — External cloud services.</li>
+  <li><code>VITE_API_URL</code>, <code>VITE_APP_ENV</code>, <code>VITE_APP_VERSION</code> — Frontend client-accessible environment flags.</li>
+  <li><code>FRONTEND_URL</code>, <code>SESSION_LIFETIME</code>, <code>APP_SECRET</code> — CORS security and session lifetime tokens.</li>
+</ul>
+
+<p><strong>Storage Locations:</strong> Local development uses an uncommitted <code>.env</code> file. Staging and Production utilize Render Environment Variables Dashboard and Vercel Project Environment Variables. A sanitized template <code>.env.example</code> is committed with clear documentation.</p>
+<p><strong>Hardcoding Policy:</strong> Passwords, database endpoints, encryption keys, and private tokens must NEVER be hardcoded. Permitted hardcoded items are limited to non-sensitive defaults (e.g., default page limit of 10, static UI strings).</p>
+<p><strong>Security Practices:</strong> <code>.env*</code> files are permanently excluded in <code>.gitignore</code>. Production secrets are restricted to designated administrators and rotated on a 90-day cycle or immediately upon team member offboarding.</p>
+
+<h2>4.2.5. Folder Structure</h2>
+<p><strong>Organizing Principle:</strong> The codebase adopts a Layered, Decoupled Client-Server Modular Architecture separating the frontend React SPA (<code>/Frontend</code>), the stateless PHP REST API (<code>/Backend</code>), and database migration assets (<code>/database</code>).</p>
+
+<table>
+  <thead>
+    <tr>
+      <th style="width: 25%;">Folder Path</th>
+      <th style="width: 20%;">Layer / Scope</th>
+      <th style="width: 55%;">Purpose & Architecture</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr><td><code>/Backend/api/</code></td><td>Backend API</td><td>PHP REST endpoints (donations, inventory, distributions, auth), session handling, and CORS middleware.</td></tr>
+    <tr><td><code>/Backend/api/uploads/</code></td><td>Storage</td><td>Secure upload directory for distribution proof photos, donation receipts, and volunteer CVs.</td></tr>
+    <tr><td><code>/Frontend/src/pages/</code></td><td>Frontend Views</td><td>Top-level public views (Home, AboutUs, FAQ, Donation Tracker, Login, Register).</td></tr>
+    <tr><td><code>/Frontend/src/portals/</code></td><td>Role Portals</td><td>Dedicated portal modules and dashboards (Admin, Donor, Volunteer, Beneficiary, Staff).</td></tr>
+    <tr><td><code>/Frontend/src/components/</code></td><td>UI Components</td><td>Modular UI widgets grouped into <code>/admin</code>, <code>/layout</code>, <code>/shared</code>, and <code>/home</code>.</td></tr>
+    <tr><td><code>/Frontend/src/context/</code></td><td>State Management</td><td>Global React Context state providers (<code>AuthContext.jsx</code>, <code>ThemeContext.jsx</code>).</td></tr>
+    <tr><td><code>/Frontend/src/hooks/</code></td><td>Custom Logic</td><td>Reusable custom React hooks (<code>useApiList.js</code>, <code>usePagination.js</code>).</td></tr>
+    <tr><td><code>/Frontend/src/styles/</code></td><td>Styling</td><td>CSS stylesheets, CSS variable design tokens, and role-specific theme styling.</td></tr>
+    <tr><td><code>/database/</code></td><td>Persistence</td><td>Master SQL schema files (<code>donation_system.sql</code>), seed fixtures, and <code>DATABASE_METADATA.md</code>.</td></tr>
+    <tr><td><code>/mail-service/</code></td><td>Microservice</td><td>Express/Node.js background mail notification microservice for queueing transactional notices.</td></tr>
+  </tbody>
+</table>
+
+<p><strong>Nested Rules:</strong> Reusable components shared across two or more portals must reside in <code>/components/shared/</code>. Folder names follow kebab-case for backend microservices and PascalCase for React component folders.</p>
+
+<h2>4.2.6. Taxonomy/Metadata Standards</h2>
+<p><strong>Purpose:</strong> Establishing taxonomy standards ensures unified classifications, predictable API contracts, and unambiguous semantic versioning across all system layers.</p>
+<ul>
+  <li><strong>Database Schema Metadata:</strong> Tables are pluralized snake_case nouns (e.g., <code>assistance_requests</code>). Primary keys are consistently <code>id BIGINT UNSIGNED AUTO_INCREMENT</code>. Foreign keys strictly follow <code>singular_parent_table_id</code>. Mandatory audit columns <code>created_at</code> and <code>updated_at</code> are present on all transaction tables.</li>
+  <li><strong>API Metadata:</strong> Responses include standardized HTTP headers (<code>Content-Type: application/json</code>, <code>X-API-Version: 1.0.0</code>). Paginated responses provide pagination metadata envelopes (<code>total_records</code>, <code>current_page</code>, <code>per_page</code>, <code>total_pages</code>).</li>
+  <li><strong>Code Metadata:</strong> PHPDoc and JSDoc tags (<code>@param</code>, <code>@returns</code>, <code>@throws</code>, <code>@deprecated</code>) are required on all shared functions.</li>
+  <li><strong>Version Control Tagging:</strong> Semantic Versioning (SemVer 2.0.0) format (<code>vMAJOR.MINOR.PATCH</code>) is enforced (e.g., <code>v1.0.0</code> Initial Capstone Release). Commits adhere to Conventional Commits (<code>feat:</code>, <code>fix:</code>, <code>docs:</code>, <code>refactor:</code>, <code>chore:</code>).</li>
+  <li><strong>Feature Flags:</strong> Runtime flags (e.g., <code>FEATURE_AI_VOLUNTEER_MATCHING=true</code>, <code>MAINTENANCE_MODE=false</code>) control functionality without code rebuilds.</li>
+</ul>
+
+<h2>4.2.7. Deployment Standards</h2>
+<p><strong>Deployment Environments:</strong> 1) Development (Local machine <code>localhost:5173</code> / <code>localhost:8000</code>); 2) UAT (Staging on Vercel and Render) for validation by Rise Above Foundation Cebu staff and SWU faculty panelists; 3) Production (Vercel Global CDN + Render Docker + TiDB Cloud Serverless) for live humanitarian relief operations.</p>
+
+<h3>CI/CD Deployment Process:</h3>
+<ul>
+  <li><strong>1. Code Commit:</strong> Developer pushes code to GitHub repository branches.</li>
+  <li><strong>2. Automated Trigger:</strong> GitHub webhooks trigger Render and Vercel build pipelines.</li>
+  <li><strong>3. Build & Test:</strong> Vercel compiles and bundles the React SPA; Render compiles the Docker container with PHP 8.2 Apache.</li>
+  <li><strong>4. Health Check Verification:</strong> Render checks <code>/api/health.php</code> for zero-downtime container readiness before routing live traffic.</li>
+  <li><strong>5. Database Migrations:</strong> Schema changes are applied via transaction-safe migration scripts against TiDB Cloud.</li>
+</ul>
+
+<p><strong>Branching Strategy:</strong> Structured GitFlow model:</p>
+<ul>
+  <li><code>feature/*</code>: Feature branches branched from <code>develop</code>.</li>
+  <li><code>develop</code>: Continuous integration branch automatically deployed to <strong>UAT / Staging</strong>.</li>
+  <li><code>main</code>: Protected production branch. Direct pushes are disabled. Deploys to <strong>Production</strong>.</li>
+  <li><code>hotfix/*</code>: Critical production patches branched from <code>main</code> and back-merged to <code>develop</code>.</li>
+</ul>
+
+<p><strong>Approval Requirements:</strong> Merges to <code>main</code> require a formal Pull Request (PR) with at least two peer reviews and green status from automated build checks, authorized by the Lead Developer.</p>
+
+<h3>Rollback Procedures:</h3>
+<ul>
+  <li><strong>Frontend Rollback (Vercel):</strong> Vercel Dashboard -> Deployments -> Select prior stable build -> Click "Rollback to this Deployment" (executes in under 15 seconds).</li>
+  <li><strong>Backend Rollback (Render):</strong> Render Dashboard -> Service Activity -> Select prior successful Docker image -> Trigger redeploy.</li>
+  <li><strong>Database Rollback (TiDB Cloud):</strong> Point-In-Time Recovery (PITR) snapshots allow restoring the database to any exact second prior to deployment.</li>
+</ul>
+
+</body>
+</html>

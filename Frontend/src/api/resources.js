@@ -403,3 +403,11 @@ export const forgotPasswordApi = {
     body: JSON.stringify({ action: 'reset_password', email, resetToken, newPassword, confirmPassword }),
   }),
 }
+
+export const taskTitlesApi = {
+  ...resourceApi('/api/task_titles.php'),
+  toggleActive: (id, isActive) => apiFetch(`/api/task_titles.php?id=${id}`, {
+    method: 'PATCH',
+    body: JSON.stringify({ is_active: isActive }),
+  }),
+}

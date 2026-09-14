@@ -24,6 +24,7 @@ import { confirmAction, showSuccessModal } from '../../utils/confirm'
 import { notifyBadgesChanged } from '../../utils/badgeSync'
 import { useCatalogOptions } from '../../hooks/useCatalogOptions'
 import { VOLUNTEER_PROGRAMS, VOLUNTEER_SKILLS } from '../../constants/options'
+import { useTaskTitles } from '../../hooks/useTaskTitles'
 import { useLoading } from '../../context/LoadingContext'
 
 const filterConfig = {
@@ -136,6 +137,7 @@ export default function VolunteersPage() {
   // 1. General Task Assignment modal state (Outside Manage)
   const [showGeneralTaskModal, setShowGeneralTaskModal] = useState(false)
   const [generalTaskForm, setGeneralTaskForm] = useState(emptyGeneralTaskForm)
+  const { options: generalTaskTitleOptions } = useTaskTitles(generalTaskForm.module)
   const [generalSelectedVolunteerIds, setGeneralSelectedVolunteerIds] = useState([])
   const [selectedSkillToAdd, setSelectedSkillToAdd] = useState('')
   const [suggestions, setSuggestions] = useState([])
@@ -144,6 +146,7 @@ export default function VolunteersPage() {
   // 2. Direct Task Assignment Form state (Inside Manage)
   const [showDirectTaskModal, setShowDirectTaskModal] = useState(false)
   const [directTaskForm, setDirectTaskForm] = useState(emptyDirectTaskForm)
+  const { options: directTaskTitleOptions } = useTaskTitles(directTaskForm.module)
   const [saving, setSaving] = useState(false)
   const [hoursForm, setHoursForm] = useState({ hours: 0, requiredHours: 0 })
   const [selectedProgramToEnroll, setSelectedProgramToEnroll] = useState('')
@@ -2122,16 +2125,6 @@ export default function VolunteersPage() {
                 </div>
               </label>
 
-              <label>
-                <Req required>Task Title</Req>
-                <input
-                  required
-                  value={generalTaskForm.title}
-                  onChange={(e) => setGeneralTaskForm({ ...generalTaskForm, title: e.target.value })}
-                  placeholder="e.g. Pack food relief kits, Assist medical triage, Deliver supplies"
-                />
-              </label>
-
               {/* Program Selector */}
               <label>
                 <Req required>Program / Project</Req>
@@ -2144,6 +2137,7 @@ export default function VolunteersPage() {
                     setGeneralTaskForm((prev) => ({
                       ...prev,
                       module: nextModule,
+                      title: '',
                       distributionId: isDist ? prev.distributionId : '',
                     }))
                   }}
@@ -2153,6 +2147,31 @@ export default function VolunteersPage() {
                     <option key={p} value={p}>{p}</option>
                   ))}
                 </select>
+              </label>
+
+              {/* Task Title Dropdown connected to program */}
+              <label>
+                <Req required>Task Title</Req>
+                <select
+                  required
+                  value={generalTaskForm.title}
+                  onChange={(e) => setGeneralTaskForm({ ...generalTaskForm, title: e.target.value })}
+                >
+                  <option value="">
+                    {generalTaskTitleOptions.length > 0 ? 'Select a task title…' : 'No task titles for this program'}
+                  </option>
+                  {generalTaskTitleOptions.map((t) => (
+                    <option key={t} value={t}>{t}</option>
+                  ))}
+                  {generalTaskForm.title && !generalTaskTitleOptions.includes(generalTaskForm.title) && (
+                    <option value={generalTaskForm.title}>{generalTaskForm.title}</option>
+                  )}
+                </select>
+                <span style={{ fontSize: '0.74rem', color: '#64748b', marginTop: '0.2rem', display: 'block' }}>
+                  {generalTaskForm.module
+                    ? `Showing active task titles assigned to "${generalTaskForm.module}".`
+                    : 'Select a program above to view available task titles.'}
+                </span>
               </label>
 
               <div className="form-row">
@@ -2343,16 +2362,6 @@ export default function VolunteersPage() {
                 </div>
               </div>
 
-              <label>
-                <Req required>Task Title</Req>
-                <input
-                  required
-                  value={directTaskForm.title}
-                  onChange={(e) => setDirectTaskForm({ ...directTaskForm, title: e.target.value })}
-                  placeholder={`e.g. Duty for ${selected.name}`}
-                />
-              </label>
-
               {/* Program Selector */}
               <label>
                 <Req required>Program / Project</Req>
@@ -2366,6 +2375,7 @@ export default function VolunteersPage() {
                       setDirectTaskForm((prev) => ({
                         ...prev,
                         module: nextModule,
+                        title: '',
                         distributionId: isDist ? prev.distributionId : '',
                       }))
                     }}
@@ -2384,6 +2394,7 @@ export default function VolunteersPage() {
                       setDirectTaskForm((prev) => ({
                         ...prev,
                         module: nextModule,
+                        title: '',
                         distributionId: isDist ? prev.distributionId : '',
                       }))
                     }}
@@ -2394,6 +2405,31 @@ export default function VolunteersPage() {
                     ))}
                   </select>
                 )}
+              </label>
+
+              {/* Task Title Dropdown connected to program */}
+              <label>
+                <Req required>Task Title</Req>
+                <select
+                  required
+                  value={directTaskForm.title}
+                  onChange={(e) => setDirectTaskForm({ ...directTaskForm, title: e.target.value })}
+                >
+                  <option value="">
+                    {directTaskTitleOptions.length > 0 ? 'Select a task title…' : 'No task titles for this program'}
+                  </option>
+                  {directTaskTitleOptions.map((t) => (
+                    <option key={t} value={t}>{t}</option>
+                  ))}
+                  {directTaskForm.title && !directTaskTitleOptions.includes(directTaskForm.title) && (
+                    <option value={directTaskForm.title}>{directTaskForm.title}</option>
+                  )}
+                </select>
+                <span style={{ fontSize: '0.74rem', color: '#64748b', marginTop: '0.2rem', display: 'block' }}>
+                  {directTaskForm.module
+                    ? `Showing active task titles assigned to "${directTaskForm.module}".`
+                    : 'Select a program above to view available task titles.'}
+                </span>
               </label>
 
               <div className="form-row">

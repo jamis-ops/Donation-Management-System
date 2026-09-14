@@ -1919,4 +1919,712 @@
   padding-right: 2px;
 }
 
+/* ==========================================================
+   CARGO & LOGISTICS REDESIGN — dist-cl-* namespace
+   ========================================================== */
+
+/* Outer stack wrapper */
+.dist-logistics-layout {
+  display: flex;
+  flex-direction: column;
+  gap: 0.7rem;
+}
+
+/* ── Context Summary Strip (Clean Cards) ── */
+.dist-cl-summary-strip {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr) auto;
+  gap: 0.5rem;
+  align-items: stretch;
+}
+
+@media (max-width: 860px) {
+  .dist-cl-summary-strip {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+.dist-cl-sum-card {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 0.45rem 0.65rem;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.02);
+  min-width: 0;
+  transition: all 0.15s ease;
+}
+.dist-cl-sum-card:hover {
+  border-color: #cbd5e1;
+  background: #f8fafc;
+}
+
+.dist-cl-sum-card__icon {
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+.dist-cl-sum-card__icon--pin {
+  background: #fef2f2;
+  color: #AF101A;
+}
+.dist-cl-sum-card__icon--program {
+  background: #fef3c7;
+  color: #d97706;
+}
+.dist-cl-sum-card__icon--alloc {
+  background: #f0fdf4;
+  color: #16a34a;
+}
+.dist-cl-sum-card__icon--muted {
+  background: #f1f5f9;
+  color: #64748b;
+}
+.dist-cl-sum-card__icon--type {
+  background: #eef2ff;
+  color: #4f46e5;
+}
+
+.dist-cl-sum-card__content {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.dist-cl-sum-card__label {
+  font-size: 0.62rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #64748b;
+  line-height: 1.1;
+  margin-bottom: 2px;
+}
+
+.dist-cl-sum-card__value {
+  font-size: 0.81rem;
+  font-weight: 700;
+  color: #0f172a;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  line-height: 1.2;
+}
+
+.dist-cl-sum-sync-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  background: #fff;
+  color: #AF101A;
+  border: 1px solid #fca5a5;
+  border-radius: 8px;
+  padding: 0.45rem 0.75rem;
+  font-size: 0.74rem;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.15s ease;
+  box-shadow: 0 1px 2px rgba(175, 16, 26, 0.04);
+}
+.dist-cl-sum-sync-btn:hover {
+  background: #fef2f2;
+  border-color: #AF101A;
+  color: #991b1b;
+}
+.dist-cl-sum-sync-btn svg {
+  color: #AF101A;
+}
+
+/* ── Card base ── */
+.dist-cl-card {
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  padding: 0.8rem 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
+.dist-cl-card--team {
+  border-top: 2px solid #AF101A;
+}
+
+.dist-cl-card__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.dist-cl-card__title {
+  font-size: 0.84rem;
+  font-weight: 700;
+  color: #0f172a;
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+}
+
+.dist-cl-mode-pill {
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: #475569;
+  background: #f1f5f9;
+  border: 1px solid #e2e8f0;
+  padding: 0.15rem 0.5rem;
+  border-radius: 6px;
+}
+.dist-cl-mode-pill strong {
+  color: #AF101A;
+}
+
+.dist-cl-req-star {
+  color: #AF101A;
+  font-weight: 800;
+}
+
+.dist-cl-hint {
+  font-size: 0.73rem;
+  color: #64748b;
+  margin: 0;
+}
+
+.dist-cl-ghost-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: #64748b;
+  background: none;
+  border: 1px dashed #cbd5e1;
+  padding: 0.15rem 0.45rem;
+  border-radius: 5px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+.dist-cl-ghost-btn:hover {
+  border-color: #AF101A;
+  color: #AF101A;
+}
+
+/* ── Dispatch Leadership & Fleet (2-Column Perfectly Aligned Grid) ── */
+.dist-cl-dispatch-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.85rem;
+  align-items: stretch;
+}
+
+@media (max-width: 780px) {
+  .dist-cl-dispatch-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.dist-cl-dispatch-col {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 0.75rem 0.85rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  justify-content: flex-start;
+}
+
+.dist-cl-col-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 28px;
+  margin-bottom: 2px;
+}
+
+.dist-cl-col-title {
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: #1e293b;
+}
+
+.dist-cl-col-badge {
+  font-size: 0.68rem;
+  font-weight: 600;
+  color: #64748b;
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 4px;
+  padding: 0.1rem 0.4rem;
+}
+
+.dist-cl-field-label {
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: #475569;
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  min-height: 18px;
+}
+
+.dist-cl-input-box-wrap {
+  display: flex;
+  align-items: center;
+}
+
+.dist-cl-aligned-input {
+  width: 100%;
+  height: 36px;
+  padding: 0.35rem 0.6rem;
+  font-size: 0.83rem;
+  font-weight: 500;
+  border: 1px solid #cbd5e1;
+  border-radius: 7px;
+  background: #fff;
+  color: #0f172a;
+  box-sizing: border-box;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+.dist-cl-aligned-input:focus {
+  border-color: #AF101A;
+  outline: none;
+  box-shadow: 0 0 0 2px rgba(175, 16, 26, 0.1);
+}
+
+.dist-cl-quick-pick {
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: #475569;
+  background: #fff;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  padding: 0.2rem 0.45rem;
+  cursor: pointer;
+  height: 28px;
+  flex-shrink: 0;
+  transition: all 0.15s ease;
+}
+.dist-cl-quick-pick:hover {
+  border-color: #94a3b8;
+  background: #f1f5f9;
+}
+
+.dist-cl-sugg-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  min-height: 24px;
+  margin-top: 2px;
+}
+
+.dist-cl-sugg-label {
+  font-size: 0.71rem;
+  font-weight: 600;
+  color: #64748b;
+  flex-shrink: 0;
+}
+
+.dist-cl-sugg-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+}
+
+.dist-cl-staff-chip {
+  display: inline-flex;
+  align-items: center;
+  background: #fff;
+  color: #334155;
+  border: 1px solid #cbd5e1;
+  padding: 0.15rem 0.5rem;
+  border-radius: 6px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+.dist-cl-staff-chip:hover {
+  background: #f1f5f9;
+  border-color: #94a3b8;
+}
+.dist-cl-staff-chip--active {
+  background: #fef2f2;
+  border-color: #fca5a5;
+  color: #AF101A;
+}
+
+/* 3-Column Fleet inputs */
+.dist-cl-fleet-triple {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0.45rem;
+}
+
+.dist-cl-fleet-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.dist-cl-fleet-cell__label {
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: #475569;
+  min-height: 18px;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.dist-cl-fleet-cell input {
+  text-align: center;
+  font-weight: 600;
+}
+
+.dist-cl-fleet-hint-row {
+  min-height: 24px;
+  display: flex;
+  align-items: center;
+  margin-top: 2px;
+}
+
+/* Count badge in team header */
+.dist-cl-count-badge {
+  display: inline-flex;
+  align-items: center;
+  font-size: 0.72rem;
+  font-weight: 700;
+  background: #fef2f2;
+  color: #AF101A;
+  border: 1px solid #fecaca;
+  padding: 0.1rem 0.45rem;
+  border-radius: 99px;
+}
+
+/* Locked badge & notices for Distribution program */
+.dist-cl-locked-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: #991b1b;
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  padding: 0.12rem 0.5rem;
+  border-radius: 99px;
+}
+
+.dist-cl-locked-notice {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  background: #fff5f5;
+  border: 1px solid #fed7d7;
+  border-radius: 8px;
+  padding: 0.6rem 0.8rem;
+  font-size: 0.77rem;
+  color: #991b1b;
+  line-height: 1.4;
+  width: 100%;
+}
+
+.dist-cl-locked-footer {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.72rem;
+  color: #64748b;
+  font-style: italic;
+  padding-top: 0.35rem;
+  border-top: 1px dashed #e2e8f0;
+}
+
+.dist-cl-member-chip--locked {
+  background: #f8fafc;
+  border-color: #cbd5e1;
+  cursor: default;
+}
+
+/* Directory dropdown */
+.dist-cl-dir-select {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #334155;
+  background: #f8fafc;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  padding: 0.25rem 0.55rem;
+  cursor: pointer;
+  height: 32px;
+  transition: all 0.15s ease;
+}
+.dist-cl-dir-select:hover {
+  border-color: #94a3b8;
+}
+
+/* Assigned member roster strip */
+.dist-cl-roster {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  padding: 0.45rem 0.65rem;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  min-height: 44px;
+}
+
+.dist-cl-roster-empty {
+  font-size: 0.75rem;
+  color: #94a3b8;
+  font-style: italic;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.dist-cl-member-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  background: #fff;
+  border: 1px solid #cbd5e1;
+  padding: 0.2rem 0.45rem 0.2rem 0.3rem;
+  border-radius: 20px;
+  font-size: 0.75rem;
+  color: #0f172a;
+  box-shadow: 0 1px 2px rgba(0,0,0,0.04);
+  transition: all 0.15s ease;
+}
+.dist-cl-member-chip:hover {
+  border-color: #94a3b8;
+}
+
+.dist-cl-member-avatar {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #AF101A, #D64545);
+  color: #fff;
+  font-size: 0.65rem;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.dist-cl-member-name {
+  font-weight: 600;
+}
+
+.dist-cl-remove-btn {
+  background: none;
+  border: none;
+  color: #94a3b8;
+  cursor: pointer;
+  padding: 0 0 0 2px;
+  font-size: 0.95rem;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  transition: color 0.15s ease;
+}
+.dist-cl-remove-btn:hover { color: #ef4444; }
+
+/* Skills filter row */
+.dist-cl-skills-row {
+  display: flex;
+  align-items: flex-start;
+  flex-wrap: wrap;
+  gap: 0.35rem 0.6rem;
+  border-top: 1px solid #f1f5f9;
+  padding-top: 0.5rem;
+}
+
+.dist-cl-skills-label {
+  font-size: 0.73rem;
+  font-weight: 600;
+  color: #475569;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+  padding-top: 2px;
+}
+
+.dist-cl-skills-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+}
+
+.dist-cl-skill-tag {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.18rem 0.5rem;
+  background: #f1f5f9;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  font-size: 0.71rem;
+  font-weight: 500;
+  color: #475569;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+.dist-cl-skill-tag:hover {
+  background: #AF101A;
+  border-color: #AF101A;
+  color: #fff;
+}
+.dist-cl-skill-tag--on {
+  background: #AF101A;
+  border-color: #AF101A;
+  color: #fff;
+  font-weight: 600;
+}
+
+/* No candidates message */
+.dist-cl-no-candidates {
+  margin: 0.2rem 0;
+  font-size: 0.77rem;
+  color: #94a3b8;
+  font-style: italic;
+  text-align: center;
+  padding: 0.5rem;
+}
+
+/* Candidate card grid */
+.dist-cl-candidates {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 0.4rem;
+  max-height: 185px;
+  overflow-y: auto;
+  padding-right: 2px;
+  border-top: 1px solid #f1f5f9;
+  padding-top: 0.5rem;
+}
+
+.dist-cl-candidate {
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 0.55rem 0.7rem;
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  transition: all 0.15s ease;
+}
+.dist-cl-candidate:hover {
+  border-color: #cbd5e1;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.05);
+}
+.dist-cl-candidate--assigned {
+  background: #f0fdf4;
+  border-color: #86efac;
+}
+
+.dist-cl-candidate__avatar {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #f1f5f9, #e2e8f0);
+  color: #475569;
+  font-size: 0.8rem;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  border: 1px solid #e2e8f0;
+}
+.dist-cl-candidate--assigned .dist-cl-candidate__avatar {
+  background: linear-gradient(135deg, #dcfce7, #bbf7d0);
+  color: #166534;
+  border-color: #86efac;
+}
+
+.dist-cl-candidate__info {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.dist-cl-candidate__name-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+.dist-cl-candidate__name-row strong {
+  font-size: 0.8rem;
+  color: #0f172a;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 90px;
+}
+
+.dist-cl-candidate__skills {
+  font-size: 0.7rem;
+  color: #64748b;
+  margin: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.dist-cl-match-badge {
+  font-size: 0.64rem;
+  font-weight: 700;
+  color: #15803d;
+  background: #dcfce7;
+  border: 1px solid #86efac;
+  padding: 1px 4px;
+  border-radius: 4px;
+  white-space: nowrap;
+}
+
+.dist-cl-assign-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  background: #fff;
+  color: #15803d;
+  border: 1px solid #86efac;
+  border-radius: 6px;
+  padding: 0.28rem 0.55rem;
+  font-size: 0.72rem;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+  flex-shrink: 0;
+  transition: all 0.15s ease;
+}
+.dist-cl-assign-btn:hover {
+  background: #f0fdf4;
+  border-color: #22c55e;
+}
+.dist-cl-assign-btn--on {
+  background: #15803d;
+  color: #fff;
+  border-color: #15803d;
+}
+
 
