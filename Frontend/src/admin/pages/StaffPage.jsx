@@ -1,6 +1,20 @@
 import { useMemo, useState } from 'react'
 import { Navigate, useSearchParams } from 'react-router-dom'
-import { ListTodo, Mail, UserCog, Trash2, Pencil } from 'lucide-react'
+import {
+  ListTodo,
+  Mail,
+  UserCog,
+  Trash2,
+  Pencil,
+  Building2,
+  Phone,
+  CheckCircle2,
+  Clock,
+  ShieldAlert,
+  Check,
+  Calendar,
+  MapPin,
+} from 'lucide-react'
 import { createStaffAccount, getStaff, updateStaff, deleteStaff, tasksApi } from '../../api/resources'
 import { getTodayDateString, isPastDateString } from '../../utils/date'
 import { useApiList } from '../../hooks/useApiList'
@@ -85,11 +99,19 @@ export default function StaffPage() {
   const [openedViaEdit, setOpenedViaEdit] = useState(false)
   const [tasks, setTasks] = useState([])
   const [tasksLoading, setTasksLoading] = useState(false)
-  const tasksSeeMore = useSeeMore(tasks, 3)
+  const tasksSeeMore = useSeeMore(tasks, 4)
   const [showTaskForm, setShowTaskForm] = useState(false)
   const [taskForm, setTaskForm] = useState(emptyTaskForm)
   const { options: staffTaskTitleOptions } = useTaskTitles(taskForm.module)
   const [successMsg, setSuccessMsg] = useState('')
+
+  const completedTasksCount = useMemo(() => {
+    return tasks.filter((t) => (t.status || t.boardColumn) === 'done' || (t.status || t.boardColumn) === 'Completed').length
+  }, [tasks])
+
+  const pendingTasksCount = useMemo(() => {
+    return tasks.length - completedTasksCount
+  }, [tasks, completedTasksCount])
 
   // Legacy deep-link from when Admin accounts lived under Staff
   if (searchParams.get('role') === 'Admin') {
@@ -343,6 +365,33 @@ export default function StaffPage() {
     }
   }
 
+  const handleCompleteTask = async (task) => {
+    if (!task?.dbId && !task?.id) return
+    const id = task.dbId || task.id
+    const ok = await confirmAction({
+      title: 'Complete Task',
+      message: `Mark task "${task.title}" as completed for ${selected?.name || 'this staff member'}?`,
+      confirmText: 'Mark Completed',
+      type: 'primary',
+    })
+    if (!ok) return
+
+    setSaving(true)
+    showLoading('Updating task…')
+    try {
+      await tasksApi.update(id, { boardColumn: 'done', status: 'Completed' })
+      notify.success(`Task "${task.title}" marked as completed.`)
+      showSuccessModal('Task marked as completed.')
+      if (selected) loadTasks(selected)
+      reload()
+    } catch (err) {
+      notify.error(err.message || 'Failed to update task')
+    } finally {
+      hideLoading()
+      setSaving(false)
+    }
+  }
+
   const columns = [
     { key: 'id', label: 'ID' },
     { key: 'name', label: 'Name' },
@@ -453,223 +502,509 @@ export default function StaffPage() {
       </ApiState>
 
       {selected && (
-        <div className="admin-modal-overlay" onClick={() => setSelected(null)}>
-          <div className="admin-modal admin-modal--wide volunteer-manage-modal" onClick={(e) => e.stopPropagation()}>
+        <div
+          className="admin-modal-overlay"
+          onClick={() => {
+            setSelected(null)
+            setIsEditing(false)
+          }}
+        >
+          <div className="admin-modal admin-modal--xl volunteer-manage-modal" onClick={(e) => e.stopPropagation()}>
             <ModalHeader
               title={isEditing ? `Edit Staff Profile — ${selected.name}` : selected.name}
-              subtitle={`${selected.id} · Staff · ${selected.email || 'No email'}`}
-              onClose={() => setSelected(null)}
+              subtitle={
+                isEditing
+                  ? `${selected.id} · Staff Member · Edit contact details, status, and profile information`
+                  : `${selected.id} · Staff Member · ${selected.email || 'No email registered'}`
+              }
+              onClose={() => {
+                setSelected(null)
+                setIsEditing(false)
+              }}
             />
 
-            <section className="volunteer-panel-section">
-              <div className="volunteer-panel-section__head" style={{ marginBottom: '0.75rem' }}>
-                <h3 style={{ margin: 0 }}>{isEditing ? 'Edit Profile Details' : 'Staff Profile'}</h3>
-                {!isEditing && (
-                  <button
-                    type="button"
-                    className="btn btn--sm btn--outline"
-                    onClick={() => setIsEditing(true)}
-                  >
-                    <Pencil size={13} /> Edit Profile
+            {isEditing && editForm ? (
+              <form onSubmit={handleUpdateProfile} className="volunteer-edit-profile-form">
+                <div className="volunteer-detail__two-col">
+                  <div className="volunteer-detail__col">
+                    <section className="volunteer-detail__card">
+                      <h4>
+                        <UserCog size={15} aria-hidden /> Personal Details
+                      </h4>
+                      <NameFields
+                        value={editForm}
+                        onChange={(parts) => setEditForm({ ...editForm, ...parts })}
+                      />
+                      <div className="form-row" style={{ marginTop: '0.75rem' }}>
+                        <label>
+                          Date of Birth
+                          <input
+                            type="date"
+                            value={editForm.birthDate}
+                            onChange={(e) => setEditForm({ ...editForm, birthDate: e.target.value })}
+                          />
+                        </label>
+                        <label>
+                          Account Status
+                          <select
+                            value={editForm.status}
+                            onChange={(e) => setEditForm({ ...editForm, status: e.target.value })}
+                          >
+                            <option value="Active">Active</option>
+                            <option value="Inactive">Inactive</option>
+                          </select>
+                        </label>
+                      </div>
+                    </section>
+
+                    <section className="volunteer-detail__card">
+                      <h4>
+                        <ShieldAlert size={15} aria-hidden /> Emergency Contact
+                      </h4>
+                      <div className="form-row">
+                        <label>
+                          Emergency Contact Number
+                          <PhoneInput
+                            value={editForm.emergencyContactNumber}
+                            onChange={(num) => setEditForm({ ...editForm, emergencyContactNumber: num })}
+                          />
+                        </label>
+                        <label>
+                          Relationship
+                          <input
+                            type="text"
+                            placeholder="e.g., Parent, Spouse, Sibling"
+                            value={editForm.emergencyContactRelation}
+                            onChange={(e) => setEditForm({ ...editForm, emergencyContactRelation: e.target.value })}
+                          />
+                        </label>
+                      </div>
+                    </section>
+                  </div>
+
+                  <div className="volunteer-detail__col">
+                    <section className="volunteer-detail__card">
+                      <h4>
+                        <Mail size={15} aria-hidden /> Contact & Location
+                      </h4>
+                      <label>
+                        <Req required>Email Address</Req>
+                        <input
+                          type="email"
+                          required
+                          value={editForm.email}
+                          onChange={(e) => setEditForm({ ...editForm, email: e.target.value })}
+                        />
+                      </label>
+                      <label style={{ marginTop: '0.75rem' }}>
+                        Phone Number
+                        <PhoneInput
+                          value={editForm.phone}
+                          onChange={(phone) => setEditForm({ ...editForm, phone })}
+                        />
+                      </label>
+                      <label style={{ marginTop: '0.75rem' }}>
+                        Home Address
+                        <input
+                          type="text"
+                          placeholder="e.g., Cebu City, Philippines"
+                          value={editForm.address}
+                          onChange={(e) => setEditForm({ ...editForm, address: e.target.value })}
+                        />
+                      </label>
+                    </section>
+                  </div>
+                </div>
+
+                <div
+                  className="admin-modal__actions"
+                  style={{
+                    marginTop: '1.25rem',
+                    paddingTop: '1rem',
+                    borderTop: '1px solid #e2e8f0',
+                    justifyContent: 'flex-start',
+                    gap: '0.75rem',
+                  }}
+                >
+                  <button type="submit" className="btn btn--primary" disabled={saving}>
+                    {saving ? 'Saving…' : 'Save Changes'}
                   </button>
-                )}
-              </div>
-
-              {isEditing && editForm ? (
-                <form onSubmit={handleUpdateProfile}>
-                  <NameFields
-                    value={editForm}
-                    onChange={(parts) => setEditForm({ ...editForm, ...parts })}
-                  />
-                  <div className="form-row">
-                    <label>
-                      <Req required>Email</Req>
-                      <input
-                        type="email"
-                        required
-                        value={editForm.email}
-                        onChange={(e) => setEditForm({ ...editForm, email: e.target.value })}
-                      />
-                    </label>
-                    <label>
-                      Phone Number
-                      <PhoneInput
-                        value={editForm.phone}
-                        onChange={(phone) => setEditForm({ ...editForm, phone })}
-                      />
-                    </label>
-                  </div>
-                  <div className="form-row">
-                    <label>
-                      Date of Birth
-                      <input
-                        type="date"
-                        value={editForm.birthDate}
-                        onChange={(e) => setEditForm({ ...editForm, birthDate: e.target.value })}
-                      />
-                    </label>
-                    <label>
-                      Address
-                      <input
-                        type="text"
-                        placeholder="e.g., Cebu City, Philippines"
-                        value={editForm.address}
-                        onChange={(e) => setEditForm({ ...editForm, address: e.target.value })}
-                      />
-                    </label>
-                  </div>
-                  <div className="form-row">
-                    <label>
-                      Emergency Contact Number
-                      <PhoneInput
-                        value={editForm.emergencyContactNumber}
-                        onChange={(num) => setEditForm({ ...editForm, emergencyContactNumber: num })}
-                      />
-                    </label>
-                    <label>
-                      Emergency Contact Relation
-                      <input
-                        type="text"
-                        placeholder="e.g., Parent, Spouse, Sibling"
-                        value={editForm.emergencyContactRelation}
-                        onChange={(e) => setEditForm({ ...editForm, emergencyContactRelation: e.target.value })}
-                      />
-                    </label>
-                  </div>
-                  <label>
-                    Account Status
-                    <select
-                      value={editForm.status}
-                      onChange={(e) => setEditForm({ ...editForm, status: e.target.value })}
-                    >
-                      <option value="Active">Active</option>
-                      <option value="Inactive">Inactive</option>
-                    </select>
-                  </label>
-
-                  <div className="admin-modal__actions" style={{ marginTop: '1.25rem', justifyContent: 'flex-start', gap: '0.75rem' }}>
-                    <button type="submit" className="btn btn--primary" disabled={saving}>
-                      Save Changes
-                    </button>
-                    <button
-                      type="button"
-                      className="btn btn--ghost"
-                      onClick={() => {
-                        if (openedViaEdit) {
-                          setSelected(null)
-                        } else {
-                          setIsEditing(false)
-                          setEditForm({
-                            lastName: selected.lastName || '',
-                            firstName: selected.firstName || '',
-                            middleInitial: selected.middleInitial || '',
-                            email: selected.email || '',
-                            phone: selected.phone || '',
-                            birthDate: selected.birthDate || selected.dateOfBirth || '',
-                            address: selected.address || '',
-                            emergencyContactNumber: selected.emergencyContactNumber || selected.emergencyContactPhone || '',
-                            emergencyContactRelation: selected.emergencyContactRelation || '',
-                            status: selected.status === 'Inactive' ? 'Inactive' : 'Active',
-                          })
-                        }
-                      }}
-                    >
-                      Cancel
-                    </button>
-                  </div>
-                </form>
-              ) : (
-                <dl className="detail-list">
-                  <dt>Full Name</dt>
-                  <dd>{selected.name || formatFullName(selected) || '—'}</dd>
-                  <dt>Status</dt>
-                  <dd><StatusBadge status={selected.status} /></dd>
-                  <dt>Role</dt>
-                  <dd>Staff</dd>
-                  <dt>Department</dt>
-                  <dd>{selected.department || 'Operations'}</dd>
-                  <dt>Email</dt>
-                  <dd><span className="volunteer-inline-meta"><Mail size={13} /> {selected.email || '—'}</span></dd>
-                  <dt>Phone Number</dt>
-                  <dd>{selected.phone || '—'}</dd>
-                  <dt>Date of Birth</dt>
-                  <dd>{selected.birthDate || selected.dateOfBirth || '—'}</dd>
-                  <dt>Address</dt>
-                  <dd>{selected.address || '—'}</dd>
-                  <dt>Emergency Contact</dt>
-                  <dd>{selected.emergencyContactNumber ? `${selected.emergencyContactNumber} ${selected.emergencyContactRelation ? `(${selected.emergencyContactRelation})` : ''}` : '—'}</dd>
-                  <dt>Assigned Tasks</dt>
-                  <dd><span className="volunteer-inline-meta"><ListTodo size={13} /> {tasks.length}</span></dd>
-                </dl>
-              )}
-            </section>
-
-            {!isEditing && (
-              <section className="volunteer-panel-section">
-                <div className="volunteer-panel-section__head">
-                  <h3>Assigned Tasks</h3>
                   <button
                     type="button"
-                    className="btn btn--sm btn--primary"
-                    onClick={() => setShowTaskForm(true)}
-                    disabled={['Inactive', 'Suspended', 'Terminated'].includes(selected.status)}
-                    title={['Inactive', 'Suspended', 'Terminated'].includes(selected.status) ? 'Cannot assign tasks to an inactive staff member' : ''}
+                    className="btn btn--ghost"
+                    onClick={() => {
+                      if (openedViaEdit) {
+                        setSelected(null)
+                        setIsEditing(false)
+                      } else {
+                        setIsEditing(false)
+                        setEditForm({
+                          lastName: selected.lastName || '',
+                          firstName: selected.firstName || '',
+                          middleInitial: selected.middleInitial || '',
+                          email: selected.email || '',
+                          phone: selected.phone || '',
+                          birthDate: selected.birthDate || selected.dateOfBirth || '',
+                          address: selected.address || '',
+                          emergencyContactNumber: selected.emergencyContactNumber || selected.emergencyContactPhone || '',
+                          emergencyContactRelation: selected.emergencyContactRelation || '',
+                          status: selected.status === 'Inactive' ? 'Inactive' : 'Active',
+                        })
+                      }
+                    }}
                   >
-                    + Assign Task
+                    Cancel
                   </button>
                 </div>
-                {['Inactive', 'Suspended', 'Terminated'].includes(selected.status) && (
-                  <div className="action-locked-banner action-locked-banner--accent" style={{ margin: '0.5rem 0 0.85rem' }}>
-                    <UserCog size={14} />
-                    <span>This staff account is <strong>{selected.status}</strong>. Task assignment is locked.</span>
-                  </div>
-                )}
-                {tasksLoading ? (
-                  <p className="beneficiary-view-empty">Loading tasks…</p>
-                ) : tasks.length === 0 ? (
-                  <p className="beneficiary-view-empty">No tasks assigned yet.</p>
-                ) : (
-                  <div className="see-more-wrap">
-                    <div className="volunteer-task-list">
-                      {tasksSeeMore.visible.map((t) => (
-                        <article key={t.dbId || t.id} className="volunteer-task-card">
-                          <div className="volunteer-task-card__top">
-                            <strong>{t.title}</strong>
-                            <StatusBadge status={t.status || t.boardColumn} />
-                          </div>
-                          <div className="volunteer-task-card__meta">
-                            <span>Priority: {t.priority}</span>
-                            <span>Due: {t.due || '—'}</span>
-                            {t.completedAtLabel ? <span>Completed: {t.completedAtLabel}</span> : null}
-                          </div>
-                        </article>
-                      ))}
+              </form>
+            ) : (
+              <div className="volunteer-detail">
+                {/* Hero Summary Header */}
+                <header className="volunteer-detail__hero">
+                  <div className="volunteer-detail__hero-main">
+                    <div className="volunteer-detail__meta">
+                      <span className="volunteer-type-badge">
+                        <UserCog size={13} aria-hidden /> Staff
+                      </span>
+                      <span>
+                        <Building2 size={14} aria-hidden /> {selected.department || 'Operations'}
+                      </span>
+                      <span>
+                        <Mail size={14} aria-hidden /> {selected.email || '—'}
+                      </span>
+                      <span>
+                        <Phone size={14} aria-hidden /> {selected.phone || '—'}
+                      </span>
+                      <span>
+                        <ListTodo size={14} aria-hidden /> {tasks.length} {tasks.length === 1 ? 'task' : 'tasks'}
+                      </span>
                     </div>
-                    {tasksSeeMore.needsToggle && (
-                      <SeeMoreToggle
-                        expanded={tasksSeeMore.expanded}
-                        onToggle={tasksSeeMore.toggle}
-                        hiddenCount={tasksSeeMore.hiddenCount}
-                      />
-                    )}
                   </div>
-                )}
-                <p className="volunteer-panel-hint">
-                  <UserCog size={14} /> Staff mark tasks Done from Staff Portal → My Tasks. First login requires a password change.
-                </p>
-              </section>
-            )}
+                  <div className="volunteer-detail__hero-aside">
+                    <StatusBadge status={selected.status} />
+                    {selected.status === 'Active' ? (
+                      <span className="volunteer-detail__pill">Staff Portal Active</span>
+                    ) : null}
+                  </div>
+                </header>
 
-            {!isEditing && (
-              <div className="admin-modal__actions" style={{ justifyContent: 'space-between' }}>
-                <button
-                  type="button"
-                  className="btn btn--danger"
-                  onClick={() => handleDelete(selected)}
+                {/* 2-Column Responsive Layout */}
+                <div className="volunteer-detail__two-col">
+                  {/* Left Column: Staff Profile & Stats */}
+                  <div className="volunteer-detail__col">
+                    {/* Profile Information Card */}
+                    <section className="volunteer-detail__card">
+                      <div
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'space-between',
+                          marginBottom: '0.85rem',
+                        }}
+                      >
+                        <h4 style={{ margin: 0 }}>
+                          <UserCog size={15} aria-hidden /> Staff Profile Details
+                        </h4>
+                        <button
+                          type="button"
+                          className="btn btn--sm btn--outline"
+                          onClick={() => setIsEditing(true)}
+                          style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}
+                        >
+                          <Pencil size={12} /> Edit Profile
+                        </button>
+                      </div>
+
+                      <dl className="volunteer-detail__list">
+                        <div className="volunteer-detail__list-row">
+                          <div>
+                            <dt>Full Name</dt>
+                            <dd>
+                              <strong>{selected.name || formatFullName(selected) || '—'}</strong>
+                            </dd>
+                          </div>
+                          <div>
+                            <dt>Staff ID</dt>
+                            <dd>
+                              <code
+                                style={{
+                                  fontSize: '0.82rem',
+                                  background: '#f1f5f9',
+                                  padding: '0.15rem 0.4rem',
+                                  borderRadius: '4px',
+                                }}
+                              >
+                                {selected.id}
+                              </code>
+                            </dd>
+                          </div>
+                        </div>
+
+                        <div className="volunteer-detail__list-row">
+                          <div>
+                            <dt>Role & Department</dt>
+                            <dd>Staff · {selected.department || 'Operations'}</dd>
+                          </div>
+                          <div>
+                            <dt>Status</dt>
+                            <dd>
+                              <StatusBadge status={selected.status} />
+                            </dd>
+                          </div>
+                        </div>
+
+                        <div className="volunteer-detail__list-row">
+                          <div>
+                            <dt>Email</dt>
+                            <dd style={{ wordBreak: 'break-all' }}>{selected.email || '—'}</dd>
+                          </div>
+                          <div>
+                            <dt>Phone Number</dt>
+                            <dd>{selected.phone || '—'}</dd>
+                          </div>
+                        </div>
+
+                        <div className="volunteer-detail__list-row">
+                          <div>
+                            <dt>Date of Birth</dt>
+                            <dd>
+                              <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}>
+                                <Calendar size={13} style={{ color: '#64748b' }} />
+                                {selected.birthDate || selected.dateOfBirth || '—'}
+                              </span>
+                            </dd>
+                          </div>
+                          <div>
+                            <dt>Emergency Contact</dt>
+                            <dd>
+                              {selected.emergencyContactNumber ? (
+                                <span>
+                                  {selected.emergencyContactNumber}
+                                  {selected.emergencyContactRelation
+                                    ? ` (${selected.emergencyContactRelation})`
+                                    : ''}
+                                </span>
+                              ) : (
+                                '—'
+                              )}
+                            </dd>
+                          </div>
+                        </div>
+
+                        <div>
+                          <dt>Address</dt>
+                          <dd>
+                            <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}>
+                              <MapPin size={13} style={{ color: '#64748b' }} />
+                              {selected.address || '—'}
+                            </span>
+                          </dd>
+                        </div>
+                      </dl>
+                    </section>
+
+                    {/* Task Metrics Summary Card */}
+                    <section className="volunteer-detail__card">
+                      <h4>
+                        <CheckCircle2 size={15} aria-hidden /> Tasks Metric Summary
+                      </h4>
+                      <div className="volunteer-hours-summary">
+                        <div className="volunteer-hours-card">
+                          <ListTodo size={16} aria-hidden />
+                          <div>
+                            <strong>{tasks.length}</strong>
+                            <span>Total Tasks</span>
+                          </div>
+                        </div>
+                        <div className="volunteer-hours-card">
+                          <Clock size={16} aria-hidden />
+                          <div>
+                            <strong>{pendingTasksCount}</strong>
+                            <span>Pending</span>
+                          </div>
+                        </div>
+                        <div className="volunteer-hours-card volunteer-hours-card--accent">
+                          <CheckCircle2 size={16} aria-hidden />
+                          <div>
+                            <strong>{completedTasksCount}</strong>
+                            <span>Completed</span>
+                          </div>
+                        </div>
+                      </div>
+                    </section>
+                  </div>
+
+                  {/* Right Column: Assigned Tasks List */}
+                  <div className="volunteer-detail__col">
+                    <section className="volunteer-detail__card volunteer-detail__card--tasks">
+                      <div className="volunteer-panel-section__head" style={{ marginBottom: '0.85rem' }}>
+                        <div className="volunteer-tasks-title-wrap">
+                          <h4 style={{ margin: 0 }}>
+                            <ListTodo size={15} aria-hidden /> Assigned Tasks
+                          </h4>
+                          <span className="volunteer-tasks-count-pill">{tasks.length}</span>
+                        </div>
+                        <button
+                          type="button"
+                          className="btn btn--sm btn--primary"
+                          onClick={() => setShowTaskForm(true)}
+                          disabled={['Inactive', 'Suspended', 'Terminated'].includes(selected.status)}
+                          title={
+                            ['Inactive', 'Suspended', 'Terminated'].includes(selected.status)
+                              ? 'Cannot assign tasks to an inactive staff member'
+                              : 'Assign a task'
+                          }
+                          style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}
+                        >
+                          + Assign Task
+                        </button>
+                      </div>
+
+                      {['Inactive', 'Suspended', 'Terminated'].includes(selected.status) && (
+                        <div
+                          className="action-locked-banner action-locked-banner--accent"
+                          style={{ margin: '0 0 0.85rem' }}
+                        >
+                          <UserCog size={14} />
+                          <span>
+                            This staff account is <strong>{selected.status}</strong>. Task assignment is locked.
+                          </span>
+                        </div>
+                      )}
+
+                      {tasksLoading ? (
+                        <p className="beneficiary-view-empty">Loading tasks…</p>
+                      ) : tasks.length === 0 ? (
+                        <div className="volunteer-tasks-empty-state">
+                          <ListTodo size={32} className="volunteer-tasks-empty-icon" />
+                          <p style={{ fontWeight: 600, color: '#334155' }}>No tasks assigned yet</p>
+                          <p style={{ fontSize: '0.82rem', color: '#64748b', maxWidth: '280px', margin: '0 auto' }}>
+                            Assign operational tasks or program duties to this staff member using the button above.
+                          </p>
+                        </div>
+                      ) : (
+                        <div className="see-more-wrap">
+                          <div className="volunteer-task-list">
+                            {tasksSeeMore.visible.map((t) => {
+                              const isDone =
+                                (t.status || t.boardColumn) === 'done' ||
+                                (t.status || t.boardColumn) === 'Completed'
+                              const priorityColor =
+                                t.priority === 'High' || t.priority === 'Critical'
+                                  ? '#dc2626'
+                                  : t.priority === 'Medium'
+                                  ? '#d97706'
+                                  : '#64748b'
+
+                              return (
+                                <article key={t.dbId || t.id} className="volunteer-task-card">
+                                  <div className="volunteer-task-card__top">
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', flexWrap: 'wrap' }}>
+                                      <strong style={{ fontSize: '0.92rem', color: '#0f172a' }}>{t.title}</strong>
+                                      {t.module ? (
+                                        <span
+                                          style={{
+                                            fontSize: '0.72rem',
+                                            fontWeight: 600,
+                                            color: '#475569',
+                                            background: '#f1f5f9',
+                                            padding: '0.15rem 0.45rem',
+                                            borderRadius: '4px',
+                                          }}
+                                        >
+                                          {t.module}
+                                        </span>
+                                      ) : null}
+                                    </div>
+                                    <StatusBadge status={t.status || t.boardColumn} />
+                                  </div>
+
+                                  <div className="volunteer-task-card__meta">
+                                    <span>
+                                      Priority:{' '}
+                                      <strong style={{ color: priorityColor }}>{t.priority}</strong>
+                                    </span>
+                                    <span>Due: {t.due || t.dueDate || '—'}</span>
+                                    {t.completedAtLabel ? (
+                                      <span>Completed: {t.completedAtLabel}</span>
+                                    ) : null}
+                                  </div>
+
+                                  {!isDone && (
+                                    <div
+                                      style={{
+                                        marginTop: '0.65rem',
+                                        paddingTop: '0.5rem',
+                                        borderTop: '1px dashed #e2e8f0',
+                                        display: 'flex',
+                                        justifyContent: 'flex-end',
+                                      }}
+                                    >
+                                      <button
+                                        type="button"
+                                        className="btn btn--sm btn--ghost"
+                                        onClick={() => handleCompleteTask(t)}
+                                        style={{
+                                          fontSize: '0.78rem',
+                                          padding: '0.2rem 0.6rem',
+                                          color: '#16a34a',
+                                          fontWeight: 600,
+                                          display: 'inline-flex',
+                                          alignItems: 'center',
+                                          gap: '0.3rem',
+                                        }}
+                                      >
+                                        <Check size={13} /> Mark Completed
+                                      </button>
+                                    </div>
+                                  )}
+                                </article>
+                              )
+                            })}
+                          </div>
+                          {tasksSeeMore.needsToggle && (
+                            <SeeMoreToggle
+                              expanded={tasksSeeMore.expanded}
+                              onToggle={tasksSeeMore.toggle}
+                              hiddenCount={tasksSeeMore.hiddenCount}
+                            />
+                          )}
+                        </div>
+                      )}
+
+                      <p className="volunteer-panel-hint" style={{ marginTop: '0.85rem' }}>
+                        <UserCog size={14} /> Staff mark tasks complete from Staff Portal → My Tasks. First login requires a password change.
+                      </p>
+                    </section>
+                  </div>
+                </div>
+
+                {/* Modal Footer Actions */}
+                <div
+                  className="admin-modal__actions"
+                  style={{
+                    justifyContent: 'space-between',
+                    marginTop: '1.25rem',
+                    paddingTop: '1rem',
+                    borderTop: '1px solid #e2e8f0',
+                  }}
                 >
-                  <Trash2 size={14} /> Delete Staff Account
-                </button>
-                <button type="button" className="btn btn--ghost" onClick={() => setSelected(null)}>Close</button>
+                  <button
+                    type="button"
+                    className="btn btn--danger btn--sm"
+                    onClick={() => handleDelete(selected)}
+                    style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}
+                  >
+                    <Trash2 size={14} /> Delete Staff Account
+                  </button>
+                  <button
+                    type="button"
+                    className="btn btn--ghost btn--sm"
+                    onClick={() => setSelected(null)}
+                  >
+                    Close
+                  </button>
+                </div>
               </div>
             )}
           </div>
