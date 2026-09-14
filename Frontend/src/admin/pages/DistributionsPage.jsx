@@ -2158,59 +2158,101 @@ export default function DistributionsPage() {
                     {/* Setup Review Card */}
                     <div className="dist-summary-review-card">
                       <div className="dist-summary-review-card__header">
-                        <FileText size={15} style={{ color: '#AF101A' }} />
-                        Delivery Setup Summary
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', fontWeight: 700, fontSize: '0.88rem', color: '#0f172a' }}>
+                          <FileText size={16} style={{ color: '#AF101A' }} />
+                          <span>Delivery Setup Summary</span>
+                        </div>
+                        <span className="dist-summary-review-badge">
+                          Mode: {form.type || 'Delivery'}
+                        </span>
                       </div>
+
                       <div className="dist-summary-review-grid">
-                        <div className="dist-summary-item">
-                          <span className="dist-summary-item__label">Destination</span>
-                          <span className="dist-summary-item__value">
+                        <div className="dist-summary-review-item">
+                          <span className="dist-summary-review-label">
+                            <MapPin size={11} style={{ color: '#AF101A' }} />
+                            Destination Barangay
+                          </span>
+                          <strong>
                             {selectedBarangay?.barangay || selectedBarangay?.name || form.location || '—'}
-                          </span>
-                          <small style={{ color: '#64748b', fontSize: '0.74rem' }}>{form.location}</small>
+                          </strong>
+                          {form.location && <small>{form.location}</small>}
                         </div>
-                        <div className="dist-summary-item">
-                          <span className="dist-summary-item__label">Program / Project</span>
-                          <span className="dist-summary-item__value">
-                            {form.program || '—'}
+
+                        <div className="dist-summary-review-item">
+                          <span className="dist-summary-review-label">
+                            <Sparkles size={11} style={{ color: '#AF101A' }} />
+                            Program / Project
                           </span>
+                          <strong>{form.program || 'General Relief'}</strong>
                         </div>
-                        <div className="dist-summary-item">
-                          <span className="dist-summary-item__label">Schedule Date &amp; Time</span>
-                          <span className="dist-summary-item__value">
+
+                        <div className="dist-summary-review-item">
+                          <span className="dist-summary-review-label">
+                            <Calendar size={11} style={{ color: '#AF101A' }} />
+                            Schedule Date &amp; Time
+                          </span>
+                          <strong>
                             {form.distributionDate || '—'} {form.scheduleTime ? `at ${form.scheduleTime}` : ''}
-                          </span>
+                          </strong>
                         </div>
-                        <div className="dist-summary-item">
-                          <span className="dist-summary-item__label">Coordinator in Charge</span>
-                          <span className="dist-summary-item__value">
-                            {form.coordinator || '—'}
+
+                        <div className="dist-summary-review-item">
+                          <span className="dist-summary-review-label">
+                            <UserRound size={11} style={{ color: '#AF101A' }} />
+                            Coordinator in Charge
                           </span>
+                          <strong>{form.coordinator || 'Unassigned'}</strong>
                         </div>
-                        <div className="dist-summary-item">
-                          <span className="dist-summary-item__label">Fleet &amp; Transport</span>
-                          <span className="dist-summary-item__value">
+
+                        <div className="dist-summary-review-item">
+                          <span className="dist-summary-review-label">
+                            <Truck size={11} style={{ color: '#AF101A' }} />
+                            Fleet &amp; Transport
+                          </span>
+                          <strong>
                             {form.vehicles || 0} vehicle(s) {form.distanceKm ? `· ${form.distanceKm} km` : ''}
-                          </span>
+                          </strong>
                         </div>
-                        <div className="dist-summary-item">
-                          <span className="dist-summary-item__label">Assigned Team</span>
-                          <span className="dist-summary-item__value">
+
+                        <div className="dist-summary-review-item">
+                          <span className="dist-summary-review-label">
+                            <Users size={11} style={{ color: '#AF101A' }} />
+                            Assigned Team
+                          </span>
+                          <strong>
                             {assignedVolunteers.length > 0
                               ? `${assignedVolunteers.length} member(s): ${assignedVolunteers.map((v) => v.name).join(', ')}`
                               : (form.volunteers ? `${form.volunteers} volunteer(s) quota` : 'None assigned yet')}
-                          </span>
+                          </strong>
                         </div>
                       </div>
-                      <div style={{ marginTop: '0.65rem', paddingTop: '0.65rem', borderTop: '1px solid #e2e8f0', fontSize: '0.82rem' }}>
-                        <strong style={{ color: '#334155' }}>Items Cargo:</strong>{' '}
-                        <span style={{ color: '#0f172a' }}>{form.itemsSummary || '—'}</span>
+
+                      {/* Items Cargo Subcard */}
+                      <div className="dist-summary-cargo-box">
+                        <div className="dist-summary-cargo-box__header">
+                          <span style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+                            <Package size={13} style={{ color: '#AF101A' }} />
+                            Cargo Items to Deliver
+                          </span>
+                          {resolvedCargoAllocations.length > 0 && (
+                            <span className="dist-badge dist-badge--qty">
+                              {resolvedCargoAllocations.length} batch(es) linked
+                            </span>
+                          )}
+                        </div>
+                        <div className="dist-summary-cargo-box__content">
+                          {form.itemsSummary || 'No items specified'}
+                        </div>
                       </div>
                     </div>
 
                     <div className="dist-form-grid-2">
                       <label>
-                        Workflow Status
+                        <span style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+                          <ShieldCheck size={13} style={{ color: '#AF101A' }} />
+                          Workflow Status
+                        </span>
                         <select
                           value={form.status}
                           disabled={editRow && isTerminalStatus(editRow.status, DISTRIBUTION_TERMINAL)}
@@ -2231,7 +2273,10 @@ export default function DistributionsPage() {
                         )}
                       </label>
                       <label>
-                        Proof Requirement
+                        <span style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+                          <FileCheck size={13} style={{ color: '#AF101A' }} />
+                          Proof Requirement
+                        </span>
                         <select value={form.proofStatus} onChange={(e) => setForm({ ...form, proofStatus: e.target.value })}>
                           {PROOF_STATUS.map((s) => <option key={s} value={s}>{s}</option>)}
                         </select>
@@ -2239,7 +2284,10 @@ export default function DistributionsPage() {
                     </div>
 
                     <label>
-                      Logistics Notes
+                      <span style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+                        <StickyNote size={13} style={{ color: '#AF101A' }} />
+                        Logistics Notes &amp; Dispatch Instructions
+                      </span>
                       <textarea
                         rows={3}
                         value={form.notes}
