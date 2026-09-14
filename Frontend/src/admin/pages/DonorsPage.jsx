@@ -510,7 +510,7 @@ export default function DonorsPage() {
               )}
             </div>
 
-            <div className="admin-modal__actions" style={{ marginTop: '1.25rem' }}>
+            <div className="admin-modal__actions admin-modal__actions--split" style={{ marginTop: '1.25rem' }}>
               <button 
                 type="button" 
                 className="btn btn--danger" 

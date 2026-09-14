@@ -979,25 +979,19 @@ export default function StaffPage() {
 
                 {/* Modal Footer Actions */}
                 <div
-                  className="admin-modal__actions"
-                  style={{
-                    justifyContent: 'space-between',
-                    marginTop: '1.25rem',
-                    paddingTop: '1rem',
-                    borderTop: '1px solid #e2e8f0',
-                  }}
+                  className="admin-modal__actions admin-modal__actions--split"
+                  style={{ marginTop: '1.25rem' }}
                 >
                   <button
                     type="button"
-                    className="btn btn--danger btn--sm"
+                    className="btn btn--danger"
                     onClick={() => handleDelete(selected)}
-                    style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}
                   >
                     <Trash2 size={14} /> Delete Staff Account
                   </button>
                   <button
                     type="button"
-                    className="btn btn--ghost btn--sm"
+                    className="btn btn--ghost"
                     onClick={() => setSelected(null)}
                   >
                     Close

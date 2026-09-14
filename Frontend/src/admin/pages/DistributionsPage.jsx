@@ -4,7 +4,7 @@ import {
   Eye, Pencil, ArrowRightCircle, MapPin, Calendar, Package, Users,
   Truck, UserRound, FileCheck, ClipboardList, Route, Fuel, StickyNote,
   Sparkles, Check, Plus, X, UserCheck, ShieldCheck, RefreshCw, AlertCircle,
-  FileText, Lock,
+  FileText, Lock, Trash2,
 } from 'lucide-react'
 import { distributionsApi, beneficiariesApi, volunteerMatchApi, volunteersApi, getStaff, allocationsApi } from '../../api/resources'
 import { getTodayDateString, isPastDateString } from '../../utils/date'
@@ -1246,21 +1246,23 @@ export default function DistributionsPage() {
             </div>
 
             {/* Fixed Bottom Actions Footer */}
-            <div className="dist-modal-footer">
-              <button type="button" className="btn btn--primary btn--sm" onClick={() => openEdit(detailRow)}>
-                <Pencil size={13} /> Edit Delivery
+            <div className="dist-modal-footer admin-modal__actions--split">
+              <button type="button" className="btn btn--danger btn--sm" onClick={() => handleDelete(detailRow)}>
+                <Trash2 size={13} /> Delete Delivery
               </button>
-              {WORKFLOW.indexOf(detailRow.status) < WORKFLOW.length - 1 && (
-                <button type="button" className="btn btn--outline btn--sm" onClick={() => openStatus(detailRow)}>
-                  <ArrowRightCircle size={13} /> Update Status
+              <div className="admin-modal__actions-group">
+                <button type="button" className="btn btn--primary btn--sm" onClick={() => openEdit(detailRow)}>
+                  <Pencil size={13} /> Edit Delivery
                 </button>
-              )}
-              <button type="button" className="btn btn--ghost btn--sm" style={{ color: '#ef4444' }} onClick={() => handleDelete(detailRow)}>
-                Delete
-              </button>
-              <button type="button" className="btn btn--ghost btn--sm" onClick={() => setDetailRow(null)}>
-                Close
-              </button>
+                {WORKFLOW.indexOf(detailRow.status) < WORKFLOW.length - 1 && (
+                  <button type="button" className="btn btn--outline btn--sm" onClick={() => openStatus(detailRow)}>
+                    <ArrowRightCircle size={13} /> Update Status
+                  </button>
+                )}
+                <button type="button" className="btn btn--ghost btn--sm" onClick={() => setDetailRow(null)}>
+                  Close
+                </button>
+              </div>
             </div>
           </div>
         </div>

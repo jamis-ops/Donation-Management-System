@@ -639,7 +639,7 @@ export default function DatabaseManagementPage() {
                 Selected ID(s): <code style={{ wordBreak: 'break-all', fontSize: '0.8rem' }}>{selectedIds.slice(0, 10).join(', ')}{selectedIds.length > 10 ? ` … (+${selectedIds.length - 10} more)` : ''}</code>
               </p>
 
-              <div className="admin-modal__actions" style={{ marginTop: '1.25rem' }}>
+              <div className="admin-modal__actions admin-modal__actions--split" style={{ marginTop: '1.25rem' }}>
                 <button
                   type="button"
                   className="btn btn--danger"
@@ -684,7 +684,7 @@ export default function DatabaseManagementPage() {
                 </p>
               )}
 
-              <div className="admin-modal__actions" style={{ marginTop: '1.25rem' }}>
+              <div className="admin-modal__actions admin-modal__actions--split" style={{ marginTop: '1.25rem' }}>
                 <button
                   type="button"
                   className="btn btn--danger"
@@ -819,7 +819,7 @@ export default function DatabaseManagementPage() {
                 />
               </div>
 
-              <div className="admin-modal__actions">
+              <div className="admin-modal__actions admin-modal__actions--split" style={{ marginTop: '1.25rem' }}>
                 <button
                   type="button"
                   className="btn btn--danger"

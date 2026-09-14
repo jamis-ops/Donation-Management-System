@@ -2030,21 +2030,23 @@ export default function VolunteersPage() {
               )}
             </div>
 
-            <div className="admin-modal__actions">
-              {selected.status === 'Pending Review' && (
-                <>
-                  <button type="button" className="btn btn--primary" onClick={() => handleApprove(selected)}>
-                    <CheckCircle2 size={15} /> Approve
-                  </button>
-                  <button type="button" className="btn btn--outline" onClick={() => handleReject(selected)}>
-                    <XCircle size={15} /> Reject
-                  </button>
-                </>
-              )}
-              <button type="button" className="btn btn--outline" onClick={() => handleDelete(selected)}>
-                <Trash2 size={15} /> Delete
+            <div className="admin-modal__actions admin-modal__actions--split" style={{ marginTop: '1.25rem' }}>
+              <button type="button" className="btn btn--danger" onClick={() => handleDelete(selected)}>
+                <Trash2 size={15} /> Delete Profile
               </button>
-              <button type="button" className="btn btn--ghost" onClick={closeVolunteer}>Close</button>
+              <div className="admin-modal__actions-group">
+                {selected.status === 'Pending Review' && (
+                  <>
+                    <button type="button" className="btn btn--primary" onClick={() => handleApprove(selected)}>
+                      <CheckCircle2 size={15} /> Approve
+                    </button>
+                    <button type="button" className="btn btn--outline" onClick={() => handleReject(selected)}>
+                      <XCircle size={15} /> Reject
+                    </button>
+                  </>
+                )}
+                <button type="button" className="btn btn--ghost" onClick={closeVolunteer}>Close</button>
+              </div>
             </div>
           </div>
         </div>

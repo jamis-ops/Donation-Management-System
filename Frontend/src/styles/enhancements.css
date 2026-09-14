@@ -7711,6 +7711,48 @@ button:disabled,
   border-color: #94a3b8;
 }
 
+.admin-modal .admin-modal__actions .btn--danger {
+  background: #dc2626 !important;
+  color: #ffffff !important;
+  border: 1px solid #dc2626 !important;
+}
+
+.admin-modal .admin-modal__actions .btn--danger:hover:not(:disabled) {
+  background: #b91c1c !important;
+  border-color: #b91c1c !important;
+  box-shadow: 0 2px 6px rgba(220, 38, 38, 0.25) !important;
+}
+
+.admin-modal .admin-modal__actions .btn--outline {
+  background: #ffffff !important;
+  color: #334155 !important;
+  border: 1px solid #cbd5e1 !important;
+}
+
+.admin-modal .admin-modal__actions .btn--outline:hover:not(:disabled) {
+  background: #f8fafc !important;
+  color: #0f172a !important;
+  border-color: #94a3b8 !important;
+}
+
+/* Modal Split Footer Layout (Destructive on far left, Close/Actions on far right) */
+.admin-modal__actions--split,
+.admin-modal .admin-modal__actions--split,
+.admin-modal .admin-modal__actions:has(> .btn--danger:first-child) {
+  display: flex !important;
+  justify-content: space-between !important;
+  align-items: center !important;
+  width: 100% !important;
+  box-sizing: border-box !important;
+}
+
+.admin-modal__actions-group {
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 0.75rem !important;
+  flex-wrap: wrap !important;
+}
+
 
 
 
