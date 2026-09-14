@@ -81,8 +81,9 @@ label textarea:invalid:not(:placeholder-shown) {
   border-color: #dc2626;
 }
 
-label input:valid:not(:placeholder-shown),
-label textarea:valid:not(:placeholder-shown) {
+/* Only apply green border on explicit valid states, never on admin modal fields */
+body:not(.admin-body) label input:valid:not(:placeholder-shown):focus,
+body:not(.admin-body) label textarea:valid:not(:placeholder-shown):focus {
   border-color: #16a34a;
 }
 

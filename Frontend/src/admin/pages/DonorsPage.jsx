@@ -532,11 +532,34 @@ export default function DonorsPage() {
 
       {mode === 'create' && (
         <div className="admin-modal-overlay" onClick={() => setMode(null)}>
-          <div className="admin-modal admin-modal--wide" onClick={(e) => e.stopPropagation()}>
-            <ModalHeader title="Add Donor" onClose={() => setMode(null)} />
+          <div className="admin-modal admin-modal--xl" onClick={(e) => e.stopPropagation()}>
+            <ModalHeader
+              title="Add Donor"
+              subtitle="Register a new donor profile and optionally provision donor portal credentials."
+              onClose={() => setMode(null)}
+            />
             <form onSubmit={handleSave}>
-              <label>
-                <Req required>Donor Type</Req>
+              {/* Top Selector Card: Classification */}
+              <div
+                style={{
+                  marginBottom: '1.25rem',
+                  padding: '0.85rem 1.15rem',
+                  background: '#f8fafc',
+                  border: '1px solid #e2e8f0',
+                  borderRadius: '10px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  flexWrap: 'wrap',
+                  gap: '0.75rem',
+                }}
+              >
+                <div>
+                  <span style={{ fontWeight: 700, color: '#0f172a', fontSize: '0.88rem' }}>Donor Classification</span>
+                  <p style={{ margin: '0.15rem 0 0', fontSize: '0.78rem', color: '#64748b' }}>
+                    Select whether this donor profile is an individual person or an organization.
+                  </p>
+                </div>
                 <select
                   required
                   value={form.donorType}
@@ -545,34 +568,117 @@ export default function DonorsPage() {
                     donorType: e.target.value,
                     organization: e.target.value === 'Individual' ? '' : form.organization,
                   })}
+                  style={{ minWidth: '220px', margin: 0 }}
                 >
                   {DONOR_TYPES.map((t) => (
                     <option key={t.value} value={t.value}>{t.label}</option>
                   ))}
                 </select>
-              </label>
+              </div>
 
-              {isCompany ? (
-                <>
-                  {/* Company / Organization Details Section */}
-                  <div style={{ marginTop: '1rem', marginBottom: '1.25rem' }}>
-                    <p className="form-section-title" style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-                      <Building2 size={15} /> Company / Organization Information
-                    </p>
+              {/* 2-Column Balanced Form Grid */}
+              <div className="admin-form-grid-2col">
+                {/* Left Card: Identity & Primary Contact */}
+                <div className="admin-form-card">
+                  <div className="admin-form-card__header">
+                    <h4 className="admin-form-card__title">
+                      {isCompany ? (
+                        <><Building2 size={15} aria-hidden /> Company & Representative</>
+                      ) : (
+                        <><User size={15} aria-hidden /> Donor Contact Details</>
+                      )}
+                    </h4>
+                  </div>
 
-                    <label>
-                      <Req required>Company / Organization Name</Req>
-                      <input
-                        required
-                        value={form.organization}
-                        onChange={(e) => setForm({ ...form, organization: e.target.value })}
-                        placeholder="e.g. Acme Foundation Inc. / Danish Rotary Club"
-                      />
-                    </label>
+                  <div className="admin-form-card__body">
+                    {isCompany ? (
+                      <>
+                        <label>
+                          <Req required>Company / Organization Name</Req>
+                          <input
+                            required
+                            value={form.organization}
+                            onChange={(e) => setForm({ ...form, organization: e.target.value })}
+                            placeholder="e.g. Acme Foundation Inc. / Danish Rotary Club"
+                          />
+                        </label>
 
+                        <div>
+                          <p style={{ margin: '0 0 0.35rem', fontSize: '0.8125rem', fontWeight: 600, color: '#334155' }}>
+                            Authorized Representative
+                          </p>
+                          <NameFields
+                            value={form.nameParts}
+                            onChange={(nameParts) => setForm({ ...form, nameParts })}
+                          />
+                        </div>
+
+                        <div className="form-row">
+                          <label>
+                            <Req required>Email Address</Req>
+                            <input
+                              type="email"
+                              required
+                              value={form.email}
+                              onChange={(e) => setForm({ ...form, email: e.target.value })}
+                              placeholder="contact@company.com"
+                            />
+                          </label>
+                          <label>
+                            <Req required>Contact Number</Req>
+                            <PhoneInput
+                              required
+                              value={form.phone}
+                              onChange={(phone) => setForm({ ...form, phone })}
+                            />
+                          </label>
+                        </div>
+                      </>
+                    ) : (
+                      <>
+                        <div>
+                          <NameFields
+                            value={form.nameParts}
+                            onChange={(nameParts) => setForm({ ...form, nameParts })}
+                          />
+                        </div>
+
+                        <label>
+                          <Req required>Email Address</Req>
+                          <input
+                            type="email"
+                            required
+                            value={form.email}
+                            onChange={(e) => setForm({ ...form, email: e.target.value })}
+                            placeholder="donor@email.com"
+                          />
+                        </label>
+
+                        <label>
+                          <Req required>Contact Number</Req>
+                          <PhoneInput
+                            required
+                            value={form.phone}
+                            onChange={(phone) => setForm({ ...form, phone })}
+                          />
+                        </label>
+                      </>
+                    )}
+                  </div>
+                </div>
+
+                {/* Right Card: Location & Remarks */}
+                <div className="admin-form-card">
+                  <div className="admin-form-card__header">
+                    <h4 className="admin-form-card__title">
+                      <MapPin size={15} aria-hidden /> Location & Remarks
+                    </h4>
+                  </div>
+
+                  <div className="admin-form-card__body">
                     <div className="form-row">
                       <label>
-                        Country
+                        <span>Country</span>
                         <select
                           value={form.country}
                           onChange={(e) => {
@@ -592,7 +698,7 @@ export default function DonorsPage() {
                       </label>
 
                       <label>
-                        {form.country === 'Philippines' ? 'Province / Region' : 'State / Province / Region'}
+                        <span>{form.country === 'Philippines' ? 'Province / Region' : 'State / Province'}</span>
                         {availableRegions.length > 0 ? (
                           <select
                             value={form.stateProvince}
@@ -618,7 +724,7 @@ export default function DonorsPage() {
 
                     {form.stateProvince === 'Other' && (
                       <label>
-                        Specify State / Province / Region
+                        <span>Specify State / Province / Region</span>
                         <input
                           value={form.customRegion}
                           onChange={(e) => setForm({ ...form, customRegion: e.target.value })}
@@ -628,184 +734,53 @@ export default function DonorsPage() {
                     )}
 
                     <label>
-                      Company / Organization Address
-                      <input
-                        value={form.streetAddress}
-                        onChange={(e) => setForm({ ...form, streetAddress: e.target.value })}
-                        placeholder="Building, Street, Barangay, City, Postal Code"
-                      />
-                    </label>
-                  </div>
-
-                  {/* Authorized Representative / Contact Person Section */}
-                  <div style={{ marginTop: '1rem', marginBottom: '0.75rem' }}>
-                    <p className="form-section-title" style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-                      <User size={15} /> Authorized Representative / Contact Person
-                    </p>
-                    <NameFields
-                      value={form.nameParts}
-                      onChange={(nameParts) => setForm({ ...form, nameParts })}
-                    />
-                    <div className="form-row">
-                      <label>
-                        <Req required>Email</Req>
-                        <input
-                          type="email"
-                          required
-                          value={form.email}
-                          onChange={(e) => setForm({ ...form, email: e.target.value })}
-                          placeholder="contact@company.com"
-                        />
-                      </label>
-                      <label>
-                        <Req required>Contact Number</Req>
-                        <PhoneInput
-                          required
-                          value={form.phone}
-                          onChange={(phone) => setForm({ ...form, phone })}
-                        />
-                      </label>
-                    </div>
-                  </div>
-                </>
-              ) : (
-                <>
-                  {/* Individual Donor Name & Contact */}
-                  <div style={{ marginTop: '1rem', marginBottom: '1.25rem' }}>
-                    <p className="form-section-title" style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-                      <User size={15} /> Donor Name &amp; Contact
-                    </p>
-                    <NameFields
-                      value={form.nameParts}
-                      onChange={(nameParts) => setForm({ ...form, nameParts })}
-                    />
-                    <div className="form-row">
-                      <label>
-                        <Req required>Email</Req>
-                        <input
-                          type="email"
-                          required
-                          value={form.email}
-                          onChange={(e) => setForm({ ...form, email: e.target.value })}
-                          placeholder="donor@email.com"
-                        />
-                      </label>
-                      <label>
-                        <Req required>Contact Number</Req>
-                        <PhoneInput
-                          required
-                          value={form.phone}
-                          onChange={(phone) => setForm({ ...form, phone })}
-                        />
-                      </label>
-                    </div>
-                  </div>
-
-                  {/* Individual Address & Location Details */}
-                  <div style={{ marginTop: '1rem', marginBottom: '0.75rem' }}>
-                    <p className="form-section-title" style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-                      <MapPin size={15} /> Address &amp; Location Details
-                    </p>
-                    <div className="form-row">
-                      <label>
-                        Country
-                        <select
-                          value={form.country}
-                          onChange={(e) => {
-                            const nextCountry = e.target.value
-                            setForm({
-                              ...form,
-                              country: nextCountry,
-                              stateProvince: '',
-                              customRegion: '',
-                            })
-                          }}
-                        >
-                          {COUNTRIES.map((c) => (
-                            <option key={c.code} value={c.name}>{c.name}</option>
-                          ))}
-                        </select>
-                      </label>
-
-                      <label>
-                        {form.country === 'Philippines' ? 'Province / Region' : 'State / Province / Region'}
-                        {availableRegions.length > 0 ? (
-                          <select
-                            value={form.stateProvince}
-                            onChange={(e) => setForm({ ...form, stateProvince: e.target.value })}
-                          >
-                            <option value="">
-                              {form.country === 'Philippines' ? '-- Select Province / Region --' : '-- Select State / Province --'}
-                            </option>
-                            {availableRegions.map((r) => (
-                              <option key={r} value={r}>{r}</option>
-                            ))}
-                            <option value="Other">Other / Custom Region</option>
-                          </select>
-                        ) : (
-                          <input
-                            value={form.stateProvince}
-                            onChange={(e) => setForm({ ...form, stateProvince: e.target.value })}
-                            placeholder="State / Province / Region"
-                          />
-                        )}
-                      </label>
-                    </div>
-
-                    {form.stateProvince === 'Other' && (
-                      <label>
-                        Specify State / Province / Region
-                        <input
-                          value={form.customRegion}
-                          onChange={(e) => setForm({ ...form, customRegion: e.target.value })}
-                          placeholder="Enter state/province name"
-                        />
-                      </label>
-                    )}
-
-                    <label>
-                      Address
+                      <span>Complete Address</span>
                       <input
                         value={form.streetAddress}
                         onChange={(e) => setForm({ ...form, streetAddress: e.target.value })}
                         placeholder="Street, Barangay, City, Postal Code"
                       />
                     </label>
+
+                    <label>
+                      <span>Profile Notes & Remarks</span>
+                      <textarea
+                        rows={2}
+                        value={form.notes}
+                        onChange={(e) => setForm({ ...form, notes: e.target.value })}
+                        placeholder="Additional remarks or background notes about the donor"
+                      />
+                    </label>
                   </div>
-                </>
-              )}
-
-              <label style={{ marginTop: '0.75rem' }}>
-                Notes
-                <textarea rows={2} value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} placeholder="Additional remarks or notes about the donor" />
-              </label>
-
-              {mode === 'create' && (
-                <div className="policy-box" style={{ marginTop: '1rem' }}>
-                  <label className="need-check">
-                    <input
-                      type="checkbox"
-                      checked={form.createAccount}
-                      onChange={(e) => setForm({
-                        ...form,
-                        createAccount: e.target.checked,
-                        acceptedTerms: true,
-                        acceptedPrivacy: true,
-                        acceptedPolicies: true,
-                      })}
-                    />
-                    <span>Create portal account and email login credentials</span>
-                  </label>
                 </div>
-              )}
+              </div>
 
-              <div className="admin-modal__actions" style={{ marginTop: '1.25rem' }}>
+              {/* Bottom Portal Account Checkbox */}
+              <div className="policy-box" style={{ marginTop: '1.25rem', marginBottom: '0.25rem' }}>
+                <label className="need-check" style={{ margin: 0 }}>
+                  <input
+                    type="checkbox"
+                    checked={form.createAccount}
+                    onChange={(e) => setForm({
+                      ...form,
+                      createAccount: e.target.checked,
+                      acceptedTerms: true,
+                      acceptedPrivacy: true,
+                      acceptedPolicies: true,
+                    })}
+                  />
+                  <span>Create donor portal account and email login credentials automatically</span>
+                </label>
+              </div>
+
+              {/* Modal Actions */}
+              <div className="admin-modal__actions" style={{ justifyContent: 'flex-start' }}>
                 <button
                   type="submit"
                   className="btn btn--primary"
                   disabled={saving}
                 >
-                  {saving ? 'Saving...' : form.createAccount ? 'Create & Save Donor' : 'Save Donor'}
+                  {saving ? 'Saving…' : form.createAccount ? 'Create & Save Donor' : 'Save Donor'}
                 </button>
                 <button type="button" className="btn btn--ghost" onClick={() => setMode(null)}>Cancel</button>
               </div>

@@ -525,19 +525,25 @@ export default function StaffPage() {
 
             {isEditing && editForm ? (
               <form onSubmit={handleUpdateProfile} className="volunteer-edit-profile-form">
-                <div className="volunteer-detail__two-col">
-                  <div className="volunteer-detail__col">
-                    <section className="volunteer-detail__card">
-                      <h4>
-                        <UserCog size={15} aria-hidden /> Personal Details
+                <div className="admin-form-grid-2col">
+                  {/* Left Column Card: Personal Details & Emergency Contact */}
+                  <div className="admin-form-card">
+                    <div className="admin-form-card__header">
+                      <h4 className="admin-form-card__title">
+                        <UserCog size={15} aria-hidden /> Personal & Emergency Details
                       </h4>
-                      <NameFields
-                        value={editForm}
-                        onChange={(parts) => setEditForm({ ...editForm, ...parts })}
-                      />
-                      <div className="form-row" style={{ marginTop: '0.75rem' }}>
+                    </div>
+                    <div className="admin-form-card__body">
+                      <div>
+                        <NameFields
+                          value={editForm}
+                          onChange={(parts) => setEditForm({ ...editForm, ...parts })}
+                        />
+                      </div>
+
+                      <div className="form-row">
                         <label>
-                          Date of Birth
+                          <span>Date of Birth</span>
                           <input
                             type="date"
                             value={editForm.birthDate}
@@ -545,7 +551,7 @@ export default function StaffPage() {
                           />
                         </label>
                         <label>
-                          Account Status
+                          <span>Account Status</span>
                           <select
                             value={editForm.status}
                             onChange={(e) => setEditForm({ ...editForm, status: e.target.value })}
@@ -555,22 +561,17 @@ export default function StaffPage() {
                           </select>
                         </label>
                       </div>
-                    </section>
 
-                    <section className="volunteer-detail__card">
-                      <h4>
-                        <ShieldAlert size={15} aria-hidden /> Emergency Contact
-                      </h4>
                       <div className="form-row">
                         <label>
-                          Emergency Contact Number
+                          <span>Emergency Contact Number</span>
                           <PhoneInput
                             value={editForm.emergencyContactNumber}
                             onChange={(num) => setEditForm({ ...editForm, emergencyContactNumber: num })}
                           />
                         </label>
                         <label>
-                          Relationship
+                          <span>Relationship</span>
                           <input
                             type="text"
                             placeholder="e.g., Parent, Spouse, Sibling"
@@ -579,14 +580,17 @@ export default function StaffPage() {
                           />
                         </label>
                       </div>
-                    </section>
+                    </div>
                   </div>
 
-                  <div className="volunteer-detail__col">
-                    <section className="volunteer-detail__card">
-                      <h4>
-                        <Mail size={15} aria-hidden /> Contact & Location
+                  {/* Right Column Card: Contact & Location Details */}
+                  <div className="admin-form-card">
+                    <div className="admin-form-card__header">
+                      <h4 className="admin-form-card__title">
+                        <Mail size={15} aria-hidden /> Contact & Location Details
                       </h4>
+                    </div>
+                    <div className="admin-form-card__body">
                       <label>
                         <Req required>Email Address</Req>
                         <input
@@ -594,17 +598,20 @@ export default function StaffPage() {
                           required
                           value={editForm.email}
                           onChange={(e) => setEditForm({ ...editForm, email: e.target.value })}
+                          placeholder="staff@riseabovefoundation.org"
                         />
                       </label>
-                      <label style={{ marginTop: '0.75rem' }}>
-                        Phone Number
+
+                      <label>
+                        <span>Phone Number</span>
                         <PhoneInput
                           value={editForm.phone}
                           onChange={(phone) => setEditForm({ ...editForm, phone })}
                         />
                       </label>
-                      <label style={{ marginTop: '0.75rem' }}>
-                        Home Address
+
+                      <label>
+                        <span>Home Address</span>
                         <input
                           type="text"
                           placeholder="e.g., Cebu City, Philippines"
@@ -612,20 +619,11 @@ export default function StaffPage() {
                           onChange={(e) => setEditForm({ ...editForm, address: e.target.value })}
                         />
                       </label>
-                    </section>
+                    </div>
                   </div>
                 </div>
 
-                <div
-                  className="admin-modal__actions"
-                  style={{
-                    marginTop: '1.25rem',
-                    paddingTop: '1rem',
-                    borderTop: '1px solid #e2e8f0',
-                    justifyContent: 'flex-start',
-                    gap: '0.75rem',
-                  }}
-                >
+                <div className="admin-modal__actions" style={{ justifyContent: 'flex-start' }}>
                   <button type="submit" className="btn btn--primary" disabled={saving}>
                     {saving ? 'Saving…' : 'Save Changes'}
                   </button>

@@ -7467,6 +7467,251 @@ button:disabled,
   to { transform: rotate(360deg); }
 }
 
+/* ==========================================================================
+   ADMIN PORTAL MODAL & FORM UNIFIED DESIGN SYSTEM
+   - Consistent typography hierarchy (Inter / DM Sans)
+   - Balanced 2-column grid layout (.admin-form-grid-2col)
+   - Uniform card styling (.admin-form-card)
+   - Standardized input sizes, borders, focus rings, and labels
+   - Cohesive Rise Above Foundation red/white branding
+   ========================================================================== */
+
+.admin-modal {
+  font-family: var(--font-sans, 'DM Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif) !important;
+  box-sizing: border-box;
+}
+
+.admin-modal *,
+.admin-modal *::before,
+.admin-modal *::after {
+  box-sizing: border-box;
+}
+
+/* Modal Title & Subtitle Hierarchy */
+.admin-modal__header h2,
+.admin-modal__header h3 {
+  font-family: var(--font-sans, 'DM Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif) !important;
+  font-size: 1.18rem !important;
+  font-weight: 700 !important;
+  letter-spacing: -0.01em !important;
+  color: #ffffff !important;
+  margin: 0 !important;
+}
+
+.admin-modal__subtitle {
+  font-family: var(--font-sans, 'DM Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif) !important;
+  font-size: 0.84rem !important;
+  font-weight: 400 !important;
+  color: rgba(255, 255, 255, 0.9) !important;
+  margin-top: 0.25rem !important;
+  line-height: 1.4 !important;
+}
+
+/* 2-Column Responsive Form Grid */
+.admin-form-grid-2col {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1.25rem;
+  align-items: stretch;
+}
+
+@media (max-width: 768px) {
+  .admin-form-grid-2col {
+    grid-template-columns: 1fr;
+    gap: 1rem;
+  }
+}
+
+/* Structured Admin Form Card */
+.admin-form-card {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 1.25rem 1.35rem;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.03);
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.admin-form-card__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 1rem;
+  padding-bottom: 0.65rem;
+  border-bottom: 1px solid #f1f5f9;
+}
+
+.admin-form-card__title {
+  margin: 0;
+  font-size: 0.8rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #475569;
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+}
+
+.admin-form-card__title svg {
+  color: #AF101A;
+  flex-shrink: 0;
+}
+
+.admin-form-card__body {
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+  flex: 1;
+}
+
+/* Standardized Field Labels */
+.admin-modal label {
+  display: block;
+  font-size: 0.8125rem !important;
+  font-weight: 600 !important;
+  color: #334155 !important;
+  margin-bottom: 0.35rem;
+  line-height: 1.35;
+}
+
+.admin-modal label > span:first-child,
+.admin-modal .name-fields__label {
+  font-size: 0.8125rem !important;
+  font-weight: 600 !important;
+  color: #334155 !important;
+  margin-bottom: 0.35rem;
+}
+
+/* Standardized Input, Select, Textarea Sizes */
+.admin-modal input:not([type="checkbox"]):not([type="radio"]),
+.admin-modal select,
+.admin-modal textarea {
+  display: block;
+  width: 100%;
+  font-family: var(--font-sans, 'DM Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif) !important;
+  font-size: 0.875rem !important;
+  font-weight: 400 !important;
+  color: #0f172a !important;
+  background-color: #ffffff !important;
+  border: 1px solid #cbd5e1 !important;
+  border-radius: 8px !important;
+  padding: 0.55rem 0.85rem !important;
+  box-sizing: border-box;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.admin-modal input:not([type="checkbox"]):not([type="radio"]),
+.admin-modal select {
+  height: 40px !important;
+  min-height: 40px !important;
+}
+
+.admin-modal textarea {
+  min-height: 76px;
+  resize: vertical;
+  line-height: 1.45;
+}
+
+/* Neutral Border On Normal / Filled Inputs (Never Green unless explicitly validated) */
+.admin-modal input:not(:focus),
+.admin-modal select:not(:focus),
+.admin-modal textarea:not(:focus) {
+  border-color: #cbd5e1 !important;
+}
+
+/* Red Glow on Focus matching Rise Above Theme */
+.admin-modal input:focus,
+.admin-modal select:focus,
+.admin-modal textarea:focus {
+  border-color: #AF101A !important;
+  box-shadow: 0 0 0 3px rgba(175, 16, 26, 0.1) !important;
+  outline: none !important;
+}
+
+/* PhoneInput Wrapper inside modal */
+.admin-modal .phone-input {
+  width: 100%;
+}
+
+.admin-modal .phone-input input {
+  height: 40px !important;
+  margin: 0 !important;
+}
+
+/* Two-column Form Row Alignment */
+.admin-modal .form-row:not(.form-row--names) {
+  display: grid !important;
+  grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  gap: 0.85rem !important;
+  margin-bottom: 0 !important;
+  align-items: end;
+}
+
+/* NameFields 3-column in Admin Modals */
+.admin-modal .form-row--names {
+  display: grid !important;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(3.8rem, 4.5rem) !important;
+  gap: 0.75rem !important;
+  margin-bottom: 0 !important;
+  align-items: end;
+}
+
+.admin-modal .form-row > label {
+  margin-bottom: 0 !important;
+}
+
+/* Standardized Actions Footer */
+.admin-modal .admin-modal__actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  margin-top: 1.25rem;
+  padding-top: 1rem;
+  border-top: 1px solid #e2e8f0;
+}
+
+.admin-modal .admin-modal__actions .btn {
+  height: 40px;
+  padding: 0 1.35rem;
+  font-size: 0.875rem;
+  font-weight: 600;
+  border-radius: 8px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  transition: all 0.15s ease;
+}
+
+.admin-modal .admin-modal__actions .btn--primary {
+  background: #AF101A;
+  color: #ffffff;
+  border: 1px solid #AF101A;
+}
+
+.admin-modal .admin-modal__actions .btn--primary:hover:not(:disabled) {
+  background: #930D16;
+  border-color: #930D16;
+  box-shadow: 0 2px 6px rgba(175, 16, 26, 0.25);
+}
+
+.admin-modal .admin-modal__actions .btn--ghost {
+  background: #ffffff;
+  color: #475569;
+  border: 1px solid #cbd5e1;
+}
+
+.admin-modal .admin-modal__actions .btn--ghost:hover:not(:disabled) {
+  background: #f8fafc;
+  color: #1e293b;
+  border-color: #94a3b8;
+}
+
+
 
 
 
