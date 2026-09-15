@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import {
-  ArrowLeft, Pencil, Mail, Trash2, FileText, Truck, Package,
+  ArrowLeft, Mail, Trash2, FileText, Truck, Package,
   User, Calendar, Check, Eye, X, Shield, Plus, Upload, CheckCircle2, XCircle,
   Building, Phone, UserCheck, HeartHandshake, MapPin, Clock, Users, Activity
 } from 'lucide-react'
@@ -464,9 +464,6 @@ export default function BarangayDetailsPage() {
         </div>
 
         <div className="barangay-details__actions">
-          <button type="button" className="btn btn--outline btn--sm" onClick={() => setIsEditModalOpen(true)}>
-            <Pencil size={14} /> Edit profile
-          </button>
           {canInviteBarangay(beneficiary) && (
             <button type="button" className="btn btn--outline btn--sm" onClick={handleSendInvite}>
               <Mail size={14} /> Resend Invite
