@@ -120,7 +120,7 @@ export default function VolunteerPage() {
       setSubmitError(emailMsg)
       return
     }
-    const phoneMsg = phoneError(form.phone, { required: true })
+    const phoneMsg = phoneError(form.phone, { required: true, allowInternational: true })
     if (phoneMsg) {
       setSubmitError(phoneMsg)
       return
@@ -319,6 +319,7 @@ export default function VolunteerPage() {
               <label>
                 <Req required>Phone Number</Req>
                 <PhoneInput
+                  allowInternational
                   required
                   value={form.phone}
                   onChange={(phone) => setForm({ ...form, phone })}

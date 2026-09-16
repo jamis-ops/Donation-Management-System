@@ -116,12 +116,12 @@ export default function AccountSettingsPage() {
 
   const handleSaveProfile = async (e) => {
     e.preventDefault()
-    const phoneMsg = phoneError(phone, { required: false })
+    const phoneMsg = phoneError(phone, { required: false, allowInternational: true })
     if (phoneMsg) {
       notify.warning(phoneMsg)
       return
     }
-    const recoveryMsg = phoneError(recoveryPhone, { required: false })
+    const recoveryMsg = phoneError(recoveryPhone, { required: false, allowInternational: true })
     if (recoveryMsg) {
       notify.warning(recoveryMsg.replace('Phone number', 'Recovery phone'))
       return
@@ -386,17 +386,17 @@ export default function AccountSettingsPage() {
             <label>
               Phone number
               <PhoneInput 
+                allowInternational
                 value={phone} 
                 onChange={setPhone} 
-                placeholder="09XXXXXXXXX"
               />
             </label>
             <label>
               Recovery phone (optional)
               <PhoneInput
+                allowInternational
                 value={recoveryPhone}
                 onChange={setRecoveryPhone}
-                placeholder="09XXXXXXXXX"
               />
             </label>
             <button type="submit" className="btn btn--primary" disabled={savingProfile}>

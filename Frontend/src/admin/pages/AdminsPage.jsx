@@ -94,13 +94,13 @@ export default function AdminsPage() {
       notify.warning(emailMsg)
       return
     }
-    const phoneMsg = phoneError(form.phone, { required: false })
+    const phoneMsg = phoneError(form.phone, { required: false, allowInternational: true })
     if (phoneMsg) {
       notify.warning(phoneMsg)
       return
     }
     if (form.emergencyContactNumber) {
-      const ecMsg = phoneError(form.emergencyContactNumber, { required: false })
+      const ecMsg = phoneError(form.emergencyContactNumber, { required: false, allowInternational: true })
       if (ecMsg) {
         notify.warning(`Emergency Contact: ${ecMsg}`)
         return
@@ -176,13 +176,13 @@ export default function AdminsPage() {
   const handleUpdateProfile = async (e) => {
     e.preventDefault()
     if (!selected || !editForm) return
-    const phoneMsg = phoneError(editForm.phone, { required: false })
+    const phoneMsg = phoneError(editForm.phone, { required: false, allowInternational: true })
     if (phoneMsg) {
       notify.warning(phoneMsg)
       return
     }
     if (editForm.emergencyContactNumber) {
-      const ecMsg = phoneError(editForm.emergencyContactNumber, { required: false })
+      const ecMsg = phoneError(editForm.emergencyContactNumber, { required: false, allowInternational: true })
       if (ecMsg) {
         notify.warning(`Emergency Contact: ${ecMsg}`)
         return
@@ -324,6 +324,7 @@ export default function AdminsPage() {
                   <label>
                     Phone Number
                     <PhoneInput
+                      allowInternational
                       value={editForm.phone}
                       onChange={(phone) => setEditForm({ ...editForm, phone })}
                     />
@@ -352,6 +353,7 @@ export default function AdminsPage() {
                   <label>
                     Emergency Contact Number
                     <PhoneInput
+                      allowInternational
                       value={editForm.emergencyContactNumber}
                       onChange={(num) => setEditForm({ ...editForm, emergencyContactNumber: num })}
                     />
@@ -423,6 +425,7 @@ export default function AdminsPage() {
                 <label>
                   Phone Number
                   <PhoneInput
+                    allowInternational
                     value={form.phone}
                     onChange={(phone) => setForm({ ...form, phone })}
                   />
@@ -451,6 +454,7 @@ export default function AdminsPage() {
                 <label>
                   Emergency Contact Number
                   <PhoneInput
+                    allowInternational
                     value={form.emergencyContactNumber}
                     onChange={(num) => setForm({ ...form, emergencyContactNumber: num })}
                   />

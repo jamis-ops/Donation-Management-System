@@ -750,10 +750,11 @@ if ($method === 'PUT') {
     ? strtoupper(substr(preg_replace('/[^a-zA-Z]/', '', $repMi) ?: '', 0, 1))
     : null;
 
-  $repPhone = require_valid_ph_mobile(
+  $repPhone = require_valid_phone(
     $body['representativePhone'] ?? $existing['representative_phone'] ?? '',
     true,
-    'Representative phone'
+    'Representative phone',
+    true
   );
   $repEmail = require_valid_email(
     (string) ($body['representativeEmail'] ?? $existing['representative_email'] ?? ''),

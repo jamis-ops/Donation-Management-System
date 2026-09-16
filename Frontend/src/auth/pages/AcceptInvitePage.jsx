@@ -79,7 +79,7 @@ export default function AcceptInvitePage() {
   const handleSubmit = async (e) => {
     e.preventDefault()
     setError('')
-    const phoneMsg = phoneError(form.contactNumber, { required: true })
+    const phoneMsg = phoneError(form.contactNumber, { required: true, allowInternational: true })
     if (phoneMsg) {
       setError(phoneMsg)
       return
@@ -242,6 +242,7 @@ export default function AcceptInvitePage() {
                   <label>
                     <Req required>Contact Number</Req>
                     <PhoneInput
+                      allowInternational
                       required
                       value={form.contactNumber}
                       onChange={(contactNumber) => set('contactNumber', contactNumber)}

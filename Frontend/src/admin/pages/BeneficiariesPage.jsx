@@ -509,7 +509,7 @@ export default function BeneficiariesPage() {
       notify.warning('Barangay name and municipality/city are required.')
       return
     }
-    const phoneMsg = phoneError(createForm.representativePhone, { required: true })
+    const phoneMsg = phoneError(createForm.representativePhone, { required: true, allowInternational: true })
     if (phoneMsg) {
       notify.warning(phoneMsg)
       return
@@ -1079,6 +1079,7 @@ export default function BeneficiariesPage() {
                 <label>
                   <Req required>Contact Number</Req>
                   <PhoneInput
+                    allowInternational
                     required
                     value={createForm.representativePhone}
                     onChange={(representativePhone) => setCreateForm({ ...createForm, representativePhone })}

@@ -103,11 +103,11 @@ if ($method === 'PUT') {
   }
   if (array_key_exists('phone', $body)) {
     $fields[] = 'phone = ?';
-    $params[] = require_valid_ph_mobile($body['phone'] ?? '', false, 'Phone') ?: null;
+    $params[] = require_valid_phone($body['phone'] ?? '', false, 'Phone', true) ?: null;
   }
   if (array_key_exists('recoveryPhone', $body)) {
     $fields[] = 'recovery_phone = ?';
-    $params[] = require_valid_ph_mobile($body['recoveryPhone'] ?? '', false, 'Recovery phone') ?: null;
+    $params[] = require_valid_phone($body['recoveryPhone'] ?? '', false, 'Recovery phone', true) ?: null;
   }
   if ($fields) {
     $params[] = $uid;

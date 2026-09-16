@@ -115,7 +115,7 @@ export default function DonatePage() {
       setSubmitError(emailMsg)
       return
     }
-    const phoneMsg = phoneError(form.phone, { required: true })
+    const phoneMsg = phoneError(form.phone, { required: true, allowInternational: true })
     if (phoneMsg) {
       setSubmitError(phoneMsg)
       return
@@ -395,6 +395,7 @@ export default function DonatePage() {
                         <label>
                           <Req required>Contact Number</Req>
                           <PhoneInput
+                            allowInternational
                             required
                             value={form.phone}
                             onChange={(phone) => setForm({ ...form, phone })}
@@ -431,6 +432,7 @@ export default function DonatePage() {
                         <label>
                           <Req required>Contact Number</Req>
                           <PhoneInput
+                            allowInternational
                             required
                             value={form.phone}
                             onChange={(phone) => setForm({ ...form, phone })}

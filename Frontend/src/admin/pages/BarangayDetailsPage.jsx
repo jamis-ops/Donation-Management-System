@@ -183,7 +183,7 @@ export default function BarangayDetailsPage() {
       notify.warning('Barangay name and municipality/city are required.')
       return
     }
-    const phoneMsg = phoneError(editForm.representativePhone, { required: true })
+    const phoneMsg = phoneError(editForm.representativePhone, { required: true, allowInternational: true })
     if (phoneMsg) {
       notify.warning(phoneMsg)
       return
@@ -947,6 +947,7 @@ export default function BarangayDetailsPage() {
                 <label>
                   <Req required>Phone</Req>
                   <PhoneInput
+                    allowInternational
                     required
                     value={editForm.representativePhone}
                     onChange={(representativePhone) => setEditForm({ ...editForm, representativePhone })}

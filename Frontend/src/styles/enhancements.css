@@ -5185,14 +5185,95 @@ optgroup {
   width: 100%;
 }
 
+.phone-input__field-group {
+  display: flex;
+  align-items: stretch;
+  width: 100%;
+  position: relative;
+}
+
 .phone-input input {
   width: 100%;
   letter-spacing: 0.02em;
   font-variant-numeric: tabular-nums;
 }
 
-.phone-input--invalid input {
+.phone-input--international .phone-input__field-group input {
+  border-top-left-radius: 0 !important;
+  border-bottom-left-radius: 0 !important;
+  border-left: 1px solid #cbd5e1;
+}
+
+.phone-input__country-select-wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+.phone-input__country-select {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0;
+  cursor: pointer;
+  z-index: 2;
+  font-size: 1rem;
+}
+
+.phone-input__country-display {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0 0.65rem 0 0.75rem;
+  background: #f8fafc;
+  border: 1px solid #cbd5e1;
+  border-right: none;
+  border-top-left-radius: 6px;
+  border-bottom-left-radius: 6px;
+  color: #334155;
+  font-size: 0.875rem;
+  font-weight: 500;
+  white-space: nowrap;
+  user-select: none;
+  pointer-events: none;
+  transition: all 0.15s ease;
+}
+
+.phone-input__country-flag {
+  font-size: 1.15rem;
+  line-height: 1;
+}
+
+.phone-input__country-dial {
+  font-weight: 600;
+  letter-spacing: 0.01em;
+}
+
+.phone-input__chevron {
+  color: #64748b;
+  margin-left: 0.15rem;
+  transition: transform 0.15s ease;
+}
+
+.phone-input__country-select-wrap:hover .phone-input__country-display {
+  background: #f1f5f9;
+  border-color: #94a3b8;
+}
+
+.phone-input__country-select:focus ~ .phone-input__country-display {
+  background: #e2e8f0;
+  border-color: #0284c7;
+  outline: 2px solid rgba(2, 132, 199, 0.25);
+}
+
+.phone-input--invalid input,
+.phone-input--invalid .phone-input__country-display {
   border-color: #dc2626 !important;
+}
+
+.phone-input--invalid input {
   box-shadow: 0 0 0 1px rgba(220, 38, 38, 0.2);
 }
 
@@ -5201,6 +5282,25 @@ optgroup {
   font-size: 0.82rem;
   font-weight: 600;
   line-height: 1.35;
+}
+
+/* Dark mode compatibility */
+[data-theme="dark"] .phone-input__country-display,
+.dark .phone-input__country-display {
+  background: #1e293b;
+  border-color: #475569;
+  color: #f1f5f9;
+}
+
+[data-theme="dark"] .phone-input__country-select-wrap:hover .phone-input__country-display,
+.dark .phone-input__country-select-wrap:hover .phone-input__country-display {
+  background: #334155;
+  border-color: #64748b;
+}
+
+[data-theme="dark"] .phone-input--international .phone-input__field-group input,
+.dark .phone-input--international .phone-input__field-group input {
+  border-left-color: #475569;
 }
 
 /* =========================================================
@@ -7672,6 +7772,11 @@ button:disabled,
 .admin-modal .phone-input input {
   height: 40px !important;
   margin: 0 !important;
+}
+
+.admin-modal .phone-input .phone-input__country-display {
+  height: 40px !important;
+  box-sizing: border-box !important;
 }
 
 /* Two-column Form Row Alignment */

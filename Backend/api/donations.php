@@ -430,7 +430,7 @@ if ($method === 'POST') {
   $organization = $donorType === 'Company'
     ? trim((string) ($body['organization'] ?? $body['company'] ?? ''))
     : '';
-  $phone = require_valid_ph_mobile($body['phone'] ?? '', $public, 'Phone');
+  $phone = require_valid_phone($body['phone'] ?? '', $public, 'Phone', true);
   $country = trim((string) ($body['country'] ?? ''));
   $address = trim((string) ($body['address'] ?? ''));
 

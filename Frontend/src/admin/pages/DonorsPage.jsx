@@ -127,7 +127,7 @@ export default function DonorsPage() {
       notify.warning(emailMsg)
       return
     }
-    const phoneMsg = phoneError(form.phone, { required: true })
+    const phoneMsg = phoneError(form.phone, { required: true, allowInternational: true })
     if (phoneMsg) {
       notify.warning(phoneMsg)
       return
@@ -627,6 +627,7 @@ export default function DonorsPage() {
                           <label>
                             <Req required>Contact Number</Req>
                             <PhoneInput
+                              allowInternational
                               required
                               value={form.phone}
                               onChange={(phone) => setForm({ ...form, phone })}
@@ -657,6 +658,7 @@ export default function DonorsPage() {
                         <label>
                           <Req required>Contact Number</Req>
                           <PhoneInput
+                            allowInternational
                             required
                             value={form.phone}
                             onChange={(phone) => setForm({ ...form, phone })}

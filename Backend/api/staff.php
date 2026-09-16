@@ -96,7 +96,7 @@ if ($method === 'POST') {
   [$last, $first, $mi, $name] = read_name_parts($body);
   $email = require_valid_email((string) ($body['email'] ?? ''), 'Email');
   $role = ucfirst(strtolower(trim((string) ($body['role'] ?? 'Staff'))));
-  $phone = require_valid_ph_mobile($body['phone'] ?? '', false, 'Phone');
+  $phone = require_valid_phone($body['phone'] ?? '', false, 'Phone', true);
 
   if (!in_array($role, ['Admin', 'Staff'], true)) {
     json_response(['ok' => false, 'error' => 'Role must be Admin or Staff'], 400);
@@ -146,7 +146,7 @@ if ($method === 'POST') {
   );
   $birthDate = !empty($body['birthDate']) ? (string) $body['birthDate'] : (!empty($body['dateOfBirth']) ? (string) $body['dateOfBirth'] : null);
   $address = !empty($body['address']) ? trim((string) $body['address']) : null;
-  $emergencyContactNumber = require_valid_ph_mobile($body['emergencyContactNumber'] ?? ($body['emergencyContactPhone'] ?? ''), false, 'Emergency Contact Number') ?: null;
+  $emergencyContactNumber = require_valid_phone($body['emergencyContactNumber'] ?? ($body['emergencyContactPhone'] ?? ''), false, 'Emergency Contact Number', true) ?: null;
   $emergencyContactRelation = !empty($body['emergencyContactRelation']) ? trim((string) $body['emergencyContactRelation']) : null;
 
   $pdo->prepare('UPDATE users SET phone = ?, birth_date = ?, address = ?, emergency_contact_phone = ?, emergency_contact_relation = ? WHERE id = ?')
@@ -254,7 +254,7 @@ if ($method === 'PUT') {
   $status = $statusMap[$statusIn] ?? $existing['status'];
 
   $phone = array_key_exists('phone', $body)
-    ? (require_valid_ph_mobile($body['phone'] ?? '', false, 'Phone') ?: null)
+    ? (require_valid_phone($body['phone'] ?? '', false, 'Phone', true) ?: null)
     : ($existing['phone'] ?? null);
 
   $birthDate = array_key_exists('birthDate', $body) || array_key_exists('dateOfBirth', $body)
@@ -264,7 +264,7 @@ if ($method === 'PUT') {
     ? (!empty($body['address']) ? trim((string) $body['address']) : null)
     : ($existing['address'] ?? null);
   $emergencyContactNumber = array_key_exists('emergencyContactNumber', $body) || array_key_exists('emergencyContactPhone', $body)
-    ? (require_valid_ph_mobile($body['emergencyContactNumber'] ?? ($body['emergencyContactPhone'] ?? ''), false, 'Emergency Contact Number') ?: null)
+    ? (require_valid_phone($body['emergencyContactNumber'] ?? ($body['emergencyContactPhone'] ?? ''), false, 'Emergency Contact Number', true) ?: null)
     : ($existing['emergency_contact_phone'] ?? null);
   $emergencyContactRelation = array_key_exists('emergencyContactRelation', $body)
     ? (!empty($body['emergencyContactRelation']) ? trim((string) $body['emergencyContactRelation']) : null)

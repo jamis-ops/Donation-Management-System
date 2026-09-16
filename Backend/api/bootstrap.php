@@ -756,20 +756,57 @@ function require_valid_email(string $email, string $label = 'Email'): string
   return $email;
 }
 
-function require_valid_ph_mobile(?string $phone, bool $required = false, string $label = 'Phone'): string
+function is_valid_phone(?string $phone, bool $allowInternational = true): bool
+{
+  $raw = trim((string) $phone);
+  if ($raw === '') {
+    return false;
+  }
+  if (!$allowInternational) {
+    return is_valid_ph_mobile($raw);
+  }
+  if (str_starts_with($raw, '+63') || str_starts_with($raw, '09') || (strlen(preg_replace('/\D+/', '', $raw)) === 12 && str_starts_with(preg_replace('/\D+/', '', $raw), '63'))) {
+    return is_valid_ph_mobile($raw);
+  }
+  if (str_starts_with($raw, '+')) {
+    $digits = preg_replace('/\D+/', '', $raw);
+    return strlen($digits) >= 7 && strlen($digits) <= 15;
+  }
+  $digits = preg_replace('/\D+/', '', $raw);
+  if (strlen($digits) >= 7 && strlen($digits) <= 15) {
+    return true;
+  }
+  return is_valid_ph_mobile($raw);
+}
+
+function require_valid_phone(?string $phone, bool $required = false, string $label = 'Phone', bool $allowInternational = true): string
 {
   $raw = trim((string) $phone);
   if ($raw === '') {
     if ($required) {
-      json_response(['ok' => false, 'error' => "{$label} is required (11-digit PH mobile)."], 400);
+      json_response(['ok' => false, 'error' => "{$label} is required."], 400);
     }
     return '';
   }
-  $normalized = normalize_ph_mobile($raw);
-  if (!is_valid_ph_mobile($normalized)) {
-    json_response(['ok' => false, 'error' => "{$label} must be an 11-digit PH mobile number (09XXXXXXXXX)."], 400);
+  if (!is_valid_phone($raw, $allowInternational)) {
+    if ($allowInternational) {
+      json_response(['ok' => false, 'error' => "{$label} must be a valid phone number."], 400);
+    } else {
+      json_response(['ok' => false, 'error' => "{$label} must be an 11-digit PH mobile number (09XXXXXXXXX)."], 400);
+    }
   }
-  return $normalized;
+  if (is_valid_ph_mobile($raw)) {
+    return normalize_ph_mobile($raw);
+  }
+  if (str_starts_with($raw, '+')) {
+    return '+' . preg_replace('/\D+/', '', $raw);
+  }
+  return preg_replace('/\D+/', '', $raw);
+}
+
+function require_valid_ph_mobile(?string $phone, bool $required = false, string $label = 'Phone'): string
+{
+  return require_valid_phone($phone, $required, $label, false);
 }
 
 function user_role_name(PDO $pdo, int $userId): ?string
