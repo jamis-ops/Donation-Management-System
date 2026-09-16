@@ -1,5 +1,8 @@
 import { useState, useEffect } from 'react'
-import { MapPin, Users, AlertTriangle, CheckCircle, Info, TrendingUp, Package, RefreshCw, AlertCircle } from 'lucide-react'
+import {
+  MapPin, Users, AlertTriangle, CheckCircle, Info, TrendingUp,
+  Package, RefreshCw, AlertCircle, Phone, Mail, UserCheck, FileText
+} from 'lucide-react'
 import { needsStockApi } from '../../api/resources'
 
 export default function BarangayNeedsAnalyzer({
@@ -74,28 +77,28 @@ export default function BarangayNeedsAnalyzer({
   const getSufficiencyIcon = (status) => {
     switch (status) {
       case 'Sufficient':
-        return <CheckCircle size={20} />
+        return <CheckCircle size={15} />
       case 'Partial':
-        return <Info size={20} />
+        return <Info size={15} />
       case 'Insufficient':
-        return <AlertTriangle size={20} />
+        return <AlertTriangle size={15} />
       default:
-        return <Package size={20} />
+        return <Package size={15} />
     }
   }
 
   return (
     <div className="barangay-analyzer">
-      {/* Barangay Selection Card */}
-      <div className="repacking-section">
+      {/* 1. Barangay Selection Card */}
+      <div className="repacking-section repacking-section--compact">
         <div className="repacking-section__header">
           <MapPin size={16} />
           <h4>Target Barangay</h4>
         </div>
 
-        <div className="form-row">
-          <label className="form-label-enhanced">
-            Select Target Barangay <span className="required">*</span>
+        <div className="form-row" style={{ marginBottom: 0 }}>
+          <label className="form-label-enhanced" style={{ margin: 0, width: '100%' }}>
+            Select Barangay for Distribution <span className="required">*</span>
             <select
               required
               value={selectedBarangay?.dbId || ''}
@@ -106,7 +109,7 @@ export default function BarangayNeedsAnalyzer({
               }}
               className="form-select-enhanced"
             >
-              <option value="">Select target barangay...</option>
+              <option value="">Choose a target barangay...</option>
               {sortedBarangays.map((b) => (
                 <option key={b.dbId} value={b.dbId}>
                   {b.name} {b.municipality && `(${b.municipality})`} — {b.affectedFamilies || 0} families
@@ -117,231 +120,212 @@ export default function BarangayNeedsAnalyzer({
         </div>
 
         {selectedBarangay && (
-          <div className="source-info-card" style={{ marginTop: '1.25rem' }}>
-            <div className="source-info-row">
-              <span className="source-info-label">Affected Families:</span>
-              <span className="source-info-value">{selectedBarangay.affectedFamilies || 0} families</span>
-            </div>
-            {selectedBarangay.representativeName && (
-              <div className="source-info-row">
-                <span className="source-info-label">Representative:</span>
-                <span className="source-info-value">
-                  {selectedBarangay.representativeName}
-                  {selectedBarangay.representativePosition && ` (${selectedBarangay.representativePosition})`}
+          <div className="barangay-quick-strip">
+            <div className="quick-strip-item">
+              <Users size={14} className="quick-strip-icon" />
+              <div className="quick-strip-content">
+                <span className="quick-strip-label">Affected Families</span>
+                <span className="quick-strip-value font-semibold">
+                  {Number(selectedBarangay.affectedFamilies || 0).toLocaleString()}
                 </span>
               </div>
-            )}
-            {selectedBarangay.representativePhone && (
-              <div className="source-info-row">
-                <span className="source-info-label">Contact Phone:</span>
-                <span className="source-info-value">{selectedBarangay.representativePhone}</span>
+            </div>
+
+            <div className="quick-strip-item">
+              <UserCheck size={14} className="quick-strip-icon" />
+              <div className="quick-strip-content">
+                <span className="quick-strip-label">Representative</span>
+                <span className="quick-strip-value" title={selectedBarangay.representativeName || '—'}>
+                  {selectedBarangay.representativeName || '—'}
+                  {selectedBarangay.representativePosition ? ` (${selectedBarangay.representativePosition})` : ''}
+                </span>
               </div>
-            )}
-            {selectedBarangay.representativeEmail && (
-              <div className="source-info-row">
-                <span className="source-info-label">Contact Email:</span>
-                <span className="source-info-value">{selectedBarangay.representativeEmail}</span>
+            </div>
+
+            <div className="quick-strip-item">
+              <Phone size={14} className="quick-strip-icon" />
+              <div className="quick-strip-content">
+                <span className="quick-strip-label">Phone</span>
+                <span className="quick-strip-value">
+                  {selectedBarangay.representativePhone ? (
+                    <a href={`tel:${selectedBarangay.representativePhone}`}>{selectedBarangay.representativePhone}</a>
+                  ) : '—'}
+                </span>
               </div>
-            )}
+            </div>
+
+            <div className="quick-strip-item">
+              <Mail size={14} className="quick-strip-icon" />
+              <div className="quick-strip-content">
+                <span className="quick-strip-label">Email</span>
+                <span className="quick-strip-value">
+                  {selectedBarangay.representativeEmail ? (
+                    <a href={`mailto:${selectedBarangay.representativeEmail}`}>{selectedBarangay.representativeEmail}</a>
+                  ) : '—'}
+                </span>
+              </div>
+            </div>
           </div>
         )}
       </div>
 
-      {/* Analysis Results Card */}
+      {/* 2. Needs Analysis Card */}
       {selectedBarangay && (
-        <div className="repacking-section">
-          <div className="repacking-section__header">
-            <TrendingUp size={16} />
-            <h4>Needs Analysis</h4>
+        <div className="repacking-section repacking-section--compact">
+          <div className="repacking-section__header" style={{ justifyContent: 'space-between' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              <TrendingUp size={16} />
+              <h4>Barangay Needs & Stock Readiness</h4>
+            </div>
+            {analysisData?.analysis?.overallSufficiency && (
+              <span className={`status-pill status-pill--${getSufficiencyColor(analysisData.analysis.overallSufficiency)}`}>
+                {getSufficiencyIcon(analysisData.analysis.overallSufficiency)}
+                <span>{analysisData.analysis.overallSufficiency} Stock</span>
+              </span>
+            )}
           </div>
 
           {loadingAnalysis ? (
             <div className="analysis-loading">
               <div className="spinner" />
-              <p>Analyzing barangay needs and available stock...</p>
+              <p>Analyzing barangay relief requests and available warehouse inventory...</p>
             </div>
           ) : analysisError ? (
             <div className="analysis-loading" style={{ color: '#ef4444' }}>
-              <AlertCircle size={32} style={{ marginBottom: '0.5rem' }} />
-              <p style={{ fontWeight: 600, color: '#b91c1c' }}>{analysisError}</p>
+              <AlertCircle size={28} style={{ marginBottom: '0.25rem' }} />
+              <p style={{ fontWeight: 600, color: '#b91c1c', margin: '0.25rem 0' }}>{analysisError}</p>
               <button
                 type="button"
                 className="btn btn--sm btn--outline"
                 onClick={fetchAnalysis}
-                style={{ marginTop: '0.75rem', display: 'inline-flex', alignItems: 'center', gap: '0.375rem' }}
+                style={{ marginTop: '0.5rem', display: 'inline-flex', alignItems: 'center', gap: '0.375rem' }}
               >
-                <RefreshCw size={14} /> Retry Analysis
+                <RefreshCw size={13} /> Retry Analysis
               </button>
             </div>
           ) : analysisData ? (
-            <div className="analysis-results">
-              {/* Summary Cards */}
-              <div className="analysis-summary-grid">
-                <div className="summary-card">
-                  <div className="summary-icon families">
-                    <Users size={24} />
-                  </div>
-                  <div className="summary-content">
-                    <div className="summary-value">{analysisData.analysis.targetFamilies}</div>
-                    <div className="summary-label">Target Families</div>
-                  </div>
-                </div>
-
-                <div className="summary-card">
-                  <div className="summary-icon needs">
-                    <Package size={24} />
-                  </div>
-                  <div className="summary-content">
-                    <div className="summary-value">{analysisData.analysis.totalNeedTypes}</div>
-                    <div className="summary-label">Need Types</div>
-                  </div>
-                </div>
-
-                <div className="summary-card">
-                  <div
-                    className={`summary-icon sufficiency-${getSufficiencyColor(
-                      analysisData.analysis.overallSufficiency
-                    )}`}
-                  >
-                    {getSufficiencyIcon(analysisData.analysis.overallSufficiency)}
-                  </div>
-                  <div className="summary-content">
-                    <div className="summary-value">{analysisData.analysis.overallSufficiency}</div>
-                    <div className="summary-label">Stock Sufficiency</div>
-                  </div>
-                </div>
-              </div>
-
-              {/* Open Requests */}
-              {analysisData.requests && analysisData.requests.length > 0 && (
-                <div className="analysis-block">
-                  <h4 className="block-title">Open Assistance Requests ({analysisData.requests.length})</h4>
-                  <div className="requests-list">
-                    {analysisData.requests.slice(0, 3).map((req) => (
-                      <div key={req.id} className="request-item">
-                        <div className="request-code">{req.code}</div>
-                        <div className="request-type">{req.type}</div>
-                        <div className={`request-priority priority-${req.priority.toLowerCase()}`}>
-                          {req.priority}
-                        </div>
-                      </div>
-                    ))}
-                    {analysisData.requests.length > 3 && (
-                      <div className="request-item more">
-                        +{analysisData.requests.length - 3} more requests
-                      </div>
-                    )}
-                  </div>
-                </div>
-              )}
-
-              {/* Identified Needs */}
-              {analysisData.needs && analysisData.needs.length > 0 && (
-                <div className="analysis-block">
-                  <h4 className="block-title">Identified Needs</h4>
-                  <div className="needs-tags">
-                    {analysisData.needs.map((need, idx) => (
-                      <div key={idx} className="need-tag">
-                        <span className="need-label">{need.label}</span>
-                        {need.count > 1 && <span className="need-count">×{need.count}</span>}
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {/* Sufficiency Breakdown */}
-              <div className="analysis-block">
-                <h4 className="block-title">Stock Availability</h4>
-                <div className="sufficiency-breakdown">
-                  <div className="sufficiency-row sufficient">
-                    <div className="sufficiency-label">
-                      <CheckCircle size={16} />
-                      Sufficient
+            <div className="analysis-dashboard-grid">
+              {/* Left Column: Requests & Identified Needs */}
+              <div className="analysis-col">
+                {/* Identified Needs Pills */}
+                <div className="analysis-subcard">
+                  <span className="analysis-subcard-title">
+                    Identified Needs ({analysisData.needs?.length || 0})
+                  </span>
+                  {analysisData.needs && analysisData.needs.length > 0 ? (
+                    <div className="needs-tags-wrap">
+                      {analysisData.needs.map((need, idx) => (
+                        <span key={idx} className="need-chip">
+                          {need.label}
+                          {need.count > 1 && <strong className="need-chip-count">×{need.count}</strong>}
+                        </span>
+                      ))}
                     </div>
-                    <div className="sufficiency-value">{analysisData.analysis.sufficientItems}</div>
-                  </div>
-                  <div className="sufficiency-row partial">
-                    <div className="sufficiency-label">
-                      <Info size={16} />
-                      Partial
-                    </div>
-                    <div className="sufficiency-value">{analysisData.analysis.partialItems}</div>
-                  </div>
-                  <div className="sufficiency-row insufficient">
-                    <div className="sufficiency-label">
-                      <AlertTriangle size={16} />
-                      Insufficient
-                    </div>
-                    <div className="sufficiency-value">
-                      {analysisData.analysis.insufficientItems}
-                    </div>
-                  </div>
+                  ) : (
+                    <span className="text-muted text-sm">No specific needs listed in profile</span>
+                  )}
                 </div>
-              </div>
 
-              {/* Insufficient Items Warning */}
-              {analysisData.insufficientItems && analysisData.insufficientItems.length > 0 && (
-                <div className="analysis-block warning-block">
-                  <h4 className="block-title">
-                    <AlertTriangle size={16} />
-                    Items with Insufficient Stock
-                  </h4>
-                  <div className="insufficient-items-list">
-                    {analysisData.insufficientItems.map((item, idx) => (
-                      <div key={idx} className="insufficient-item">
-                        <div className="insufficient-item-name">{item.need}</div>
-                        {item.shortage ? (
-                          <div className="insufficient-item-details">
-                            Need {item.required} {item.unit}, have {item.available} {item.unit} (
-                            <strong className="shortage">
-                              short {item.shortage} {item.unit}
-                            </strong>
-                            )
+                {/* Open Requests */}
+                <div className="analysis-subcard">
+                  <span className="analysis-subcard-title">
+                    Linked Assistance Requests ({analysisData.requests?.length || 0})
+                  </span>
+                  {analysisData.requests && analysisData.requests.length > 0 ? (
+                    <div className="mini-requests-list">
+                      {analysisData.requests.map((req) => (
+                        <div key={req.id} className="mini-request-row">
+                          <div className="mini-request-info">
+                            <span className="mini-request-code">{req.code || req.reference_code || `REQ-${req.id}`}</span>
+                            <span className="mini-request-type">{req.type || req.assistance_type || 'Relief'}</span>
                           </div>
-                        ) : (
-                          <div className="insufficient-item-details">{item.reason}</div>
-                        )}
-                      </div>
-                    ))}
+                          <span className={`priority-pill priority-pill--${(req.priority || 'Medium').toLowerCase()}`}>
+                            {req.priority || 'Medium'}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <span className="text-muted text-sm">No active pending requests for this barangay</span>
+                  )}
+                </div>
+              </div>
+
+              {/* Right Column: Inventory Sufficiency & Shortages */}
+              <div className="analysis-col">
+                {/* Sufficiency 3-stat bar */}
+                <div className="analysis-stats-bar">
+                  <div className="stat-pill-box">
+                    <span className="stat-pill-num">{analysisData.analysis.targetFamilies}</span>
+                    <span className="stat-pill-lbl">Families</span>
+                  </div>
+                  <div className="stat-pill-box">
+                    <span className="stat-pill-num">{analysisData.analysis.totalNeedTypes}</span>
+                    <span className="stat-pill-lbl">Need Types</span>
+                  </div>
+                  <div className="stat-pill-box stat-pill-box--green">
+                    <span className="stat-pill-num">{analysisData.analysis.sufficientItems}</span>
+                    <span className="stat-pill-lbl">Sufficient</span>
+                  </div>
+                  <div className="stat-pill-box stat-pill-box--amber">
+                    <span className="stat-pill-num">{analysisData.analysis.partialItems}</span>
+                    <span className="stat-pill-lbl">Partial</span>
+                  </div>
+                  <div className="stat-pill-box stat-pill-box--red">
+                    <span className="stat-pill-num">{analysisData.analysis.insufficientItems}</span>
+                    <span className="stat-pill-lbl">Shortage</span>
                   </div>
                 </div>
-              )}
 
-              {/* Can Create Packs Indicator */}
-              <div
-                className={`can-create-indicator ${
-                  analysisData.analysis.canCreatePacks ? 'success' : 'warning'
-                }`}
-              >
-                {analysisData.analysis.canCreatePacks ? (
-                  <>
-                    <CheckCircle size={20} />
-                    <div>
-                      <strong>Ready to create packs</strong>
-                      <p>
-                        Estimated {analysisData.analysis.estimatedPacksFromStock} packs can be created
-                        from available stock
-                      </p>
+                {/* Shortage warning if any */}
+                {analysisData.insufficientItems && analysisData.insufficientItems.length > 0 && (
+                  <div className="shortage-alert-box">
+                    <div className="shortage-alert-header">
+                      <AlertTriangle size={14} />
+                      <strong>Items Requiring Attention ({analysisData.insufficientItems.length})</strong>
                     </div>
-                  </>
-                ) : (
-                  <>
-                    <AlertTriangle size={20} />
-                    <div>
-                      <strong>Insufficient stock</strong>
-                      <p>
-                        Current inventory may not be sufficient to meet all needs. Consider partial
-                        allocation or sourcing additional items.
-                      </p>
+                    <div className="shortage-items-list">
+                      {analysisData.insufficientItems.map((item, idx) => (
+                        <div key={idx} className="shortage-item-row">
+                          <span className="shortage-item-name">{item.need}</span>
+                          {item.shortage ? (
+                            <span className="shortage-item-qty">
+                              Have {item.available} / Need {item.required} <strong className="text-danger">(short {item.shortage})</strong>
+                            </span>
+                          ) : (
+                            <span className="shortage-item-qty text-muted">{item.reason || 'Not in stock'}</span>
+                          )}
+                        </div>
+                      ))}
                     </div>
-                  </>
+                  </div>
                 )}
+
+                {/* Readiness status banner */}
+                <div className={`readiness-banner ${analysisData.analysis.canCreatePacks ? 'readiness-banner--ready' : 'readiness-banner--partial'}`}>
+                  {analysisData.analysis.canCreatePacks ? (
+                    <>
+                      <CheckCircle size={16} className="text-success" />
+                      <div>
+                        <strong>Ready to assemble packs</strong>
+                        <p>Estimated {analysisData.analysis.estimatedPacksFromStock} full packs can be assembled from current inventory.</p>
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      <AlertTriangle size={16} className="text-warning" />
+                      <div>
+                        <strong>Partial stock capacity</strong>
+                        <p>Some items are in low supply. You can still select available items in Step 2 to create custom packs.</p>
+                      </div>
+                    </>
+                  )}
+                </div>
               </div>
             </div>
           ) : (
             <div className="analysis-empty">
-              <p>Unable to load analysis data. Please try selecting another barangay.</p>
+              <p>Select a barangay above to view relief needs and available inventory analysis.</p>
             </div>
           )}
         </div>

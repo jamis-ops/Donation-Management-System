@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { FileCheck } from 'lucide-react'
+import { FileCheck, ArrowRight, ArrowLeft, Check, AlertCircle } from 'lucide-react'
 import ModalHeader from '../../admin/components/shared/ModalHeader'
 import BarangayNeedsAnalyzer from './BarangayNeedsAnalyzer'
 import PackContentBuilder from './PackContentBuilder'
@@ -14,6 +14,13 @@ const STEP_TITLES = {
   builder: 'Step 2: Pack Builder',
   summary: 'Step 3: Review & Confirm',
   confirmation: 'Batch Created',
+}
+
+const STEP_SUBTITLES = {
+  barangay: 'Select target barangay and analyze relief needs against warehouse inventory',
+  builder: 'Configure relief pack details and select items from available stock',
+  summary: 'Review inventory deductions, assign team members, and confirm scheduling',
+  confirmation: 'Batch successfully scheduled in the repacking system',
 }
 
 export default function MultiSourceRepackingModal({
@@ -49,15 +56,37 @@ export default function MultiSourceRepackingModal({
   // Created batch
   const [createdBatch, setCreatedBatch] = useState(null)
 
-  const canProceedFromBarangay = Boolean(selectedBarangay)
-  const canProceedFromBuilder = selectedSources.length > 0 && packName.trim() !== '' && parseInt(packQuantity, 10) > 0
-  const canSubmit = canProceedFromBuilder
+  // Validation rules
+  const canProceedFromBarangay = Boolean(selectedBarangay) && !loadingAnalysis
+
+  const packQtyNum = parseInt(packQuantity, 10) || 0
+  const sourcesValid = selectedSources.length > 0 && selectedSources.every((s) => {
+    const q = Number(s.quantity)
+    return q > 0 && q <= s.available
+  })
+
+  const canProceedFromBuilder = packName.trim() !== '' && packQtyNum > 0 && sourcesValid
+
+  const isAssignmentValid = () => {
+    if (!assignedType) return true
+    if (assignedType === 'staff' || assignedType === 'volunteer' || assignedType === 'custom') {
+      return Boolean(assignedTo && String(assignedTo).trim().length > 0)
+    }
+    return true
+  }
+
+  const canSubmit = canProceedFromBuilder && isAssignmentValid()
 
   const handleBarangaySelect = (barangay) => {
     setSelectedBarangay(barangay)
-    setPackName(`${barangay.name || barangay.barangay} Relief Pack`)
-    if (barangay.affectedFamilies) {
-      setPackQuantity(String(barangay.affectedFamilies))
+    if (barangay) {
+      setPackName(`${barangay.name || barangay.barangay} Relief Pack`)
+      if (barangay.affectedFamilies) {
+        setPackQuantity(String(barangay.affectedFamilies))
+      }
+    } else {
+      setPackName('')
+      setPackQuantity('')
     }
   }
 
@@ -81,13 +110,19 @@ export default function MultiSourceRepackingModal({
     const currentIndex = STEPS.indexOf(currentStep)
     if (targetIndex === currentIndex) return
 
+    // Allow going backwards anytime
+    if (targetIndex < currentIndex) {
+      setCurrentStep(step)
+      return
+    }
+
     // Validate navigation forward
     if (targetIndex > 0 && !canProceedFromBarangay) {
       notify.error('Please select a target Barangay first.')
       return
     }
     if (targetIndex > 1 && !canProceedFromBuilder) {
-      notify.error('Please configure the pack and select at least one source item.')
+      notify.error('Please configure pack details and ensure all item quantities are valid.')
       return
     }
 
@@ -96,6 +131,23 @@ export default function MultiSourceRepackingModal({
 
   const handleNextStep = () => {
     const currentIndex = STEPS.indexOf(currentStep)
+    if (currentIndex === 0 && !canProceedFromBarangay) {
+      notify.warning('Please select a target Barangay before continuing.')
+      return
+    }
+    if (currentIndex === 1 && !canProceedFromBuilder) {
+      if (selectedSources.length === 0) {
+        notify.warning('Please add at least one inventory item to the pack.')
+      } else if (!packName.trim()) {
+        notify.warning('Please enter a pack name.')
+      } else if (packQtyNum <= 0) {
+        notify.warning('Please enter a valid number of packs to create.')
+      } else {
+        notify.warning('Please check item quantities — none can exceed available stock.')
+      }
+      return
+    }
+
     if (currentIndex < STEPS.length - 1) {
       setCurrentStep(STEPS[currentIndex + 1])
     }
@@ -109,25 +161,21 @@ export default function MultiSourceRepackingModal({
   }
 
   const handleSubmit = async () => {
-    if (!canSubmit) return
+    if (!canSubmit) {
+      if (!isAssignmentValid()) {
+        notify.warning('Please select or specify the assigned person/team.')
+      }
+      return
+    }
 
     setLoading(true)
-    showLoading('Please wait…')
+    showLoading('Scheduling multi-source repacking batch…')
     try {
-      // Prepare submission data
+      // Prepare sources
       const sources = selectedSources.map((src) => ({
         itemId: src.itemId,
         quantity: parseInt(src.quantity, 10) || 0,
       }))
-
-      // Validate quantities
-      const invalidSource = selectedSources.find((s) => !s.quantity || s.quantity <= 0)
-      if (invalidSource) {
-        notify.error(`Please enter a valid quantity for ${invalidSource.itemName}`)
-        hideLoading()
-        setLoading(false)
-        return
-      }
 
       const batchData = {
         sources,
@@ -147,7 +195,7 @@ export default function MultiSourceRepackingModal({
       const result = await onSubmit(batchData)
       setCreatedBatch(result)
       setCurrentStep('confirmation')
-      notify.success('Multi-source repacking batch created successfully!')
+      notify.success('Multi-source repacking batch scheduled successfully!')
     } catch (error) {
       console.error('Failed to create batch:', error)
       notify.error(error.message || 'Failed to create repacking batch')
@@ -158,17 +206,15 @@ export default function MultiSourceRepackingModal({
   }
 
   const renderStepIndicator = () => {
-    const visibleSteps = STEPS.slice(0, 3) // Don't show confirmation in indicator
+    const visibleSteps = STEPS.slice(0, 3)
     return (
-      <div className="repacking-steps-indicator">
+      <div className="repacking-steps-indicator" role="tablist" aria-label="Repacking Creation Progress">
         {visibleSteps.map((step, index) => {
           const isActive = step === currentStep
-          const isCompleted = STEPS.indexOf(currentStep) > index
+          const currentIndex = STEPS.indexOf(currentStep)
+          const isCompleted = currentIndex > index
           const stepNumber = index + 1
-          const isClickable =
-            (index === 0) ||
-            (index === 1 && canProceedFromBarangay) ||
-            (index === 2 && canProceedFromBarangay && canProceedFromBuilder)
+          const isClickable = index <= currentIndex
 
           return (
             <div
@@ -176,9 +222,19 @@ export default function MultiSourceRepackingModal({
               className={`step-item ${isActive ? 'active' : ''} ${isCompleted ? 'completed' : ''}`}
               onClick={() => isClickable && handleStepClick(step)}
               style={{ cursor: isClickable ? 'pointer' : 'not-allowed' }}
-              title={!isClickable ? 'Complete previous steps first' : ''}
+              role="tab"
+              aria-selected={isActive}
+              tabIndex={isClickable ? 0 : -1}
+              onKeyDown={(e) => {
+                if ((e.key === 'Enter' || e.key === ' ') && isClickable) {
+                  e.preventDefault()
+                  handleStepClick(step)
+                }
+              }}
             >
-              <div className="step-number">{isCompleted ? '✓' : stepNumber}</div>
+              <div className="step-number" aria-hidden="true">
+                {isCompleted ? <Check size={14} strokeWidth={3} /> : stepNumber}
+              </div>
               <div className="step-label">{STEP_TITLES[step]}</div>
               {index < visibleSteps.length - 1 && <div className="step-connector" />}
             </div>
@@ -216,7 +272,7 @@ export default function MultiSourceRepackingModal({
             packUnit={packUnit}
             onPackUnitChange={setPackUnit}
             analysisData={analysisData}
-            targetFamilies={analysisData?.analysis?.targetFamilies || 0}
+            targetFamilies={analysisData?.analysis?.targetFamilies || selectedBarangay?.affectedFamilies || 0}
           />
         )
 
@@ -247,39 +303,38 @@ export default function MultiSourceRepackingModal({
         return (
           <div className="repacking-confirmation">
             <div className="confirmation-icon">
-              <FileCheck size={64} />
+              <FileCheck size={48} />
             </div>
             <h3>Repacking Batch Created Successfully!</h3>
             <p className="confirmation-message">
-              Your multi-source repacking batch <strong>{createdBatch?.id}</strong> has been created and
-              scheduled.
+              Multi-source repacking batch <strong>{createdBatch?.id || createdBatch?.code || 'BATCH'}</strong> has been scheduled and stock reserved.
             </p>
             {createdBatch && (
               <div className="confirmation-details">
                 <div className="detail-row">
                   <span className="detail-label">Batch Code:</span>
-                  <span className="detail-value">{createdBatch.id}</span>
+                  <span className="detail-value font-semibold">{createdBatch.id || createdBatch.code}</span>
                 </div>
                 <div className="detail-row">
-                  <span className="detail-label">Output:</span>
-                  <span className="detail-value">
-                    {createdBatch.quantity} {createdBatch.outputUnit} of {createdBatch.output}
+                  <span className="detail-label">Scheduled Output:</span>
+                  <span className="detail-value font-semibold">
+                    {createdBatch.quantity || packQuantity} {createdBatch.outputUnit || packUnit} of {createdBatch.output || packName}
                   </span>
                 </div>
                 {selectedBarangay && (
                   <div className="detail-row">
-                    <span className="detail-label">Target:</span>
-                    <span className="detail-value">{selectedBarangay.name}</span>
+                    <span className="detail-label">Target Barangay:</span>
+                    <span className="detail-value">{selectedBarangay.name || selectedBarangay.barangay}</span>
                   </div>
                 )}
                 <div className="detail-row">
                   <span className="detail-label">Status:</span>
-                  <StatusBadge status={createdBatch.status} />
+                  <StatusBadge status={createdBatch.status || 'Scheduled'} />
                 </div>
               </div>
             )}
-            <button type="button" className="btn btn--primary" onClick={onClose}>
-              Close
+            <button type="button" className="btn btn--primary" onClick={onClose} style={{ marginTop: '1.25rem' }}>
+              Done & View Batches
             </button>
           </div>
         )
@@ -299,7 +354,7 @@ export default function MultiSourceRepackingModal({
       >
         <ModalHeader
           title="Create Multi-Source Repacking Batch"
-          subtitle={STEP_TITLES[currentStep]}
+          subtitle={STEP_SUBTITLES[currentStep] || STEP_TITLES[currentStep]}
           onClose={onClose}
         />
 
@@ -308,20 +363,30 @@ export default function MultiSourceRepackingModal({
         <div className="repacking-modal-body">{renderStepContent()}</div>
 
         {currentStep !== 'confirmation' && (
-          <div className="admin-modal__actions repacking-modal-actions">
-            {currentStep !== 'barangay' ? (
+          <div className="repacking-modal-actions">
+            {/* Left action: Previous or Cancel */}
+            {currentStep === 'barangay' ? (
+              <button
+                type="button"
+                className="btn btn--ghost"
+                onClick={onClose}
+                disabled={loading}
+              >
+                Cancel
+              </button>
+            ) : (
               <button
                 type="button"
                 className="btn btn--ghost"
                 onClick={handlePrevStep}
                 disabled={loading}
               >
-                ← Previous
+                <ArrowLeft size={14} style={{ marginRight: '0.35rem' }} />
+                Previous
               </button>
-            ) : (
-              <span />
             )}
 
+            {/* Right action: Next or Create Batch */}
             {currentStep === 'summary' ? (
               <button
                 type="button"
@@ -329,7 +394,7 @@ export default function MultiSourceRepackingModal({
                 onClick={handleSubmit}
                 disabled={!canSubmit || loading}
               >
-                {loading ? 'Creating Batch...' : 'Create Batch'}
+                {loading ? 'Creating Batch…' : 'Create Batch'}
               </button>
             ) : (
               <button
@@ -341,8 +406,16 @@ export default function MultiSourceRepackingModal({
                   (currentStep === 'builder' && !canProceedFromBuilder) ||
                   loading
                 }
+                title={
+                  currentStep === 'barangay' && !canProceedFromBarangay
+                    ? 'Select a target barangay to continue'
+                    : currentStep === 'builder' && !canProceedFromBuilder
+                    ? 'Add items and verify quantities to continue'
+                    : ''
+                }
               >
-                Next →
+                Next
+                <ArrowRight size={14} style={{ marginLeft: '0.35rem' }} />
               </button>
             )}
           </div>

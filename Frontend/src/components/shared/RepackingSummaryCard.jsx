@@ -1,4 +1,4 @@
-import { MapPin, Package, Users, Calendar, FileText, CheckCircle, AlertCircle, Info } from 'lucide-react'
+import { MapPin, Package, Users, Calendar, FileText, CheckCircle, AlertCircle, Info, UserCheck } from 'lucide-react'
 
 export default function RepackingSummaryCard({
   selectedBarangay,
@@ -19,8 +19,8 @@ export default function RepackingSummaryCard({
   volunteers,
   loadingTeam,
 }) {
-  const totalSourceItems = selectedSources.reduce((sum, src) => sum + src.quantity, 0)
-  const sufficiency = analysisData?.analysis?.overallSufficiency || 'Unknown'
+  const totalSourceUnits = selectedSources.reduce((sum, src) => sum + (Number(src.quantity) || 0), 0)
+  const sufficiency = analysisData?.analysis?.overallSufficiency || 'Sufficient'
 
   const getSufficiencyClass = () => {
     switch (sufficiency) {
@@ -38,168 +38,81 @@ export default function RepackingSummaryCard({
   const getSufficiencyIcon = () => {
     switch (sufficiency) {
       case 'Sufficient':
-        return <CheckCircle size={20} />
+        return <CheckCircle size={15} />
       case 'Partial':
-        return <Info size={20} />
+        return <Info size={15} />
       case 'Insufficient':
-        return <AlertCircle size={20} />
+        return <AlertCircle size={15} />
       default:
-        return <Package size={20} />
+        return <Package size={15} />
     }
   }
 
   return (
-    <div className="repacking-summary">
-      {/* Summary Header */}
-      <div className="summary-header">
-        <h3>Review Repacking Batch</h3>
-        <p>Please review all details before creating the batch</p>
-      </div>
+    <div className="repacking-summary-compact">
+      {/* 2-Column Review Grid */}
+      <div className="review-grid">
+        {/* LEFT COLUMN: Target, Output & Assignment */}
+        <div className="review-col">
+          {/* Target & Output Combined Card */}
+          <div className="review-card">
+            <div className="review-card__header">
+              <MapPin size={15} />
+              <h4>Target & Output Package</h4>
+            </div>
 
-      <div className="summary-layout-grid">
-        <div className="summary-layout-col">
-          {/* Target Barangay Section */}
-          {selectedBarangay && (
-            <div className="summary-section">
-              <div className="section-title">
-                <MapPin size={18} />
-                <h4>Target Barangay</h4>
-              </div>
-              <div className="summary-card barangay-summary">
-                <div className="summary-row">
-                  <span className="summary-label">Barangay:</span>
-                  <span className="summary-value strong">{selectedBarangay.name || selectedBarangay.barangay}</span>
-                </div>
-                <div className="summary-row">
-                  <span className="summary-label">Location:</span>
-                  <span className="summary-value">
-                    {selectedBarangay.barangay || selectedBarangay.name}
-                    {selectedBarangay.municipality && `, ${selectedBarangay.municipality}`}
-                  </span>
-                </div>
-                <div className="summary-row">
-                  <span className="summary-label">Affected Families:</span>
-                  <span className="summary-value">
-                    {selectedBarangay.affectedFamilies || analysisData?.analysis?.targetFamilies || 0}
-                  </span>
-                </div>
-                {(selectedBarangay.representativeName || selectedBarangay.representative) && (
-                  <div className="summary-row">
-                    <span className="summary-label">Representative:</span>
-                    <span className="summary-value">{selectedBarangay.representativeName || selectedBarangay.representative}</span>
+            <div className="review-detail-rows">
+              {selectedBarangay && (
+                <>
+                  <div className="review-row">
+                    <span className="review-row-label">Target Barangay:</span>
+                    <strong className="review-row-value">
+                      {selectedBarangay.name || selectedBarangay.barangay}
+                      {selectedBarangay.municipality ? ` (${selectedBarangay.municipality})` : ''}
+                    </strong>
                   </div>
-                )}
-              </div>
-            </div>
-          )}
+                  <div className="review-row">
+                    <span className="review-row-label">Affected Families:</span>
+                    <span className="review-row-value">
+                      {selectedBarangay.affectedFamilies || analysisData?.analysis?.targetFamilies || 0} families
+                    </span>
+                  </div>
+                </>
+              )}
 
-          {/* Output Section */}
-          <div className="summary-section">
-            <div className="section-title">
-              <Package size={18} />
-              <h4>Output Packs</h4>
-            </div>
-            <div className="summary-card output-summary">
-              <div className="output-main">
-                <div className="output-quantity">{packQuantity}</div>
-                <div className="output-unit">{packUnit}</div>
+              <div className="review-row">
+                <span className="review-row-label">Output Pack:</span>
+                <strong className="review-row-value text-brand">{packName}</strong>
               </div>
-              <div className="output-name">{packName}</div>
-              <div className={`output-sufficiency ${getSufficiencyClass()}`}>
-                {getSufficiencyIcon()}
-                <span>Stock Sufficiency: {sufficiency}</span>
+
+              <div className="review-row">
+                <span className="review-row-label">Output Quantity:</span>
+                <span className="review-row-value font-semibold">
+                  {packQuantity} {packUnit || 'packs'}
+                </span>
+              </div>
+
+              <div className="review-row">
+                <span className="review-row-label">Stock Status:</span>
+                <span className={`status-pill status-pill--${getSufficiencyClass()}`}>
+                  {getSufficiencyIcon()}
+                  <span>{sufficiency} Stock</span>
+                </span>
               </div>
             </div>
           </div>
 
-          {/* Analysis Summary (if available) */}
-          {analysisData && (
-            <div className="summary-section analysis-summary-section">
-              <div className="section-title">
-                <Info size={18} />
-                <h4>Needs Analysis Summary</h4>
-              </div>
-              <div className="summary-card analysis-overview">
-                <div className="analysis-stat-grid">
-                  <div className="analysis-stat">
-                    <div className="stat-value">{analysisData.analysis.totalNeedTypes}</div>
-                    <div className="stat-label">Need Types Identified</div>
-                  </div>
-                  <div className="analysis-stat">
-                    <div className="stat-value">{analysisData.analysis.sufficientItems}</div>
-                    <div className="stat-label">Items Sufficient</div>
-                  </div>
-                  <div className="analysis-stat">
-                    <div className="stat-value">{analysisData.analysis.partialItems}</div>
-                    <div className="stat-label">Items Partial</div>
-                  </div>
-                  <div className="analysis-stat">
-                    <div className="stat-value">{analysisData.analysis.insufficientItems}</div>
-                    <div className="stat-label">Items Insufficient</div>
-                  </div>
-                </div>
-
-                {analysisData.analysis.highestPriority && (
-                  <div className="priority-badge">
-                    Priority Level: <strong>{analysisData.analysis.highestPriority}</strong>
-                  </div>
-                )}
-              </div>
-            </div>
-          )}
-        </div>
-
-        <div className="summary-layout-col">
-          {/* Source Items Section */}
-          <div className="summary-section">
-            <div className="section-title">
-              <Package size={18} />
-              <h4>Source Inventory ({selectedSources.length} items)</h4>
-            </div>
-            <div className="summary-card sources-summary">
-              <table className="summary-table">
-                <thead>
-                  <tr>
-                    <th>Item</th>
-                    <th>Category</th>
-                    <th className="text-right">Quantity</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {selectedSources.map((source) => (
-                    <tr key={source.itemId}>
-                      <td className="item-name">{source.itemName}</td>
-                      <td className="item-category">{source.category || '—'}</td>
-                      <td className="item-quantity text-right">
-                        {source.quantity} {source.unit}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-                <tfoot>
-                  <tr className="total-row">
-                    <td colSpan="2">
-                      <strong>Total Source Items</strong>
-                    </td>
-                    <td className="text-right">
-                      <strong>{totalSourceItems} units</strong>
-                    </td>
-                  </tr>
-                </tfoot>
-              </table>
-            </div>
-          </div>
-
-          {/* Assignment Section */}
-          <div className="summary-section">
-            <div className="section-title">
-              <Users size={18} />
+          {/* Assignment & Scheduling Card */}
+          <div className="review-card">
+            <div className="review-card__header">
+              <UserCheck size={15} />
               <h4>Assignment & Schedule</h4>
             </div>
-            <div className="summary-card assignment-summary">
-              <div className="assignment-form-grid">
-                <div className="form-row">
-                  <label className="form-label-enhanced">Assign To</label>
+
+            <div className="review-form-compact">
+              <div className="form-row" style={{ marginBottom: '0.65rem' }}>
+                <label className="form-label-enhanced">
+                  Assign To
                   <select
                     value={assignedType}
                     onChange={(e) => {
@@ -211,66 +124,76 @@ export default function RepackingSummaryCard({
                     <option value="">Not assigned</option>
                     <option value="staff">Staff Member</option>
                     <option value="volunteer">Volunteer</option>
-                    <option value="custom">Enter Custom Name</option>
+                    <option value="custom">Custom Team / Group</option>
                   </select>
-                </div>
+                </label>
+              </div>
 
-                {assignedType === 'staff' && (
-                  <div className="form-row">
-                    <label className="form-label-enhanced">Staff Member</label>
+              {assignedType === 'staff' && (
+                <div className="form-row" style={{ marginBottom: '0.65rem' }}>
+                  <label className="form-label-enhanced">
+                    Staff Member <span className="required">*</span>
                     <select
                       value={assignedTo}
                       onChange={(e) => onAssignedToChange(e.target.value)}
                       className="form-select-enhanced"
                       disabled={loadingTeam}
+                      required
                     >
                       <option value="">Select staff member...</option>
-                      {staff.map((s) => (
+                      {(staff || []).map((s) => (
                         <option key={s.id} value={s.name}>
                           {s.name} {s.department && `(${s.department})`}
                         </option>
                       ))}
                     </select>
-                  </div>
-                )}
+                  </label>
+                </div>
+              )}
 
-                {assignedType === 'volunteer' && (
-                  <div className="form-row">
-                    <label className="form-label-enhanced">Volunteer</label>
+              {assignedType === 'volunteer' && (
+                <div className="form-row" style={{ marginBottom: '0.65rem' }}>
+                  <label className="form-label-enhanced">
+                    Volunteer <span className="required">*</span>
                     <select
                       value={assignedTo}
                       onChange={(e) => onAssignedToChange(e.target.value)}
                       className="form-select-enhanced"
                       disabled={loadingTeam}
+                      required
                     >
                       <option value="">Select volunteer...</option>
-                      {volunteers.map((v) => (
+                      {(volunteers || []).map((v) => (
                         <option key={v.id} value={v.name}>
                           {v.name} {v.skills && `— ${v.skills.slice(0, 2).join(', ')}`}
                         </option>
                       ))}
                     </select>
-                  </div>
-                )}
+                  </label>
+                </div>
+              )}
 
-                {assignedType === 'custom' && (
-                  <div className="form-row assignment-form-full">
-                    <label className="form-label-enhanced">Team Name</label>
+              {assignedType === 'custom' && (
+                <div className="form-row" style={{ marginBottom: '0.65rem' }}>
+                  <label className="form-label-enhanced">
+                    Team Name <span className="required">*</span>
                     <input
                       type="text"
                       value={assignedTo}
                       onChange={(e) => onAssignedToChange(e.target.value)}
-                      placeholder="e.g., Volunteer Team A, Logistics Crew"
+                      placeholder="e.g., Logistics Crew, Relief Team Alpha"
                       className="form-input-enhanced"
+                      required
                     />
-                  </div>
-                )}
-
-                <div className="form-row">
-                  <label className="form-label-enhanced">
-                    <Calendar size={16} />
-                    Due Date
                   </label>
+                </div>
+              )}
+
+              <div className="form-row" style={{ marginBottom: '0.65rem' }}>
+                <label className="form-label-enhanced">
+                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}>
+                    <Calendar size={13} /> Target Completion Date
+                  </span>
                   <input
                     type="date"
                     value={dueDate}
@@ -278,42 +201,92 @@ export default function RepackingSummaryCard({
                     min={new Date().toISOString().split('T')[0]}
                     className="form-input-enhanced"
                   />
-                </div>
+                </label>
+              </div>
+
+              <div className="form-row" style={{ marginBottom: 0 }}>
+                <label className="form-label-enhanced">
+                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}>
+                    <FileText size={13} /> Notes & Special Packing Instructions
+                  </span>
+                  <textarea
+                    rows={2}
+                    value={notes}
+                    onChange={(e) => onNotesChange(e.target.value)}
+                    placeholder="Add any handling instructions or packing reminders..."
+                    className="form-input-enhanced"
+                    style={{ resize: 'vertical' }}
+                  />
+                </label>
               </div>
             </div>
           </div>
+        </div>
 
-          {/* Notes Section */}
-          <div className="summary-section">
-            <div className="section-title">
-              <FileText size={18} />
-              <h4>Additional Notes</h4>
+        {/* RIGHT COLUMN: Inventory Deductions Table & Confirmation */}
+        <div className="review-col">
+          <div className="review-card">
+            <div className="review-card__header">
+              <Package size={15} />
+              <h4>Inventory Source Deductions ({selectedSources.length} items)</h4>
             </div>
-            <div className="summary-card notes-summary">
-              <textarea
-                rows={4}
-                value={notes}
-                onChange={(e) => onNotesChange(e.target.value)}
-                placeholder="Add any special instructions, packing requirements, or other notes..."
-                className="form-input-enhanced"
-              />
+
+            <div className="review-table-wrap">
+              <table className="review-table">
+                <thead>
+                  <tr>
+                    <th>Source Item</th>
+                    <th>Category</th>
+                    <th className="text-right">Deducted</th>
+                    <th className="text-right">Remaining</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {selectedSources.map((source) => {
+                    const deductQty = Number(source.quantity) || 0
+                    const remaining = Math.max(0, (source.available || 0) - deductQty)
+                    return (
+                      <tr key={source.itemId}>
+                        <td className="item-name-cell">
+                          <strong>{source.itemName}</strong>
+                        </td>
+                        <td className="item-cat-cell">{source.category || '—'}</td>
+                        <td className="text-right deduct-cell">
+                          −{deductQty} {source.unit}
+                        </td>
+                        <td className="text-right remaining-cell">
+                          {remaining} {source.unit}
+                        </td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+                <tfoot>
+                  <tr className="review-table-total">
+                    <td colSpan="2">
+                      <strong>Total Inventory Deducted</strong>
+                    </td>
+                    <td colSpan="2" className="text-right">
+                      <strong>{totalSourceUnits} total units</strong>
+                    </td>
+                  </tr>
+                </tfoot>
+              </table>
             </div>
           </div>
-        </div>
-      </div>
 
-      {/* Final Confirmation Message */}
-      <div className="summary-confirmation">
-        <div className="confirmation-icon">
-          <CheckCircle size={24} />
-        </div>
-        <div className="confirmation-text">
-          <strong>Ready to Create Batch</strong>
-          <p>
-            This will deduct {totalSourceItems} items from inventory and create {packQuantity}{' '}
-            {packUnit} of {packName}
-            {selectedBarangay && ` for ${selectedBarangay.name}`}.
-          </p>
+          {/* Batch Readiness Confirmation Box */}
+          <div className="readiness-confirm-card">
+            <div className="confirm-icon-box">
+              <CheckCircle size={20} />
+            </div>
+            <div className="confirm-copy">
+              <strong>Batch Scheduled Immediately</strong>
+              <p>
+                Creating this batch will reserve {totalSourceUnits} source items from warehouse inventory and schedule {packQuantity} {packUnit || 'packs'} of &quot;{packName}&quot; for assembly.
+              </p>
+            </div>
+          </div>
         </div>
       </div>
     </div>

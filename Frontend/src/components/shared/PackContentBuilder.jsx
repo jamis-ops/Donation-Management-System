@@ -1,7 +1,7 @@
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
 import {
   Package, Lightbulb, CheckCircle, Calculator, AlertCircle,
-  Utensils, Droplets, Shirt, Pill, Sparkles, Home, Box, Tag, Search, X,
+  Utensils, Droplets, Shirt, Pill, Sparkles, Home, Box, Tag, Search, X, Plus, Minus, Check
 } from 'lucide-react'
 
 function getItemIcon(itemName = '', category = '') {
@@ -30,25 +30,39 @@ export default function PackContentBuilder({
   targetFamilies,
 }) {
   const [searchTerm, setSearchTerm] = useState('')
+  const [selectedCategory, setSelectedCategory] = useState('All')
 
-  // Available items in stock
-  const allStockItems = (items || []).filter((item) => {
-    const available = item.quantity - (item.allocated || 0)
-    return available > 0
-  })
+  // Stock items with available quantity > 0
+  const allStockItems = useMemo(() => {
+    return (items || []).filter((item) => {
+      const available = (item.quantity || 0) - (item.allocated || 0)
+      return available > 0
+    })
+  }, [items])
 
-  // Filtered by search term
-  const catalogItems = allStockItems.filter((item) => {
-    if (!searchTerm) return true
-    const search = searchTerm.toLowerCase()
-    return (
-      item.item?.toLowerCase().includes(search) ||
-      item.category?.toLowerCase().includes(search)
-    )
-  })
+  // Unique categories for filtering
+  const categories = useMemo(() => {
+    const set = new Set()
+    allStockItems.forEach((i) => {
+      if (i.category) set.add(i.category)
+    })
+    return ['All', ...Array.from(set).sort()]
+  }, [allStockItems])
+
+  // Filtered catalog items
+  const catalogItems = useMemo(() => {
+    return allStockItems.filter((item) => {
+      const matchesSearch = !searchTerm || (
+        item.item?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        item.category?.toLowerCase().includes(searchTerm.toLowerCase())
+      )
+      const matchesCategory = selectedCategory === 'All' || item.category === selectedCategory
+      return matchesSearch && matchesCategory
+    })
+  }, [allStockItems, searchTerm, selectedCategory])
 
   const handleToggleSource = (item) => {
-    const available = item.quantity - (item.allocated || 0)
+    const available = (item.quantity || 0) - (item.allocated || 0)
     const existingIndex = selectedSources.findIndex((s) => s.itemId === item.dbId)
 
     if (existingIndex >= 0) {
@@ -95,7 +109,7 @@ export default function PackContentBuilder({
     const item = items.find((i) => i.dbId === suggestion.itemId)
     if (!item) return
 
-    const available = item.quantity - (item.allocated || 0)
+    const available = (item.quantity || 0) - (item.allocated || 0)
     const existingIndex = selectedSources.findIndex((s) => s.itemId === suggestion.itemId)
     const reqPacks = parseInt(packQuantity, 10) || targetFamilies || 1
     const targetQty = suggestion.quantity * reqPacks
@@ -127,7 +141,7 @@ export default function PackContentBuilder({
       const item = items.find((i) => i.dbId === suggestion.itemId)
       if (!item) return
 
-      const available = item.quantity - (item.allocated || 0)
+      const available = (item.quantity || 0) - (item.allocated || 0)
       if (available <= 0) return
 
       newSources.push({
@@ -143,358 +157,360 @@ export default function PackContentBuilder({
     onSourcesChange(newSources)
   }
 
-  // Calculate total estimated packs based on limiting factor of available stock
-  const calculateMaxPacks = () => {
-    if (selectedSources.length === 0) return 0
+  // Calculate maximum packs possible given inventory available and required per-pack ratio
+  const calculateBottleneck = () => {
+    if (selectedSources.length === 0) return { maxPacks: 0, limitingItem: null }
     const reqPacks = parseInt(packQuantity, 10) || 1
-    const limits = selectedSources.map((src) => {
+
+    let minPacks = Infinity
+    let bottleneck = null
+
+    selectedSources.forEach((src) => {
       const srcQty = Number(src.quantity) || 0
-      if (srcQty <= 0) return 0
+      if (srcQty <= 0) {
+        minPacks = 0
+        bottleneck = src
+        return
+      }
       const perPack = srcQty / reqPacks
-      if (perPack <= 0) return 0
-      return Math.floor((src.available || 0) / perPack)
+      if (perPack <= 0) {
+        minPacks = 0
+        bottleneck = src
+        return
+      }
+      const possible = Math.floor((src.available || 0) / perPack)
+      if (possible < minPacks) {
+        minPacks = possible
+        bottleneck = src
+      }
     })
 
-    return limits.length > 0 ? Math.min(...limits) : 0
+    return {
+      maxPacks: minPacks === Infinity ? 0 : minPacks,
+      limitingItem: bottleneck,
+    }
   }
 
-  const maxPacksFromStock = calculateMaxPacks()
+  const { maxPacks, limitingItem } = calculateBottleneck()
   const packQuantityNum = parseInt(packQuantity, 10) || 0
+  const anyExceeded = selectedSources.some((s) => Number(s.quantity) > s.available)
 
   return (
-    <div className="pack-builder">
-      {/* 1. Pack Configuration */}
-      <div className="builder-section">
-        <div className="section-header">
-          <Calculator size={18} />
-          <h3>Pack Configuration</h3>
-        </div>
-
-        <div className="pack-config-grid">
-          <div className="config-field full-width">
-            <label className="form-label-enhanced">
-              Pack Name <span className="required">*</span>
-            </label>
-            <input
-              type="text"
-              value={packName}
-              onChange={(e) => onPackNameChange(e.target.value)}
-              placeholder="e.g., Family Relief Pack (Rice + Hygiene Kits)"
-              className="form-input-enhanced"
-              required
-            />
-          </div>
-
-          <div className="config-field">
-            <label className="form-label-enhanced">
-              Number of Packs <span className="required">*</span>
-            </label>
-            <input
-              type="number"
-              min="1"
-              value={packQuantity}
-              onChange={(e) => onPackQuantityChange(e.target.value)}
-              placeholder="Enter quantity"
-              className="form-input-enhanced"
-              required
-            />
-            {targetFamilies > 0 && (
-              <div className="field-hint">Target Barangay Need: {targetFamilies} families</div>
-            )}
-          </div>
-
-          <div className="config-field">
-            <label className="form-label-enhanced">Unit</label>
-            <input
-              type="text"
-              value={packUnit}
-              onChange={(e) => onPackUnitChange(e.target.value)}
-              placeholder="packs"
-              className="form-input-enhanced"
-            />
-          </div>
-        </div>
-      </div>
-
-      {/* 2. Smart Suggestions */}
-      {analysisData?.suggestedContents && analysisData.suggestedContents.length > 0 && (
-        <div className="builder-section suggestions-section">
-          <div className="section-header">
-            <Lightbulb size={18} />
-            <h3>Smart Suggestions Based on Barangay Needs</h3>
-          </div>
-          <div className="suggestions-list">
-            {analysisData.suggestedContents.map((suggestion, idx) => {
-              const IconComp = getItemIcon(suggestion.item)
-              const isAdded = selectedSources.some((s) => s.itemId === suggestion.itemId)
-              return (
-                <div key={idx} className={`suggestion-item ${isAdded ? 'suggestion-applied' : ''}`}>
-                  <div className="suggestion-info">
-                    <div className="suggestion-icon-wrap">
-                      <IconComp size={16} />
-                    </div>
-                    <div>
-                      <div className="suggestion-name">{suggestion.item}</div>
-                      <div className="suggestion-meta">
-                        {suggestion.quantity} {suggestion.unit} per pack × {targetFamilies || 1} families
-                        <span className="suggestion-priority">Priority: {suggestion.priority}</span>
-                      </div>
-                    </div>
-                  </div>
-                  <button
-                    type="button"
-                    className={`btn btn--sm ${isAdded ? 'btn--secondary' : 'btn--outline'}`}
-                    onClick={() => handleApplySuggestion(suggestion)}
-                  >
-                    {isAdded ? '✓ Updated' : '+ Add to Pack'}
-                  </button>
-                </div>
-              )
-            })}
-          </div>
-          <button
-            type="button"
-            className="btn btn--outline btn-apply-all"
-            onClick={handleApplyAllSuggestions}
-          >
-            Apply All Suggestions ({analysisData.suggestedContents.length} items)
-          </button>
-        </div>
-      )}
-
-      {/* 3. Available Inventory Catalog (NeedsPicker-style tile grid) */}
-      <div className="builder-section catalog-picker-section">
-        <div className="section-header">
-          <Tag size={18} />
-          <h3>Available Inventory</h3>
-        </div>
-
-        <div className="catalog-search-bar">
-          <Search size={16} className="search-icon" />
+    <div className="pack-builder-workbench">
+      {/* 1. Compact Pack Configuration Bar */}
+      <div className="pack-config-bar">
+        <div className="config-bar-field config-bar-field--name">
+          <label className="config-bar-label">
+            Pack Name <span className="required">*</span>
+          </label>
           <input
             type="text"
-            placeholder="Search inventory by name or category..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="form-input-enhanced catalog-search-input"
+            value={packName}
+            onChange={(e) => onPackNameChange(e.target.value)}
+            placeholder="e.g., Banilad Relief Pack (Rice + Groceries)"
+            className="form-input-enhanced config-bar-input"
+            required
           />
-          {searchTerm && (
-            <button
-              type="button"
-              className="clear-search-btn"
-              onClick={() => setSearchTerm('')}
-            >
-              <X size={14} />
-            </button>
-          )}
         </div>
 
-        <div className="inventory-tile-grid" role="group" aria-label="Select inventory items">
-          {catalogItems.length === 0 ? (
-            <div className="empty-catalog-hint">
-              {searchTerm ? 'No matching inventory items found.' : 'No available stock in inventory.'}
-            </div>
-          ) : (
-            catalogItems.map((item) => {
-              const available = item.quantity - (item.allocated || 0)
-              const isSelected = selectedSources.some((s) => s.itemId === item.dbId)
-              const IconComp = getItemIcon(item.item, item.category)
+        <div className="config-bar-field config-bar-field--qty">
+          <label className="config-bar-label">
+            Number of Packs <span className="required">*</span>
+            {targetFamilies > 0 && <span className="target-pill">Target: {targetFamilies}</span>}
+          </label>
+          <input
+            type="number"
+            min="1"
+            value={packQuantity}
+            onChange={(e) => onPackQuantityChange(e.target.value)}
+            placeholder="Qty"
+            className="form-input-enhanced config-bar-input"
+            required
+          />
+        </div>
 
-              return (
-                <div
-                  key={item.dbId}
-                  className={`inventory-tile ${isSelected ? 'inventory-tile--active' : ''}`}
-                  onClick={() => handleToggleSource(item)}
-                  role="checkbox"
-                  aria-checked={isSelected}
-                  tabIndex={0}
-                  onKeyDown={(e) => e.key === 'Enter' && handleToggleSource(item)}
-                >
-                  <span className="inventory-tile__icon">
-                    <IconComp size={16} strokeWidth={2} />
-                  </span>
-                  <span className="inventory-tile__label">{item.item}</span>
-                  <span className="inventory-tile__stock">
-                    {available} {item.unit}
-                  </span>
-                  {isSelected && (
-                    <span className="inventory-tile__check" aria-hidden="true">✓</span>
-                  )}
-                </div>
-              )
-            })
-          )}
+        <div className="config-bar-field config-bar-field--unit">
+          <label className="config-bar-label">Unit</label>
+          <input
+            type="text"
+            value={packUnit}
+            onChange={(e) => onPackUnitChange(e.target.value)}
+            placeholder="packs"
+            className="form-input-enhanced config-bar-input"
+          />
         </div>
       </div>
 
-      {/* 4. Selected Pack Contents (Chip/Card Grid) */}
-      <div className="builder-section">
-        <div className="section-header">
-          <Package size={18} />
-          <h3>
-            Selected Pack Contents
-            <span className="count-badge">{selectedSources.length} items</span>
-          </h3>
-        </div>
-
-        {selectedSources.length === 0 ? (
-          <div className="empty-sources-chips">
-            <Package size={36} />
-            <div>
-              <strong>No inventory items selected yet</strong>
-              <p>Click on tiles above to add items to your relief pack, or use smart suggestions.</p>
-            </div>
-          </div>
-        ) : (
-          <div className="selected-chips-grid">
-            {selectedSources.map((source) => {
-              const IconComponent = getItemIcon(source.itemName, source.category)
-              const qtyNum = Number(source.quantity) || 0
-              const isExceeded = qtyNum > source.available
-              const reqPacks = parseInt(packQuantity, 10) || 1
-              const perPackRatio = reqPacks > 0 ? (qtyNum / reqPacks).toFixed(1).replace(/\.0$/, '') : 1
-
-              return (
-                <div
-                  key={source.itemId}
-                  className={`selected-item-chip ${isExceeded ? 'chip-warning' : ''}`}
+      {/* 2. Interactive Workbench (Side-by-Side) */}
+      <div className="workbench-grid">
+        {/* LEFT COLUMN: Available Inventory & Suggestions */}
+        <div className="workbench-col workbench-col--catalog">
+          {/* Smart suggestions bar */}
+          {analysisData?.suggestedContents && analysisData.suggestedContents.length > 0 && (
+            <div className="suggestions-bar">
+              <div className="suggestions-bar__header">
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                  <Lightbulb size={14} className="text-warning" />
+                  <strong>Smart Suggestions ({analysisData.suggestedContents.length})</strong>
+                </div>
+                <button
+                  type="button"
+                  className="btn-apply-all-compact"
+                  onClick={handleApplyAllSuggestions}
                 >
-                  <button
-                    type="button"
-                    className="chip-remove-btn"
-                    onClick={() => handleRemoveSource(source.itemId)}
-                    title="Remove item"
-                  >
-                    <X size={12} />
-                  </button>
-
-                  <div className="chip-header">
-                    <div className="chip-icon">
-                      <IconComponent size={16} />
-                    </div>
-                    <div className="chip-title">
-                      <strong className="chip-name">{source.itemName}</strong>
-                      {source.category && <span className="chip-category">{source.category}</span>}
-                    </div>
-                  </div>
-
-                  <div className="chip-controls">
-                    <div className="chip-qty-wrapper">
-                      <button
-                        type="button"
-                        className="qty-btn"
-                        onClick={() => handleStepQuantity(source.itemId, -1)}
-                        title="Decrease"
-                      >
-                        −
-                      </button>
-                      <input
-                        type="number"
-                        min="1"
-                        max={source.available}
-                        value={source.quantity}
-                        onChange={(e) => handleUpdateQuantity(source.itemId, e.target.value)}
-                        className="chip-qty-input"
-                      />
-                      <button
-                        type="button"
-                        className="qty-btn"
-                        onClick={() => handleStepQuantity(source.itemId, 1)}
-                        title="Increase"
-                      >
-                        +
-                      </button>
-                      <span className="chip-unit">{source.unit}</span>
-                    </div>
-
-                    <div className="chip-stock-detail">
-                      {isExceeded ? (
-                        <span className="stock-danger">Exceeds {source.available} avail!</span>
-                      ) : (
-                        <span className="stock-normal">
-                          {perPackRatio} {source.unit}/pack ({source.available} avail)
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              )
-            })}
-          </div>
-        )}
-      </div>
-
-      {/* 5. Stock Sufficiency Analysis */}
-      {selectedSources.length > 0 && (
-        <div className="builder-section">
-          <div className="section-header">
-            <Calculator size={18} />
-            <h3>Stock Sufficiency Analysis</h3>
-          </div>
-
-          <div className="validation-card">
-            <div className="validation-stats">
-              <div className="stat-row">
-                <span className="stat-label">Max packs possible from stock:</span>
-                <span className="stat-value">{maxPacksFromStock} packs</span>
+                  Apply All
+                </button>
               </div>
-              <div className="stat-row">
-                <span className="stat-label">Requested packs:</span>
-                <span className="stat-value">{packQuantityNum} packs</span>
+
+              <div className="suggestions-chip-list">
+                {analysisData.suggestedContents.map((sug, idx) => {
+                  const isAdded = selectedSources.some((s) => s.itemId === sug.itemId)
+                  return (
+                    <button
+                      key={idx}
+                      type="button"
+                      className={`suggestion-chip ${isAdded ? 'suggestion-chip--added' : ''}`}
+                      onClick={() => handleApplySuggestion(sug)}
+                      title={`Add ${sug.quantity} ${sug.unit} per pack`}
+                    >
+                      {isAdded ? <Check size={12} /> : <Plus size={12} />}
+                      <span>{sug.item}</span>
+                      <small>({sug.quantity} {sug.unit}/pk)</small>
+                    </button>
+                  )
+                })}
               </div>
-              {targetFamilies > 0 && (
-                <div className="stat-row">
-                  <span className="stat-label">Target families:</span>
-                  <span className="stat-value">{targetFamilies} families</span>
-                </div>
+            </div>
+          )}
+
+          {/* Search & Filter Header */}
+          <div className="catalog-toolbar">
+            <div className="catalog-search-wrap">
+              <Search size={14} className="search-icon" />
+              <input
+                type="text"
+                placeholder="Search inventory items..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="catalog-search-input"
+              />
+              {searchTerm && (
+                <button
+                  type="button"
+                  className="clear-search-btn"
+                  onClick={() => setSearchTerm('')}
+                  aria-label="Clear search"
+                >
+                  <X size={13} />
+                </button>
               )}
             </div>
 
-            {packQuantityNum > 0 && (
-              <div
-                className={`validation-result ${
-                  packQuantityNum <= maxPacksFromStock
-                    ? 'sufficient'
-                    : packQuantityNum <= maxPacksFromStock * 1.1
-                    ? 'warning'
-                    : 'insufficient'
-                }`}
+            {categories.length > 2 && (
+              <select
+                value={selectedCategory}
+                onChange={(e) => setSelectedCategory(e.target.value)}
+                className="catalog-category-select"
               >
-                {packQuantityNum <= maxPacksFromStock ? (
-                  <>
-                    <CheckCircle size={20} />
-                    <div>
-                      <strong>Sufficient Stock</strong>
-                      <p>Available inventory can fulfill this repacking batch.</p>
+                {categories.map((c) => (
+                  <option key={c} value={c}>{c}</option>
+                ))}
+              </select>
+            )}
+          </div>
+
+          {/* Inventory Items Grid */}
+          <div className="catalog-scroll-area">
+            {catalogItems.length === 0 ? (
+              <div className="catalog-empty">
+                <p>{searchTerm ? 'No items match your search.' : 'No available stock in warehouse.'}</p>
+              </div>
+            ) : (
+              <div className="catalog-tile-list">
+                {catalogItems.map((item) => {
+                  const available = (item.quantity || 0) - (item.allocated || 0)
+                  const isSelected = selectedSources.some((s) => s.itemId === item.dbId)
+                  const IconComp = getItemIcon(item.item, item.category)
+
+                  return (
+                    <div
+                      key={item.dbId}
+                      className={`catalog-tile ${isSelected ? 'catalog-tile--selected' : ''}`}
+                      onClick={() => handleToggleSource(item)}
+                      role="button"
+                      tabIndex={0}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' || e.key === ' ') {
+                          e.preventDefault()
+                          handleToggleSource(item)
+                        }
+                      }}
+                    >
+                      <div className="catalog-tile__icon-box">
+                        <IconComp size={15} />
+                      </div>
+                      <div className="catalog-tile__meta">
+                        <div className="catalog-tile__name">{item.item}</div>
+                        <div className="catalog-tile__category">{item.category || 'General'}</div>
+                      </div>
+                      <div className="catalog-tile__stock">
+                        <span className="stock-number">{available}</span>
+                        <span className="stock-unit">{item.unit || 'units'}</span>
+                      </div>
+                      <div className={`catalog-tile__action ${isSelected ? 'catalog-tile__action--active' : ''}`}>
+                        {isSelected ? <Check size={13} /> : <Plus size={13} />}
+                      </div>
                     </div>
-                  </>
-                ) : packQuantityNum <= maxPacksFromStock * 1.1 ? (
-                  <>
-                    <AlertCircle size={20} />
-                    <div>
-                      <strong>Near Stock Capacity</strong>
-                      <p>
-                        Stock is close to limit. Can create {maxPacksFromStock} packs (requested{' '}
-                        {packQuantityNum})
-                      </p>
-                    </div>
-                  </>
-                ) : (
-                  <>
-                    <AlertCircle size={20} />
-                    <div>
-                      <strong>Insufficient Stock</strong>
-                      <p>
-                        Current stock can only create {maxPacksFromStock} packs. Adjust requested quantity or item stock.
-                      </p>
-                    </div>
-                  </>
-                )}
+                  )
+                })}
               </div>
             )}
           </div>
         </div>
-      )}
+
+        {/* RIGHT COLUMN: Pack Composition & Live Validation */}
+        <div className="workbench-col workbench-col--pack">
+          {/* Header */}
+          <div className="pack-header-bar">
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+              <Package size={15} />
+              <strong>Pack Contents</strong>
+              <span className="pack-count-badge">{selectedSources.length} item{selectedSources.length !== 1 ? 's' : ''}</span>
+            </div>
+            {selectedSources.length > 0 && (
+              <button
+                type="button"
+                className="btn-clear-pack"
+                onClick={() => onSourcesChange([])}
+              >
+                Clear All
+              </button>
+            )}
+          </div>
+
+          {/* Selected items list */}
+          <div className="pack-items-scroll-area">
+            {selectedSources.length === 0 ? (
+              <div className="pack-empty-state">
+                <Package size={32} className="pack-empty-icon" />
+                <p>No items added yet</p>
+                <span>Click items on the left catalog or use Smart Suggestions to build your pack.</span>
+              </div>
+            ) : (
+              <div className="pack-items-list">
+                {selectedSources.map((source) => {
+                  const qtyNum = Number(source.quantity) || 0
+                  const isExceeded = qtyNum > source.available
+                  const reqPacks = parseInt(packQuantity, 10) || 1
+                  const perPackRatio = reqPacks > 0 ? (qtyNum / reqPacks).toFixed(1).replace(/\.0$/, '') : 1
+                  const IconComponent = getItemIcon(source.itemName, source.category)
+
+                  return (
+                    <div
+                      key={source.itemId}
+                      className={`pack-item-card ${isExceeded ? 'pack-item-card--exceeded' : ''}`}
+                    >
+                      <div className="pack-item-card__top">
+                        <div className="pack-item-info">
+                          <IconComponent size={14} className="pack-item-icon" />
+                          <div>
+                            <span className="pack-item-name">{source.itemName}</span>
+                            <span className="pack-item-sub">
+                              {perPackRatio} {source.unit}/pack · {source.available} in stock
+                            </span>
+                          </div>
+                        </div>
+
+                        <button
+                          type="button"
+                          className="pack-item-remove"
+                          onClick={() => handleRemoveSource(source.itemId)}
+                          title="Remove item"
+                          aria-label="Remove item"
+                        >
+                          <X size={13} />
+                        </button>
+                      </div>
+
+                      <div className="pack-item-card__bottom">
+                        <div className="pack-item-stepper">
+                          <button
+                            type="button"
+                            className="stepper-btn"
+                            onClick={() => handleStepQuantity(source.itemId, -1)}
+                            disabled={qtyNum <= 1}
+                            title="Decrease quantity"
+                          >
+                            <Minus size={11} />
+                          </button>
+                          <input
+                            type="number"
+                            min="1"
+                            max={source.available}
+                            value={source.quantity}
+                            onChange={(e) => handleUpdateQuantity(source.itemId, e.target.value)}
+                            className={`stepper-input ${isExceeded ? 'stepper-input--error' : ''}`}
+                          />
+                          <button
+                            type="button"
+                            className="stepper-btn"
+                            onClick={() => handleStepQuantity(source.itemId, 1)}
+                            disabled={qtyNum >= source.available}
+                            title="Increase quantity"
+                          >
+                            <Plus size={11} />
+                          </button>
+                          <span className="stepper-unit">{source.unit} total</span>
+                        </div>
+
+                        {isExceeded && (
+                          <span className="stock-alert-msg">Exceeds {source.available} available!</span>
+                        )}
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            )}
+          </div>
+
+          {/* Live Capacity & Sufficiency Dock */}
+          {selectedSources.length > 0 && (
+            <div className="capacity-dock">
+              <div className="capacity-dock__row">
+                <div className="capacity-stat">
+                  <span className="capacity-stat-label">Stock Capacity:</span>
+                  <strong className="capacity-stat-val font-semibold">{maxPacks} packs max</strong>
+                </div>
+                <div className="capacity-stat">
+                  <span className="capacity-stat-label">Requested:</span>
+                  <strong className="capacity-stat-val font-semibold">{packQuantityNum} packs</strong>
+                </div>
+              </div>
+
+              {anyExceeded ? (
+                <div className="capacity-banner capacity-banner--danger">
+                  <AlertCircle size={14} />
+                  <span>One or more item quantities exceed warehouse stock. Please reduce quantity.</span>
+                </div>
+              ) : packQuantityNum > 0 && packQuantityNum <= maxPacks ? (
+                <div className="capacity-banner capacity-banner--success">
+                  <CheckCircle size={14} />
+                  <span>Sufficient stock available to fulfill all {packQuantityNum} packs!</span>
+                </div>
+              ) : packQuantityNum > 0 ? (
+                <div className="capacity-banner capacity-banner--warning">
+                  <AlertCircle size={14} />
+                  <span>
+                    Current stock allows max {maxPacks} packs
+                    {limitingItem ? ` (limited by ${limitingItem.itemName})` : ''}.
+                  </span>
+                </div>
+              ) : null}
+            </div>
+          )}
+        </div>
+      </div>
     </div>
   )
 }
