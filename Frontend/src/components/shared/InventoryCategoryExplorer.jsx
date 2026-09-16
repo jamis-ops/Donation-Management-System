@@ -51,8 +51,10 @@ export default function InventoryCategoryExplorer({
   // Compute category rollups from actual items
   const categoryGroups = useMemo(() => {
     const map = new Map()
+    const safeItems = Array.isArray(items) ? items : []
 
-    items.forEach((item) => {
+    safeItems.forEach((item) => {
+      if (!item) return
       const cat = (item.category || 'General Goods').trim()
       if (!map.has(cat)) {
         map.set(cat, {
@@ -83,13 +85,18 @@ export default function InventoryCategoryExplorer({
   // Current category data
   const currentCategoryData = useMemo(() => {
     if (!selectedCategory) return null
-    return categoryGroups.find((c) => c.name.toLowerCase() === selectedCategory.toLowerCase()) || {
-      name: selectedCategory,
-      items: [],
-      totalQuantity: 0,
-      lowStockCount: 0,
-      itemTypeSet: new Set(),
-    }
+    const safeGroups = Array.isArray(categoryGroups) ? categoryGroups : []
+    return (
+      safeGroups.find(
+        (c) => c && c.name && c.name.toLowerCase() === selectedCategory.toLowerCase()
+      ) || {
+        name: selectedCategory,
+        items: [],
+        totalQuantity: 0,
+        lowStockCount: 0,
+        itemTypeSet: new Set(),
+      }
+    )
   }, [selectedCategory, categoryGroups])
 
   // Item Types within current category

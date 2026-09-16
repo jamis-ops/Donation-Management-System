@@ -311,60 +311,88 @@ if ($method === 'GET') {
   $variants = $pdo->query("SELECT * FROM inventory_variants {$catFilter} ORDER BY sort_order ASC, name ASC")->fetchAll();
   $units = $pdo->query("SELECT * FROM inventory_units {$catFilter} ORDER BY sort_order ASC, name ASC")->fetchAll();
 
-  // Return grouped structured catalog
+  $typeParam = strtolower(trim((string) ($_GET['type'] ?? '')));
+
+  $mappedCategories = array_map(function($c) {
+    return [
+      'id' => (int) $c['id'],
+      'name' => $c['name'],
+      'icon' => $c['icon'] ?? 'Package',
+      'description' => $c['description'] ?? '',
+      'sortOrder' => (int) $c['sort_order'],
+      'isActive' => (bool) $c['is_active'],
+    ];
+  }, $categories);
+
+  $mappedItemTypes = array_map(function($t) {
+    return [
+      'id' => (int) $t['id'],
+      'categoryName' => $t['category_name'],
+      'name' => $t['name'],
+      'defaultUnit' => $t['default_unit'] ?? 'units',
+      'defaultLowThreshold' => (int) ($t['default_low_threshold'] ?? 100),
+      'sortOrder' => (int) $t['sort_order'],
+      'isActive' => (bool) $t['is_active'],
+    ];
+  }, $itemTypes);
+
+  $mappedBrands = array_map(function($b) {
+    return [
+      'id' => (int) $b['id'],
+      'categoryName' => $b['category_name'],
+      'itemTypeName' => $b['item_type_name'] ?? null,
+      'name' => $b['name'],
+      'sortOrder' => (int) $b['sort_order'],
+      'isActive' => (bool) $b['is_active'],
+    ];
+  }, $brands);
+
+  $mappedVariants = array_map(function($v) {
+    return [
+      'id' => (int) $v['id'],
+      'categoryName' => $v['category_name'] ?? null,
+      'itemTypeName' => $v['item_type_name'] ?? null,
+      'name' => $v['name'],
+      'sortOrder' => (int) $v['sort_order'],
+      'isActive' => (bool) $v['is_active'],
+    ];
+  }, $variants);
+
+  $mappedUnits = array_map(function($u) {
+    return [
+      'id' => (int) $u['id'],
+      'name' => $u['name'],
+      'abbreviation' => $u['abbreviation'] ?? '',
+      'sortOrder' => (int) $u['sort_order'],
+      'isActive' => (bool) $u['is_active'],
+    ];
+  }, $units);
+
+  if ($typeParam === 'categories' || $typeParam === 'category') {
+    json_response(['ok' => true, 'data' => $mappedCategories]);
+  }
+  if ($typeParam === 'item_types' || $typeParam === 'item_type') {
+    json_response(['ok' => true, 'data' => $mappedItemTypes]);
+  }
+  if ($typeParam === 'brands' || $typeParam === 'brand') {
+    json_response(['ok' => true, 'data' => $mappedBrands]);
+  }
+  if ($typeParam === 'variants' || $typeParam === 'variant') {
+    json_response(['ok' => true, 'data' => $mappedVariants]);
+  }
+  if ($typeParam === 'units' || $typeParam === 'unit') {
+    json_response(['ok' => true, 'data' => $mappedUnits]);
+  }
+
+  // Return grouped structured catalog by default
   json_response([
     'ok' => true,
     'data' => [
-      'categories' => array_map(function($c) {
-        return [
-          'id' => (int) $c['id'],
-          'name' => $c['name'],
-          'icon' => $c['icon'] ?? 'Package',
-          'description' => $c['description'] ?? '',
-          'sortOrder' => (int) $c['sort_order'],
-          'isActive' => (bool) $c['is_active'],
-        ];
-      }, $categories),
-      'itemTypes' => array_map(function($t) {
-        return [
-          'id' => (int) $t['id'],
-          'categoryName' => $t['category_name'],
-          'name' => $t['name'],
-          'defaultUnit' => $t['default_unit'] ?? 'units',
-          'defaultLowThreshold' => (int) ($t['default_low_threshold'] ?? 100),
-          'sortOrder' => (int) $t['sort_order'],
-          'isActive' => (bool) $t['is_active'],
-        ];
-      }, $itemTypes),
-      'brands' => array_map(function($b) {
-        return [
-          'id' => (int) $b['id'],
-          'categoryName' => $b['category_name'],
-          'itemTypeName' => $b['item_type_name'] ?? null,
-          'name' => $b['name'],
-          'sortOrder' => (int) $b['sort_order'],
-          'isActive' => (bool) $b['is_active'],
-        ];
-      }, $brands),
-      'variants' => array_map(function($v) {
-        return [
-          'id' => (int) $v['id'],
-          'categoryName' => $v['category_name'] ?? null,
-          'itemTypeName' => $v['item_type_name'] ?? null,
-          'name' => $v['name'],
-          'sortOrder' => (int) $v['sort_order'],
-          'isActive' => (bool) $v['is_active'],
-        ];
-      }, $variants),
-      'units' => array_map(function($u) {
-        return [
-          'id' => (int) $u['id'],
-          'name' => $u['name'],
-          'abbreviation' => $u['abbreviation'] ?? '',
-          'sortOrder' => (int) $u['sort_order'],
-          'isActive' => (bool) $u['is_active'],
-        ];
-      }, $units),
+      'categories' => $mappedCategories,
+      'itemTypes' => $mappedItemTypes,
+      'brands' => $mappedBrands,
+      'variants' => $mappedVariants,
+      'units' => $mappedUnits,
     ],
   ]);
 }

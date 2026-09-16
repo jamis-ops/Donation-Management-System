@@ -457,7 +457,8 @@ export default function InventoryManagement() {
     },
   ]
 
-  const selectedSource = items.find((i) => String(i.dbId) === batchForm.sourceItemId)
+  const safeItems = Array.isArray(items) ? items : []
+  const selectedSource = safeItems.find((i) => String(i?.dbId) === batchForm.sourceItemId)
 
   return (
     <>

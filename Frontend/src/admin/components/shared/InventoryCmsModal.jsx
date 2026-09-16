@@ -64,11 +64,19 @@ export default function InventoryCmsModal({ open, onClose }) {
         inventoryCatalogApi.list('variants', { activeOnly: false }),
         inventoryCatalogApi.list('units', { activeOnly: false }),
       ])
-      setCategories(catsRes?.data || [])
-      setItemTypes(typesRes?.data || [])
-      setBrands(brandsRes?.data || [])
-      setVariants(varsRes?.data || [])
-      setUnits(unitsRes?.data || [])
+
+      const getList = (res, key) => {
+        if (Array.isArray(res?.data)) return res.data
+        if (res?.data && typeof res.data === 'object' && Array.isArray(res.data[key])) return res.data[key]
+        if (Array.isArray(res)) return res
+        return []
+      }
+
+      setCategories(getList(catsRes, 'categories'))
+      setItemTypes(getList(typesRes, 'itemTypes'))
+      setBrands(getList(brandsRes, 'brands'))
+      setVariants(getList(varsRes, 'variants'))
+      setUnits(getList(unitsRes, 'units'))
     } catch (err) {
       console.error('Failed to load CMS data:', err)
       notify.error(err.message || 'Failed to load catalog settings')
@@ -85,14 +93,16 @@ export default function InventoryCmsModal({ open, onClose }) {
 
   // Current list based on active tab
   const currentList = useMemo(() => {
+    let list = []
     switch (activeTab) {
-      case 'categories': return categories
-      case 'item_types': return itemTypes
-      case 'brands': return brands
-      case 'variants': return variants
-      case 'units': return units
-      default: return []
+      case 'categories': list = categories; break
+      case 'item_types': list = itemTypes; break
+      case 'brands': list = brands; break
+      case 'variants': list = variants; break
+      case 'units': list = units; break
+      default: list = []
     }
+    return Array.isArray(list) ? list : []
   }, [activeTab, categories, itemTypes, brands, variants, units])
 
   // Filtered list
