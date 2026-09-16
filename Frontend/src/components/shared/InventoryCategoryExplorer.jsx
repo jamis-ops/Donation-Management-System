@@ -25,17 +25,136 @@ import {
   Trash2,
 } from 'lucide-react'
 
-// Icon helper per category name
-function getCategoryIcon(catName = '') {
-  const c = catName.toLowerCase()
-  if (c.includes('water') || c.includes('beverage')) return <Droplets size={24} className="text-blue-600" />
-  if (c.includes('food') || c.includes('grocery') || c.includes('meal')) return <Utensils size={24} className="text-amber-600" />
-  if (c.includes('cloth') || c.includes('wear') || c.includes('apparel')) return <Shirt size={24} className="text-purple-600" />
-  if (c.includes('medic') || c.includes('health') || c.includes('pharma')) return <HeartPulse size={24} className="text-rose-600" />
-  if (c.includes('hygiene') || c.includes('sanit')) return <Sparkles size={24} className="text-teal-600" />
-  if (c.includes('shelter') || c.includes('bed') || c.includes('tent')) return <Home size={24} className="text-indigo-600" />
-  if (c.includes('logist') || c.includes('equip') || c.includes('tool')) return <Truck size={24} className="text-slate-600" />
-  return <Package size={24} className="text-red-700" />
+// Enhanced Category Theme definition with colors, backgrounds, borders, gradients, and vibrant SVG icons
+export function getCategoryTheme(catName = '') {
+  const c = (catName || '').toLowerCase().trim()
+  if (c.includes('water') || c.includes('beverage') || c.includes('drink') || c.includes('tubig')) {
+    return {
+      name: 'Water & Beverages',
+      primary: '#0284c7', // Vibrant Sky/Ocean Blue
+      secondary: '#38bdf8',
+      bgSoft: '#f0f9ff',
+      borderSoft: '#bae6fd',
+      badgeBg: '#e0f2fe',
+      badgeText: '#0369a1',
+      heroGradient: 'linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 45%, #ffffff 100%)',
+      accentGlow: 'rgba(2, 132, 199, 0.22)',
+      icon: (size = 24) => (
+        <Droplets size={size} color="#0284c7" strokeWidth={2.4} fill="#bae6fd" />
+      ),
+    }
+  }
+  if (c.includes('food') || c.includes('grocery') || c.includes('meal') || c.includes('canned') || c.includes('rice') || c.includes('noodle')) {
+    return {
+      name: 'Food & Groceries',
+      primary: '#d97706', // Warm Amber
+      secondary: '#fbbf24',
+      bgSoft: '#fffbeb',
+      borderSoft: '#fde68a',
+      badgeBg: '#fef3c7',
+      badgeText: '#92400e',
+      heroGradient: 'linear-gradient(135deg, #fffbeb 0%, #fef3c7 45%, #ffffff 100%)',
+      accentGlow: 'rgba(217, 119, 6, 0.22)',
+      icon: (size = 24) => (
+        <Utensils size={size} color="#d97706" strokeWidth={2.4} />
+      ),
+    }
+  }
+  if (c.includes('cloth') || c.includes('wear') || c.includes('apparel') || c.includes('shirt') || c.includes('pant')) {
+    return {
+      name: 'Clothing & Apparel',
+      primary: '#7c3aed', // Royal Violet
+      secondary: '#a78bfa',
+      bgSoft: '#faf5ff',
+      borderSoft: '#e9d5ff',
+      badgeBg: '#f3e8ff',
+      badgeText: '#6d28d9',
+      heroGradient: 'linear-gradient(135deg, #faf5ff 0%, #f3e8ff 45%, #ffffff 100%)',
+      accentGlow: 'rgba(124, 58, 237, 0.22)',
+      icon: (size = 24) => (
+        <Shirt size={size} color="#7c3aed" strokeWidth={2.4} />
+      ),
+    }
+  }
+  if (c.includes('medic') || c.includes('health') || c.includes('pharma') || c.includes('first aid')) {
+    return {
+      name: 'Medical & Healthcare',
+      primary: '#e11d48', // Rose Red
+      secondary: '#fb7185',
+      bgSoft: '#fff1f2',
+      borderSoft: '#fecdd3',
+      badgeBg: '#ffe4e6',
+      badgeText: '#be123c',
+      heroGradient: 'linear-gradient(135deg, #fff1f2 0%, #ffe4e6 45%, #ffffff 100%)',
+      accentGlow: 'rgba(225, 29, 72, 0.22)',
+      icon: (size = 24) => (
+        <HeartPulse size={size} color="#e11d48" strokeWidth={2.4} />
+      ),
+    }
+  }
+  if (c.includes('hygiene') || c.includes('sanit') || c.includes('soap') || c.includes('clean')) {
+    return {
+      name: 'Hygiene & Sanitation',
+      primary: '#0d9488', // Teal
+      secondary: '#2dd4bf',
+      bgSoft: '#f0fdfa',
+      borderSoft: '#99f6e4',
+      badgeBg: '#ccfbf1',
+      badgeText: '#0f766e',
+      heroGradient: 'linear-gradient(135deg, #f0fdfa 0%, #ccfbf1 45%, #ffffff 100%)',
+      accentGlow: 'rgba(13, 148, 136, 0.22)',
+      icon: (size = 24) => (
+        <Sparkles size={size} color="#0d9488" strokeWidth={2.4} />
+      ),
+    }
+  }
+  if (c.includes('shelter') || c.includes('bed') || c.includes('tent') || c.includes('blanket')) {
+    return {
+      name: 'Shelter & Bedding',
+      primary: '#ea580c', // Orange
+      secondary: '#fb923c',
+      bgSoft: '#fff7ed',
+      borderSoft: '#fed7aa',
+      badgeBg: '#ffedd5',
+      badgeText: '#c2410c',
+      heroGradient: 'linear-gradient(135deg, #fff7ed 0%, #ffedd5 45%, #ffffff 100%)',
+      accentGlow: 'rgba(234, 88, 12, 0.22)',
+      icon: (size = 24) => (
+        <Home size={size} color="#ea580c" strokeWidth={2.4} />
+      ),
+    }
+  }
+  if (c.includes('logist') || c.includes('equip') || c.includes('tool') || c.includes('hardware')) {
+    return {
+      name: 'Logistics & Equipment',
+      primary: '#475569', // Slate
+      secondary: '#94a3b8',
+      bgSoft: '#f8fafc',
+      borderSoft: '#cbd5e1',
+      badgeBg: '#f1f5f9',
+      badgeText: '#334155',
+      heroGradient: 'linear-gradient(135deg, #f8fafc 0%, #f1f5f9 45%, #ffffff 100%)',
+      accentGlow: 'rgba(71, 85, 105, 0.22)',
+      icon: (size = 24) => (
+        <Truck size={size} color="#475569" strokeWidth={2.4} />
+      ),
+    }
+  }
+  // Default fallback: Rise Above Foundation Red
+  return {
+    name: catName || 'General Goods',
+    primary: '#AF101A',
+    secondary: '#e53e3e',
+    bgSoft: '#fff5f5',
+    borderSoft: '#fed7d7',
+    badgeBg: '#fee2e2',
+    badgeText: '#991b1b',
+    heroGradient: 'linear-gradient(135deg, #fff5f5 0%, #fee2e2 45%, #ffffff 100%)',
+    accentGlow: 'rgba(175, 16, 26, 0.22)',
+    icon: (size = 24) => (
+      <Package size={size} color="#AF101A" strokeWidth={2.4} />
+    ),
+  }
 }
 
 export default function InventoryCategoryExplorer({
@@ -74,7 +193,6 @@ export default function InventoryCategoryExplorer({
       if (item.itemType) {
         group.itemTypeSet.add(item.itemType.trim())
       } else {
-        // Fallback item type from item name
         group.itemTypeSet.add('General Goods')
       }
     })
@@ -82,7 +200,7 @@ export default function InventoryCategoryExplorer({
     return Array.from(map.values()).sort((a, b) => a.name.localeCompare(b.name))
   }, [items])
 
-  // Current category data
+  // Current category data & theme
   const currentCategoryData = useMemo(() => {
     if (!selectedCategory) return null
     const safeGroups = Array.isArray(categoryGroups) ? categoryGroups : []
@@ -98,6 +216,10 @@ export default function InventoryCategoryExplorer({
       }
     )
   }, [selectedCategory, categoryGroups])
+
+  const currentTheme = useMemo(() => {
+    return getCategoryTheme(selectedCategory)
+  }, [selectedCategory])
 
   // Item Types within current category
   const itemTypeGroups = useMemo(() => {
@@ -185,27 +307,47 @@ export default function InventoryCategoryExplorer({
             className={`inv-crumb ${!selectedCategory ? 'inv-crumb--active' : ''}`}
             onClick={handleResetToRoot}
           >
-            <Folder size={14} className="mr-1" /> All Categories
+            <Folder
+              size={15}
+              color={!selectedCategory ? '#AF101A' : '#64748b'}
+              style={{ marginRight: '7px', flexShrink: 0 }}
+            />
+            <span>All Categories</span>
           </button>
 
           {selectedCategory && (
             <>
-              <ChevronRight size={14} className="inv-crumb-sep" />
+              <ChevronRight size={14} className="inv-crumb-sep" style={{ margin: '0 4px', color: '#94a3b8' }} />
               <button
                 type="button"
-                className={`inv-crumb ${!selectedItemType ? 'inv-crumb--active' : ''}`}
+                className={`inv-crumb ${!selectedItemType ? 'inv-crumb--category-active' : ''}`}
+                style={!selectedItemType ? {
+                  backgroundColor: currentTheme.badgeBg,
+                  color: currentTheme.badgeText,
+                  borderColor: currentTheme.borderSoft,
+                } : {}}
                 onClick={() => setSelectedItemType(null)}
               >
-                {selectedCategory}
+                <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+                  {currentTheme.icon(14)}
+                  <span>{selectedCategory}</span>
+                </span>
               </button>
             </>
           )}
 
           {selectedItemType && (
             <>
-              <ChevronRight size={14} className="inv-crumb-sep" />
-              <span className="inv-crumb inv-crumb--active">
-                {selectedItemType}
+              <ChevronRight size={14} className="inv-crumb-sep" style={{ margin: '0 4px', color: '#94a3b8' }} />
+              <span
+                className="inv-crumb inv-crumb--type-active"
+                style={{
+                  backgroundColor: '#f1f5f9',
+                  color: '#0f172a',
+                }}
+              >
+                <Layers size={13} style={{ marginRight: '6px', color: currentTheme.primary }} />
+                <span>{selectedItemType}</span>
               </span>
             </>
           )}
@@ -215,13 +357,14 @@ export default function InventoryCategoryExplorer({
           {(selectedCategory || selectedItemType) && (
             <button
               type="button"
-              className="btn btn--ghost btn--sm"
+              className="inv-back-btn"
               onClick={() => {
                 if (selectedItemType) setSelectedItemType(null)
                 else setSelectedCategory(null)
               }}
             >
-              <ArrowLeft size={14} className="mr-1" /> Back
+              <ArrowLeft size={14} style={{ marginRight: '6px' }} />
+              <span>Back to {selectedItemType ? selectedCategory : 'Categories'}</span>
             </button>
           )}
         </div>
@@ -236,52 +379,77 @@ export default function InventoryCategoryExplorer({
               <p>No inventory categories yet. Add an item to get started.</p>
             </div>
           ) : (
-            categoryGroups.map((cat) => (
-              <div
-                key={cat.name}
-                className="inv-cat-card"
-                onClick={() => handleSelectCategory(cat.name)}
-                role="button"
-                tabIndex={0}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' || e.key === ' ') {
-                    e.preventDefault()
-                    handleSelectCategory(cat.name)
-                  }
-                }}
-              >
-                <div className="inv-cat-card__header">
-                  <div className="inv-cat-card__icon-wrapper">
-                    {getCategoryIcon(cat.name)}
-                  </div>
-                  <ChevronRight size={18} className="inv-cat-card__arrow" />
-                </div>
+            categoryGroups.map((cat) => {
+              const theme = getCategoryTheme(cat.name)
+              return (
+                <div
+                  key={cat.name}
+                  className="inv-cat-card"
+                  onClick={() => handleSelectCategory(cat.name)}
+                  role="button"
+                  tabIndex={0}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault()
+                      handleSelectCategory(cat.name)
+                    }
+                  }}
+                >
+                  {/* Top color accent bar */}
+                  <div
+                    className="inv-cat-card__accent-bar"
+                    style={{ backgroundColor: theme.primary }}
+                  />
 
-                <div className="inv-cat-card__body">
-                  <h3 className="inv-cat-card__title">{cat.name}</h3>
-                  <div className="inv-cat-card__meta">
-                    <span className="inv-cat-card__count">
-                      <strong>{cat.itemTypeSet.size}</strong> item {cat.itemTypeSet.size === 1 ? 'type' : 'types'}
-                    </span>
-                    <span className="inv-cat-card__divider">•</span>
-                    <span className="inv-cat-card__qty">
-                      <strong>{cat.items.length}</strong> {cat.items.length === 1 ? 'product' : 'products'}
-                    </span>
-                  </div>
-
-                  <div className="inv-cat-card__stock-tag">
-                    Total In Stock: <strong>{cat.totalQuantity.toLocaleString()}</strong> units
-                  </div>
-
-                  {cat.lowStockCount > 0 && (
-                    <div className="inv-cat-card__alert">
-                      <AlertTriangle size={12} className="mr-1" />
-                      <span>{cat.lowStockCount} {cat.lowStockCount === 1 ? 'item' : 'items'} low on stock</span>
+                  <div className="inv-cat-card__header">
+                    <div
+                      className="inv-cat-card__icon-wrapper"
+                      style={{
+                        backgroundColor: theme.badgeBg,
+                        border: `1px solid ${theme.borderSoft}`,
+                        boxShadow: `0 3px 8px -2px ${theme.accentGlow}`,
+                      }}
+                    >
+                      {theme.icon(24)}
                     </div>
-                  )}
+                    <div
+                      className="inv-cat-card__arrow-circle"
+                      style={{ color: theme.primary }}
+                    >
+                      <ChevronRight size={16} />
+                    </div>
+                  </div>
+
+                  <div className="inv-cat-card__body">
+                    <h3 className="inv-cat-card__title">{cat.name}</h3>
+                    <div className="inv-cat-card__meta">
+                      <span className="inv-cat-card__count">
+                        <strong>{cat.itemTypeSet.size}</strong> item {cat.itemTypeSet.size === 1 ? 'type' : 'types'}
+                      </span>
+                      <span className="inv-cat-card__divider">•</span>
+                      <span className="inv-cat-card__qty">
+                        <strong>{cat.items.length}</strong> {cat.items.length === 1 ? 'product' : 'products'}
+                      </span>
+                    </div>
+
+                    <div className="inv-cat-card__stock-tag">
+                      <span className="inv-cat-card__stock-label">Total In Stock:</span>
+                      <strong className="inv-cat-card__stock-val" style={{ color: theme.primary }}>
+                        {cat.totalQuantity.toLocaleString()}
+                      </strong>
+                      <span className="inv-cat-card__stock-unit">units</span>
+                    </div>
+
+                    {cat.lowStockCount > 0 && (
+                      <div className="inv-cat-card__alert">
+                        <AlertTriangle size={12} style={{ marginRight: '5px' }} />
+                        <span>{cat.lowStockCount} {cat.lowStockCount === 1 ? 'item' : 'items'} low on stock</span>
+                      </div>
+                    )}
+                  </div>
                 </div>
-              </div>
-            ))
+              )
+            })
           )}
         </div>
       )}
@@ -289,40 +457,108 @@ export default function InventoryCategoryExplorer({
       {/* LEVEL 2: ITEM TYPES VIEW (INSIDE A CATEGORY) */}
       {selectedCategory && !selectedItemType && (
         <div className="inv-drilldown-container">
-          <div className="inv-drilldown-header">
-            <div className="inv-drilldown-title">
-              <div className="inv-drilldown-icon">{getCategoryIcon(selectedCategory)}</div>
-              <div>
-                <h2>{selectedCategory}</h2>
-                <p className="text-muted">
-                  Select an item type to inspect specific brands, variants, and quantities.
+          {/* Enhanced Category Hero Banner */}
+          <div
+            className="inv-category-hero"
+            style={{
+              background: currentTheme.heroGradient,
+              borderColor: currentTheme.borderSoft,
+            }}
+          >
+            <div className="inv-category-hero__left">
+              <div
+                className="inv-category-hero__icon-box"
+                style={{
+                  backgroundColor: '#ffffff',
+                  borderColor: currentTheme.borderSoft,
+                  boxShadow: `0 8px 18px -4px ${currentTheme.accentGlow}`,
+                }}
+              >
+                {currentTheme.icon(32)}
+              </div>
+
+              <div className="inv-category-hero__details">
+                <div className="inv-category-hero__headline">
+                  <h2 className="inv-category-hero__name">{selectedCategory}</h2>
+                  <span
+                    className="inv-category-hero__badge"
+                    style={{
+                      backgroundColor: currentTheme.badgeBg,
+                      color: currentTheme.badgeText,
+                      borderColor: currentTheme.borderSoft,
+                    }}
+                  >
+                    Category Overview
+                  </span>
+                </div>
+
+                <p className="inv-category-hero__desc">
+                  Select an item type below to inspect brands, product packaging sizes, variants, and stock balances.
                 </p>
+
+                <div className="inv-category-hero__stats">
+                  <div className="inv-stat-pill">
+                    <Layers size={13} style={{ color: currentTheme.primary }} />
+                    <span><strong>{itemTypeGroups.length}</strong> {itemTypeGroups.length === 1 ? 'Item Type' : 'Item Types'}</span>
+                  </div>
+                  <div className="inv-stat-pill">
+                    <Box size={13} style={{ color: currentTheme.primary }} />
+                    <span><strong>{currentCategoryData.items.length}</strong> {currentCategoryData.items.length === 1 ? 'Product Variation' : 'Product Variations'}</span>
+                  </div>
+                  <div className="inv-stat-pill inv-stat-pill--stock">
+                    <span className="inv-stat-dot" style={{ backgroundColor: currentTheme.primary }} />
+                    <span><strong>{currentCategoryData.totalQuantity.toLocaleString()}</strong> Units In Stock</span>
+                  </div>
+                  {currentCategoryData.lowStockCount > 0 && (
+                    <div className="inv-stat-pill inv-stat-pill--alert">
+                      <AlertTriangle size={13} />
+                      <span><strong>{currentCategoryData.lowStockCount}</strong> Low Stock</span>
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
 
-            <div className="inv-search-bar">
-              <Search size={14} className="text-gray-400" />
-              <input
-                type="text"
-                placeholder={`Search products in ${selectedCategory}...`}
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-              />
-              {searchQuery && (
-                <button
-                  type="button"
-                  className="btn-clear-search"
-                  onClick={() => setSearchQuery('')}
-                >
-                  ✕
-                </button>
-              )}
+            <div className="inv-category-hero__right">
+              <div
+                className="inv-hero-search"
+                style={{
+                  borderColor: currentTheme.borderSoft,
+                }}
+              >
+                <Search size={15} style={{ color: currentTheme.primary, flexShrink: 0 }} />
+                <input
+                  type="text"
+                  placeholder={`Search products in ${selectedCategory}...`}
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                />
+                {searchQuery && (
+                  <button
+                    type="button"
+                    className="btn-clear-search"
+                    onClick={() => setSearchQuery('')}
+                  >
+                    ✕
+                  </button>
+                )}
+              </div>
             </div>
           </div>
 
           {/* If user searched directly in category, show matching products list */}
           {searchQuery.trim() ? (
             <div className="inv-items-table-wrapper">
+              <div className="inv-table-search-notice">
+                <span>Showing search results for "<strong>{searchQuery}</strong>" in <strong>{selectedCategory}</strong>:</span>
+                <button
+                  type="button"
+                  className="btn btn--ghost btn--xs"
+                  onClick={() => setSearchQuery('')}
+                >
+                  Clear search
+                </button>
+              </div>
               <table className="inv-items-table">
                 <thead>
                   <tr>
@@ -344,16 +580,31 @@ export default function InventoryCategoryExplorer({
                     </tr>
                   ) : (
                     visibleItems.map((item) => (
-                      <tr key={item.dbId || item.id}>
+                      <tr key={item.dbId || item.id} className="inv-table-row">
                         <td>
-                          <div className="font-semibold">{item.item}</div>
-                          <span className="text-xs text-gray-400">{item.id}</span>
+                          <div className="font-semibold text-slate-800">{item.item}</div>
+                          <span className="text-xs text-gray-400">SKU: {item.id}</span>
                         </td>
-                        <td>{item.itemType || '—'}</td>
-                        <td>{item.brand || 'Generic / Unbranded'}</td>
-                        <td>{item.variant || '—'}</td>
                         <td>
-                          <strong>{item.quantity}</strong> <span className="text-muted">{item.unit}</span>
+                          <span className="inv-type-pill">{item.itemType || '—'}</span>
+                        </td>
+                        <td>
+                          {item.brand ? (
+                            <span className="inv-brand-badge">{item.brand}</span>
+                          ) : (
+                            <span className="text-gray-400 text-xs italic">Generic / Unbranded</span>
+                          )}
+                        </td>
+                        <td>
+                          {item.variant ? (
+                            <span className="inv-variant-badge">{item.variant}</span>
+                          ) : (
+                            <span className="text-gray-400 text-xs">—</span>
+                          )}
+                        </td>
+                        <td>
+                          <strong style={{ color: currentTheme.primary }}>{item.quantity}</strong>{' '}
+                          <span className="text-muted text-xs">{item.unit}</span>
                         </td>
                         <td>
                           <span className={`badge badge--${item.stockLevel || 'moderate'}`}>
@@ -407,32 +658,74 @@ export default function InventoryCategoryExplorer({
                       }
                     }}
                   >
+                    {/* Top Accent Line */}
+                    <div
+                      className="inv-type-card__accent"
+                      style={{ backgroundColor: currentTheme.primary }}
+                    />
+
                     <div className="inv-type-card__header">
                       <div className="inv-type-card__tag">
-                        <Layers size={14} className="mr-1 text-red-700" />
-                        <span className="font-medium">{g.name}</span>
+                        <div
+                          className="inv-type-card__icon-badge"
+                          style={{
+                            backgroundColor: currentTheme.badgeBg,
+                            border: `1px solid ${currentTheme.borderSoft}`,
+                          }}
+                        >
+                          <Layers size={16} color={currentTheme.primary} />
+                        </div>
+                        <div className="inv-type-card__titles">
+                          <h4 className="inv-type-card__title">{g.name}</h4>
+                          <span className="inv-type-card__subtitle">Item Classification</span>
+                        </div>
                       </div>
-                      <ChevronRight size={16} className="text-gray-400" />
+                      <div className="inv-type-card__arrow-btn" style={{ color: currentTheme.primary }}>
+                        <ChevronRight size={16} />
+                      </div>
                     </div>
 
                     <div className="inv-type-card__body">
-                      <div className="inv-type-card__stat">
-                        <span>Total Quantity:</span>
-                        <strong>{g.totalQuantity.toLocaleString()}</strong>
+                      {/* Stock Quantity Highlight Box */}
+                      <div
+                        className="inv-type-card__stock-box"
+                        style={{
+                          backgroundColor: currentTheme.bgSoft,
+                          borderColor: currentTheme.borderSoft,
+                        }}
+                      >
+                        <div className="inv-type-card__stock-num">
+                          <span className="inv-type-card__qty-label">Total Quantity</span>
+                          <div className="inv-type-card__big-qty" style={{ color: currentTheme.primary }}>
+                            {g.totalQuantity.toLocaleString()}
+                          </div>
+                        </div>
+                        <div className="inv-type-card__var-badge">
+                          <Box size={12} style={{ marginRight: '4px', color: '#64748b' }} />
+                          <span>{g.items.length} {g.items.length === 1 ? 'variation' : 'variations'}</span>
+                        </div>
                       </div>
-                      <div className="inv-type-card__stat">
-                        <span>Variations:</span>
-                        <span>{g.items.length} {g.items.length === 1 ? 'item' : 'items'}</span>
-                      </div>
+
+                      {/* Brand Chips */}
                       {g.brandSet.size > 0 && (
-                        <div className="inv-type-card__brands">
-                          <span className="text-xs text-muted">Brands:</span>
+                        <div className="inv-type-card__brands-sec">
+                          <div className="inv-type-card__brands-header">
+                            <Tag size={11} style={{ marginRight: '4px', color: '#64748b' }} />
+                            <span>Brands ({g.brandSet.size}):</span>
+                          </div>
                           <div className="inv-chips-wrap">
                             {Array.from(g.brandSet).slice(0, 3).map((b) => (
                               <span key={b} className="inv-brand-chip">{b}</span>
                             ))}
                             {g.brandSet.size > 3 && (
-                              <span className="inv-brand-chip inv-brand-chip--more">
+                              <span
+                                className="inv-brand-chip inv-brand-chip--more"
+                                style={{
+                                  backgroundColor: currentTheme.badgeBg,
+                                  color: currentTheme.badgeText,
+                                  borderColor: currentTheme.borderSoft,
+                                }}
+                              >
                                 +{g.brandSet.size - 3} more
                               </span>
                             )}
@@ -443,10 +736,16 @@ export default function InventoryCategoryExplorer({
 
                     {g.lowStockCount > 0 && (
                       <div className="inv-type-card__alert">
-                        <AlertTriangle size={12} className="mr-1" />
-                        <span>{g.lowStockCount} needs replenishment</span>
+                        <AlertTriangle size={12} style={{ marginRight: '5px' }} />
+                        <span>{g.lowStockCount} item needs replenishment</span>
                       </div>
                     )}
+
+                    <div className="inv-type-card__footer">
+                      <span className="inv-type-card__view-link" style={{ color: currentTheme.primary }}>
+                        Inspect products & variants →
+                      </span>
+                    </div>
                   </div>
                 ))
               )}
@@ -458,36 +757,88 @@ export default function InventoryCategoryExplorer({
       {/* LEVEL 3: BRANDS & VARIANTS DRILL-DOWN */}
       {selectedCategory && selectedItemType && (
         <div className="inv-drilldown-container">
-          <div className="inv-drilldown-header">
-            <div className="inv-drilldown-title">
-              <div className="inv-drilldown-icon">
-                <Layers size={22} className="text-red-700" />
+          {/* Enhanced Drilldown Hero Banner */}
+          <div
+            className="inv-category-hero"
+            style={{
+              background: currentTheme.heroGradient,
+              borderColor: currentTheme.borderSoft,
+            }}
+          >
+            <div className="inv-category-hero__left">
+              <div
+                className="inv-category-hero__icon-box"
+                style={{
+                  backgroundColor: '#ffffff',
+                  borderColor: currentTheme.borderSoft,
+                  boxShadow: `0 8px 18px -4px ${currentTheme.accentGlow}`,
+                }}
+              >
+                <Layers size={30} color={currentTheme.primary} />
               </div>
-              <div>
-                <h2>{selectedCategory} › {selectedItemType}</h2>
-                <p className="text-muted">
-                  Detailed product variants, packaging sizes, and current stock balances.
+
+              <div className="inv-category-hero__details">
+                <div className="inv-category-hero__headline">
+                  <h2 className="inv-category-hero__name">
+                    {selectedCategory} <span style={{ color: '#94a3b8', fontWeight: 400 }}>›</span> {selectedItemType}
+                  </h2>
+                  <span
+                    className="inv-category-hero__badge"
+                    style={{
+                      backgroundColor: currentTheme.badgeBg,
+                      color: currentTheme.badgeText,
+                      borderColor: currentTheme.borderSoft,
+                    }}
+                  >
+                    Product Catalog
+                  </span>
+                </div>
+
+                <p className="inv-category-hero__desc">
+                  Detailed product variants, packaging sizes, brands, and current stock balances under {selectedItemType}.
                 </p>
+
+                <div className="inv-category-hero__stats">
+                  <div className="inv-stat-pill">
+                    <Box size={13} style={{ color: currentTheme.primary }} />
+                    <span><strong>{visibleItems.length}</strong> {visibleItems.length === 1 ? 'Product' : 'Products'}</span>
+                  </div>
+                  <div className="inv-stat-pill inv-stat-pill--stock">
+                    <span className="inv-stat-dot" style={{ backgroundColor: currentTheme.primary }} />
+                    <span>
+                      <strong>
+                        {visibleItems.reduce((acc, curr) => acc + (Number(curr.quantity) || 0), 0).toLocaleString()}
+                      </strong> Units Total
+                    </span>
+                  </div>
+                </div>
               </div>
             </div>
 
-            <div className="inv-search-bar">
-              <Search size={14} className="text-gray-400" />
-              <input
-                type="text"
-                placeholder={`Search ${selectedItemType}...`}
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-              />
-              {searchQuery && (
-                <button
-                  type="button"
-                  className="btn-clear-search"
-                  onClick={() => setSearchQuery('')}
-                >
-                  ✕
-                </button>
-              )}
+            <div className="inv-category-hero__right">
+              <div
+                className="inv-hero-search"
+                style={{
+                  borderColor: currentTheme.borderSoft,
+                }}
+              >
+                <Search size={15} style={{ color: currentTheme.primary, flexShrink: 0 }} />
+                <input
+                  type="text"
+                  placeholder={`Search ${selectedItemType}...`}
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                />
+                {searchQuery && (
+                  <button
+                    type="button"
+                    className="btn-clear-search"
+                    onClick={() => setSearchQuery('')}
+                  >
+                    ✕
+                  </button>
+                )}
+              </div>
             </div>
           </div>
 
@@ -534,7 +885,7 @@ export default function InventoryCategoryExplorer({
                         )}
                       </td>
                       <td>
-                        <strong>{item.available ?? item.quantity}</strong>
+                        <strong style={{ color: currentTheme.primary }}>{item.available ?? item.quantity}</strong>
                         <span className="text-xs text-gray-400"> / {item.quantity}</span>
                       </td>
                       <td>{item.unit}</td>
@@ -554,7 +905,7 @@ export default function InventoryCategoryExplorer({
                             onClick={() => onEditItem(item)}
                             title="Update Stock or Details"
                           >
-                            <Pencil size={13} className="mr-1" /> Edit
+                            <Pencil size={13} style={{ marginRight: '4px' }} /> Edit
                           </button>
                           <button
                             type="button"
@@ -577,3 +928,4 @@ export default function InventoryCategoryExplorer({
     </div>
   )
 }
+
