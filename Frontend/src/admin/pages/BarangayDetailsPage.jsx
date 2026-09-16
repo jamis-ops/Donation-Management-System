@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import {
   ArrowLeft, Mail, Trash2, FileText, Truck, Package,
-  User, Calendar, Check, Eye, X, Shield, Plus, Upload, CheckCircle2, XCircle,
+  User, Calendar, Check, Eye, X, Shield, Upload, CheckCircle2, XCircle,
   Building, Phone, UserCheck, HeartHandshake, MapPin, Clock, Users, Activity
 } from 'lucide-react'
 import {
@@ -94,7 +94,6 @@ export default function BarangayDetailsPage() {
   const [reqFilter, setReqFilter] = useState('All')
   const tabKey = (tab) => tab.toLowerCase().replace(/\s+/g, '-')
   const [isEditModalOpen, setIsEditModalOpen] = useState(false)
-  const [isReqModalOpen, setIsReqModalOpen] = useState(false)
   const [saving, setSaving] = useState(false)
   const [actionBusy, setActionBusy] = useState(false)
   const [approveConfirm, setApproveConfirm] = useState(false)
@@ -699,22 +698,17 @@ export default function BarangayDetailsPage() {
 
       {activeTab === 'relief-requests' && (
         <div>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.65rem', marginBottom: '0.65rem', flexWrap: 'wrap' }}>
-            <div className="barangay-chip-filters">
-              {['All', 'Pending', 'Approved', 'Completed', 'Rejected'].map((f) => (
-                <button
-                  key={f}
-                  type="button"
-                  className={`barangay-chip${reqFilter === f ? ' barangay-chip--active' : ''}`}
-                  onClick={() => setReqFilter(f)}
-                >
-                  {f}
-                </button>
-              ))}
-            </div>
-            <button type="button" className="btn btn--primary btn--sm" onClick={() => setIsReqModalOpen(true)}>
-              <Plus size={14} /> New Request
-            </button>
+          <div className="barangay-chip-filters" style={{ marginBottom: '0.65rem' }}>
+            {['All', 'Pending', 'Approved', 'Completed', 'Rejected'].map((f) => (
+              <button
+                key={f}
+                type="button"
+                className={`barangay-chip${reqFilter === f ? ' barangay-chip--active' : ''}`}
+                onClick={() => setReqFilter(f)}
+              >
+                {f}
+              </button>
+            ))}
           </div>
 
           {filteredRequests.length === 0 ? (
@@ -972,29 +966,6 @@ export default function BarangayDetailsPage() {
         </div>
       )}
 
-      {isReqModalOpen && (
-        <div className="admin-modal-overlay" onClick={() => setIsReqModalOpen(false)}>
-          <div className="admin-modal" onClick={(e) => e.stopPropagation()}>
-            <ModalHeader title="New Relief Request" onClose={() => setIsReqModalOpen(false)} />
-            <p style={{ color: 'var(--admin-text-muted)', margin: 0 }}>
-              Create and prioritize requests from the Relief Requests module.
-            </p>
-            <div className="admin-modal__actions" style={{ marginTop: '1.25rem' }}>
-              <button
-                type="button"
-                className="btn btn--primary"
-                onClick={() => {
-                  setIsReqModalOpen(false)
-                  navigate('/admin/requests')
-                }}
-              >
-                Go to Relief Requests
-              </button>
-              <button type="button" className="btn btn--ghost" onClick={() => setIsReqModalOpen(false)}>Close</button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   )
 }
