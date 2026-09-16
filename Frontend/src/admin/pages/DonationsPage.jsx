@@ -9,6 +9,7 @@ import {
 } from 'lucide-react'
 import { donationsApi, beneficiariesApi, assistanceRequestsApi } from '../../api/resources'
 import ProcurementModal from '../components/donations/ProcurementModal'
+import InKindIntakeModal from '../components/shared/InKindIntakeModal'
 import { useApiList } from '../../hooks/useApiList'
 import { useFilters } from '../../hooks/useFilters'
 import PageHeader from '../components/shared/PageHeader'
@@ -121,6 +122,7 @@ export default function DonationsPage() {
   const { data: assistanceRequests } = useApiList(() => assistanceRequestsApi.list())
   const [selected, setSelected] = useState(null)
   const [procuringDonation, setProcuringDonation] = useState(null)
+  const [intakeModalDonation, setIntakeModalDonation] = useState(null)
   const { showLoading, hideLoading } = useLoading()
   const [showForm, setShowForm] = useState(false)
   const [form, setForm] = useState(emptyForm)
@@ -273,9 +275,13 @@ export default function DonationsPage() {
       notify.warning('Cannot approve: proof of donation is required.')
       return
     }
-    const verifyMessage = row.type === 'In-Kind'
-      ? `Verify in-kind donation ${row.trackingCode}? This will post the relief items to inventory and provision a donor account if needed.`
-      : `Verify monetary donation ${row.trackingCode} (${row.amount})? This will confirm receipt of funds and provision a donor account if needed.`
+
+    if (row.type === 'In-Kind') {
+      setIntakeModalDonation(row)
+      return
+    }
+
+    const verifyMessage = `Verify monetary donation ${row.trackingCode} (${row.amount})? This will confirm receipt of funds and provision a donor account if needed.`
 
     const confirmed = await confirmAction({
       title: 'Verify Donation',
@@ -302,6 +308,31 @@ export default function DonationsPage() {
       setSelected(null)
     } catch (err) {
       notify.error(err.message || 'Failed to verify donation')
+    } finally {
+      hideLoading()
+    }
+  }
+
+  const handleClassifyInKindConfirm = async (payload) => {
+    if (!intakeModalDonation) return
+    showLoading('Classifying items into warehouse inventory…')
+    try {
+      const res = await donationsApi.classifyInKind(intakeModalDonation.dbId, payload)
+      const status = res?.data?.status || 'Verified'
+      if (res?.accountCreated || res?.credentialsSent) {
+        toastVerifyResult(res, status)
+      } else {
+        notify.success(`Donation verified and ${res?.totalQuantityAdded || 'items'} added to warehouse inventory.`)
+      }
+      showSuccessModal('Successfully verified and intaked into inventory.')
+      setIntakeModalDonation(null)
+      reload()
+      notifyBadgesChanged()
+      if (selected && (selected.dbId === intakeModalDonation.dbId || selected.id === intakeModalDonation.id)) {
+        setSelected(res?.data || null)
+      }
+    } catch (err) {
+      notify.error(err.message || 'Failed to verify in-kind donation')
     } finally {
       hideLoading()
     }
@@ -1406,6 +1437,69 @@ export default function DonationsPage() {
                   </button>
                 </div>
 
+                {/* In-Kind Classified Items Breakdown */}
+                {selected.type === 'In-Kind' && selected.classifiedItems && selected.classifiedItems.length > 0 && (
+                  <div className="donation-classified-card" style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '12px', padding: '1.25rem', marginTop: '1.25rem' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem', flexWrap: 'wrap', gap: '0.75rem' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                        <div style={{ width: '32px', height: '32px', borderRadius: '8px', background: '#fee2e2', color: '#AF101A', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                          <Package size={18} />
+                        </div>
+                        <div>
+                          <h4 style={{ margin: 0, fontSize: '0.95rem', fontWeight: 600, color: '#1e293b' }}>Classified Warehouse Inventory Items</h4>
+                          <span style={{ fontSize: '0.78rem', color: '#64748b' }}>Stock received and cataloged into warehouse inventory from this donation</span>
+                        </div>
+                      </div>
+                      <span className="badge badge--success" style={{ fontSize: '0.75rem' }}>
+                        {selected.classifiedItems.length} {selected.classifiedItems.length === 1 ? 'item intaked' : 'items intaked'}
+                      </span>
+                    </div>
+
+                    <div className="donation-classified-table-wrap" style={{ overflowX: 'auto' }}>
+                      <table className="donation-classified-table" style={{ width: '100%', fontSize: '0.85rem', borderCollapse: 'collapse' }}>
+                        <thead>
+                          <tr style={{ borderBottom: '1px solid #cbd5e1', textAlign: 'left', color: '#64748b' }}>
+                            <th style={{ padding: '0.5rem' }}>Category</th>
+                            <th style={{ padding: '0.5rem' }}>Item Type</th>
+                            <th style={{ padding: '0.5rem' }}>Brand / Product</th>
+                            <th style={{ padding: '0.5rem' }}>Variant / Size</th>
+                            <th style={{ padding: '0.5rem', textAlign: 'right' }}>Quantity</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {selected.classifiedItems.map((item, idx) => (
+                            <tr key={idx} style={{ borderBottom: '1px solid #f1f5f9' }}>
+                              <td style={{ padding: '0.6rem 0.5rem' }}>
+                                <span className="inv-category">{item.category}</span>
+                              </td>
+                              <td style={{ padding: '0.6rem 0.5rem', fontWeight: 600 }}>
+                                {item.itemType || item.item_type || '—'}
+                              </td>
+                              <td style={{ padding: '0.6rem 0.5rem' }}>
+                                {item.brand ? (
+                                  <span className="inv-brand-badge">{item.brand}</span>
+                                ) : (
+                                  <span style={{ color: '#94a3b8', fontStyle: 'italic', fontSize: '0.75rem' }}>Generic / Unbranded</span>
+                                )}
+                              </td>
+                              <td style={{ padding: '0.6rem 0.5rem' }}>
+                                {item.variant ? (
+                                  <span className="inv-variant-badge">{item.variant}</span>
+                                ) : (
+                                  <span style={{ color: '#94a3b8' }}>—</span>
+                                )}
+                              </td>
+                              <td style={{ padding: '0.6rem 0.5rem', textAlign: 'right', fontWeight: 700 }}>
+                                {item.quantity} <span style={{ fontWeight: 400, color: '#64748b' }}>{item.unit || 'pcs'}</span>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                )}
+
                 {/* Monetary Procurement & Utilization Breakdown */}
                 {selected.type === 'Monetary' && selected.status !== 'Pending Verification' && (
                   <div className="donation-procurement-card" style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '12px', padding: '1.25rem', marginTop: '1.25rem' }}>
@@ -1743,6 +1837,16 @@ export default function DonationsPage() {
               setSelected(null)
             }
           }}
+        />
+      )}
+
+      {/* In-Kind Intake & Classification Modal */}
+      {intakeModalDonation && (
+        <InKindIntakeModal
+          isOpen={Boolean(intakeModalDonation)}
+          onClose={() => setIntakeModalDonation(null)}
+          donation={intakeModalDonation}
+          onConfirm={handleClassifyInKindConfirm}
         />
       )}
     </>

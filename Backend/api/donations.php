@@ -6,6 +6,19 @@ $pdo = db();
 $method = request_method();
 $id = get_id_param();
 
+function ensure_donation_classified_columns(PDO $pdo): void
+{
+  static $done = false;
+  if ($done) {
+    return;
+  }
+  try {
+    ensure_column($pdo, 'donations', 'classified_items_json', 'TEXT NULL');
+  } catch (Throwable $e) {}
+  $done = true;
+}
+ensure_donation_classified_columns($pdo);
+
 function donation_proof_is_image(?string $mime, ?string $fileName): bool
 {
   $mime = (string) $mime;
@@ -117,6 +130,7 @@ function map_donation(array $row, ?PDO $pdo = null): array
     'donationDate' => $row['donation_date'],
     'notes' => $row['notes'],
     'paymentMethod' => $row['payment_method'] ?? '',
+    'classifiedItems' => !empty($row['classified_items_json']) ? (json_decode((string) $row['classified_items_json'], true) ?: []) : [],
     'hasProof' => $hasProof,
     'proofFileName' => $proofName,
     'proofFileType' => $proofType,
@@ -607,6 +621,152 @@ if ($method === 'PUT') {
   $existing = $stmt->fetch();
   if (!$existing) {
     json_response(['ok' => false, 'error' => 'Donation not found'], 404);
+  }
+
+  $action = trim((string) ($body['action'] ?? ''));
+  if ($action === 'classify_in_kind') {
+    $classifiedItems = is_array($body['classifiedItems'] ?? null) ? $body['classifiedItems'] : [];
+    if (empty($classifiedItems)) {
+      json_response(['ok' => false, 'error' => 'Please provide at least one item to classify into inventory.'], 400);
+    }
+
+    $newStatus = trim((string) ($body['status'] ?? 'Verified'));
+    $becomingVerified = $newStatus === 'Verified' && ($existing['status'] ?? '') !== 'Verified';
+    if ($becomingVerified && empty($existing['proof_path'])) {
+      json_response(['ok' => false, 'error' => 'Cannot approve: proof of donation is required. Ask the donor to resubmit with proof.'], 400);
+    }
+
+    try {
+      $pdo->exec("ALTER TABLE inventory_items ADD COLUMN item_type VARCHAR(100) NULL AFTER category");
+      $pdo->exec("ALTER TABLE inventory_items ADD COLUMN brand VARCHAR(100) NULL AFTER item_type");
+      $pdo->exec("ALTER TABLE inventory_items ADD COLUMN variant VARCHAR(100) NULL AFTER brand");
+    } catch (Throwable $e) {}
+
+    $inventoryAddedCount = 0;
+    $itemSummaryList = [];
+
+    foreach ($classifiedItems as $item) {
+      $cat = trim((string) ($item['category'] ?? 'Food')) ?: 'Food';
+      $itemType = trim((string) ($item['itemType'] ?? $item['item_type'] ?? '')) ?: null;
+      $brand = trim((string) ($item['brand'] ?? '')) ?: null;
+      $variant = trim((string) ($item['variant'] ?? '')) ?: null;
+      $qty = max(1, (int) ($item['quantity'] ?? 1));
+      $unit = trim((string) ($item['unit'] ?? 'pcs')) ?: 'pcs';
+      $lowStock = isset($item['lowStockThreshold']) ? (int) $item['lowStockThreshold'] : 50;
+
+      $explicitName = trim((string) ($item['item'] ?? $item['item_name'] ?? ''));
+      if ($explicitName !== '') {
+        $itemName = $explicitName;
+      } elseif ($itemType) {
+        $parts = [];
+        if ($brand) $parts[] = $brand;
+        $parts[] = $itemType;
+        $assembled = implode(' ', $parts);
+        if ($variant) $assembled .= " ({$variant})";
+        $itemName = $assembled;
+      } else {
+        $itemName = $cat . ' Items';
+      }
+
+      $itemSummaryList[] = "{$qty} {$unit} {$itemName}";
+
+      $findStmt = $pdo->prepare('
+        SELECT id, quantity FROM inventory_items
+        WHERE LOWER(TRIM(item_name)) = LOWER(TRIM(?))
+        LIMIT 1
+      ');
+      $findStmt->execute([$itemName]);
+      $invRow = $findStmt->fetch();
+
+      if ($invRow) {
+        $updateInv = $pdo->prepare('
+          UPDATE inventory_items 
+          SET quantity = quantity + ?, 
+              stock_state = \'Available\'
+          WHERE id = ?
+        ');
+        $updateInv->execute([$qty, (int) $invRow['id']]);
+      } else {
+        $insertInv = $pdo->prepare('
+          INSERT INTO inventory_items (
+            code, item_name, category, item_type, brand, variant, 
+            quantity, unit, stock_state, low_stock_threshold
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, \'Available\', ?)
+        ');
+        $insertInv->execute([
+          generate_code('INV'),
+          $itemName,
+          $cat,
+          $itemType,
+          $brand,
+          $variant,
+          $qty,
+          $unit,
+          $lowStock
+        ]);
+      }
+      $inventoryAddedCount += $qty;
+    }
+
+    ensure_donation_classified_columns($pdo);
+    $encodedJson = json_encode($classifiedItems);
+    $pdo->prepare('
+      UPDATE donations 
+      SET status = ?, 
+          classified_items_json = ?, 
+          inventory_posted_at = NOW() 
+      WHERE id = ?
+    ')->execute([$newStatus, $encodedJson, $id]);
+
+    $accountProvision = null;
+    if ($becomingVerified) {
+      $accountProvision = provision_donor_from_donation($pdo, $existing);
+    }
+
+    $stmt = $pdo->prepare('SELECT * FROM donations WHERE id = ?');
+    $stmt->execute([$id]);
+    $donation = map_donation($stmt->fetch(), $pdo);
+
+    $summaryText = implode(', ', $itemSummaryList);
+    $stageNote = "Donation verified and intaked into inventory: {$summaryText}.";
+    if (!empty($accountProvision['created'])) {
+      $stageNote .= ' Donor portal account created and credentials emailed.';
+    } elseif (empty($accountProvision['created']) && empty($accountProvision['error'])) {
+      $stageNote .= ' Existing donor account linked.';
+    }
+
+    record_donation_update(
+      $pdo,
+      (int) $id,
+      'Sorted',
+      $stageNote,
+      $user ?? current_user()
+    );
+
+    notify_admins(
+      $pdo, 
+      'donation', 
+      'In-Kind Donation Classified & Verified', 
+      "{$donation['donor']} donation {$donation['trackingCode']} was classified and added to warehouse inventory.",
+      '/admin/inventory'
+    );
+
+    audit_log(
+      $pdo, 
+      'update', 
+      'donation', 
+      $existing['tracking_code'], 
+      "Verified & classified in-kind donation into inventory ({$summaryText})"
+    );
+
+    json_response([
+      'ok' => true,
+      'data' => $donation,
+      'accountCreated' => !empty($accountProvision['created']),
+      'credentialsSent' => !empty($accountProvision['mail']['sent']),
+      'itemsClassified' => count($classifiedItems),
+      'totalQuantityAdded' => $inventoryAddedCount
+    ]);
   }
 
   $status = trim((string) ($body['status'] ?? $existing['status']));

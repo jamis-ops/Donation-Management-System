@@ -1,5 +1,5 @@
 import { useCallback, useState, useEffect } from 'react'
-import { Package, PackagePlus, Pencil, Play, CheckCircle2, XCircle, Trash2, Calculator, Users, AlertCircle, Info } from 'lucide-react'
+import { Package, PackagePlus, Pencil, Play, CheckCircle2, XCircle, Trash2, Calculator, Users, AlertCircle, Info, LayoutGrid, List } from 'lucide-react'
 import { inventoryApi, repackingApi, getStaff, volunteersApi, beneficiariesApi } from '../../api/resources'
 import { useApiList } from '../../hooks/useApiList'
 import { DONATION_CATEGORIES } from '../../constants/options'
@@ -11,6 +11,8 @@ import ApiState from '../../admin/components/shared/ApiState'
 import FilterBar from '../../admin/components/shared/FilterBar'
 import ModalHeader from '../../admin/components/shared/ModalHeader'
 import MultiSourceRepackingModal from './MultiSourceRepackingModal'
+import InventoryItemModal from './InventoryItemModal'
+import InventoryCategoryExplorer from './InventoryCategoryExplorer'
 import { useBulkSelection } from '../../hooks/useBulkSelection'
 import { notify } from '../../utils/toast'
 import { confirmAction, showSuccessModal } from '../../utils/confirm'
@@ -67,6 +69,9 @@ export default function InventoryManagement() {
 
   const [itemModal, setItemModal] = useState(null)   // null | 'create' | row
   const [itemForm, setItemForm] = useState(emptyItemForm)
+  const [viewMode, setViewMode] = useState('category') // 'category' | 'table'
+  const [presetCategory, setPresetCategory] = useState('')
+  const [presetItemType, setPresetItemType] = useState('')
   const [batchModal, setBatchModal] = useState(null) // null | 'create' | row
   const [batchForm, setBatchForm] = useState(emptyBatchForm)
   const [multiSourceModal, setMultiSourceModal] = useState(false) // New multi-source modal
@@ -136,40 +141,20 @@ export default function InventoryManagement() {
 
   /* ---------- Inventory handlers ---------- */
 
-  const openItemCreate = () => {
-    setItemForm(emptyItemForm)
+  const openItemCreate = (preset = {}) => {
+    setPresetCategory(preset?.category || '')
+    setPresetItemType(preset?.itemType || '')
     setItemModal('create')
   }
 
   const openItemEdit = (row) => {
-    setItemForm({
-      item: row.item,
-      category: row.category || '',
-      quantity: String(row.quantity),
-      unit: row.unit,
-      lowStockThreshold: String(row.lowStockThreshold),
-      moderateStockThreshold: row.moderateStockThreshold ? String(row.moderateStockThreshold) : '',
-      allocated: String(row.allocated),
-      distributed: String(row.distributed),
-    })
     setItemModal(row)
   }
 
-  const handleItemSave = async (e) => {
-    e.preventDefault()
+  const handleItemSave = async (payload) => {
     setSaving(true)
     showLoading('Saving…')
     try {
-      const payload = {
-        item: itemForm.item.trim(),
-        category: itemForm.category.trim(),
-        quantity: Number(itemForm.quantity) || 0,
-        unit: itemForm.unit.trim() || 'units',
-        lowStockThreshold: Number(itemForm.lowStockThreshold) || 0,
-        moderateStockThreshold: itemForm.moderateStockThreshold ? Number(itemForm.moderateStockThreshold) : null,
-        allocated: Number(itemForm.allocated) || 0,
-        distributed: Number(itemForm.distributed) || 0,
-      }
       if (itemModal === 'create') {
         await inventoryApi.create(payload)
         notify.success(`${payload.item} added to inventory.`)
@@ -374,11 +359,16 @@ export default function InventoryManagement() {
   const inventoryColumns = [
     {
       key: 'item',
-      label: 'Item',
+      label: 'Item / Product',
       render: (row) => (
         <div>
-          <strong>{row.item}</strong>
-          {row.category && <div className="inv-category">{row.category}</div>}
+          <div style={{ fontWeight: 600, color: '#1e293b' }}>{row.item}</div>
+          <div style={{ display: 'flex', gap: '0.35rem', flexWrap: 'wrap', marginTop: '4px' }}>
+            {row.category && <span className="inv-category">{row.category}</span>}
+            {row.itemType && <span className="inv-subcat-badge">{row.itemType}</span>}
+            {row.brand && <span className="inv-brand-badge">{row.brand}</span>}
+            {row.variant && <span className="inv-variant-badge">{row.variant}</span>}
+          </div>
         </div>
       ),
     },
@@ -527,31 +517,73 @@ export default function InventoryManagement() {
             </div>
           )}
 
-          <div className="inv-toolbar inv-toolbar--end">
-            <button type="button" className="btn btn--primary" onClick={openItemCreate}>+ Add Item</button>
+          <div className="inv-toolbar" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.75rem', marginBottom: '1.25rem' }}>
+            {/* View Switcher: Category Cards vs List Table */}
+            <div className="inv-view-toggle">
+              <button
+                type="button"
+                className={`inv-view-btn ${viewMode === 'category' ? 'inv-view-btn--active' : ''}`}
+                onClick={() => setViewMode('category')}
+                title="Category Cards Explorer"
+              >
+                <LayoutGrid size={15} /> <span>Category View</span>
+              </button>
+              <button
+                type="button"
+                className={`inv-view-btn ${viewMode === 'table' ? 'inv-view-btn--active' : ''}`}
+                onClick={() => setViewMode('table')}
+                title="Standard Data Table"
+              >
+                <List size={15} /> <span>List View</span>
+              </button>
+            </div>
+
+            <div style={{ display: 'flex', gap: '0.5rem' }}>
+              <button
+                type="button"
+                className="btn btn--primary"
+                onClick={() => openItemCreate()}
+                style={{ backgroundColor: '#AF101A' }}
+              >
+                + Add Item
+              </button>
+            </div>
           </div>
 
-          <FilterBar
-            controller={invFilters}
-            searchPlaceholder="Search items or categories..."
-            exportConfig={{ filename: 'inventory-report', title: 'Inventory Report', columns: inventoryColumns, rows: invFilters.filtered }}
-          />
+          {viewMode === 'category' ? (
+            <ApiState loading={loading} error={error} onRetry={reload}>
+              <InventoryCategoryExplorer
+                items={items}
+                onEditItem={openItemEdit}
+                onDeleteItem={handleItemDelete}
+                onAddItem={openItemCreate}
+              />
+            </ApiState>
+          ) : (
+            <>
+              <FilterBar
+                controller={invFilters}
+                searchPlaceholder="Search items or categories..."
+                exportConfig={{ filename: 'inventory-report', title: 'Inventory Report', columns: inventoryColumns, rows: invFilters.filtered }}
+              />
 
-          <ApiState loading={loading} error={error} onRetry={reload}>
-            <DataTable
-              columns={inventoryColumns}
-              data={invFilters.filtered}
-              onRowClick={openItemEdit}
-              pageSize={10}
-              resetKey={`${invFilters.search}|${JSON.stringify(invFilters.values)}`}
-              selectable
-              selectedIds={invBulk.selectedIds}
-              onSelectionChange={invBulk.setSelectedIds}
-              onBulkDelete={invBulk.handleBulkDelete}
-              deleting={invBulk.deleting}
-              bulkDeleteLabel="Delete Selected Items"
-            />
-          </ApiState>
+              <ApiState loading={loading} error={error} onRetry={reload}>
+                <DataTable
+                  columns={inventoryColumns}
+                  data={invFilters.filtered}
+                  onRowClick={openItemEdit}
+                  pageSize={10}
+                  resetKey={`${invFilters.search}|${JSON.stringify(invFilters.values)}`}
+                  selectable
+                  selectedIds={invBulk.selectedIds}
+                  onSelectionChange={invBulk.setSelectedIds}
+                  onBulkDelete={invBulk.handleBulkDelete}
+                  deleting={invBulk.deleting}
+                  bulkDeleteLabel="Delete Selected Items"
+                />
+              </ApiState>
+            </>
+          )}
         </>
       )}
 
@@ -574,7 +606,7 @@ export default function InventoryManagement() {
                 onClick={() => rpkFilters.setValue('status', rpkFilters.values.status === 'Scheduled' ? 'all' : 'Scheduled')}
                 role="button"
                 tabIndex={0}
-                onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); rpkFilters.setValue('status', rpkFilters.values.status === 'Scheduled' ? 'all' : 'Scheduled') } }}
+                onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); rpkFilters.setValue('status', 'all') } }}
                 title="Filter by Scheduled batches"
               >
                 <strong>{rpkSummary.scheduled}</strong><span>Scheduled</span>
@@ -584,7 +616,7 @@ export default function InventoryManagement() {
                 onClick={() => rpkFilters.setValue('status', rpkFilters.values.status === 'In Progress' ? 'all' : 'In Progress')}
                 role="button"
                 tabIndex={0}
-                onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); rpkFilters.setValue('status', rpkFilters.values.status === 'In Progress' ? 'all' : 'In Progress') } }}
+                onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); rpkFilters.setValue('status', 'all') } }}
                 title="Filter by In Progress batches"
               >
                 <strong>{rpkSummary.inProgress}</strong><span>In Progress</span>
@@ -594,7 +626,7 @@ export default function InventoryManagement() {
                 onClick={() => rpkFilters.setValue('status', rpkFilters.values.status === 'Completed' ? 'all' : 'Completed')}
                 role="button"
                 tabIndex={0}
-                onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); rpkFilters.setValue('status', rpkFilters.values.status === 'Completed' ? 'all' : 'Completed') } }}
+                onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); rpkFilters.setValue('status', 'all') } }}
                 title="Filter by Completed batches"
               >
                 <strong>{rpkSummary.completed}</strong><span>Completed</span>
@@ -647,41 +679,16 @@ export default function InventoryManagement() {
       )}
 
       {itemModal && (
-        <div className="admin-modal-overlay" onClick={() => setItemModal(null)}>
-          <div className="admin-modal" onClick={(e) => e.stopPropagation()}>
-            <ModalHeader
-              title={itemModal === 'create' ? 'Add Inventory Item' : `Update Stock — ${itemModal.item}`}
-              onClose={() => setItemModal(null)}
-            />
-            <form onSubmit={handleItemSave}>
-              <div className="form-row">
-                <label>Item Name<input required value={itemForm.item} onChange={(e) => setItemForm({ ...itemForm, item: e.target.value })} placeholder="e.g. Rice (25kg sacks)" /></label>
-                <label>Category
-                  <input list="inv-category-options" value={itemForm.category} onChange={(e) => setItemForm({ ...itemForm, category: e.target.value })} placeholder="e.g. Food, Hygiene, Medical" />
-                  <datalist id="inv-category-options">
-                    {categoryOptions.map((c) => <option key={c} value={c} />)}
-                  </datalist>
-                </label>
-              </div>
-              <div className="form-row">
-                <label>Quantity<input type="number" min="0" required value={itemForm.quantity} onChange={(e) => setItemForm({ ...itemForm, quantity: e.target.value })} /></label>
-                <label>Unit<input value={itemForm.unit} onChange={(e) => setItemForm({ ...itemForm, unit: e.target.value })} placeholder="sacks, boxes, kits..." /></label>
-              </div>
-              <div className="form-row">
-                <label>Low Stock Threshold<input type="number" min="0" value={itemForm.lowStockThreshold} onChange={(e) => setItemForm({ ...itemForm, lowStockThreshold: e.target.value })} /></label>
-                <label>Moderate Threshold<input type="number" min="0" value={itemForm.moderateStockThreshold} onChange={(e) => setItemForm({ ...itemForm, moderateStockThreshold: e.target.value })} placeholder="Defaults to 2× low" /></label>
-              </div>
-              <div className="form-row">
-                <label>Allocated<input type="number" min="0" value={itemForm.allocated} onChange={(e) => setItemForm({ ...itemForm, allocated: e.target.value })} /></label>
-                <label>Distributed<input type="number" min="0" value={itemForm.distributed} onChange={(e) => setItemForm({ ...itemForm, distributed: e.target.value })} /></label>
-              </div>
-              <div className="admin-modal__actions">
-                <button type="submit" className="btn btn--primary" disabled={saving}>{saving ? 'Saving...' : itemModal === 'create' ? 'Add Item' : 'Save Changes'}</button>
-                <button type="button" className="btn btn--ghost" onClick={() => setItemModal(null)}>Cancel</button>
-              </div>
-            </form>
-          </div>
-        </div>
+        <InventoryItemModal
+          isOpen={Boolean(itemModal)}
+          onClose={() => setItemModal(null)}
+          onSave={handleItemSave}
+          initialData={itemModal === 'create' ? null : itemModal}
+          isEditing={itemModal !== 'create'}
+          saving={saving}
+          presetCategory={presetCategory}
+          presetItemType={presetItemType}
+        />
       )}
 
       {batchModal && (

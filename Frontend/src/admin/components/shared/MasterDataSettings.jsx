@@ -1,9 +1,18 @@
 import { useState } from 'react'
-import { Building2, ClipboardList, HeartHandshake, ListTodo, Package, Sparkles } from 'lucide-react'
+import { Building2, ClipboardList, HeartHandshake, ListTodo, Package, Sparkles, Layers } from 'lucide-react'
 import CatalogManageModal from './CatalogManageModal'
 import TaskTitlesManageModal from './TaskTitlesManageModal'
+import InventoryCmsModal from './InventoryCmsModal'
 
 const SECTIONS = [
+  {
+    key: 'inventory_cms',
+    title: 'Inventory Catalog CMS',
+    short: 'Hierarchy categories, item types, brands, variants & measurement units.',
+    description: 'Configure standardized disaster relief categories, item types, brand names, variants, and units.',
+    icon: Layers,
+    isInventoryCms: true,
+  },
   {
     key: 'task_titles',
     title: 'Task Titles CMS',
@@ -91,7 +100,7 @@ export default function MasterDataSettings() {
       </div>
 
       <CatalogManageModal
-        open={Boolean(current && !current.isTaskTitles)}
+        open={Boolean(current && !current.isTaskTitles && !current.isInventoryCms)}
         onClose={() => setActive(null)}
         catalog={current?.key}
         title={current ? `Manage ${current.title}` : ''}
@@ -100,6 +109,11 @@ export default function MasterDataSettings() {
 
       <TaskTitlesManageModal
         open={Boolean(current && current.isTaskTitles)}
+        onClose={() => setActive(null)}
+      />
+
+      <InventoryCmsModal
+        open={Boolean(current && current.isInventoryCms)}
         onClose={() => setActive(null)}
       />
     </section>

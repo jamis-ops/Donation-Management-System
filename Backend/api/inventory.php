@@ -6,11 +6,28 @@ $pdo = db();
 $method = request_method();
 $id = get_id_param();
 
+function ensure_inventory_items_columns(PDO $pdo): void
+{
+  static $ensured = false;
+  if ($ensured) return;
+  try {
+    $pdo->exec("ALTER TABLE inventory_items ADD COLUMN item_type VARCHAR(100) NULL AFTER category");
+  } catch (Throwable $e) {}
+  try {
+    $pdo->exec("ALTER TABLE inventory_items ADD COLUMN brand VARCHAR(100) NULL AFTER item_type");
+  } catch (Throwable $e) {}
+  try {
+    $pdo->exec("ALTER TABLE inventory_items ADD COLUMN variant VARCHAR(100) NULL AFTER brand");
+  } catch (Throwable $e) {}
+  $ensured = true;
+}
+ensure_inventory_items_columns($pdo);
+
 function map_inventory(array $row): array
 {
-  $low = (int) $row['low_stock_threshold'];
+  $low = (int) ($row['low_stock_threshold'] ?? 100);
   $moderate = (int) ($row['moderate_stock_threshold'] ?? ($low * 2));
-  $qty = (int) $row['quantity'];
+  $qty = (int) ($row['quantity'] ?? 0);
   $level = stock_level($qty, $low, $moderate);
 
   return [
@@ -18,14 +35,17 @@ function map_inventory(array $row): array
     'dbId' => (int) $row['id'],
     'item' => $row['item_name'],
     'category' => $row['category'] ?? '',
+    'itemType' => $row['item_type'] ?? '',
+    'brand' => $row['brand'] ?? '',
+    'variant' => $row['variant'] ?? '',
     'quantity' => $qty,
-    'unit' => $row['unit'],
+    'unit' => $row['unit'] ?? 'units',
     'status' => stock_level_label($level),
     'stockLevel' => $level,
     'stockPercent' => $moderate > 0 ? min(100, (int) round(($qty / $moderate) * 100)) : 100,
-    'allocated' => (int) $row['allocated'],
-    'distributed' => (int) $row['distributed'],
-    'available' => max(0, $qty - (int) $row['allocated']),
+    'allocated' => (int) ($row['allocated'] ?? 0),
+    'distributed' => (int) ($row['distributed'] ?? 0),
+    'available' => max(0, $qty - (int) ($row['allocated'] ?? 0)),
     'stockState' => $row['stock_state'] ?? 'Available',
     'lowStockThreshold' => $low,
     'moderateStockThreshold' => $moderate,
@@ -376,18 +396,36 @@ if ($method === 'POST') {
     json_response(['ok' => true, 'data' => map_repacking($stmt->fetch())], 201);
   }
 
+  $category = trim((string) ($body['category'] ?? '')) ?: null;
+  $itemType = trim((string) ($body['itemType'] ?? $body['item_type'] ?? '')) ?: null;
+  $brand = trim((string) ($body['brand'] ?? '')) ?: null;
+  $variant = trim((string) ($body['variant'] ?? '')) ?: null;
+
   $itemName = trim((string) ($body['item'] ?? $body['item_name'] ?? ''));
   if ($itemName === '') {
-    json_response(['ok' => false, 'error' => 'Item name is required'], 400);
+    if ($itemType) {
+      $parts = [];
+      if ($brand) $parts[] = $brand;
+      $parts[] = $itemType;
+      $name = implode(' ', $parts);
+      if ($variant) $name .= " ({$variant})";
+      $itemName = $name;
+    } else {
+      json_response(['ok' => false, 'error' => 'Item name or Item type is required'], 400);
+    }
   }
+
   $code = generate_code('INV');
-  $stmt = $pdo->prepare('INSERT INTO inventory_items (code, item_name, category, quantity, unit, low_stock_threshold, moderate_stock_threshold, allocated, distributed) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)');
+  $stmt = $pdo->prepare('INSERT INTO inventory_items (code, item_name, category, item_type, brand, variant, quantity, unit, low_stock_threshold, moderate_stock_threshold, allocated, distributed) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)');
   $stmt->execute([
     $code,
     $itemName,
-    trim((string) ($body['category'] ?? '')) ?: null,
+    $category,
+    $itemType,
+    $brand,
+    $variant,
     (int) ($body['quantity'] ?? 0),
-    $body['unit'] ?? 'units',
+    trim((string) ($body['unit'] ?? 'units')) ?: 'units',
     (int) ($body['lowStockThreshold'] ?? 100),
     !empty($body['moderateStockThreshold']) ? (int) $body['moderateStockThreshold'] : null,
     (int) ($body['allocated'] ?? 0),
@@ -457,10 +495,34 @@ if ($method === 'PUT') {
   if (!$existing) {
     json_response(['ok' => false, 'error' => 'Inventory item not found'], 404);
   }
-  $update = $pdo->prepare('UPDATE inventory_items SET item_name = ?, category = ?, quantity = ?, unit = ?, low_stock_threshold = ?, moderate_stock_threshold = ?, allocated = ?, distributed = ? WHERE id = ?');
+  $category = array_key_exists('category', $body) ? (trim((string) $body['category']) ?: null) : ($existing['category'] ?? null);
+  $itemType = array_key_exists('itemType', $body) || array_key_exists('item_type', $body)
+    ? (trim((string) ($body['itemType'] ?? $body['item_type'])) ?: null)
+    : ($existing['item_type'] ?? null);
+  $brand = array_key_exists('brand', $body) ? (trim((string) $body['brand']) ?: null) : ($existing['brand'] ?? null);
+  $variant = array_key_exists('variant', $body) ? (trim((string) $body['variant']) ?: null) : ($existing['variant'] ?? null);
+
+  $itemName = trim((string) ($body['item'] ?? $body['item_name'] ?? ''));
+  if ($itemName === '') {
+    if ($itemType) {
+      $parts = [];
+      if ($brand) $parts[] = $brand;
+      $parts[] = $itemType;
+      $name = implode(' ', $parts);
+      if ($variant) $name .= " ({$variant})";
+      $itemName = $name;
+    } else {
+      $itemName = $existing['item_name'];
+    }
+  }
+
+  $update = $pdo->prepare('UPDATE inventory_items SET item_name = ?, category = ?, item_type = ?, brand = ?, variant = ?, quantity = ?, unit = ?, low_stock_threshold = ?, moderate_stock_threshold = ?, allocated = ?, distributed = ? WHERE id = ?');
   $update->execute([
-    $body['item'] ?? $existing['item_name'],
-    array_key_exists('category', $body) ? (trim((string) $body['category']) ?: null) : ($existing['category'] ?? null),
+    $itemName,
+    $category,
+    $itemType,
+    $brand,
+    $variant,
     (int) ($body['quantity'] ?? $existing['quantity']),
     $body['unit'] ?? $existing['unit'],
     (int) ($body['lowStockThreshold'] ?? $existing['low_stock_threshold']),

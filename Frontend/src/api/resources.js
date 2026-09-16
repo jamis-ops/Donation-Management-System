@@ -74,6 +74,10 @@ export function resourceApi(basePath) {
 export const donationsApi = {
   ...resourceApi('/api/donations.php'),
   procure: (body) => apiFetch('/api/donations.php?action=procure', { method: 'POST', body: JSON.stringify(body) }),
+  classifyInKind: (id, body) => apiFetch(`/api/donations.php?id=${id}`, {
+    method: 'PUT',
+    body: JSON.stringify({ ...body, action: 'classify_in_kind' }),
+  }),
 }
 export const donationUpdatesApi = {
   list: (donationId) => apiFetch(`/api/donation_updates.php?donationId=${donationId}`),
@@ -101,6 +105,28 @@ export const beneficiariesApi = {
 }
 export const assistanceRequestsApi = resourceApi('/api/assistance_requests.php')
 export const inventoryApi = resourceApi('/api/inventory.php')
+export const inventoryCatalogApi = {
+  list: (type, params = {}) => {
+    const q = new URLSearchParams()
+    if (type) q.set('type', type)
+    if (params.activeOnly !== undefined) q.set('active_only', params.activeOnly ? '1' : '0')
+    if (params.categoryId) q.set('category_id', String(params.categoryId))
+    if (params.itemTypeId) q.set('item_type_id', String(params.itemTypeId))
+    const qs = q.toString()
+    return apiFetch(`/api/inventory_catalog.php${qs ? `?${qs}` : ''}`)
+  },
+  create: (type, body) => apiFetch(`/api/inventory_catalog.php?type=${type}`, {
+    method: 'POST',
+    body: JSON.stringify(body),
+  }),
+  update: (type, id, body) => apiFetch(`/api/inventory_catalog.php?type=${type}&id=${id}`, {
+    method: 'PUT',
+    body: JSON.stringify(body),
+  }),
+  remove: (type, id) => apiFetch(`/api/inventory_catalog.php?type=${type}&id=${id}`, {
+    method: 'DELETE',
+  }),
+}
 export const volunteersApi = resourceApi('/api/volunteers.php')
 export const volunteerMatchApi = {
   suggest: (params = {}) => {
