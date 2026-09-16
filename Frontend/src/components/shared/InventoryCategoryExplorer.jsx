@@ -224,15 +224,6 @@ export default function InventoryCategoryExplorer({
               <ArrowLeft size={14} className="mr-1" /> Back
             </button>
           )}
-
-          <button
-            type="button"
-            className="btn btn--primary btn--sm"
-            style={{ backgroundColor: '#AF101A' }}
-            onClick={() => onAddItem({ category: selectedCategory || '', itemType: selectedItemType || '' })}
-          >
-            <Plus size={14} className="mr-1" /> Add Item
-          </button>
         </div>
       </div>
 
