@@ -2,24 +2,66 @@ import { useState, useEffect, useCallback } from 'react'
 import { inventoryCatalogApi } from '../api/resources'
 
 export const DEFAULT_CATEGORIES = [
-  { id: 1, name: 'Food', icon: 'Utensils', isActive: true },
-  { id: 2, name: 'Water', icon: 'Droplets', isActive: true },
+  { id: 1, name: 'Water', icon: 'Droplets', isActive: true },
+  { id: 2, name: 'Food', icon: 'Utensils', isActive: true },
   { id: 3, name: 'Clothing', icon: 'Shirt', isActive: true },
   { id: 4, name: 'Medical Supplies', icon: 'HeartPulse', isActive: true },
   { id: 5, name: 'Hygiene Kits', icon: 'Sparkles', isActive: true },
-  { id: 6, name: 'Shelter Materials', icon: 'Home', isActive: true },
-  { id: 7, name: 'Logistics & Tools', icon: 'Truck', isActive: true },
+  { id: 6, name: 'Shelter & Bedding', icon: 'Home', isActive: true },
+  { id: 7, name: 'Logistics & Equipment', icon: 'Truck', isActive: true },
 ]
 
 export const DEFAULT_ITEM_TYPES = [
-  { id: 1, categoryName: 'Food', name: 'Canned Goods', defaultUnit: 'cans', isActive: true },
-  { id: 2, categoryName: 'Food', name: 'Rice', defaultUnit: 'sacks', isActive: true },
-  { id: 3, categoryName: 'Food', name: 'Instant Noodles', defaultUnit: 'packs', isActive: true },
-  { id: 4, categoryName: 'Water', name: 'Bottled Water', defaultUnit: 'bottles', isActive: true },
-  { id: 5, categoryName: 'Clothing', name: 'T-Shirts & Tops', defaultUnit: 'pcs', isActive: true },
-  { id: 6, categoryName: 'Clothing', name: 'Blankets & Linens', defaultUnit: 'pcs', isActive: true },
-  { id: 7, categoryName: 'Medical Supplies', name: 'First Aid Supplies', defaultUnit: 'kits', isActive: true },
-  { id: 8, categoryName: 'Hygiene Kits', name: 'Family Hygiene Pack', defaultUnit: 'kits', isActive: true },
+  // Water
+  { id: 1, categoryName: 'Water', name: 'Bottled Water', defaultUnit: 'bottles', defaultLowThreshold: 100, isActive: true },
+  { id: 2, categoryName: 'Water', name: 'Mineral Water Gallons', defaultUnit: 'gallons', defaultLowThreshold: 20, isActive: true },
+  { id: 3, categoryName: 'Water', name: 'Distilled Water', defaultUnit: 'bottles', defaultLowThreshold: 50, isActive: true },
+  { id: 4, categoryName: 'Water', name: 'Water Purification Tablets', defaultUnit: 'packs', defaultLowThreshold: 50, isActive: true },
+
+  // Food
+  { id: 5, categoryName: 'Food', name: 'Canned Goods', defaultUnit: 'cans', defaultLowThreshold: 150, isActive: true },
+  { id: 6, categoryName: 'Food', name: 'Rice', defaultUnit: 'sacks', defaultLowThreshold: 25, isActive: true },
+  { id: 7, categoryName: 'Food', name: 'Instant Noodles', defaultUnit: 'packs', defaultLowThreshold: 200, isActive: true },
+  { id: 8, categoryName: 'Food', name: 'Biscuits & Snacks', defaultUnit: 'packs', defaultLowThreshold: 100, isActive: true },
+  { id: 9, categoryName: 'Food', name: 'Cooking Oil', defaultUnit: 'bottles', defaultLowThreshold: 40, isActive: true },
+  { id: 10, categoryName: 'Food', name: 'Powdered Milk & Dairy', defaultUnit: 'pouches', defaultLowThreshold: 60, isActive: true },
+  { id: 11, categoryName: 'Food', name: 'Baby Food & Formula', defaultUnit: 'cans', defaultLowThreshold: 30, isActive: true },
+
+  // Clothing
+  { id: 12, categoryName: 'Clothing', name: 'T-Shirts & Tops', defaultUnit: 'pcs', defaultLowThreshold: 100, isActive: true },
+  { id: 13, categoryName: 'Clothing', name: 'Pants & Shorts', defaultUnit: 'pcs', defaultLowThreshold: 80, isActive: true },
+  { id: 14, categoryName: 'Clothing', name: 'Blankets & Linens', defaultUnit: 'pcs', defaultLowThreshold: 50, isActive: true },
+  { id: 15, categoryName: 'Clothing', name: 'Footwear & Slippers', defaultUnit: 'pairs', defaultLowThreshold: 50, isActive: true },
+  { id: 16, categoryName: 'Clothing', name: 'Jackets & Raincoats', defaultUnit: 'pcs', defaultLowThreshold: 30, isActive: true },
+  { id: 17, categoryName: 'Clothing', name: 'Undergarments', defaultUnit: 'packs', defaultLowThreshold: 60, isActive: true },
+
+  // Medical
+  { id: 18, categoryName: 'Medical Supplies', name: 'First Aid Kits', defaultUnit: 'kits', defaultLowThreshold: 30, isActive: true },
+  { id: 19, categoryName: 'Medical Supplies', name: 'Pain Relievers & Fever', defaultUnit: 'boxes', defaultLowThreshold: 50, isActive: true },
+  { id: 20, categoryName: 'Medical Supplies', name: 'Antiseptics & Bandages', defaultUnit: 'bottles', defaultLowThreshold: 40, isActive: true },
+  { id: 21, categoryName: 'Medical Supplies', name: 'Antibiotics & Prescription', defaultUnit: 'boxes', defaultLowThreshold: 30, isActive: true },
+  { id: 22, categoryName: 'Medical Supplies', name: 'PPE & Face Masks', defaultUnit: 'boxes', defaultLowThreshold: 50, isActive: true },
+  { id: 23, categoryName: 'Medical Supplies', name: 'Medical Devices', defaultUnit: 'units', defaultLowThreshold: 15, isActive: true },
+
+  // Hygiene
+  { id: 24, categoryName: 'Hygiene Kits', name: 'Standard Hygiene Kit', defaultUnit: 'kits', defaultLowThreshold: 50, isActive: true },
+  { id: 25, categoryName: 'Hygiene Kits', name: 'Bath Soap & Body Wash', defaultUnit: 'bars', defaultLowThreshold: 120, isActive: true },
+  { id: 26, categoryName: 'Hygiene Kits', name: 'Toothpaste & Brushes', defaultUnit: 'packs', defaultLowThreshold: 100, isActive: true },
+  { id: 27, categoryName: 'Hygiene Kits', name: 'Sanitary Pads', defaultUnit: 'packs', defaultLowThreshold: 80, isActive: true },
+  { id: 28, categoryName: 'Hygiene Kits', name: 'Baby Diapers', defaultUnit: 'packs', defaultLowThreshold: 50, isActive: true },
+  { id: 29, categoryName: 'Hygiene Kits', name: 'Hand Sanitizers & Alcohol', defaultUnit: 'bottles', defaultLowThreshold: 60, isActive: true },
+
+  // Shelter
+  { id: 30, categoryName: 'Shelter & Bedding', name: 'Tarpaulins & Plastic Sheets', defaultUnit: 'pcs', defaultLowThreshold: 40, isActive: true },
+  { id: 31, categoryName: 'Shelter & Bedding', name: 'Sleeping Mats (Banig)', defaultUnit: 'pcs', defaultLowThreshold: 50, isActive: true },
+  { id: 32, categoryName: 'Shelter & Bedding', name: 'Emergency Tents', defaultUnit: 'units', defaultLowThreshold: 15, isActive: true },
+  { id: 33, categoryName: 'Shelter & Bedding', name: 'Mosquito Nets', defaultUnit: 'pcs', defaultLowThreshold: 40, isActive: true },
+
+  // Logistics & Equipment
+  { id: 34, categoryName: 'Logistics & Equipment', name: 'Flashlights & Torches', defaultUnit: 'units', defaultLowThreshold: 30, isActive: true },
+  { id: 35, categoryName: 'Logistics & Equipment', name: 'Batteries', defaultUnit: 'packs', defaultLowThreshold: 60, isActive: true },
+  { id: 36, categoryName: 'Logistics & Equipment', name: 'Ropes & Tie-Downs', defaultUnit: 'rolls', defaultLowThreshold: 25, isActive: true },
+  { id: 37, categoryName: 'Logistics & Equipment', name: 'Storage Boxes & Crates', defaultUnit: 'boxes', defaultLowThreshold: 30, isActive: true },
 ]
 
 export const DEFAULT_UNITS = [
@@ -31,6 +73,7 @@ export const DEFAULT_UNITS = [
   { id: 6, name: 'boxes', abbreviation: 'box', isActive: true },
   { id: 7, name: 'kits', abbreviation: 'kit', isActive: true },
   { id: 8, name: 'kg', abbreviation: 'kg', isActive: true },
+  { id: 9, name: 'gallons', abbreviation: 'gal', isActive: true },
 ]
 
 export function useInventoryCatalog(options = {}) {
@@ -52,13 +95,36 @@ export function useInventoryCatalog(options = {}) {
       const data = res?.data
 
       if (data && typeof data === 'object' && !Array.isArray(data)) {
-        if (Array.isArray(data.categories) && data.categories.length > 0) setCategories(data.categories)
-        if (Array.isArray(data.itemTypes)) setItemTypes(data.itemTypes)
-        if (Array.isArray(data.brands)) setBrands(data.brands)
-        if (Array.isArray(data.variants)) setVariants(data.variants)
+        // Merge categories with defaults to guarantee all 7 standard categories exist
+        const catMap = new Map()
+        DEFAULT_CATEGORIES.forEach((c) => catMap.set(c.name.toLowerCase(), c))
+        if (Array.isArray(data.categories)) {
+          data.categories.forEach((c) => {
+            if (c && c.name) catMap.set(c.name.toLowerCase(), { ...c, name: c.name })
+          })
+        }
+        setCategories(Array.from(catMap.values()))
+
+        // Merge item types with defaults
+        const typeMap = new Map()
+        DEFAULT_ITEM_TYPES.forEach((t) => typeMap.set(`${(t.categoryName || '').toLowerCase()}::${t.name.toLowerCase()}`, t))
+        if (Array.isArray(data.itemTypes)) {
+          data.itemTypes.forEach((t) => {
+            if (t && t.name) typeMap.set(`${(t.categoryName || '').toLowerCase()}::${t.name.toLowerCase()}`, t)
+          })
+        }
+        setItemTypes(Array.from(typeMap.values()))
+
+        if (Array.isArray(data.brands) && data.brands.length > 0) setBrands(data.brands)
+        if (Array.isArray(data.variants) && data.variants.length > 0) setVariants(data.variants)
         if (Array.isArray(data.units) && data.units.length > 0) setUnits(data.units)
-      } else if (Array.isArray(data)) {
-        setCategories(data)
+      } else if (Array.isArray(data) && data.length > 0) {
+        const catMap = new Map()
+        DEFAULT_CATEGORIES.forEach((c) => catMap.set(c.name.toLowerCase(), c))
+        data.forEach((c) => {
+          if (c && c.name) catMap.set(c.name.toLowerCase(), c)
+        })
+        setCategories(Array.from(catMap.values()))
       }
     } catch (err) {
       console.warn('Inventory catalog load warning (using defaults):', err)

@@ -689,6 +689,7 @@ export default function InventoryManagement() {
           saving={saving}
           presetCategory={presetCategory}
           presetItemType={presetItemType}
+          existingItems={items}
         />
       )}
 
