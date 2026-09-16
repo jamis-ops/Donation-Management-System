@@ -72,6 +72,7 @@ export default function InventoryManagement() {
   const [viewMode, setViewMode] = useState('category') // 'category' | 'table'
   const [presetCategory, setPresetCategory] = useState('')
   const [presetItemType, setPresetItemType] = useState('')
+  const [categoryNav, setCategoryNav] = useState({ category: null, itemType: null })
   const [batchModal, setBatchModal] = useState(null) // null | 'create' | row
   const [batchForm, setBatchForm] = useState(emptyBatchForm)
   const [multiSourceModal, setMultiSourceModal] = useState(false) // New multi-source modal
@@ -539,16 +540,19 @@ export default function InventoryManagement() {
               </button>
             </div>
 
-            <div style={{ display: 'flex', gap: '0.5rem' }}>
-              <button
-                type="button"
-                className="btn btn--primary"
-                onClick={() => openItemCreate()}
-                style={{ backgroundColor: '#AF101A' }}
-              >
-                + Add Item
-              </button>
-            </div>
+            {/* Only show global Add Item button in toolbar when on List View or at the Root All Categories view */}
+            {(!categoryNav.category || viewMode === 'table') && (
+              <div style={{ display: 'flex', gap: '0.5rem' }}>
+                <button
+                  type="button"
+                  className="btn btn--primary"
+                  onClick={() => openItemCreate()}
+                  style={{ backgroundColor: '#AF101A' }}
+                >
+                  + Add Item
+                </button>
+              </div>
+            )}
           </div>
 
           {viewMode === 'category' ? (
@@ -558,6 +562,7 @@ export default function InventoryManagement() {
                 onEditItem={openItemEdit}
                 onDeleteItem={handleItemDelete}
                 onAddItem={openItemCreate}
+                onCategoryNavChange={setCategoryNav}
               />
             </ApiState>
           ) : (

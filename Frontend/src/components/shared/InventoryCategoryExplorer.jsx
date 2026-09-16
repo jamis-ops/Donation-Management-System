@@ -162,10 +162,18 @@ export default function InventoryCategoryExplorer({
   onEditItem,
   onDeleteItem,
   onAddItem,
+  onCategoryNavChange,
 }) {
   const [selectedCategory, setSelectedCategory] = useState(null)
   const [selectedItemType, setSelectedItemType] = useState(null)
   const [searchQuery, setSearchQuery] = useState('')
+
+  // Report navigation state up to parent (so parent can hide global Add Item button when inside a category)
+  useEffect(() => {
+    if (typeof onCategoryNavChange === 'function') {
+      onCategoryNavChange({ category: selectedCategory, itemType: selectedItemType })
+    }
+  }, [selectedCategory, selectedItemType, onCategoryNavChange])
 
   // Compute category rollups from actual items
   const categoryGroups = useMemo(() => {
@@ -520,6 +528,21 @@ export default function InventoryCategoryExplorer({
             </div>
 
             <div className="inv-category-hero__right">
+              <button
+                type="button"
+                className="inv-hero-add-btn"
+                style={{
+                  backgroundColor: currentTheme.primary,
+                  color: '#ffffff',
+                  boxShadow: `0 3px 12px ${currentTheme.accentGlow}`,
+                }}
+                onClick={() => onAddItem({ category: selectedCategory })}
+                title={`Add a new item to ${selectedCategory}`}
+              >
+                <Plus size={15} style={{ marginRight: '5px' }} />
+                <span>+ Add {selectedCategory} Item</span>
+              </button>
+
               <div
                 className="inv-hero-search"
                 style={{
@@ -642,6 +665,15 @@ export default function InventoryCategoryExplorer({
                 <div className="inv-empty-state">
                   <Box size={36} className="text-gray-400 mb-2" />
                   <p>No item types recorded in {selectedCategory}.</p>
+                  <button
+                    type="button"
+                    className="btn btn--primary btn--sm mt-2"
+                    style={{ backgroundColor: currentTheme.primary }}
+                    onClick={() => onAddItem({ category: selectedCategory })}
+                  >
+                    <Plus size={14} style={{ marginRight: '4px' }} />
+                    Add First {selectedCategory} Item
+                  </button>
                 </div>
               ) : (
                 itemTypeGroups.map((g) => (
@@ -816,6 +848,21 @@ export default function InventoryCategoryExplorer({
             </div>
 
             <div className="inv-category-hero__right">
+              <button
+                type="button"
+                className="inv-hero-add-btn"
+                style={{
+                  backgroundColor: currentTheme.primary,
+                  color: '#ffffff',
+                  boxShadow: `0 3px 12px ${currentTheme.accentGlow}`,
+                }}
+                onClick={() => onAddItem({ category: selectedCategory, itemType: selectedItemType })}
+                title={`Add product under ${selectedItemType}`}
+              >
+                <Plus size={15} style={{ marginRight: '5px' }} />
+                <span>+ Add {selectedItemType}</span>
+              </button>
+
               <div
                 className="inv-hero-search"
                 style={{
@@ -860,7 +907,16 @@ export default function InventoryCategoryExplorer({
                 {visibleItems.length === 0 ? (
                   <tr>
                     <td colSpan={8} className="text-center py-6 text-muted">
-                      No items recorded under {selectedItemType}. Click "+ Add Item" above to add one.
+                      <div>No items recorded under {selectedItemType}.</div>
+                      <button
+                        type="button"
+                        className="btn btn--primary btn--xs mt-2"
+                        style={{ backgroundColor: currentTheme.primary }}
+                        onClick={() => onAddItem({ category: selectedCategory, itemType: selectedItemType })}
+                      >
+                        <Plus size={13} style={{ marginRight: '4px' }} />
+                        Add {selectedItemType}
+                      </button>
                     </td>
                   </tr>
                 ) : (
