@@ -2152,45 +2152,6 @@ export default function VolunteersPage() {
                 <Trash2 size={15} /> Delete Profile
               </button>
               <div className="admin-modal__actions-group">
-                {selected.status === 'Pending Review' && (
-                  <>
-                    <button
-                      type="button"
-                      className="btn"
-                      onClick={() => handleApprove(selected)}
-                      style={{
-                        backgroundColor: '#16a34a',
-                        color: '#ffffff',
-                        border: '1px solid #15803d',
-                        fontWeight: 650,
-                        display: 'inline-flex',
-                        alignItems: 'center',
-                        gap: '0.35rem',
-                        padding: '0.45rem 0.95rem',
-                        borderRadius: '6px',
-                        cursor: 'pointer',
-                      }}
-                    >
-                      <CheckCircle2 size={15} /> Approve
-                    </button>
-                    <button
-                      type="button"
-                      className="btn btn--danger"
-                      onClick={() => handleReject(selected)}
-                      style={{
-                        display: 'inline-flex',
-                        alignItems: 'center',
-                        gap: '0.35rem',
-                        padding: '0.45rem 0.95rem',
-                        fontWeight: 650,
-                        borderRadius: '6px',
-                        cursor: 'pointer',
-                      }}
-                    >
-                      <XCircle size={15} /> Reject
-                    </button>
-                  </>
-                )}
                 <button type="button" className="btn btn--ghost" onClick={closeVolunteer}>Close</button>
               </div>
             </div>
