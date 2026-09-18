@@ -32,7 +32,7 @@ declare(strict_types=1);
           [$key, $value] = explode('=', $line, 2);
           $key = trim($key);
           $value = trim($value, " \t\n\r\0\x0B\"'");
-          if ($key !== '' && getenv($key) === false) {
+          if ($key !== '') {
             putenv("{$key}={$value}");
             $_ENV[$key] = $value;
             $_SERVER[$key] = $value;
@@ -86,6 +86,22 @@ function db(): PDO {
     $pdoInstance = new PDO($dsn, $DB_USER, $DB_PASS, $options);
     return $pdoInstance;
   } catch (PDOException $e) {
+    // If remote connection fails (e.g. TiDB Cloud access denied / network issue) and local MySQL is available, fallback gracefully
+    if ($DB_HOST !== '127.0.0.1' && $DB_HOST !== 'localhost') {
+      try {
+        $localDsn = "mysql:host=127.0.0.1;port=3306;dbname={$DB_NAME};charset=utf8mb4";
+        $localPdo = new PDO($localDsn, 'root', '', [
+          PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
+          PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
+        ]);
+        $pdoInstance = $localPdo;
+        error_log("Database: remote connection failed ({$e->getMessage()}), fell back to local MySQL.");
+        return $pdoInstance;
+      } catch (Throwable $localFallbackErr) {
+        // Fallback failed, report primary error
+      }
+    }
+
     if (!headers_sent()) {
       http_response_code(500);
       header('Content-Type: application/json; charset=utf-8');
