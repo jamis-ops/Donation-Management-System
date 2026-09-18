@@ -95,7 +95,6 @@ function seed_cms_if_empty(PDO $pdo): void
 {
   $count = (int) $pdo->query('SELECT COUNT(*) FROM cms_items')->fetchColumn();
   if ($count > 0) {
-    sync_cms_catalog($pdo);
     return;
   }
 

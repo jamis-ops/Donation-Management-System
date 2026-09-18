@@ -541,8 +541,46 @@ if ($method === 'PUT') {
 }
 
 if ($method === 'DELETE') {
+  $category = isset($_GET['category']) ? trim((string) $_GET['category']) : null;
+  $itemType = isset($_GET['item_type']) ? trim((string) $_GET['item_type']) : (isset($_GET['itemType']) ? trim((string) $_GET['itemType']) : null);
+
+  // 1. Delete by Category and Item Type (Classification)
+  if ($category !== null && $category !== '' && $itemType !== null && $itemType !== '') {
+    if ($itemType === 'General Goods') {
+      $delStmt = $pdo->prepare('DELETE FROM inventory_items WHERE category = ? AND (item_type IS NULL OR item_type = "" OR item_type = "General Goods")');
+      $delStmt->execute([$category]);
+    } else {
+      $delStmt = $pdo->prepare('DELETE FROM inventory_items WHERE category = ? AND item_type = ?');
+      $delStmt->execute([$category, $itemType]);
+    }
+    $deletedCount = $delStmt->rowCount();
+
+    try {
+      $pdo->prepare('DELETE FROM inventory_item_types WHERE category_name = ? AND name = ?')->execute([$category, $itemType]);
+    } catch (Throwable $e) {}
+
+    json_response(['ok' => true, 'deleted' => $deletedCount, 'category' => $category, 'itemType' => $itemType]);
+  }
+
+  // 2. Delete entire Category
+  if ($category !== null && $category !== '') {
+    $delStmt = $pdo->prepare('DELETE FROM inventory_items WHERE category = ?');
+    $delStmt->execute([$category]);
+    $deletedCount = $delStmt->rowCount();
+
+    try {
+      $pdo->prepare('DELETE FROM inventory_categories WHERE name = ?')->execute([$category]);
+    } catch (Throwable $e) {}
+    try {
+      $pdo->prepare('DELETE FROM inventory_item_types WHERE category_name = ?')->execute([$category]);
+    } catch (Throwable $e) {}
+
+    json_response(['ok' => true, 'deleted' => $deletedCount, 'category' => $category]);
+  }
+
+  // 3. Delete by ID
   if (!$id) {
-    json_response(['ok' => false, 'error' => 'Id is required'], 400);
+    json_response(['ok' => false, 'error' => 'Id or Category is required'], 400);
   }
   if ($tab === 'repacking') {
     $stmt = $pdo->prepare('SELECT * FROM repacking_jobs WHERE id = ? LIMIT 1');

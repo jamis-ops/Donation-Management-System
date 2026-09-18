@@ -213,6 +213,78 @@
   background: #f1f5f9;
 }
 
+/* Card Header Action buttons (Delete category & item type) */
+.inv-cat-card__actions,
+.inv-type-card__actions {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+}
+
+.inv-card-del-btn {
+  width: 28px;
+  height: 28px;
+  border-radius: 7px;
+  border: 1px solid #e2e8f0;
+  background: #ffffff;
+  color: #94a3b8;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  padding: 0;
+  transition: all 0.16s ease;
+}
+
+.inv-card-del-btn:hover {
+  background: #fee2e2;
+  border-color: #fca5a5;
+  color: #dc2626;
+  transform: scale(1.08);
+  box-shadow: 0 2px 8px rgba(220, 38, 38, 0.2);
+}
+
+.inv-card-del-btn:active {
+  transform: scale(0.95);
+}
+
+/* Hero Banner Action Groups */
+.inv-category-hero__actions {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+}
+
+.inv-hero-del-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0.52rem 0.95rem;
+  font-size: 0.84rem;
+  font-weight: 600;
+  border-radius: 9px;
+  border: 1.5px solid #fecaca;
+  background: #ffffff;
+  color: #dc2626;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.16s ease;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+}
+
+.inv-hero-del-btn:hover {
+  background: #dc2626;
+  border-color: #dc2626;
+  color: #ffffff;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(220, 38, 38, 0.28);
+}
+
+.inv-hero-del-btn:active {
+  transform: translateY(0);
+}
+
 .inv-cat-card__title {
   margin: 0 0 0.35rem;
   font-size: 1.15rem;

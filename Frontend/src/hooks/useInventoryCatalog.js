@@ -95,36 +95,23 @@ export function useInventoryCatalog(options = {}) {
       const data = res?.data
 
       if (data && typeof data === 'object' && !Array.isArray(data)) {
-        // Merge categories with defaults to guarantee all 7 standard categories exist
-        const catMap = new Map()
-        DEFAULT_CATEGORIES.forEach((c) => catMap.set(c.name.toLowerCase(), c))
         if (Array.isArray(data.categories)) {
-          data.categories.forEach((c) => {
-            if (c && c.name) catMap.set(c.name.toLowerCase(), { ...c, name: c.name })
-          })
+          setCategories(data.categories)
+        } else {
+          setCategories(DEFAULT_CATEGORIES)
         }
-        setCategories(Array.from(catMap.values()))
 
-        // Merge item types with defaults
-        const typeMap = new Map()
-        DEFAULT_ITEM_TYPES.forEach((t) => typeMap.set(`${(t.categoryName || '').toLowerCase()}::${t.name.toLowerCase()}`, t))
         if (Array.isArray(data.itemTypes)) {
-          data.itemTypes.forEach((t) => {
-            if (t && t.name) typeMap.set(`${(t.categoryName || '').toLowerCase()}::${t.name.toLowerCase()}`, t)
-          })
+          setItemTypes(data.itemTypes)
+        } else {
+          setItemTypes(DEFAULT_ITEM_TYPES)
         }
-        setItemTypes(Array.from(typeMap.values()))
 
         if (Array.isArray(data.brands) && data.brands.length > 0) setBrands(data.brands)
         if (Array.isArray(data.variants) && data.variants.length > 0) setVariants(data.variants)
         if (Array.isArray(data.units) && data.units.length > 0) setUnits(data.units)
-      } else if (Array.isArray(data) && data.length > 0) {
-        const catMap = new Map()
-        DEFAULT_CATEGORIES.forEach((c) => catMap.set(c.name.toLowerCase(), c))
-        data.forEach((c) => {
-          if (c && c.name) catMap.set(c.name.toLowerCase(), c)
-        })
-        setCategories(Array.from(catMap.values()))
+      } else if (Array.isArray(data)) {
+        setCategories(data)
       }
     } catch (err) {
       console.warn('Inventory catalog load warning (using defaults):', err)

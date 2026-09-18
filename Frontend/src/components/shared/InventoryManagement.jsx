@@ -197,6 +197,68 @@ export default function InventoryManagement() {
     }
   }
 
+  const handleDeleteCategory = async (categoryName, categoryItems = []) => {
+    const itemCount = Array.isArray(categoryItems) ? categoryItems.length : 0
+    const ok = await confirmAction({
+      title: 'Delete Category',
+      message: itemCount > 0 
+        ? `Permanently delete the "${categoryName}" category and all ${itemCount} ${itemCount === 1 ? 'item' : 'items'} in it? This action cannot be undone.`
+        : `Permanently delete the "${categoryName}" category? This action cannot be undone.`,
+      confirmText: 'Delete Category',
+      type: 'danger',
+    })
+    if (!ok) return false
+
+    showLoading(`Deleting category "${categoryName}"…`)
+    try {
+      if (typeof inventoryApi.deleteCategory === 'function') {
+        await inventoryApi.deleteCategory(categoryName)
+      } else {
+        await apiFetch(`/api/inventory.php?category=${encodeURIComponent(categoryName)}`, { method: 'DELETE' })
+      }
+      notify.success(`Category "${categoryName}" deleted.`)
+      showSuccessModal('Category successfully deleted.')
+      await reload()
+      return true
+    } catch (err) {
+      notify.error(err.message || 'Failed to delete category')
+      return false
+    } finally {
+      hideLoading()
+    }
+  }
+
+  const handleDeleteItemType = async (categoryName, itemTypeName, typeItems = []) => {
+    const itemCount = Array.isArray(typeItems) ? typeItems.length : 0
+    const ok = await confirmAction({
+      title: 'Delete Item Classification',
+      message: itemCount > 0
+        ? `Permanently delete "${itemTypeName}" and all ${itemCount} product ${itemCount === 1 ? 'variation' : 'variations'} under "${categoryName}"? This action cannot be undone.`
+        : `Permanently delete "${itemTypeName}" under "${categoryName}"? This action cannot be undone.`,
+      confirmText: 'Delete Classification',
+      type: 'danger',
+    })
+    if (!ok) return false
+
+    showLoading(`Deleting "${itemTypeName}"…`)
+    try {
+      if (typeof inventoryApi.deleteItemType === 'function') {
+        await inventoryApi.deleteItemType(categoryName, itemTypeName)
+      } else {
+        await apiFetch(`/api/inventory.php?category=${encodeURIComponent(categoryName)}&item_type=${encodeURIComponent(itemTypeName)}`, { method: 'DELETE' })
+      }
+      notify.success(`Classification "${itemTypeName}" deleted.`)
+      showSuccessModal('Classification successfully deleted.')
+      await reload()
+      return true
+    } catch (err) {
+      notify.error(err.message || 'Failed to delete item classification')
+      return false
+    } finally {
+      hideLoading()
+    }
+  }
+
   /* ---------- Repacking handlers ---------- */
 
   // Smart calculation: Auto-calculate pack quantity based on source and packs per unit
@@ -563,6 +625,8 @@ export default function InventoryManagement() {
                 onDeleteItem={handleItemDelete}
                 onAddItem={openItemCreate}
                 onCategoryNavChange={setCategoryNav}
+                onDeleteCategory={handleDeleteCategory}
+                onDeleteItemType={handleDeleteItemType}
               />
             </ApiState>
           ) : (

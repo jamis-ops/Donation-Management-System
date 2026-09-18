@@ -104,7 +104,11 @@ export const beneficiariesApi = {
   }),
 }
 export const assistanceRequestsApi = resourceApi('/api/assistance_requests.php')
-export const inventoryApi = resourceApi('/api/inventory.php')
+export const inventoryApi = {
+  ...resourceApi('/api/inventory.php'),
+  deleteCategory: (category) => apiFetch(`/api/inventory.php?category=${encodeURIComponent(category)}`, { method: 'DELETE' }),
+  deleteItemType: (category, itemType) => apiFetch(`/api/inventory.php?category=${encodeURIComponent(category)}&item_type=${encodeURIComponent(itemType)}`, { method: 'DELETE' }),
+}
 export const inventoryCatalogApi = {
   list: (type, params = {}) => {
     const q = new URLSearchParams()

@@ -88,77 +88,83 @@ function ensure_inventory_catalog_tables(PDO $pdo): void
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
   ");
 
-  // Seed default Categories (INSERT IGNORE ensures all standard categories exist)
-  $categories = [
-    ['Water', 'Droplets', 'Drinking water, mineral, distilled and clean water storage supplies', 1],
-    ['Food', 'Utensils', 'Canned goods, rice, noodles, ready-to-eat meals, and cooking essentials', 2],
-    ['Clothing', 'Shirt', 'Apparel, jackets, footwear, blankets, linens and wearable relief goods', 3],
-    ['Medical Supplies', 'HeartPulse', 'First aid kits, fever & pain medicines, antiseptics, and PPE', 4],
-    ['Hygiene Kits', 'Sparkles', 'Soap, toothpaste, toothbrushes, sanitizers, sanitary pads, diapers', 5],
-    ['Shelter & Bedding', 'Home', 'Tarpaulins, tents, sleeping mats, ropes, and structural repair supplies', 6],
-    ['Logistics & Equipment', 'Box', 'Flashlights, batteries, storage boxes, containers, tools and packing kits', 7],
-  ];
-  $stmt = $pdo->prepare("INSERT IGNORE INTO inventory_categories (name, icon, description, sort_order) VALUES (?, ?, ?, ?)");
-  foreach ($categories as $c) {
-    $stmt->execute($c);
+  // Seed default Categories only if table is empty
+  $catCount = (int) $pdo->query("SELECT COUNT(*) FROM inventory_categories")->fetchColumn();
+  if ($catCount === 0) {
+    $categories = [
+      ['Water', 'Droplets', 'Drinking water, mineral, distilled and clean water storage supplies', 1],
+      ['Food', 'Utensils', 'Canned goods, rice, noodles, ready-to-eat meals, and cooking essentials', 2],
+      ['Clothing', 'Shirt', 'Apparel, jackets, footwear, blankets, linens and wearable relief goods', 3],
+      ['Medical Supplies', 'HeartPulse', 'First aid kits, fever & pain medicines, antiseptics, and PPE', 4],
+      ['Hygiene Kits', 'Sparkles', 'Soap, toothpaste, toothbrushes, sanitizers, sanitary pads, diapers', 5],
+      ['Shelter & Bedding', 'Home', 'Tarpaulins, tents, sleeping mats, ropes, and structural repair supplies', 6],
+      ['Logistics & Equipment', 'Box', 'Flashlights, batteries, storage boxes, containers, tools and packing kits', 7],
+    ];
+    $stmt = $pdo->prepare("INSERT INTO inventory_categories (name, icon, description, sort_order) VALUES (?, ?, ?, ?)");
+    foreach ($categories as $c) {
+      $stmt->execute($c);
+    }
   }
 
-  // Seed default Item Types (INSERT IGNORE ensures all standard item types exist)
-  $types = [
-    // Water
-    ['Water', 'Bottled Water', 'Bottles', 100, 1],
-    ['Water', 'Mineral Water Gallons', 'Gallons', 20, 2],
-    ['Water', 'Distilled Water', 'Bottles', 50, 3],
-    ['Water', 'Water Purification Tablets', 'Packs', 50, 4],
+  // Seed default Item Types only if table is empty
+  $typeCount = (int) $pdo->query("SELECT COUNT(*) FROM inventory_item_types")->fetchColumn();
+  if ($typeCount === 0) {
+    $types = [
+      // Water
+      ['Water', 'Bottled Water', 'Bottles', 100, 1],
+      ['Water', 'Mineral Water Gallons', 'Gallons', 20, 2],
+      ['Water', 'Distilled Water', 'Bottles', 50, 3],
+      ['Water', 'Water Purification Tablets', 'Packs', 50, 4],
 
-    // Food
-    ['Food', 'Canned Goods', 'Cans', 150, 1],
-    ['Food', 'Rice', 'Sacks', 25, 2],
-    ['Food', 'Instant Noodles', 'Packs', 200, 3],
-    ['Food', 'Biscuits & Snacks', 'Packs', 100, 4],
-    ['Food', 'Cooking Oil', 'Bottles', 40, 5],
-    ['Food', 'Powdered Milk & Dairy', 'Pouches', 60, 6],
-    ['Food', 'Baby Food & Formula', 'Cans', 30, 7],
+      // Food
+      ['Food', 'Canned Goods', 'Cans', 150, 1],
+      ['Food', 'Rice', 'Sacks', 25, 2],
+      ['Food', 'Instant Noodles', 'Packs', 200, 3],
+      ['Food', 'Biscuits & Snacks', 'Packs', 100, 4],
+      ['Food', 'Cooking Oil', 'Bottles', 40, 5],
+      ['Food', 'Powdered Milk & Dairy', 'Pouches', 60, 6],
+      ['Food', 'Baby Food & Formula', 'Cans', 30, 7],
 
-    // Clothing
-    ['Clothing', 'T-Shirts & Tops', 'Pieces', 100, 1],
-    ['Clothing', 'Pants & Shorts', 'Pieces', 80, 2],
-    ['Clothing', 'Blankets & Linens', 'Pieces', 50, 3],
-    ['Clothing', 'Footwear & Slippers', 'Pairs', 50, 4],
-    ['Clothing', 'Jackets & Raincoats', 'Pieces', 30, 5],
-    ['Clothing', 'Undergarments', 'Packs', 60, 6],
+      // Clothing
+      ['Clothing', 'T-Shirts & Tops', 'Pieces', 100, 1],
+      ['Clothing', 'Pants & Shorts', 'Pieces', 80, 2],
+      ['Clothing', 'Blankets & Linens', 'Pieces', 50, 3],
+      ['Clothing', 'Footwear & Slippers', 'Pairs', 50, 4],
+      ['Clothing', 'Jackets & Raincoats', 'Pieces', 30, 5],
+      ['Clothing', 'Undergarments', 'Packs', 60, 6],
 
-    // Medical
-    ['Medical Supplies', 'First Aid Kits', 'Kits', 30, 1],
-    ['Medical Supplies', 'Pain Relievers & Fever', 'Boxes', 50, 2],
-    ['Medical Supplies', 'Antiseptics & Bandages', 'Bottles', 40, 3],
-    ['Medical Supplies', 'Antibiotics & Prescription', 'Boxes', 30, 4],
-    ['Medical Supplies', 'PPE & Face Masks', 'Boxes', 50, 5],
-    ['Medical Supplies', 'Medical Devices', 'Units', 15, 6],
+      // Medical
+      ['Medical Supplies', 'First Aid Kits', 'Kits', 30, 1],
+      ['Medical Supplies', 'Pain Relievers & Fever', 'Boxes', 50, 2],
+      ['Medical Supplies', 'Antiseptics & Bandages', 'Bottles', 40, 3],
+      ['Medical Supplies', 'Antibiotics & Prescription', 'Boxes', 30, 4],
+      ['Medical Supplies', 'PPE & Face Masks', 'Boxes', 50, 5],
+      ['Medical Supplies', 'Medical Devices', 'Units', 15, 6],
 
-    // Hygiene
-    ['Hygiene Kits', 'Standard Hygiene Kit', 'Kits', 50, 1],
-    ['Hygiene Kits', 'Bath Soap & Body Wash', 'Bars', 120, 2],
-    ['Hygiene Kits', 'Toothpaste & Brushes', 'Packs', 100, 3],
-    ['Hygiene Kits', 'Sanitary Pads', 'Packs', 80, 4],
-    ['Hygiene Kits', 'Baby Diapers', 'Packs', 50, 5],
-    ['Hygiene Kits', 'Hand Sanitizers & Alcohol', 'Bottles', 60, 6],
+      // Hygiene
+      ['Hygiene Kits', 'Standard Hygiene Kit', 'Kits', 50, 1],
+      ['Hygiene Kits', 'Bath Soap & Body Wash', 'Bars', 120, 2],
+      ['Hygiene Kits', 'Toothpaste & Brushes', 'Packs', 100, 3],
+      ['Hygiene Kits', 'Sanitary Pads', 'Packs', 80, 4],
+      ['Hygiene Kits', 'Baby Diapers', 'Packs', 50, 5],
+      ['Hygiene Kits', 'Hand Sanitizers & Alcohol', 'Bottles', 60, 6],
 
-    // Shelter
-    ['Shelter & Bedding', 'Tarpaulins & Plastic Sheets', 'Pieces', 40, 1],
-    ['Shelter & Bedding', 'Sleeping Mats (Banig)', 'Pieces', 50, 2],
-    ['Shelter & Bedding', 'Emergency Tents', 'Units', 15, 3],
-    ['Shelter & Bedding', 'Mosquito Nets', 'Pieces', 40, 4],
+      // Shelter
+      ['Shelter & Bedding', 'Tarpaulins & Plastic Sheets', 'Pieces', 40, 1],
+      ['Shelter & Bedding', 'Sleeping Mats (Banig)', 'Pieces', 50, 2],
+      ['Shelter & Bedding', 'Emergency Tents', 'Units', 15, 3],
+      ['Shelter & Bedding', 'Mosquito Nets', 'Pieces', 40, 4],
 
-    // Equipment
-    ['Logistics & Equipment', 'Flashlights & Torches', 'Units', 30, 1],
-    ['Logistics & Equipment', 'Batteries', 'Packs', 60, 2],
-    ['Logistics & Equipment', 'Ropes & Tie-Downs', 'Rolls', 25, 3],
-    ['Logistics & Equipment', 'Storage Boxes & Crates', 'Boxes', 30, 4],
-  ];
-  $stmt = $pdo->prepare("INSERT IGNORE INTO inventory_item_types (category_name, name, default_unit, default_low_threshold, sort_order) VALUES (?, ?, ?, ?, ?)");
-  foreach ($types as $t) {
-    $stmt->execute($t);
+      // Equipment
+      ['Logistics & Equipment', 'Flashlights & Torches', 'Units', 30, 1],
+      ['Logistics & Equipment', 'Batteries', 'Packs', 60, 2],
+      ['Logistics & Equipment', 'Ropes & Tie-Downs', 'Rolls', 25, 3],
+      ['Logistics & Equipment', 'Storage Boxes & Crates', 'Boxes', 30, 4],
+    ];
+    $stmt = $pdo->prepare("INSERT INTO inventory_item_types (category_name, name, default_unit, default_low_threshold, sort_order) VALUES (?, ?, ?, ?, ?)");
+    foreach ($types as $t) {
+      $stmt->execute($t);
+    }
   }
 
   // Seed default Brands if empty
@@ -395,7 +401,7 @@ if ($method === 'GET') {
 if ($method === 'POST') {
   require_auth();
   $body = read_json_body();
-  $catalog = strtolower(trim((string) ($body['catalog'] ?? '')));
+  $catalog = strtolower(trim((string) ($body['catalog'] ?? $_GET['type'] ?? $_GET['catalog'] ?? '')));
 
   switch ($catalog) {
     case 'category':
@@ -492,7 +498,7 @@ if ($method === 'PUT') {
     json_response(['ok' => false, 'error' => 'ID is required'], 400);
   }
   $body = read_json_body();
-  $catalog = strtolower(trim((string) ($body['catalog'] ?? '')));
+  $catalog = strtolower(trim((string) ($body['catalog'] ?? $_GET['type'] ?? $_GET['catalog'] ?? '')));
 
   switch ($catalog) {
     case 'category':
@@ -611,7 +617,7 @@ if ($method === 'DELETE') {
   if (!$id) {
     json_response(['ok' => false, 'error' => 'ID is required'], 400);
   }
-  $catalog = strtolower(trim((string) ($_GET['catalog'] ?? '')));
+  $catalog = strtolower(trim((string) ($_GET['catalog'] ?? $_GET['type'] ?? '')));
 
   $tableMap = [
     'category' => 'inventory_categories',

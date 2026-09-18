@@ -163,10 +163,31 @@ export default function InventoryCategoryExplorer({
   onDeleteItem,
   onAddItem,
   onCategoryNavChange,
+  onDeleteCategory,
+  onDeleteItemType,
 }) {
   const [selectedCategory, setSelectedCategory] = useState(null)
   const [selectedItemType, setSelectedItemType] = useState(null)
   const [searchQuery, setSearchQuery] = useState('')
+
+  const handleDeleteCategory = async (catName, catItems = []) => {
+    if (typeof onDeleteCategory === 'function') {
+      const ok = await onDeleteCategory(catName, catItems)
+      if (ok && selectedCategory === catName) {
+        setSelectedCategory(null)
+        setSelectedItemType(null)
+      }
+    }
+  }
+
+  const handleDeleteItemType = async (catName, typeName, typeItems = []) => {
+    if (typeof onDeleteItemType === 'function') {
+      const ok = await onDeleteItemType(catName, typeName, typeItems)
+      if (ok && selectedItemType === typeName) {
+        setSelectedItemType(null)
+      }
+    }
+  }
 
   // Report navigation state up to parent (so parent can hide global Add Item button when inside a category)
   useEffect(() => {
@@ -420,11 +441,26 @@ export default function InventoryCategoryExplorer({
                     >
                       {theme.icon(24)}
                     </div>
-                    <div
-                      className="inv-cat-card__arrow-circle"
-                      style={{ color: theme.primary }}
-                    >
-                      <ChevronRight size={16} />
+                    <div className="inv-cat-card__actions" onClick={(e) => e.stopPropagation()}>
+                      {onDeleteCategory && (
+                        <button
+                          type="button"
+                          className="inv-card-del-btn"
+                          title={`Delete category "${cat.name}" and all contents`}
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            handleDeleteCategory(cat.name, cat.items)
+                          }}
+                        >
+                          <Trash2 size={13} />
+                        </button>
+                      )}
+                      <div
+                        className="inv-cat-card__arrow-circle"
+                        style={{ color: theme.primary }}
+                      >
+                        <ChevronRight size={16} />
+                      </div>
                     </div>
                   </div>
 
@@ -528,20 +564,34 @@ export default function InventoryCategoryExplorer({
             </div>
 
             <div className="inv-category-hero__right">
-              <button
-                type="button"
-                className="inv-hero-add-btn"
-                style={{
-                  backgroundColor: currentTheme.primary,
-                  color: '#ffffff',
-                  boxShadow: `0 3px 12px ${currentTheme.accentGlow}`,
-                }}
-                onClick={() => onAddItem({ category: selectedCategory })}
-                title={`Add a new item to ${selectedCategory}`}
-              >
-                <Plus size={15} style={{ marginRight: '5px' }} />
-                <span>+ Add {selectedCategory} Item</span>
-              </button>
+              <div className="inv-category-hero__actions">
+                <button
+                  type="button"
+                  className="inv-hero-add-btn"
+                  style={{
+                    backgroundColor: currentTheme.primary,
+                    color: '#ffffff',
+                    boxShadow: `0 3px 12px ${currentTheme.accentGlow}`,
+                  }}
+                  onClick={() => onAddItem({ category: selectedCategory })}
+                  title={`Add a new item to ${selectedCategory}`}
+                >
+                  <Plus size={15} style={{ marginRight: '5px' }} />
+                  <span>+ Add {selectedCategory} Item</span>
+                </button>
+
+                {onDeleteCategory && (
+                  <button
+                    type="button"
+                    className="inv-hero-del-btn"
+                    onClick={() => handleDeleteCategory(selectedCategory, currentCategoryData?.items || [])}
+                    title={`Delete category "${selectedCategory}" and all contents`}
+                  >
+                    <Trash2 size={14} style={{ marginRight: '5px' }} />
+                    <span>Delete Category</span>
+                  </button>
+                )}
+              </div>
 
               <div
                 className="inv-hero-search"
@@ -712,8 +762,23 @@ export default function InventoryCategoryExplorer({
                           <span className="inv-type-card__subtitle">Item Classification</span>
                         </div>
                       </div>
-                      <div className="inv-type-card__arrow-btn" style={{ color: currentTheme.primary }}>
-                        <ChevronRight size={16} />
+                      <div className="inv-type-card__actions" onClick={(e) => e.stopPropagation()}>
+                        {onDeleteItemType && (
+                          <button
+                            type="button"
+                            className="inv-card-del-btn"
+                            title={`Delete classification "${g.name}" and all its products`}
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              handleDeleteItemType(selectedCategory, g.name, g.items)
+                            }}
+                          >
+                            <Trash2 size={13} />
+                          </button>
+                        )}
+                        <div className="inv-type-card__arrow-btn" style={{ color: currentTheme.primary }}>
+                          <ChevronRight size={16} />
+                        </div>
                       </div>
                     </div>
 
@@ -848,20 +913,34 @@ export default function InventoryCategoryExplorer({
             </div>
 
             <div className="inv-category-hero__right">
-              <button
-                type="button"
-                className="inv-hero-add-btn"
-                style={{
-                  backgroundColor: currentTheme.primary,
-                  color: '#ffffff',
-                  boxShadow: `0 3px 12px ${currentTheme.accentGlow}`,
-                }}
-                onClick={() => onAddItem({ category: selectedCategory, itemType: selectedItemType })}
-                title={`Add product under ${selectedItemType}`}
-              >
-                <Plus size={15} style={{ marginRight: '5px' }} />
-                <span>+ Add {selectedItemType}</span>
-              </button>
+              <div className="inv-category-hero__actions">
+                <button
+                  type="button"
+                  className="inv-hero-add-btn"
+                  style={{
+                    backgroundColor: currentTheme.primary,
+                    color: '#ffffff',
+                    boxShadow: `0 3px 12px ${currentTheme.accentGlow}`,
+                  }}
+                  onClick={() => onAddItem({ category: selectedCategory, itemType: selectedItemType })}
+                  title={`Add product under ${selectedItemType}`}
+                >
+                  <Plus size={15} style={{ marginRight: '5px' }} />
+                  <span>+ Add {selectedItemType}</span>
+                </button>
+
+                {onDeleteItemType && (
+                  <button
+                    type="button"
+                    className="inv-hero-del-btn"
+                    onClick={() => handleDeleteItemType(selectedCategory, selectedItemType, visibleItems)}
+                    title={`Delete classification "${selectedItemType}" and all its products`}
+                  >
+                    <Trash2 size={14} style={{ marginRight: '5px' }} />
+                    <span>Delete Classification</span>
+                  </button>
+                )}
+              </div>
 
               <div
                 className="inv-hero-search"
