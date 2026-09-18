@@ -10,8 +10,7 @@ import Pagination from '../../admin/components/shared/Pagination'
 import ExportMenu from '../../admin/components/shared/ExportMenu'
 import ModalHeader from '../../admin/components/shared/ModalHeader'
 import DonationProgressTracker from '../../components/donor/DonationProgressTracker'
-import { notify } from '../../utils/toast'
-import { confirmAction, showSuccessModal } from '../../utils/confirm'
+import { notify, confirmAction, showSuccessModal } from '../../utils/confirm'
 import { DONATION_STATUSES } from '../../constants/options'
 import { useLoading } from '../../context/LoadingContext'
 
@@ -94,8 +93,7 @@ export default function DonorDonationsPage() {
     try {
       await donationsApi.remove(row.dbId)
       setSelected(null)
-      notify.success('Status successfully updated to: Cancelled.')
-      showSuccessModal('Successfully updated.')
+      showSuccessModal('Status successfully updated to: Cancelled.')
       reload()
     } catch (err) {
       notify.error(err.message)

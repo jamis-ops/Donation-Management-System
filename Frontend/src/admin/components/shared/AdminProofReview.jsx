@@ -7,8 +7,7 @@ import ModalHeader from './ModalHeader'
 import { reviewProof } from '../../../api/resources'
 import { useSeeMore } from '../../../hooks/useSeeMore'
 import { SeeMoreToggle } from './SeeMoreList'
-import { notify } from '../../../utils/toast'
-import { confirmAction, showSuccessModal } from '../../../utils/confirm'
+import { notify, confirmAction, showSuccessModal } from '../../../utils/confirm'
 import { notifyBadgesChanged } from '../../../utils/badgeSync'
 
 function isPending(status) {

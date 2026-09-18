@@ -1,6 +1,5 @@
 import { useState } from 'react'
-import { notify } from '../utils/toast'
-import { confirmAction, showSuccessModal } from '../utils/confirm'
+import { notify, confirmAction, showSuccessModal } from '../utils/confirm'
 import { notifyBadgesChanged } from '../utils/badgeSync'
 
 /**
@@ -32,8 +31,7 @@ export function useBulkSelection(data, deleteFn, reloadFn, noun = 'records', idK
     try {
       // Execute deletions
       await Promise.all(selectedIds.map((id) => deleteFn(id)))
-      notify.success(`Successfully deleted ${count} ${label}.`)
-      showSuccessModal('Successfully deleted.')
+      showSuccessModal(`Successfully deleted ${count} ${label}.`)
       setSelectedIds([])
       reloadFn?.()
       notifyBadgesChanged()

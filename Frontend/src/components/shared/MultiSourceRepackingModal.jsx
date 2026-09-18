@@ -5,7 +5,7 @@ import BarangayNeedsAnalyzer from './BarangayNeedsAnalyzer'
 import PackContentBuilder from './PackContentBuilder'
 import RepackingSummaryCard from './RepackingSummaryCard'
 import StatusBadge from '../../admin/components/shared/StatusBadge'
-import { notify } from '../../utils/toast'
+import { notify } from '../../utils/confirm'
 import { useLoading } from '../../context/LoadingContext'
 
 const STEPS = ['barangay', 'builder', 'summary', 'confirmation']

@@ -7,7 +7,7 @@ import MasterDataSettings from '../../admin/components/shared/MasterDataSettings
 import MultiSelectBox from '../../components/shared/MultiSelectBox'
 import Req from '../../components/shared/Req'
 import PasswordRequirements from '../../components/shared/PasswordRequirements'
-import { notify } from '../../utils/toast'
+import { notify } from '../../utils/confirm'
 import { isSuperAdminRole } from '../../utils/roleRoutes'
 import PhoneInput from '../../components/shared/PhoneInput'
 import { phoneError, passwordError } from '../../utils/validation'

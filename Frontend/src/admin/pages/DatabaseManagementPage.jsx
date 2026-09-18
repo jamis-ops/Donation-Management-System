@@ -25,7 +25,7 @@ import { useAuth } from '../../context/AuthContext'
 import { isSuperAdminRole } from '../../utils/roleRoutes'
 import { databaseManagementApi } from '../../api/resources'
 import { useLoading } from '../../context/LoadingContext'
-import { notify } from '../../utils/toast'
+import { notify } from '../../utils/confirm'
 import ModalHeader from '../components/shared/ModalHeader'
 import PageHeader from '../components/shared/PageHeader'
 

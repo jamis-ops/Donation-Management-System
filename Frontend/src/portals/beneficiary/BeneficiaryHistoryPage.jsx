@@ -5,7 +5,7 @@ import { getPortalData } from '../../api/resources'
 import { useApiObject } from '../../hooks/useApiList'
 import { usePagination, DEFAULT_PAGE_SIZE } from '../../hooks/usePagination'
 import Pagination from '../../admin/components/shared/Pagination'
-import { notify } from '../../utils/toast'
+import { notify } from '../../utils/confirm'
 
 function parseDateBits(dateStr) {
   if (!dateStr || dateStr === '—' || dateStr === 'TBD' || dateStr === 'Invalid Date') {

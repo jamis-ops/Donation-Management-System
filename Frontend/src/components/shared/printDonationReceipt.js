@@ -1,3 +1,5 @@
+import { showWarningModal } from '../../utils/confirm'
+
 function getPreparedByUser(options = {}) {
   if (options.preparedBy) return options.preparedBy
   if (options.user?.name) return options.user.name
@@ -22,7 +24,7 @@ export function printDonationReceipt(donation, options = {}) {
 
   const printWindow = window.open('', '_blank', 'width=850,height=1000')
   if (!printWindow) {
-    alert('Please allow popups to print the donation receipt.')
+    showWarningModal('Please allow popups to print the donation receipt.', 'Popup Blocked')
     return
   }
 

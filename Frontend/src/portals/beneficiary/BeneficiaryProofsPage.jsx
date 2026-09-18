@@ -11,7 +11,7 @@ import { useHashScroll, useQueryFocus } from '../../hooks/useDeepLinkFocus'
 import ApiState from '../../admin/components/shared/ApiState'
 import StatusBadge from '../../admin/components/shared/StatusBadge'
 import Pagination from '../../admin/components/shared/Pagination'
-import { notify } from '../../utils/toast'
+import { notify } from '../../utils/confirm'
 import { useLoading } from '../../context/LoadingContext'
 
 const PROOF_SLOTS = [

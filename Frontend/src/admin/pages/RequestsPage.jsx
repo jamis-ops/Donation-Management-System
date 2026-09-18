@@ -17,8 +17,7 @@ import FilterBar from '../components/shared/FilterBar';
 import ApiState from '../components/shared/ApiState';
 import { usePagination, DEFAULT_PAGE_SIZE } from '../../hooks/usePagination'
 import Pagination from '../components/shared/Pagination'
-import { notify } from '../../utils/toast';
-import { confirmAction, showSuccessModal } from '../../utils/confirm';
+import { notify, confirmAction, showSuccessModal } from '../../utils/confirm';
 import { notifyBadgesChanged } from '../../utils/badgeSync';
 import {
   REQUEST_WORKFLOW,

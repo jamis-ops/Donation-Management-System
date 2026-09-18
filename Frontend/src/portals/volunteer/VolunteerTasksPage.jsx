@@ -24,8 +24,7 @@ import { tasksApi } from '../../api/resources'
 import { useApiList } from '../../hooks/useApiList'
 import { usePagination, DEFAULT_PAGE_SIZE } from '../../hooks/usePagination'
 import Pagination from '../../admin/components/shared/Pagination'
-import { notify } from '../../utils/toast'
-import { confirmAction, showSuccessModal } from '../../utils/confirm'
+import { notify, confirmAction, showSuccessModal } from '../../utils/confirm'
 import { useLoading } from '../../context/LoadingContext'
 
 const STATUS_FILTERS = ['All', 'Ongoing', 'Completed', 'Distributions']
@@ -148,8 +147,7 @@ export default function VolunteerTasksPage() {
     showLoading('Saving…')
     try {
       const res = await tasksApi.update(task.dbId, { distributionStatus })
-      notify.success(`Status successfully updated to: ${label}.`)
-      showSuccessModal('Successfully updated.')
+      showSuccessModal(`Status successfully updated to: ${label}.`)
       applyTaskUpdate(res?.data)
       if (distributionStatus === 'Delivered') {
         setSelectedTask(null)

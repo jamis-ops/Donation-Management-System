@@ -8,7 +8,7 @@ import { certificatesApi, donationsApi } from '../../api/resources'
 import { useApiList } from '../../hooks/useApiList'
 import { usePagination, DEFAULT_PAGE_SIZE } from '../../hooks/usePagination'
 import Pagination from '../../admin/components/shared/Pagination'
-import { notify } from '../../utils/toast'
+import { notify } from '../../utils/confirm'
 import { useLoading } from '../../context/LoadingContext'
 
 const CERT_TYPE_CONFIG = {

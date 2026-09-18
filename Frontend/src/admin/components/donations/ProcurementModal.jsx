@@ -7,8 +7,7 @@ import {
 } from 'lucide-react'
 import ModalHeader from '../shared/ModalHeader'
 import { donationsApi, beneficiariesApi, assistanceRequestsApi } from '../../../api/resources'
-import { notify } from '../../../utils/toast'
-import { confirmAction, showSuccessModal } from '../../../utils/confirm'
+import { notify, confirmAction, showSuccessModal } from '../../../utils/confirm'
 import { useLoading } from '../../../context/LoadingContext'
 
 const PACK_PRESETS = [

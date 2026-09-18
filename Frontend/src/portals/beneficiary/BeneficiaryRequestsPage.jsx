@@ -11,8 +11,7 @@ import { usePagination, DEFAULT_PAGE_SIZE } from '../../hooks/usePagination'
 import Pagination from '../../admin/components/shared/Pagination'
 import Req from '../../components/shared/Req'
 import NeedsPicker from '../../components/shared/NeedsPicker'
-import { notify } from '../../utils/toast'
-import { confirmAction, showSuccessModal } from '../../utils/confirm'
+import { notify, confirmAction, showSuccessModal } from '../../utils/confirm'
 import { notifyBadgesChanged } from '../../utils/badgeSync'
 import { useLoading } from '../../context/LoadingContext'
 
@@ -184,8 +183,7 @@ export default function BeneficiaryRequestsPage() {
         calamityTags: [calamityType],
         needs,
       })
-      notify.success('Request submitted.')
-      showSuccessModal('Successfully added.')
+      showSuccessModal('Assistance request successfully submitted.')
       setForm(emptyForm)
       setShowForm(false)
       reload()
@@ -211,8 +209,7 @@ export default function BeneficiaryRequestsPage() {
     showLoading('Saving…')
     try {
       await assistanceRequestsApi.remove(requestId)
-      notify.success('Status successfully updated to: Cancelled.')
-      showSuccessModal('Successfully updated.')
+      showSuccessModal('Status successfully updated to: Cancelled.')
       setSelectedRequest(null)
       reload()
       notifyBadgesChanged()

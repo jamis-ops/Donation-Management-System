@@ -11,8 +11,7 @@ import FilterBar from '../components/shared/FilterBar'
 import CertificateView from '../../components/shared/CertificateView'
 import { printCertificate } from '../../components/shared/printCertificate'
 import ModalHeader from '../components/shared/ModalHeader'
-import { notify } from '../../utils/toast'
-import { confirmAction, showSuccessModal } from '../../utils/confirm'
+import { notify, confirmAction, showSuccessModal } from '../../utils/confirm'
 import { notifyBadgesChanged } from '../../utils/badgeSync'
 import {
   CERTIFICATE_WORKFLOW,

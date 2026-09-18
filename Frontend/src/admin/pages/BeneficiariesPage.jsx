@@ -22,8 +22,7 @@ import { emptyNameParts, formatFullName, parseFullName } from '../../utils/perso
 import { BENEFICIARIES_CHANGED, notifyBeneficiariesChanged } from '../../utils/beneficiariesSync'
 import { canInviteBarangay, canStartOrRefreshInvite, isAwaitingBarangayApproval } from '../../utils/barangayInvite'
 import { useBulkSelection } from '../../hooks/useBulkSelection'
-import { notify, suppressNotificationToast } from '../../utils/toast'
-import { confirmAction } from '../../utils/confirm'
+import { notify, suppressNotificationToast, confirmAction, showSuccessModal } from '../../utils/confirm'
 import { useHashScroll, useQueryFocus } from '../../hooks/useDeepLinkFocus'
 import PhoneInput from '../../components/shared/PhoneInput'
 import PasswordRequirements from '../../components/shared/PasswordRequirements'
@@ -104,15 +103,15 @@ function formFromRow(row) {
   }
 }
 
-function toastInviteResult(res, email) {
+function showInviteResultModal(res, email) {
   if (res?.invitationSent) {
-    notify.success(res?.message || `Invitation emailed to ${email || 'barangay contact'}.`)
+    showSuccessModal(res?.message || `Invitation emailed to ${email || 'barangay contact'}.`)
     return
   }
   const detail = res?.mailError || res?.message || 'Email could not be delivered.'
   notify.warning(detail)
   if (res?.inviteUrl) {
-    notify.info(`Invite link: ${res.inviteUrl}`, 8000)
+    showSuccessModal(`Invite link: ${res.inviteUrl}`, 'Invitation Link')
   }
 }
 
@@ -333,7 +332,6 @@ export default function BeneficiariesPage() {
       await beneficiariesApi.remove(row.dbId)
       setData((prev) => (prev || []).filter((b) => Number(b.dbId) !== Number(row.dbId)))
       notifyBeneficiariesChanged({ removedId: row.dbId })
-      notify.success('Beneficiary deleted.')
       showSuccessModal('Successfully deleted.')
       reload()
     } catch (err) {
@@ -365,7 +363,7 @@ export default function BeneficiariesPage() {
         barangay: row.barangay || row.name,
         municipality: row.municipality || '',
       })
-      toastInviteResult(res, email)
+      showInviteResultModal(res, email)
       notifyBeneficiariesChanged()
       reload()
     } catch (err) {
@@ -403,9 +401,9 @@ export default function BeneficiariesPage() {
       const res = await beneficiariesApi.approve(approveTarget.dbId, payload)
       if (res?.credentialsSent) {
         suppressNotificationToast('beneficiary_credentials')
-        notify.success(res?.message || `Login credentials successfully emailed to ${approveTarget.representativeEmail || 'representative'}.`)
+        showSuccessModal(res?.message || `Login credentials successfully emailed to ${approveTarget.representativeEmail || 'representative'}.`)
       } else if (res?.accountCreated) {
-        notify.warning(
+        showSuccessModal(
           [
             res?.message || 'Barangay approved and account was created.',
             res?.temporaryPassword ? `Temporary password: ${res.temporaryPassword}` : '',
@@ -413,10 +411,9 @@ export default function BeneficiariesPage() {
           ].filter(Boolean).join(' '),
         )
       } else {
-        notify.success(res?.message || 'Barangay approved.')
+        showSuccessModal(res?.message || 'Successfully approved.')
         if (res?.mailError) notify.warning(res.mailError)
       }
-      showSuccessModal('Successfully approved.')
       notifyBeneficiariesChanged()
       setApproveTarget(null)
       setViewingSubmission(null)
@@ -441,8 +438,7 @@ export default function BeneficiariesPage() {
     showLoading('Rejecting application…')
     try {
       const res = await beneficiariesApi.reject(rejectTarget.dbId, { reason: rejectionReason })
-      notify.success(res?.message || 'Application rejected.')
-      showSuccessModal('Successfully rejected.')
+      showSuccessModal(res?.message || 'Successfully rejected.')
       notifyBeneficiariesChanged()
       setRejectTarget(null)
       setViewingSubmission(null)
@@ -490,7 +486,7 @@ export default function BeneficiariesPage() {
       const res = existing?.dbId
         ? await beneficiariesApi.reinvite(existing.dbId, payload)
         : await beneficiariesApi.invite(payload)
-      toastInviteResult(res, email)
+      showInviteResultModal(res, email)
       setModalMode(null)
       setInviteForm(emptyInviteForm)
       notifyBeneficiariesChanged()

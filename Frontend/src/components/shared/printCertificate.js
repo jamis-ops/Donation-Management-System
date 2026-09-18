@@ -1,5 +1,5 @@
 import { logo } from '../../assets'
-import { notify } from '../../utils/toast'
+import { notify } from '../../utils/confirm'
 import {
   defaultCertDetails,
   escapeHtml,

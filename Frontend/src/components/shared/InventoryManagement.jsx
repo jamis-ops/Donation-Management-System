@@ -14,8 +14,7 @@ import MultiSourceRepackingModal from './MultiSourceRepackingModal'
 import InventoryItemModal from './InventoryItemModal'
 import InventoryCategoryExplorer from './InventoryCategoryExplorer'
 import { useBulkSelection } from '../../hooks/useBulkSelection'
-import { notify } from '../../utils/toast'
-import { confirmAction, showSuccessModal } from '../../utils/confirm'
+import { notify, confirmAction, showSuccessModal } from '../../utils/confirm'
 import { useLoading } from '../../context/LoadingContext'
 
 const inventoryFilterConfig = {
@@ -158,12 +157,10 @@ export default function InventoryManagement() {
     try {
       if (itemModal === 'create') {
         await inventoryApi.create(payload)
-        notify.success(`${payload.item} added to inventory.`)
-        showSuccessModal('Successfully added.')
+        showSuccessModal(`${payload.item} successfully added to inventory.`)
       } else {
         await inventoryApi.update(itemModal.dbId, payload)
-        notify.success(`${payload.item} updated.`)
-        showSuccessModal('Successfully updated.')
+        showSuccessModal(`${payload.item} successfully updated.`)
       }
       setItemModal(null)
       reload()
@@ -187,8 +184,7 @@ export default function InventoryManagement() {
     showLoading('Deleting item…')
     try {
       await inventoryApi.remove(row.dbId)
-      notify.success(`${row.item} removed from inventory.`)
-      showSuccessModal('Successfully deleted.')
+      showSuccessModal(`${row.item} successfully deleted.`)
       reload()
     } catch (err) {
       notify.error(err.message)
@@ -216,8 +212,7 @@ export default function InventoryManagement() {
       } else {
         await apiFetch(`/api/inventory.php?category=${encodeURIComponent(categoryName)}`, { method: 'DELETE' })
       }
-      notify.success(`Category "${categoryName}" deleted.`)
-      showSuccessModal('Category successfully deleted.')
+      showSuccessModal(`Category "${categoryName}" successfully deleted.`)
       await reload()
       return true
     } catch (err) {
@@ -247,8 +242,7 @@ export default function InventoryManagement() {
       } else {
         await apiFetch(`/api/inventory.php?category=${encodeURIComponent(categoryName)}&item_type=${encodeURIComponent(itemTypeName)}`, { method: 'DELETE' })
       }
-      notify.success(`Classification "${itemTypeName}" deleted.`)
-      showSuccessModal('Classification successfully deleted.')
+      showSuccessModal(`Classification "${itemTypeName}" successfully deleted.`)
       await reload()
       return true
     } catch (err) {
@@ -319,8 +313,7 @@ export default function InventoryManagement() {
           dueDate: batchForm.dueDate || null,
           notes: batchForm.notes,
         })
-        notify.success('Repacking batch created — source stock has been deducted from inventory.')
-        showSuccessModal('Successfully added.')
+        showSuccessModal('Repacking batch successfully created. Source stock has been deducted from inventory.')
       } else {
         await repackingApi.update(batchModal.dbId, {
           output: batchForm.output.trim(),
@@ -330,8 +323,7 @@ export default function InventoryManagement() {
           dueDate: batchForm.dueDate || null,
           notes: batchForm.notes,
         })
-        notify.success('Repacking batch updated.')
-        showSuccessModal('Successfully updated.')
+        showSuccessModal('Repacking batch successfully updated.')
       }
       setBatchModal(null)
       reloadAll()
@@ -349,7 +341,7 @@ export default function InventoryManagement() {
     try {
       const result = await repackingApi.create(batchData)
       reloadAll()
-      showSuccessModal('Successfully added.')
+      showSuccessModal('Repacking batch successfully added.')
       return result.data
     } catch (err) {
       console.error('Multi-source batch creation failed:', err)
@@ -379,14 +371,13 @@ export default function InventoryManagement() {
     showLoading('Updating batch status…')
     try {
       await repackingApi.update(row.dbId, { status })
-      notify.success(
+      showSuccessModal(
         status === 'Completed'
           ? `Batch ${row.id} completed — ${row.quantity} ${row.outputUnit} of ${row.output} added to inventory.`
           : status === 'Cancelled'
             ? `Batch ${row.id} cancelled — source stock restored.`
             : `Batch ${row.id} is now in progress.`
       )
-      showSuccessModal('Successfully updated.')
       reloadAll()
     } catch (err) {
       notify.error(err.message)
@@ -407,8 +398,7 @@ export default function InventoryManagement() {
     showLoading('Deleting repacking batch…')
     try {
       await repackingApi.remove(row.dbId)
-      notify.success(`Batch ${row.id} deleted.`)
-      showSuccessModal('Successfully deleted.')
+      showSuccessModal(`Batch ${row.id} successfully deleted.`)
       reloadAll()
     } catch (err) {
       notify.error(err.message)

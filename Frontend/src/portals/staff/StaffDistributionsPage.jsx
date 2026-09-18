@@ -6,8 +6,7 @@ import { getPortalData, distributionsApi } from '../../api/resources'
 import { useApiObject } from '../../hooks/useApiList'
 import { usePagination, DEFAULT_PAGE_SIZE } from '../../hooks/usePagination'
 import Pagination from '../../admin/components/shared/Pagination'
-import { notify } from '../../utils/toast'
-import { confirmAction, showSuccessModal } from '../../utils/confirm'
+import { notify, confirmAction, showSuccessModal } from '../../utils/confirm'
 import { DISTRIBUTION_STATUSES } from '../../constants/options'
 import { useLoading } from '../../context/LoadingContext'
 
@@ -103,8 +102,7 @@ export default function StaffDistributionsPage() {
     try {
       const res = await distributionsApi.update(dist.dbId, { status: next })
       const status = res?.data?.status || next
-      notify.success(`Status successfully updated to: ${status}.`)
-      showSuccessModal('Successfully updated.')
+      showSuccessModal(`Status successfully updated to: ${status}.`)
       setSelectedDistribution(null)
       reload()
     } catch (err) {

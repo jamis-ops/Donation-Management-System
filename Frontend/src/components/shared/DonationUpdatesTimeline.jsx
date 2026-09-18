@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Check, Clock } from 'lucide-react'
 import { donationUpdatesApi } from '../../api/resources'
-import { notify } from '../../utils/toast'
+import { notify } from '../../utils/confirm'
 import { useLoading } from '../../context/LoadingContext'
 
 const FALLBACK_STAGES = [

@@ -17,8 +17,7 @@ import RowActionsMenu from '../components/shared/RowActionsMenu'
 import { useSeeMore } from '../../hooks/useSeeMore'
 import { SeeMoreToggle } from '../components/shared/SeeMoreList'
 import { useBulkSelection } from '../../hooks/useBulkSelection'
-import { notify } from '../../utils/toast'
-import { confirmAction, showSuccessModal } from '../../utils/confirm'
+import { notify, confirmAction, showSuccessModal } from '../../utils/confirm'
 import { notifyBadgesChanged } from '../../utils/badgeSync'
 import {
   ALLOCATION_WORKFLOW,

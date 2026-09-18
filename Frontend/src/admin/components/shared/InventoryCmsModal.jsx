@@ -17,8 +17,7 @@ import {
 } from 'lucide-react'
 import ModalHeader from './ModalHeader'
 import { inventoryCatalogApi } from '../../../api/resources'
-import { notify } from '../../../utils/toast'
-import { confirmAction, showSuccessModal } from '../../../utils/confirm'
+import { notify, confirmAction, showSuccessModal } from '../../../utils/confirm'
 import { useLoading } from '../../../context/LoadingContext'
 
 const TABS = [

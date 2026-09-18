@@ -6,8 +6,7 @@ import { useApiObject } from '../../hooks/useApiList'
 import { usePagination, DEFAULT_PAGE_SIZE } from '../../hooks/usePagination'
 import Pagination from '../../admin/components/shared/Pagination'
 import ExportMenu from '../../admin/components/shared/ExportMenu'
-import { notify } from '../../utils/toast'
-import { confirmAction, showSuccessModal } from '../../utils/confirm'
+import { notify, confirmAction, showSuccessModal } from '../../utils/confirm'
 import { useLoading } from '../../context/LoadingContext'
 
 export default function StaffInventoryPage() {
@@ -150,8 +149,7 @@ export default function StaffInventoryPage() {
         quantity: newStock,
         notes: stockNotes || undefined,
       })
-      notify.success('Stock updated.')
-      showSuccessModal('Successfully updated.')
+      showSuccessModal('Stock successfully updated.')
       setShowStockModal(false)
       setStockAmount('')
       setStockNotes('')

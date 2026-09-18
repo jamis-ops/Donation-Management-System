@@ -8,8 +8,7 @@ import { donationsApi } from '../../api/resources'
 import { useApiList } from '../../hooks/useApiList'
 import { usePagination, DEFAULT_PAGE_SIZE } from '../../hooks/usePagination'
 import Pagination from '../../admin/components/shared/Pagination'
-import { notify } from '../../utils/toast'
-import { confirmAction, showSuccessModal } from '../../utils/confirm'
+import { notify, confirmAction, showSuccessModal } from '../../utils/confirm'
 import { useLoading } from '../../context/LoadingContext'
 
 function verifyResultMessage(res) {
@@ -50,11 +49,10 @@ export default function StaffDonationsPage() {
       const res = await donationsApi.update(row.dbId, { status: 'Verified' })
       const status = res?.data?.status || 'Verified'
       if (res?.accountCreated || res?.credentialsSent || res?.message) {
-        notify.success(`Status successfully updated to: ${status}. ${verifyResultMessage(res)}`)
+        showSuccessModal(`Status successfully updated to: ${status}. ${verifyResultMessage(res)}`.trim())
       } else {
-        notify.success(`Status successfully updated to: ${status}.`)
+        showSuccessModal(`Status successfully updated to: ${status}.`)
       }
-      showSuccessModal('Successfully approved.')
       reload()
       setSelected(null)
     } catch (err) {
@@ -81,8 +79,7 @@ export default function StaffDonationsPage() {
         status: 'Rejected',
       })
       const status = res?.data?.status || 'Rejected'
-      notify.success(`Status successfully updated to: ${status}.`)
-      showSuccessModal('Successfully rejected.')
+      showSuccessModal(`Status successfully updated to: ${status}.`)
       reload()
       setSelected(null)
     } catch (err) {

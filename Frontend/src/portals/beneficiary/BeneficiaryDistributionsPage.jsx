@@ -12,7 +12,7 @@ import { usePagination, DEFAULT_PAGE_SIZE } from '../../hooks/usePagination'
 import { useHashScroll, useQueryFocus } from '../../hooks/useDeepLinkFocus'
 import ModalHeader from '../../admin/components/shared/ModalHeader'
 import Pagination from '../../admin/components/shared/Pagination'
-import { notify } from '../../utils/toast'
+import { notify } from '../../utils/confirm'
 import { useLoading } from '../../context/LoadingContext'
 
 const ACTIVE_STATUSES = ['Planning', 'Preparing', 'In Transit', 'Delivered', 'Awaiting Proof']

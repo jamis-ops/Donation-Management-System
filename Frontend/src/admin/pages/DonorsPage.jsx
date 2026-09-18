@@ -19,8 +19,7 @@ import FilterBar from '../components/shared/FilterBar'
 import ModalHeader from '../components/shared/ModalHeader'
 import { useBulkSelection } from '../../hooks/useBulkSelection'
 import { emptyNameParts, formatFullName, parseFullName } from '../../utils/personName'
-import { notify } from '../../utils/toast'
-import { confirmAction, showSuccessModal } from '../../utils/confirm'
+import { notify, confirmAction, showSuccessModal } from '../../utils/confirm'
 import { emailError, phoneError } from '../../utils/validation'
 import PhoneInput from '../../components/shared/PhoneInput'
 import { useLoading } from '../../context/LoadingContext'
@@ -62,7 +61,7 @@ function accountResultMessage(res) {
   return bits.join('\n\n')
 }
 
-function toastAccountResult(res) {
+function showAccountResultModal(res) {
   if (!res?.accountCreated) return
   if (res.credentialsSent) {
     notify.success('Donor saved. Login credentials were emailed to the donor.')
@@ -159,7 +158,7 @@ export default function DonorsPage() {
       }
       const res = await donorsApi.create(payload)
       if (res?.accountCreated) {
-        toastAccountResult(res)
+        showAccountResultModal(res)
         showSuccessModal('Credentials successfully sent.')
       } else {
         notify.success('Donor saved.')
@@ -194,7 +193,7 @@ export default function DonorsPage() {
         email: active.email,
         acceptedPolicies: true,
       })
-      toastAccountResult(res)
+      showAccountResultModal(res)
       showSuccessModal('Credentials successfully sent.')
       setMode(null)
       reload()

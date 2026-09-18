@@ -6,8 +6,7 @@ import { getPortalData, tasksApi } from '../../api/resources'
 import { useApiObject } from '../../hooks/useApiList'
 import { usePagination, DEFAULT_PAGE_SIZE } from '../../hooks/usePagination'
 import Pagination from '../../admin/components/shared/Pagination'
-import { notify } from '../../utils/toast'
-import { confirmAction, showSuccessModal } from '../../utils/confirm'
+import { notify, confirmAction, showSuccessModal } from '../../utils/confirm'
 import { useLoading } from '../../context/LoadingContext'
 
 export default function StaffTasksPage() {
@@ -116,8 +115,7 @@ export default function StaffTasksPage() {
     try {
       const res = await tasksApi.update(task.dbId, { boardColumn: 'done' })
       const status = res?.data?.status || 'Done'
-      notify.success(`Status successfully updated to: ${status}.`)
-      showSuccessModal('Successfully updated.')
+      showSuccessModal(`Status successfully updated to: ${status}.`)
       setSelectedTask(null)
       reload()
     } catch (err) {

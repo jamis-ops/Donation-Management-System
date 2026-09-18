@@ -2,7 +2,6 @@ import { useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { Bell } from 'lucide-react'
 import { getNotifications, markNotificationRead, markAllNotificationsRead } from '../../../api/resources'
-import { notify, isNotificationToastSuppressed } from '../../../utils/toast'
 import { notifyBeneficiariesChanged } from '../../../utils/beneficiariesSync'
 import { useAuth } from '../../../context/AuthContext'
 
@@ -92,30 +91,7 @@ function saveSeenIds(role, ids) {
   }
 }
 
-function toastTypeForNotification(n) {
-  const type = String(n.type || '')
-  const title = String(n.title || '').toLowerCase()
-  if (type === 'beneficiary_credentials' || title.includes('credential')) return 'success'
-  if (type === 'beneficiary_registration' || title.includes('registration') || title.includes('awaiting')) return 'info'
-  if (title.includes('reject')) return 'warning'
-  return 'info'
-}
 
-function shouldToastNotification(n, role) {
-  // Barangay registration toasts are for Admin/Staff only — never other portals.
-  const r = String(role || '')
-  if (!['Admin', 'Staff', 'SuperAdmin'].includes(r)) return false
-  const type = String(n.type || '')
-  if (type.startsWith('beneficiary')) return true
-  const title = String(n.title || '').toLowerCase()
-  const message = String(n.message || '').toLowerCase()
-  return (
-    title.includes('barangay')
-    || message.includes('barangay')
-    || message.includes('invitation')
-    || message.includes('credentials')
-  )
-}
 
 export default function NotificationBell({ linkPrefix = '/admin' }) {
   const { user } = useAuth()
@@ -158,11 +134,11 @@ export default function NotificationBell({ linkPrefix = '/admin' }) {
         let refreshBarangays = false
         fresh.forEach((n) => {
           seen.add(Number(n.id))
-          if (!shouldToastNotification(n, role)) return
-          refreshBarangays = true
-          if (isNotificationToastSuppressed(String(n.type || ''))) return
-          const text = n.message || n.title
-          if (text) notify[toastTypeForNotification(n)](text, 7000)
+          const title = String(n.title || '').toLowerCase()
+          const message = String(n.message || '').toLowerCase()
+          if (title.includes('barangay') || message.includes('barangay')) {
+            refreshBarangays = true
+          }
         })
         saveSeenIds(role, seen)
         if (refreshBarangays) notifyBeneficiariesChanged()

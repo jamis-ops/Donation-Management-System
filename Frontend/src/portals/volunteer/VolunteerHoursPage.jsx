@@ -18,7 +18,7 @@ import { useApiObject } from '../../hooks/useApiList'
 import { usePagination, DEFAULT_PAGE_SIZE } from '../../hooks/usePagination'
 import Pagination from '../../admin/components/shared/Pagination'
 import ExportMenu from '../../admin/components/shared/ExportMenu'
-import { notify } from '../../utils/toast'
+import { notify } from '../../utils/confirm'
 
 const ACTIVITY_TYPE_COLORS = {
   Distribution: 'crimson',

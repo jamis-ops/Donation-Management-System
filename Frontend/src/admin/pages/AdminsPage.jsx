@@ -15,8 +15,7 @@ import ModalHeader from '../components/shared/ModalHeader'
 import Req from '../../components/shared/Req'
 import NameFields from '../../components/shared/NameFields'
 import { emptyNameParts, formatFullName } from '../../utils/personName'
-import { notify } from '../../utils/toast'
-import { confirmAction, showSuccessModal } from '../../utils/confirm'
+import { notify, confirmAction, showSuccessModal } from '../../utils/confirm'
 import PhoneInput from '../../components/shared/PhoneInput'
 import { phoneError, emailError } from '../../utils/validation'
 import { useLoading } from '../../context/LoadingContext'
@@ -232,7 +231,6 @@ export default function AdminsPage() {
     showLoading('Deleting admin…')
     try {
       await deleteStaff(row.dbId)
-      notify.success(`Admin account "${row.name}" deleted from database.`)
       showSuccessModal('Successfully deleted.')
       if (selected?.dbId === row.dbId) {
         setSelected(null)

@@ -20,8 +20,7 @@ import FilterBar from '../components/shared/FilterBar'
 import ModalHeader from '../components/shared/ModalHeader'
 import DonationUpdatesTimeline from '../../components/shared/DonationUpdatesTimeline'
 import { useBulkSelection } from '../../hooks/useBulkSelection'
-import { notify } from '../../utils/toast'
-import { confirmAction, showSuccessModal } from '../../utils/confirm'
+import { notify, confirmAction, showSuccessModal } from '../../utils/confirm'
 import { notifyBadgesChanged } from '../../utils/badgeSync'
 import { useLoading } from '../../context/LoadingContext'
 import { printDonationReceipt } from '../../components/shared/printDonationReceipt'
@@ -101,13 +100,13 @@ const monetaryFilterConfig = {
   dateKey: 'date',
 }
 
-function toastVerifyResult(res, status) {
+function showVerifyResultModal(res, status) {
   if (!res?.accountCreated) {
-    notify.success(`Status successfully updated to: ${status}. ${res?.message || ''}`)
+    showSuccessModal(`Status successfully updated to: ${status}. ${res?.message || ''}`.trim())
     return
   }
   if (res.credentialsSent) {
-    notify.success(`Status successfully updated to: ${status}. Donor portal account created and login credentials were emailed.`)
+    showSuccessModal(`Status successfully updated to: ${status}. Donor portal account created and login credentials were emailed.`)
     return
   }
   notify.warning(`Status successfully updated to: ${status}. Donor portal account was created, but the credential email was NOT delivered.`)
@@ -296,13 +295,12 @@ export default function DonationsPage() {
       const res = await donationsApi.update(row.dbId, { status: 'Verified' })
       const status = res?.data?.status || 'Verified'
       if (res?.accountCreated || res?.credentialsSent) {
-        toastVerifyResult(res, status)
+        showVerifyResultModal(res, status)
       } else if (res?.message) {
-        notify.success(`Status successfully updated to: ${status}. ${res.message}`)
+        showSuccessModal(`Status successfully updated to: ${status}. ${res.message}`)
       } else {
-        notify.success(`Status successfully updated to: ${status}.`)
+        showSuccessModal(`Status successfully updated to: ${status}.`)
       }
-      showSuccessModal('Successfully approved.')
       reload()
       notifyBadgesChanged()
       setSelected(null)
@@ -320,11 +318,10 @@ export default function DonationsPage() {
       const res = await donationsApi.classifyInKind(intakeModalDonation.dbId, payload)
       const status = res?.data?.status || 'Verified'
       if (res?.accountCreated || res?.credentialsSent) {
-        toastVerifyResult(res, status)
+        showVerifyResultModal(res, status)
       } else {
-        notify.success(`Donation verified and ${res?.totalQuantityAdded || 'items'} added to warehouse inventory.`)
+        showSuccessModal(`Donation verified and ${res?.totalQuantityAdded || 'items'} added to warehouse inventory.`)
       }
-      showSuccessModal('Successfully verified and intaked into inventory.')
       setIntakeModalDonation(null)
       reload()
       notifyBadgesChanged()

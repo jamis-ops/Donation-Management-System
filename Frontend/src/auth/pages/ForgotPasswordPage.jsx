@@ -17,7 +17,7 @@ import PasswordRequirements from '../../components/shared/PasswordRequirements'
 import { checkPasswordRequirements } from '../../utils/validation'
 import { heroBg } from '../../assets'
 import { useLoading } from '../../context/LoadingContext'
-import { notify } from '../../utils/toast'
+import { notify } from '../../utils/confirm'
 import { forgotPasswordApi } from '../../api/resources'
 
 /**
