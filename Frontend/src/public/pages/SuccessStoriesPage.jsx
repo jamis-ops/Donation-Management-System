@@ -52,6 +52,21 @@ export default function SuccessStoriesPage() {
     return () => { cancelled = true }
   }, [])
 
+  useEffect(() => {
+    const hash = window.location.hash
+    if (hash) {
+      const timer = setTimeout(() => {
+        const target = document.querySelector(hash)
+        if (target) {
+          target.scrollIntoView({ behavior: 'smooth', block: 'start' })
+          target.classList.add('story-card--highlight')
+          setTimeout(() => target.classList.remove('story-card--highlight'), 3000)
+        }
+      }, 150)
+      return () => clearTimeout(timer)
+    }
+  }, [stories])
+
   return (
     <div className="page">
       <section className="page-hero">
@@ -70,7 +85,7 @@ export default function SuccessStoriesPage() {
           />
           <div className="stories-list">
             {stories.map((story) => (
-              <article key={story.id} className="story-card">
+              <article key={story.id} id={`story-${story.id}`} className="story-card">
                 {story.image && (
                   <div className="story-card__media">
                     <img src={story.image} alt="" loading="lazy" />

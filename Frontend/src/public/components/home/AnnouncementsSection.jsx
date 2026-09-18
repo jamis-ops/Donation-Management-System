@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { Calendar, Tag, ArrowRight, X } from 'lucide-react'
+import { Calendar, Tag, ArrowRight } from 'lucide-react'
 import { announcements as mockAnnouncements } from '../../../data/mockData'
 import { fetchPublishedContent } from '../../../api/resources'
 import { findMockMatch, resolveCmsImage } from '../../../utils/cmsMedia'
@@ -19,6 +19,15 @@ function formatDate(dateStr) {
   })
 }
 
+function getStoryTarget(item) {
+  if (item.storyId) return `/stories#story-${item.storyId}`
+  const title = String(item.title || '').toLowerCase()
+  if (item.id === 1 || title.includes('kindness')) return '/stories#story-3'
+  if (item.id === 2 || title.includes('resilience') || title.includes('dreamer')) return '/stories#story-1'
+  if (item.id === 3 || title.includes('dental') || title.includes('smiles')) return '/stories#story-2'
+  return `/stories#story-${item.id}`
+}
+
 function mapCmsAnnouncement(item, index) {
   const meta = item.meta || {}
   const mock = findMockMatch(item, mockAnnouncements, { slugKey: 'id', nameKey: 'title' }) || mockAnnouncements[index] || null
@@ -28,33 +37,28 @@ function mapCmsAnnouncement(item, index) {
     date: meta.date || (item.publishedAt ? String(item.publishedAt).slice(0, 10) : '') || mock?.date || '',
     category: meta.category || mock?.category || 'News',
     excerpt: item.summary || mock?.excerpt || '',
-    content: item.body || meta.content || mock?.content || item.summary || mock?.excerpt || '',
     image: resolveCmsImage(item, mock, ['image', 'logo']),
   }
 }
 
-function AnnouncementCard({ item, index, isVisible, onSelect }) {
+function AnnouncementCard({ item, index, isVisible }) {
   const [isHovered, setIsHovered] = useState(false)
+  const targetUrl = getStoryTarget(item)
 
   return (
     <Reveal 
-      as="article" 
+      as={Link}
+      to={targetUrl}
       className={`announcement-card announcement-card--media announcement-card--clickable ${isVisible ? 'announcement-card--slide-in' : ''}`}
       delay={index * 60}
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
-      onClick={() => onSelect(item)}
-      onKeyDown={(e) => {
-        if (e.key === 'Enter' || e.key === ' ') {
-          e.preventDefault()
-          onSelect(item)
-        }
-      }}
-      tabIndex={0}
-      role="button"
       aria-label={`Read story: ${item.title}`}
       style={{
         animationDelay: `${index * 0.1}s`,
+        textDecoration: 'none',
+        color: 'inherit',
+        display: 'flex',
       }}
     >
       {item.image && (
@@ -98,24 +102,9 @@ function AnnouncementCard({ item, index, isVisible, onSelect }) {
 
 export default function AnnouncementsSection() {
   const [list, setList] = useState(mockAnnouncements)
-  const [selectedAnnouncement, setSelectedAnnouncement] = useState(null)
   const [ref, isIntersecting, hasIntersected] = useIntersectionObserver({
     threshold: 0.1,
   })
-
-  useEffect(() => {
-    const handleKeyDown = (e) => {
-      if (e.key === 'Escape') setSelectedAnnouncement(null)
-    }
-    if (selectedAnnouncement) {
-      window.addEventListener('keydown', handleKeyDown)
-      document.body.style.overflow = 'hidden'
-    }
-    return () => {
-      window.removeEventListener('keydown', handleKeyDown)
-      document.body.style.overflow = ''
-    }
-  }, [selectedAnnouncement])
 
   useEffect(() => {
     let cancelled = false
@@ -153,7 +142,6 @@ export default function AnnouncementsSection() {
               item={item} 
               index={i}
               isVisible={hasIntersected}
-              onSelect={setSelectedAnnouncement}
             />
           ))}
         </div>
@@ -168,84 +156,6 @@ export default function AnnouncementsSection() {
           </Link>
         </Reveal>
       </div>
-
-      {/* Announcement Detail Modal */}
-      {selectedAnnouncement && (
-        <div 
-          className="announcement-modal-overlay" 
-          onClick={() => setSelectedAnnouncement(null)}
-          role="presentation"
-        >
-          <div 
-            className="announcement-modal" 
-            onClick={(e) => e.stopPropagation()}
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="announcement-modal-title"
-          >
-            <button 
-              type="button"
-              className="announcement-modal__close" 
-              onClick={() => setSelectedAnnouncement(null)}
-              aria-label="Close modal"
-            >
-              <X size={20} />
-            </button>
-
-            {selectedAnnouncement.image && (
-              <div className="announcement-modal__media">
-                <img src={selectedAnnouncement.image} alt={selectedAnnouncement.title} />
-              </div>
-            )}
-
-            <div className="announcement-modal__body">
-              <div className="announcement-card__meta" style={{ marginBottom: '0.85rem' }}>
-                <span className="announcement-card__category">
-                  <Tag size={14} />
-                  {selectedAnnouncement.category}
-                </span>
-                {selectedAnnouncement.date && (
-                  <time className="announcement-card__date">
-                    <Calendar size={14} />
-                    {formatDate(selectedAnnouncement.date)}
-                  </time>
-                )}
-              </div>
-
-              <h2 id="announcement-modal-title" className="announcement-modal__title">
-                {selectedAnnouncement.title}
-              </h2>
-
-              <p className="announcement-modal__excerpt">
-                {selectedAnnouncement.excerpt}
-              </p>
-
-              {selectedAnnouncement.content && selectedAnnouncement.content !== selectedAnnouncement.excerpt && (
-                <div className="announcement-modal__content">
-                  <p>{selectedAnnouncement.content}</p>
-                </div>
-              )}
-
-              <div className="announcement-modal__footer">
-                <Link 
-                  to="/stories" 
-                  className="btn btn--primary"
-                  onClick={() => setSelectedAnnouncement(null)}
-                >
-                  View All Success Stories <ArrowRight size={16} />
-                </Link>
-                <button 
-                  type="button"
-                  className="btn btn--outline"
-                  onClick={() => setSelectedAnnouncement(null)}
-                >
-                  Close
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
     </section>
   )
 }
