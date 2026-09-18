@@ -104,11 +104,6 @@ function seed_cms_if_empty(PDO $pdo): void
     ['A Testament to Resilience, Family & Purpose', 'A story of perseverance and the life-changing impact of educational assistance.', 'Purpose', '2026-06-15'],
     ['Serving Smiles: Free Dental Clinic at Barangay Tejero', 'Free Dental Clinic at Barangay Tejero Sports Complex, serving 494 patients.', 'Education', '2026-02-10'],
   ];
-  $stories = [
-    ['From Dreamer to Cum Laude: A Journey of Perseverance', 'A Rise Above scholar’s story of resilience and educational assistance.', 'Educational Sponsorship', '2026-06-15', '"Education gave me a chance my family alone could not provide."'],
-    ['Serving Smiles at Barangay Tejero', 'A free dental clinic served 494 patients with restorations, extractions teeth, and prophylaxis.', 'Dental Mission', '2026-02-10', '"I never thought I could afford dental care. The mission changed that for my whole family."'],
-    ['Where Kindness Meets Purpose', 'Accounts All Sorted visited RAFC for outreach and a donation drive.', 'Volunteer Program', '2026-07-01', '"Giving our time in Cebu reminded us why kindness and purpose belong together."'],
-  ];
   $faqs = [
     ['Donations', 'How can I donate?', 'You can donate online through our Donate page, via bank transfer, or in person at our Guadalupe office (Mon–Fri, 9am–5pm).'],
     ['Donations', 'Will I receive a receipt for my donation?', 'Registered donors can download a Certificate of Donation once your contribution is verified.'],
@@ -156,9 +151,9 @@ function seed_cms_if_empty(PDO $pdo): void
     ]);
   }
   $order = 0;
-  foreach ($stories as [$title, $summary, $category, $date, $testimonial]) {
+  foreach (cms_stories_catalog() as [$title, $summary, $category, $date, $testimonial, $body]) {
     $ins->execute([
-      'stories', $title, $summary, $summary, '', '',
+      'stories', $title, $summary, $body, '', '',
       json_encode(['category' => $category, 'date' => $date, 'testimonial' => $testimonial], JSON_UNESCAPED_UNICODE),
       'published', $order++, date('Y-m-d H:i:s'),
     ]);

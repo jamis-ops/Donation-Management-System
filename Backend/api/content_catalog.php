@@ -36,8 +36,38 @@ function cms_partners_catalog(): array
   ];
 }
 
+function cms_stories_catalog(): array
+{
+  return [
+    [
+      'From Dreamer to Cum Laude: A Journey of Perseverance',
+      'A Rise Above scholar’s inspiring journey of resilience, family sacrifice, and academic excellence through our Educational Sponsorship Program.',
+      'Educational Sponsorship',
+      '2026-06-15',
+      '"Education gave me a chance my family alone could not provide. I am forever grateful to Rise Above and my sponsors who believed in me."',
+      'Through the Rise Above Educational Sponsorship Program, Jane received full tuition assistance, school supplies, uniforms, daily nutritious meals, and continuous personal mentorship throughout her schooling. Despite profound financial hardships and personal adversity, her perseverance culminated in graduating with Cum Laude honors in Bachelor of Hospitality Management. Her triumph demonstrates how sustained community support and educational opportunity can break cycles of poverty and empower youth to achieve their highest potential.'
+    ],
+    [
+      'Serving Smiles at Barangay Tejero',
+      'Our volunteer dental mission provided 494 underserved patients in Barangay Tejero with free dental care, oral surgery, and preventative treatment.',
+      'Dental Mission',
+      '2026-02-10',
+      '"I never thought I could afford dental care. The mission changed that for my whole family."',
+      'In close partnership with international volunteer dentists and hygienists from the Philippines, Denmark, and Germany, Rise Above Foundation conducted an intensive multi-day Free Dental Clinic at the Barangay Tejero Sports Complex. The medical team successfully performed 238 tooth restorations, 518 safe extractions, and 191 preventive cleanings (prophylaxis). In addition to direct clinical care, every patient and family member received oral hygiene coaching and complimentary toothbrush and toothpaste care kits to ensure long-term oral health.'
+    ],
+    [
+      'Where Kindness Meets Purpose',
+      'Australian company Accounts All Sorted joined Rise Above Foundation Cebu for a transformative team-building outreach and community donation drive.',
+      'Volunteer Program',
+      '2026-07-01',
+      '"Giving our time in Cebu reminded us why kindness and purpose belong together."',
+      'During their mission to Cebu, the Accounts All Sorted team visited the Rise Above Community Center and Family Care Center in Guadalupe. The team actively prepared and distributed hundreds of nutritious food packs, donated vital classroom learning materials, and facilitated fun educational workshops for local children. Their hands-on volunteer engagement exemplified corporate social responsibility in action, bringing lasting joy, encouragement, and tangible relief to vulnerable families across the neighborhood.'
+    ],
+  ];
+}
+
 /**
- * Insert missing programs/partners and backfill empty image_url / body on existing rows.
+ * Insert missing programs/partners/stories and backfill empty image_url / body on existing rows.
  * Safe to call repeatedly (idempotent). Does not overwrite non-empty image_url set by Admin.
  */
 function sync_cms_catalog(PDO $pdo): void
@@ -61,7 +91,7 @@ function sync_cms_catalog(PDO $pdo): void
   $upd = $pdo->prepare('
     UPDATE cms_items
     SET image_url = COALESCE(NULLIF(TRIM(image_url), \'\'), ?),
-        body = CASE WHEN body IS NULL OR TRIM(body) = \'\' THEN ? ELSE body END,
+        body = CASE WHEN body IS NULL OR TRIM(body) = \'\' OR body = summary THEN ? ELSE body END,
         summary = CASE WHEN summary IS NULL OR TRIM(summary) = \'\' THEN ? ELSE summary END,
         meta_json = CASE WHEN meta_json IS NULL OR meta_json = \'\' OR meta_json = \'{}\' THEN ? ELSE meta_json END,
         sort_order = ?
@@ -94,6 +124,24 @@ function sync_cms_catalog(PDO $pdo): void
     } else {
       $ins->execute([
         'partners', $title, $summary, $body, $image, '',
+        $meta, 'published', $order, date('Y-m-d H:i:s'),
+      ]);
+    }
+    $order++;
+  }
+
+  $order = 0;
+  foreach (cms_stories_catalog() as [$title, $summary, $category, $date, $testimonial, $body]) {
+    $meta = json_encode(['category' => $category, 'date' => $date, 'testimonial' => $testimonial], JSON_UNESCAPED_UNICODE);
+    $find->execute(['stories', $title]);
+    $row = $find->fetch();
+    if ($row) {
+      // If body is empty or identical to summary, update it with rich body
+      $pdo->prepare('UPDATE cms_items SET summary = ?, body = ?, meta_json = ? WHERE id = ?')
+          ->execute([$summary, $body, $meta, (int) $row['id']]);
+    } else {
+      $ins->execute([
+        'stories', $title, $summary, $body, '', '',
         $meta, 'published', $order, date('Y-m-d H:i:s'),
       ]);
     }

@@ -18,13 +18,19 @@ function formatDate(dateStr) {
 function mapCmsStory(item, index) {
   const meta = item.meta || {}
   const mock = findMockMatch(item, mockStories, { slugKey: 'id', nameKey: 'title' }) || mockStories[index] || null
+  const rawBody = (item.body || '').trim()
+  const rawSummary = (item.summary || '').trim()
+  // If CMS body is empty or identical to summary, prioritize the rich mock.content
+  const content = (rawBody && rawBody !== rawSummary) ? rawBody : (mock?.content || rawBody || rawSummary || '')
+  const excerpt = (rawSummary && rawSummary !== content) ? rawSummary : (mock?.excerpt || rawSummary || '')
+
   return {
     id: item.id,
     title: item.title || mock?.title || 'Story',
     date: meta.date || (item.publishedAt ? String(item.publishedAt).slice(0, 10) : '') || mock?.date || '',
     category: meta.category || mock?.category || 'Story',
-    excerpt: item.summary || mock?.excerpt || '',
-    content: item.body || item.summary || mock?.content || '',
+    excerpt,
+    content,
     testimonial: meta.testimonial || mock?.testimonial || '',
     image: resolveCmsImage(item, mock, ['image', 'logo']),
   }
@@ -96,7 +102,9 @@ export default function SuccessStoriesPage() {
                   {story.date && <time dateTime={story.date}>{formatDate(story.date)}</time>}
                 </div>
                 <h2>{story.title}</h2>
-                <p className="story-card__excerpt">{story.excerpt}</p>
+                {story.excerpt && story.excerpt !== story.content && (
+                  <p className="story-card__excerpt">{story.excerpt}</p>
+                )}
                 <div className="story-card__content">
                   <p>{story.content}</p>
                   {story.testimonial && <blockquote>{story.testimonial}</blockquote>}

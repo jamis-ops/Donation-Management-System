@@ -758,11 +758,11 @@ export const successStories = [
     date: '2026-06-15',
     category: 'Educational Sponsorship',
     excerpt:
-      'A Rise Above scholar’s story of resilience, family sacrifice, and the life-changing impact of educational assistance.',
+      'A Rise Above scholar’s inspiring journey of resilience, family sacrifice, and academic excellence through our Educational Sponsorship Program.',
     content:
-      'Through the Educational Sponsorship Program, sponsored children receive educational materials, uniforms, school bags, and daily lunch and snacks. Some generous sponsors continue support so students can proceed to vocational schools and colleges after high school.',
+      'Through the Rise Above Educational Sponsorship Program, Jane received full tuition assistance, school supplies, uniforms, daily nutritious meals, and continuous personal mentorship throughout her schooling. Despite profound financial hardships and personal adversity, her perseverance culminated in graduating with Cum Laude honors in Bachelor of Hospitality Management. Her triumph demonstrates how sustained community support and educational opportunity can break cycles of poverty and empower youth to achieve their highest potential.',
     testimonial:
-      '"Education gave me a chance my family alone could not provide. I am forever grateful to Rise Above and my sponsors."',
+      '"Education gave me a chance my family alone could not provide. I am forever grateful to Rise Above and my sponsors who believed in me."',
     image: storyEducation,
   },
   {
@@ -771,9 +771,9 @@ export const successStories = [
     date: '2026-02-10',
     category: 'Dental Mission',
     excerpt:
-      'A free dental clinic served 494 patients — 238 teeth restored, 518 extracted, and 191 received prophylaxis.',
+      'Our volunteer dental mission provided 494 underserved patients in Barangay Tejero with free dental care, oral surgery, and preventative treatment.',
     content:
-      'Rise Above Foundation Cebu Inc. conducted a Free Dental Clinic at Barangay Tejero Sports Complex, made possible through volunteer dental teams from the Philippines, Denmark, and Germany. To date, we have given free dental treatment to over 45,000 patients.',
+      'In close partnership with international volunteer dentists and hygienists from the Philippines, Denmark, and Germany, Rise Above Foundation conducted an intensive multi-day Free Dental Clinic at the Barangay Tejero Sports Complex. The medical team successfully performed 238 tooth restorations, 518 safe extractions, and 191 preventive cleanings (prophylaxis). In addition to direct clinical care, every patient and family member received oral hygiene coaching and complimentary toothbrush and toothpaste care kits to ensure long-term oral health.',
     testimonial:
       '"I never thought I could afford dental care. The mission changed that for my whole family."',
     image: storyDental,
@@ -784,9 +784,9 @@ export const successStories = [
     date: '2026-07-01',
     category: 'Volunteer Program',
     excerpt:
-      'Accounts All Sorted visited RAFC for a team-building activity that included outreach and a donation drive.',
+      'Australian company Accounts All Sorted joined Rise Above Foundation Cebu for a transformative team-building outreach and community donation drive.',
     content:
-      'Volunteers from all over the world work with us at the Rise Above Community Center, the Family Care Center, and the Rise Above Office — teaching, supporting, cooking, building, and inspiring children and families.',
+      'During their mission to Cebu, the Accounts All Sorted team visited the Rise Above Community Center and Family Care Center in Guadalupe. The team actively prepared and distributed hundreds of nutritious food packs, donated vital classroom learning materials, and facilitated fun educational workshops for local children. Their hands-on volunteer engagement exemplified corporate social responsibility in action, bringing lasting joy, encouragement, and tangible relief to vulnerable families across the neighborhood.',
     testimonial:
       '"Giving our time in Cebu reminded us why kindness and purpose belong together."',
     image: storyWhereKindness,
