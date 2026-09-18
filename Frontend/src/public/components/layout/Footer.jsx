@@ -9,7 +9,7 @@ const footerLinks = [
     title: 'Get Involved',
     links: [
       { to: '/donate', label: 'Donate' },
-      { to: '/volunteer', label: 'Volunteer' },
+      { to: '/volunteer', label: 'Be a Volunteer' },
       { to: '/assistance', label: 'Request Assistance' },
     ],
   },

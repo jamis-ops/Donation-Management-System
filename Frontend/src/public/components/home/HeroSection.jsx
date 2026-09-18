@@ -66,7 +66,7 @@ export default function HeroSection() {
               </span>
             </Link>
             <Link to="/volunteer" className="btn btn--outline-light btn--lg btn--animated">
-              <span className="btn__text">Volunteer</span>
+              <span className="btn__text">Be a Volunteer</span>
               <span className="btn__icon">
                 <Users size={18} />
               </span>

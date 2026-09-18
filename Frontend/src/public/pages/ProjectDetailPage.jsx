@@ -210,7 +210,7 @@ function ProjectDetailView({ project, list }) {
                   Donate to this Project
                 </Link>
                 <Link to={`/volunteer?program=${encodeURIComponent(project.name)}`} className="btn btn--outline btn--lg">
-                  Volunteer with Us
+                  Be a Volunteer
                 </Link>
               </div>
             </div>
@@ -235,7 +235,7 @@ function ProjectDetailView({ project, list }) {
                     to={`/volunteer?program=${encodeURIComponent(project.name)}`}
                     className="btn btn--outline btn--block"
                   >
-                    Volunteer with Us
+                    Be a Volunteer
                   </Link>
                 </div>
               </div>

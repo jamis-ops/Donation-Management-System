@@ -116,7 +116,7 @@ export default function AboutPage() {
 
           <Reveal className="about-page__footer-cta">
             <Link to="/volunteer" className="btn btn--primary">
-              Join as a Volunteer <ArrowRight size={16} />
+              Be a Volunteer <ArrowRight size={16} />
             </Link>
             <Link to="/donate" className="btn btn--outline">
               Support Our Work

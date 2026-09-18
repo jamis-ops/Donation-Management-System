@@ -205,7 +205,7 @@ export default function VolunteerPage() {
     <div className="page">
       <section className="page-hero">
         <div className="container">
-          <h1>Volunteer & Internship Application</h1>
+          <h1>Be a Volunteer & Internship Application</h1>
           <p>Join Rise Above Foundation Cebu and make a meaningful impact in the community.</p>
         </div>
       </section>
@@ -232,7 +232,7 @@ export default function VolunteerPage() {
 
           {submitted ? (
             <div className="form-success">
-              <h2>{applicantType === 'Intern' ? 'Internship Application Submitted' : 'Volunteer Application Submitted'}</h2>
+              <h2>{applicantType === 'Intern' ? 'Internship Application Submitted' : 'Be a Volunteer — Application Submitted'}</h2>
               <p>
                 Thank you for applying with Rise Above Foundation Cebu. Your application is now{' '}
                 <strong>Pending Review</strong>. You will receive an email confirmation once it has been processed by our team.
@@ -254,7 +254,7 @@ export default function VolunteerPage() {
                 >
                   <Users size={18} aria-hidden />
                   <div>
-                    <strong>Volunteer Application</strong>
+                    <strong>Be a Volunteer</strong>
                     <span>Community volunteers · Free program choice · No CV needed</span>
                   </div>
                 </button>
@@ -274,11 +274,11 @@ export default function VolunteerPage() {
                 </button>
               </div>
 
-              <h2>{applicantType === 'Intern' ? 'University / College Student Internship Application' : 'Community Volunteer Registration'}</h2>
+              <h2>{applicantType === 'Intern' ? 'University / College Student Internship Application' : 'Be a Volunteer — Community Registration'}</h2>
               <p style={{ fontSize: '0.86rem', color: '#64748b', marginTop: '-0.35rem', marginBottom: '1.25rem' }}>
                 {applicantType === 'Intern'
                   ? 'Apply for student internship placement with Rise Above Foundation Cebu. Upload your CV/Resume and provide your school details — our AI CV Matching will evaluate your background to recommend the best foundation program placement.'
-                  : 'Register as a community volunteer. Choose your preferred program and share your skills to support our community outreach initiatives.'}
+                  : 'Register to be a community volunteer. Choose your preferred program and share your skills to support our community outreach initiatives.'}
               </p>
 
               {submitError ? (

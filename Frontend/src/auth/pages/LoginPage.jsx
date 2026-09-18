@@ -146,7 +146,7 @@ export default function LoginPage() {
             <Link to="/contact">Contact us</Link> to partner with Rise Above.
             <br />
             <span style={{ fontSize: '0.85rem', color: '#64748b' }}>
-              Donors: <Link to="/donate">Donate</Link> · Volunteers: <Link to="/volunteer">Apply</Link>
+              Donors: <Link to="/donate">Donate</Link> · Volunteers: <Link to="/volunteer">Be a Volunteer</Link>
             </span>
           </p>
 
