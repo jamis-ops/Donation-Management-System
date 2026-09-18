@@ -132,32 +132,7 @@ export default function MultiSelectBox({
         </div>
       ) : (
         <div className="multi-select-card__empty">
-          <span>No items selected yet. Choose from the dropdown or click the suggestions below.</span>
-        </div>
-      )}
-
-      {/* Quick Suggestion Chips */}
-      {availableOptions.length > 0 && (
-        <div className="multi-select-card__suggestions">
-          <span className="multi-select-card__suggestions-label">Available options:</span>
-          <div className="multi-select-card__chip-grid">
-            {availableOptions.map((opt) => {
-              const isSelected = selected.includes(opt)
-              return (
-                <button
-                  key={opt}
-                  type="button"
-                  className={`multi-select-chip ${isSelected ? 'multi-select-chip--active' : ''}`}
-                  onClick={() => toggleOption(opt)}
-                >
-                  <span className="multi-select-chip__icon" aria-hidden="true">
-                    {isSelected ? <Check size={12} /> : <Plus size={12} />}
-                  </span>
-                  <span>{opt}</span>
-                </button>
-              )
-            })}
-          </div>
+          <span>No items selected yet. Choose from the dropdown to add.</span>
         </div>
       )}
 

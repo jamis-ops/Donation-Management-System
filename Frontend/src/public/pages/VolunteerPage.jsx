@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { HeartHandshake, UploadCloud, FileText, X, CheckCircle2, AlertCircle, GraduationCap, Users, Sparkles } from 'lucide-react'
 import { VOLUNTEER_PROGRAMS } from '../../constants/options'
+import { useCatalogOptions } from '../../hooks/useCatalogOptions'
 import { submitPublicVolunteer } from '../../api/resources'
 import Req from '../../components/shared/Req'
 import NameFields from '../../components/shared/NameFields'
@@ -55,6 +56,7 @@ function getFileTypeLabel(filename) {
 
 export default function VolunteerPage() {
   const [applicantType, setApplicantType] = useState('Volunteer')
+  const { options: availablePrograms } = useCatalogOptions('volunteer_programs', VOLUNTEER_PROGRAMS)
   const { showLoading, hideLoading } = useLoading()
   const [submitted, setSubmitted] = useState(false)
   const [trackingRef, setTrackingRef] = useState('')
@@ -137,8 +139,9 @@ export default function VolunteerPage() {
       }
     } else {
       // Volunteer validations
-      if (!form.program) {
-        setSubmitError('Please select your preferred volunteer program.')
+      const hasSelectedProgram = (form.programs && form.programs.length > 0) || !!form.program
+      if (!hasSelectedProgram) {
+        setSubmitError('Please select at least one preferred volunteer program.')
         return
       }
       if (!form.skills.length && !form.skillsOther.trim()) {
@@ -150,7 +153,9 @@ export default function VolunteerPage() {
     setSubmitting(true)
     showLoading('Submitting…')
     try {
-      const programNames = applicantType === 'Volunteer' && form.program ? [form.program] : []
+      const programNames = applicantType === 'Volunteer'
+        ? (form.programs?.length ? form.programs : (form.program ? [form.program] : []))
+        : []
 
       const fd = new FormData()
       fd.append('public', '1')
@@ -408,23 +413,46 @@ export default function VolunteerPage() {
               {/* VOLUNTEER ONLY FIELDS: Preferred Program, Skills & Expertise, Experience */}
               {applicantType === 'Volunteer' && (
                 <>
-                  {/* Preferred Program (1 Program only) */}
-                  <label>
-                    <Req required>Preferred Volunteer Program</Req>
-                    <select
-                      required
-                      value={form.program || ''}
-                      onChange={(e) => setForm({ ...form, program: e.target.value, programs: e.target.value ? [e.target.value] : [] })}
-                    >
-                      <option value="">Select a program to join…</option>
-                      {VOLUNTEER_PROGRAMS.map((prog) => (
-                        <option key={prog} value={prog}>{prog}</option>
-                      ))}
-                    </select>
-                    <span style={{ fontSize: '0.78rem', color: '#64748b', marginTop: '0.25rem', display: 'block' }}>
-                      Choose the foundation program you wish to join (1 program per volunteer).
+                  {/* Preferred Programs (Multi-Select Checkboxes) */}
+                  <div className="volunteer-programs-field">
+                    <label className="volunteer-programs-field__label">
+                      <Req required>Preferred Volunteer Programs</Req>
+                    </label>
+                    <span className="volunteer-programs-field__hint">
+                      Select the foundation outreach programs you wish to join (choose one or more):
                     </span>
-                  </label>
+                    <div className="volunteer-programs-grid">
+                      {availablePrograms.map((prog) => {
+                        const isChecked = (form.programs || []).includes(prog)
+                        return (
+                          <label
+                            key={prog}
+                            className={`volunteer-program-card ${isChecked ? 'volunteer-program-card--checked' : ''}`}
+                          >
+                            <input
+                              type="checkbox"
+                              name="volunteer_programs"
+                              value={prog}
+                              checked={isChecked}
+                              onChange={(e) => {
+                                const current = form.programs || []
+                                const next = e.target.checked
+                                  ? [...current, prog]
+                                  : current.filter((p) => p !== prog)
+                                setForm((prev) => ({
+                                  ...prev,
+                                  programs: next,
+                                  program: next[0] || '',
+                                }))
+                              }}
+                              className="volunteer-program-card__checkbox"
+                            />
+                            <span className="volunteer-program-card__text">{prog}</span>
+                          </label>
+                        )
+                      })}
+                    </div>
+                  </div>
 
                   <SkillTagPicker
                     required
