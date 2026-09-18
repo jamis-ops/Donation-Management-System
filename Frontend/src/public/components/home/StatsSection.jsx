@@ -103,6 +103,12 @@ export default function StatsSection() {
     return () => { cancelled = true }
   }, [])
 
+  // Calculate balanced columns so that multiple rows distribute evenly (e.g. 6 cards -> 3 on top, 3 on bottom)
+  const totalStats = stats.length
+  const maxPerRow = 5
+  const rowCount = totalStats > 0 ? Math.ceil(totalStats / maxPerRow) : 1
+  const balancedCols = rowCount > 1 ? Math.ceil(totalStats / rowCount) : Math.min(totalStats, maxPerRow)
+
   return (
     <section id="impact" className="section stats-section" ref={ref}>
       <div className="container">
@@ -113,7 +119,10 @@ export default function StatsSection() {
             description="Transparent metrics reflecting the collective impact of donors, volunteers, and partners."
           />
         </Reveal>
-        <div className="stats-grid">
+        <div 
+          className="stats-grid"
+          style={{ '--balanced-cols': balancedCols }}
+        >
           {stats.map((stat, index) => {
             const Icon = statIcons[index % statIcons.length]
             return (
