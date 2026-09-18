@@ -824,6 +824,7 @@ export default function AllocationPage() {
     {
       key: 'request',
       label: 'Request ID',
+      exportValue: (row) => row.assistanceRequestCode || row.request?.id || (row.assistanceRequestId ? `#${row.assistanceRequestId}` : '—'),
       render: (row) => (
         <span className="alloc-request-id" title={row.assistanceRequestType || ''}>
           {row.assistanceRequestCode || (row.assistanceRequestId ? `#${row.assistanceRequestId}` : '—')}
@@ -836,6 +837,7 @@ export default function AllocationPage() {
     {
       key: 'needs',
       label: 'Needs',
+      exportValue: (row) => (row.beneficiaryNeeds || []).join(', ') || '—',
       render: (row) => (
         <span className="alloc-needs-cell" title={(row.beneficiaryNeeds || []).join(', ')}>
           {(row.beneficiaryNeeds || []).slice(0, 2).join(', ') || '—'}

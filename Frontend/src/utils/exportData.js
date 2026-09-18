@@ -7,7 +7,11 @@ import { logo } from '../assets'
 function cellValue(value) {
   if (value === null || value === undefined) return ''
   if (Array.isArray(value)) return value.join('; ')
-  if (typeof value === 'object') return JSON.stringify(value)
+  if (typeof value === 'object') {
+    if (value.id || value.code) return String(value.id || value.code)
+    if (value.name || value.title) return String(value.name || value.title)
+    return JSON.stringify(value)
+  }
   return String(value)
 }
 

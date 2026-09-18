@@ -861,6 +861,7 @@ export default function DistributionsPage() {
     {
       key: 'request',
       label: 'Request ID',
+      exportValue: (row) => row.request?.id || (row.requestId ? (typeof row.requestId === 'object' ? (row.requestId.id || `#${row.requestId.dbId}`) : `#${row.requestId}`) : '—'),
       render: (row) => (
         <span className="alloc-request-id" title={row.request?.type || ''}>
           {row.request?.id || (row.requestId ? `#${row.requestId}` : '—')}
@@ -870,6 +871,7 @@ export default function DistributionsPage() {
     {
       key: 'eventName',
       label: 'Delivery',
+      exportValue: (row) => row.eventName || row.location || '—',
       render: (row) => (
         <div className="dist-cell-primary">
           <strong>{row.eventName || row.location || '—'}</strong>
