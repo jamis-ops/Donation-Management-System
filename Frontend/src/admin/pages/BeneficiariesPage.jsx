@@ -777,6 +777,12 @@ export default function BeneficiariesPage() {
           <FilterBar
             controller={filters}
             searchPlaceholder="Search by barangay, municipality, or representative…"
+            exportConfig={{
+              filename: 'beneficiaries-report',
+              title: 'Beneficiary Barangays Report',
+              columns,
+              rows: filters.filtered,
+            }}
           />
 
           <div id="barangays-table">

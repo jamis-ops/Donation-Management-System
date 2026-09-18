@@ -297,7 +297,16 @@ export default function CertificatesPage() {
         </div>
       </div>
 
-      <FilterBar controller={filters} searchPlaceholder="Search by ID, recipient, or reference..." />
+      <FilterBar
+        controller={filters}
+        searchPlaceholder="Search by ID, recipient, or reference..."
+        exportConfig={{
+          filename: 'certificates-report',
+          title: 'Certificates Report',
+          columns,
+          rows: filters.filtered,
+        }}
+      />
 
       <ApiState loading={loading} error={error} onRetry={reload}>
         <DataTable

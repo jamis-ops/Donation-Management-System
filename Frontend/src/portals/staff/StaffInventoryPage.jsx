@@ -5,6 +5,7 @@ import { getPortalData, inventoryApi } from '../../api/resources'
 import { useApiObject } from '../../hooks/useApiList'
 import { usePagination, DEFAULT_PAGE_SIZE } from '../../hooks/usePagination'
 import Pagination from '../../admin/components/shared/Pagination'
+import ExportMenu from '../../admin/components/shared/ExportMenu'
 import { notify } from '../../utils/toast'
 import { confirmAction, showSuccessModal } from '../../utils/confirm'
 import { useLoading } from '../../context/LoadingContext'
@@ -74,6 +75,17 @@ export default function StaffInventoryPage() {
   }, [inventory, filterCategory, filterStatus, searchQuery])
 
   const paging = usePagination(filteredInventory, DEFAULT_PAGE_SIZE, `${filterCategory}|${filterStatus}|${searchQuery}`)
+
+  const exportColumns = useMemo(() => [
+    { key: 'item', label: 'Item Name', exportValue: (i) => i.item || i.name || '—' },
+    { key: 'category', label: 'Category' },
+    { key: 'currentStock', label: 'Current Stock', exportValue: (i) => `${i.currentStock ?? i.quantity ?? 0} ${i.unit || ''}`.trim() },
+    { key: 'minStock', label: 'Min Level', exportValue: (i) => i.minStock ?? 0 },
+    { key: 'maxStock', label: 'Max Capacity', exportValue: (i) => i.maxStock ?? 0 },
+    { key: 'status', label: 'Status' },
+    { key: 'location', label: 'Storage Location', exportValue: (i) => i.location || '—' },
+    { key: 'lastUpdated', label: 'Last Updated', exportValue: (i) => i.lastUpdated ? new Date(i.lastUpdated).toLocaleDateString() : '—' },
+  ], [])
 
   const totalValue = useMemo(() => {
     return inventory.reduce((sum, item) => sum + ((Number(item.currentStock ?? item.quantity) || 0) * (Number(item.costPerUnit) || 50)), 0)
@@ -311,10 +323,12 @@ export default function StaffInventoryPage() {
                   </select>
                 </div>
 
-                <button className="btn btn--secondary btn--sm">
-                  <Download size={14} />
-                  Export Report
-                </button>
+                <ExportMenu
+                  columns={exportColumns}
+                  rows={filteredInventory}
+                  filename="staff-inventory-report"
+                  title="Staff Inventory Report"
+                />
               </div>
             </div>
 

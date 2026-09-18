@@ -96,6 +96,9 @@ export default function FilterBar({ controller, searchPlaceholder = 'Search reco
             title={exportConfig.title}
             columns={exportConfig.columns}
             rows={exportConfig.rows}
+            preparedBy={exportConfig.preparedBy}
+            date={exportConfig.date}
+            meta={exportConfig.meta}
           />
         )}
       </div>

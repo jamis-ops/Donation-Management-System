@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { Search, Download, TrendingUp, DollarSign, Package, Calendar, Users, MapPin, Heart } from 'lucide-react'
 import StatusBadge from '../../admin/components/shared/StatusBadge'
@@ -7,6 +7,7 @@ import { donationsApi, certificatesApi } from '../../api/resources'
 import { useApiList } from '../../hooks/useApiList'
 import { usePagination, DEFAULT_PAGE_SIZE } from '../../hooks/usePagination'
 import Pagination from '../../admin/components/shared/Pagination'
+import ExportMenu from '../../admin/components/shared/ExportMenu'
 import ModalHeader from '../../admin/components/shared/ModalHeader'
 import DonationProgressTracker from '../../components/donor/DonationProgressTracker'
 import { notify } from '../../utils/toast'
@@ -119,27 +120,15 @@ export default function DonorDonationsPage() {
     }
   }
 
-  const handleExportCSV = () => {
-    const headers = ['Tracking Code', 'Type', 'Amount', 'Program', 'Date', 'Status', 'Beneficiaries']
-    const rows = filtered.map(d => [
-      d.trackingCode,
-      d.type,
-      `"${d.amount}"`,
-      `"${d.program || ''}"`,
-      d.date,
-      d.status,
-      d.beneficiaries || 0,
-    ])
-    
-    const csv = [headers.join(','), ...rows.map(r => r.join(','))].join('\n')
-    const blob = new Blob([csv], { type: 'text/csv' })
-    const url = window.URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url
-    a.download = 'my-donations.csv'
-    a.click()
-    window.URL.revokeObjectURL(url)
-  }
+  const exportColumns = useMemo(() => [
+    { key: 'trackingCode', label: 'Tracking Code' },
+    { key: 'type', label: 'Type' },
+    { key: 'amount', label: 'Amount / Item', exportValue: (d) => d.type === 'Monetary' ? (typeof d.amount === 'number' ? `₱${d.amount.toLocaleString()}` : String(d.amount)) : (d.item || d.amount || '—') },
+    { key: 'program', label: 'Program', exportValue: (d) => d.program || '—' },
+    { key: 'date', label: 'Date' },
+    { key: 'status', label: 'Status' },
+    { key: 'beneficiaries', label: 'Beneficiaries', exportValue: (d) => d.beneficiaries || 0 },
+  ], [])
 
   const canRequestCert = selected && !['Pending Verification', 'Cancelled'].includes(selected.status)
 
@@ -217,14 +206,12 @@ export default function DonorDonationsPage() {
         <div className="portal-panel__header">
           <h2>My Donations</h2>
           <div className="portal-panel__actions">
-            <button 
-              type="button" 
-              className="btn btn--sm btn--outline" 
-              onClick={handleExportCSV}
-              disabled={filtered.length === 0}
-            >
-              <Download size={14} /> Export CSV
-            </button>
+            <ExportMenu
+              columns={exportColumns}
+              rows={filtered}
+              filename="my-donations"
+              title="Donation History Report"
+            />
             <Link to="/donate" className="btn btn--sm btn--primary">+ Make a Donation</Link>
           </div>
         </div>

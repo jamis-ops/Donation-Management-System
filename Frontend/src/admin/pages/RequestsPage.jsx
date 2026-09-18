@@ -1201,6 +1201,17 @@ export default function RequestsPage() {
     });
   }, [filterController.filtered, emergencyIds]);
 
+  const exportColumns = useMemo(() => [
+    { key: 'id', label: 'Request Code' },
+    { key: 'beneficiary', label: 'Barangay / Beneficiary' },
+    { key: 'type', label: 'Assistance Type' },
+    { key: 'priority', label: 'Priority' },
+    { key: 'status', label: 'Status' },
+    { key: 'affectedFamilies', label: 'Affected Families', exportValue: (r) => r.affectedFamilies || r.families || '—' },
+    { key: 'date', label: 'Date Requested', exportValue: (r) => r.requestDate || r.date || r.createdAt || '—' },
+    { key: 'notes', label: 'Justification / Notes', exportValue: (r) => r.notes || r.description || '' },
+  ], []);
+
   const paging = usePagination(
     sortedData,
     DEFAULT_PAGE_SIZE,
@@ -1400,7 +1411,16 @@ export default function RequestsPage() {
           </div>
         </div>
 
-        <FilterBar controller={filterController} searchPlaceholder="Search barangay, type, notes..." />
+        <FilterBar
+          controller={filterController}
+          searchPlaceholder="Search barangay, type, notes..."
+          exportConfig={{
+            filename: 'assistance-requests-report',
+            title: 'Assistance Requests Report',
+            columns: exportColumns,
+            rows: sortedData,
+          }}
+        />
 
         <div className="requests-grid">
           {paging.pageItems.map(req => {

@@ -1,7 +1,23 @@
+function getPreparedByUser(options = {}) {
+  if (options.preparedBy) return options.preparedBy
+  if (options.user?.name) return options.user.name
+  if (options.user?.username) return options.user.username
+  try {
+    const raw = localStorage.getItem('active_user')
+    if (raw) {
+      const u = JSON.parse(raw)
+      return u?.name || u?.username || u?.email || 'Rise Above Administrator'
+    }
+  } catch (e) {
+    // ignore
+  }
+  return 'Rise Above Administrator'
+}
+
 /**
  * Print Official Donation Receipt / Acknowledgement Document
  */
-export function printDonationReceipt(donation) {
+export function printDonationReceipt(donation, options = {}) {
   if (!donation) return
 
   const printWindow = window.open('', '_blank', 'width=850,height=1000')
@@ -12,7 +28,15 @@ export function printDonationReceipt(donation) {
 
   const isMonetary = donation.type === 'Monetary'
   const trackingCode = donation.trackingCode || `DON-${donation.dbId || donation.id || 'N/A'}`
-  const dateFormatted = donation.date || new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })
+  const preparedByUser = getPreparedByUser(options)
+  const reportDateTime = options.date || new Date().toLocaleString('en-US', {
+    month: 'long',
+    day: 'numeric',
+    year: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+    hour12: true,
+  })
   const donorName = donation.donor || donation.donorName || 'Anonymous Donor'
   const donorEmail = donation.donorEmail || donation.email || '—'
   const category = donation.category || (isMonetary ? 'General Donation Fund' : 'Relief Goods')
@@ -23,7 +47,7 @@ export function printDonationReceipt(donation) {
     : (donation.itemsDescription || donation.items || donation.amount || 'In-Kind Relief Goods')
   const paymentMethod = donation.paymentMethod || '—'
   const status = donation.status || 'Verified'
-  const notes = donation.notes || 'Official donation recorded in the Ramon Aboitiz Foundation Inc. (RAFI) Donation Management System.'
+  const notes = donation.notes || 'Official donation recorded in the Rise Above Foundation Cebu Donation Management System.'
 
   const html = `<!DOCTYPE html>
 <html lang="en">
@@ -231,14 +255,13 @@ export function printDonationReceipt(donation) {
 
   <div class="receipt-header">
     <div class="receipt-brand">
-      <h1>Ramon Aboitiz Foundation Inc.</h1>
-      <p>35 Lopez Jaena St, Cebu City, 6000 Cebu, Philippines</p>
+      <h1>Rise Above Foundation Cebu</h1>
+      <p>252 I. Lopez St., Cebu City, 6000 Cebu, Philippines</p>
       <p>Official Donation Acknowledgement & Receipt</p>
     </div>
     <div class="receipt-meta">
       <div class="receipt-title">Official Receipt</div>
       <div class="receipt-code">${trackingCode}</div>
-      <div class="receipt-date">Date Issued: ${dateFormatted}</div>
     </div>
   </div>
 
@@ -290,14 +313,19 @@ export function printDonationReceipt(donation) {
 
   <div class="receipt-footer">
     <div class="disclaimer">
-      This is an official system-generated donation receipt from Ramon Aboitiz Foundation Inc. (RAFI). For tax certification, corporate sponsorship verification, or inquiries, contact donations@rafi.org.ph.
+      This is an official system-generated donation receipt from Rise Above Foundation Cebu. For inquiries or tax certifications, contact donations@riseabove-cebu.org.
     </div>
     <div class="signature-box">
       <div style="height: 40px;"></div>
       <div class="signature-line"></div>
       <div class="signature-title">Authorized Representative</div>
-      <div class="signature-sub">Ramon Aboitiz Foundation Inc.</div>
+      <div class="signature-sub">Rise Above Foundation Cebu</div>
     </div>
+  </div>
+
+  <div style="margin-top: 24px; padding-top: 14px; border-top: 1px dashed #cbd5e1; font-size: 12px; color: #475569; line-height: 1.6;">
+    <div><strong>Prepared By:</strong> ${preparedByUser}</div>
+    <div><strong>Date:</strong> ${reportDateTime}</div>
   </div>
 
   <script>

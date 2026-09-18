@@ -4,8 +4,32 @@ import * as authApi from '../api/auth'
 const AuthContext = createContext(null)
 
 export function AuthProvider({ children }) {
-  const [user, setUser] = useState(null)
+  const [user, setUser] = useState(() => {
+    try {
+      if (typeof localStorage !== 'undefined') {
+        const saved = localStorage.getItem('active_user')
+        return saved ? JSON.parse(saved) : null
+      }
+    } catch {
+      return null
+    }
+    return null
+  })
   const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    try {
+      if (typeof localStorage !== 'undefined') {
+        if (user) {
+          localStorage.setItem('active_user', JSON.stringify(user))
+        } else {
+          localStorage.removeItem('active_user')
+        }
+      }
+    } catch {
+      // Ignored
+    }
+  }, [user])
 
   const refreshUser = async () => {
     const res = await authApi.me()

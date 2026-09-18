@@ -1,4 +1,4 @@
-// Client-side data export helpers (CSV, Excel, PDF/Print).
+// Client-side data export helpers (CSV, Excel .xlsx, PDF/Print).
 // Works off the already-loaded, filtered table data so exports match what the user sees.
 
 import { notify } from './toast'
@@ -20,8 +20,7 @@ export function buildMatrix(columns, rows) {
   return { header, body }
 }
 
-function triggerDownload(filename, content, mime) {
-  const blob = new Blob([content], { type: mime })
+function triggerDownloadBlob(filename, blob) {
   const url = URL.createObjectURL(blob)
   const a = document.createElement('a')
   a.href = url
@@ -32,40 +31,281 @@ function triggerDownload(filename, content, mime) {
   setTimeout(() => URL.revokeObjectURL(url), 1000)
 }
 
+function triggerDownload(filename, content, mime) {
+  const blob = new Blob([content], { type: mime })
+  triggerDownloadBlob(filename, blob)
+}
+
 function csvEscape(value) {
-  const s = String(value)
+  const s = String(value ?? '')
   return /[",\n\r]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s
 }
 
-export function exportCsv(filename, columns, rows) {
+function htmlEscape(value) {
+  return String(value ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+}
+
+/**
+ * Reads active authenticated user from localStorage cache if available.
+ */
+export function getStoredCurrentUser() {
+  try {
+    if (typeof localStorage !== 'undefined') {
+      const raw = localStorage.getItem('active_user')
+      if (raw) return JSON.parse(raw)
+    }
+  } catch {
+    return null
+  }
+  return null
+}
+
+/**
+ * Formats a date into official Rise Above Foundation Cebu format:
+ * "September 19, 2026 at 2:15 AM"
+ */
+export function formatReportDateTime(dateVal = new Date()) {
+  const d = dateVal instanceof Date ? dateVal : new Date(dateVal)
+  if (Number.isNaN(d.getTime())) return String(dateVal || '')
+  const dateStr = d.toLocaleDateString('en-US', {
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric',
+  })
+  const timeStr = d.toLocaleTimeString('en-US', {
+    hour: 'numeric',
+    minute: '2-digit',
+    hour12: true,
+  })
+  return `${dateStr} at ${timeStr}`
+}
+
+/**
+ * Resolves standard report metadata: Prepared By & Date
+ */
+export function resolveExportMeta(options = {}) {
+  const storedUser = getStoredCurrentUser()
+  const activeUser = options.user || storedUser
+
+  let preparedBy = ''
+  if (options.preparedBy && typeof options.preparedBy === 'string' && options.preparedBy.trim()) {
+    preparedBy = options.preparedBy.trim()
+  } else if (activeUser) {
+    preparedBy = (activeUser.name || activeUser.fullName || activeUser.full_name || activeUser.email || '').trim()
+  }
+  if (!preparedBy) {
+    preparedBy = 'Administrator'
+  }
+
+  const dateStr = formatReportDateTime(options.date || new Date())
+  return { preparedBy, dateStr }
+}
+
+let cachedLogoBase64 = null
+export async function getLogoBase64() {
+  if (cachedLogoBase64) return cachedLogoBase64
+  try {
+    const res = await fetch(logo)
+    const blob = await res.blob()
+    return new Promise((resolve) => {
+      const reader = new FileReader()
+      reader.onloadend = () => {
+        const result = reader.result
+        if (typeof result === 'string') {
+          const base64 = result.includes(',') ? result.split(',')[1] : result
+          cachedLogoBase64 = base64
+          resolve(base64)
+        } else {
+          resolve(null)
+        }
+      }
+      reader.onerror = () => resolve(null)
+      reader.readAsDataURL(blob)
+    })
+  } catch (err) {
+    console.warn('Could not load logo for Excel report:', err)
+    return null
+  }
+}
+
+/**
+ * Official CSV Export with BOM and standardized bottom sign-off:
+ * Prepared By: [User]
+ * Date: [Date and Time]
+ */
+export function exportCsv(filename, columns, rows, options = {}) {
+  const opt = typeof options === 'string' ? { title: options } : (options || {})
+  const { preparedBy, dateStr } = resolveExportMeta(opt)
   const { header, body } = buildMatrix(columns, rows)
   const lines = [header, ...body].map((r) => r.map(csvEscape).join(','))
+
+  // Standardized bottom sign-off section
+  lines.push('')
+  lines.push(`Prepared By,"${csvEscape(preparedBy)}"`)
+  lines.push(`Date,"${csvEscape(dateStr)}"`)
+  lines.push('"Rise Above Foundation Cebu · Official System Export · Confidential"')
+
+  const cleanName = filename.replace(/\.csv$/i, '')
   // BOM so Excel reads UTF-8 (₱, accents) correctly.
-  triggerDownload(`${filename}.csv`, '\uFEFF' + lines.join('\r\n'), 'text/csv;charset=utf-8;')
+  triggerDownload(`${cleanName}.csv`, '\uFEFF' + lines.join('\r\n'), 'text/csv;charset=utf-8;')
 }
 
-function htmlEscape(value) {
-  return String(value).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
-}
+/**
+ * Official Excel (.xlsx) Export with embedded Rise Above Foundation Cebu logo,
+ * professional header banner, custom column widths, text wrapping, borders, and
+ * standardized bottom sign-off (Prepared By & Date).
+ */
+export async function exportExcel(filename, columns, rows, options = {}) {
+  const opt = typeof options === 'string' ? { title: options } : (options || {})
+  const rawTitle = opt.title || filename.replace(/[-_]/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase())
+  const reportTitle = rawTitle.includes('Report') ? rawTitle : `${rawTitle} Report`
+  const { preparedBy, dateStr } = resolveExportMeta(opt)
 
-export function exportExcel(filename, columns, rows) {
-  const { header, body } = buildMatrix(columns, rows)
-  const thead = `<tr>${header.map((h) => `<th style="background:#1e293b;color:#fff;padding:6px 10px;text-align:left">${htmlEscape(h)}</th>`).join('')}</tr>`
-  const tbody = body
-    .map((r) => `<tr>${r.map((c) => `<td style="padding:5px 10px;border:1px solid #cbd5e1">${htmlEscape(c)}</td>`).join('')}</tr>`)
-    .join('')
-  const html =
-    '<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel">' +
-    '<head><meta charset="utf-8"></head><body>' +
-    `<table border="1" cellspacing="0">${thead}${tbody}</table></body></html>`
-  triggerDownload(`${filename}.xls`, html, 'application/vnd.ms-excel')
+  try {
+    const ExcelJSModule = await import('exceljs')
+    const ExcelJS = ExcelJSModule.default || ExcelJSModule
+
+    const workbook = new ExcelJS.Workbook()
+    workbook.creator = preparedBy
+    workbook.lastModifiedBy = preparedBy
+    workbook.created = new Date()
+    workbook.modified = new Date()
+
+    const worksheet = workbook.addWorksheet('Report', {
+      views: [{ showGridLines: true }],
+      pageSetup: { fitToPage: true, fitToWidth: 1, fitToHeight: 0, orientation: 'landscape' },
+    })
+
+    // 1. Embed Rise Above Foundation Cebu Logo
+    const logoBase64 = await getLogoBase64()
+    if (logoBase64) {
+      try {
+        const imageId = workbook.addImage({
+          base64: logoBase64,
+          extension: 'png',
+        })
+        worksheet.addImage(imageId, {
+          tl: { col: 0.15, row: 0.35 },
+          ext: { width: 58, height: 58 },
+          editAs: 'undefined',
+        })
+      } catch (imgErr) {
+        console.warn('Could not embed logo image in Excel:', imgErr)
+      }
+    }
+
+    // 2. Report Header Block
+    worksheet.addRow([]) // Row 1: top spacing
+
+    const orgRow = worksheet.addRow(['', 'RISE ABOVE FOUNDATION CEBU'])
+    orgRow.getCell(2).font = { name: 'Calibri', size: 10, bold: true, color: { argb: 'FF475569' } }
+
+    const titleRow = worksheet.addRow(['', reportTitle])
+    titleRow.getCell(2).font = { name: 'Calibri', size: 15, bold: true, color: { argb: 'FFAF101A' } }
+
+    const subRow = worksheet.addRow(['', 'Donation & Operations Management System · Official Report'])
+    subRow.getCell(2).font = { name: 'Calibri', size: 9, italic: true, color: { argb: 'FF64748B' } }
+
+    worksheet.addRow([]) // Row 5: spacer
+
+    // 3. Table Column Headers
+    const { header, body } = buildMatrix(columns, rows)
+    const headerRow = worksheet.addRow(header)
+    headerRow.height = 26
+    headerRow.eachCell((cell) => {
+      cell.font = { name: 'Calibri', size: 11, bold: true, color: { argb: 'FFFFFFFF' } }
+      cell.fill = {
+        type: 'pattern',
+        pattern: 'solid',
+        fgColor: { argb: 'FF1E293B' }, // Dark slate navy
+      }
+      cell.alignment = { vertical: 'middle', horizontal: 'left', wrapText: true }
+      cell.border = {
+        top: { style: 'medium', color: { argb: 'FF1E293B' } },
+        bottom: { style: 'medium', color: { argb: 'FF1E293B' } },
+        left: { style: 'thin', color: { argb: 'FF334155' } },
+        right: { style: 'thin', color: { argb: 'FF334155' } },
+      }
+    })
+
+    // 4. Data Rows
+    body.forEach((rowData, rIdx) => {
+      const row = worksheet.addRow(rowData)
+      row.height = 20
+      const isEven = rIdx % 2 === 1
+      row.eachCell({ includeEmpty: true }, (cell) => {
+        cell.font = { name: 'Calibri', size: 10, color: { argb: 'FF0F172A' } }
+        cell.alignment = { vertical: 'top', horizontal: 'left', wrapText: true }
+        if (isEven) {
+          cell.fill = {
+            type: 'pattern',
+            pattern: 'solid',
+            fgColor: { argb: 'FFF8FAFC' },
+          }
+        }
+        cell.border = {
+          top: { style: 'thin', color: { argb: 'FFE2E8F0' } },
+          bottom: { style: 'thin', color: { argb: 'FFE2E8F0' } },
+          left: { style: 'thin', color: { argb: 'FFE2E8F0' } },
+          right: { style: 'thin', color: { argb: 'FFE2E8F0' } },
+        }
+      })
+    })
+
+    // 5. Compute Appropriate Column Widths
+    worksheet.columns.forEach((column, colIdx) => {
+      let maxLen = 0
+      const headerText = String(header[colIdx] || '')
+      maxLen = Math.max(maxLen, headerText.length)
+
+      body.forEach((r) => {
+        const cellText = String(r[colIdx] || '')
+        const lines = cellText.split('\n')
+        lines.forEach((l) => {
+          maxLen = Math.max(maxLen, l.length)
+        })
+      })
+
+      // Clamped width between 14 and 48 characters
+      column.width = Math.min(Math.max(maxLen + 4, 14), 48)
+    })
+
+    // 6. Bottom Sign-off Section (Prepared By & Date)
+    worksheet.addRow([]) // blank row
+
+    const prepRow = worksheet.addRow([`Prepared By: ${preparedBy}`])
+    prepRow.getCell(1).font = { name: 'Calibri', size: 11, bold: true, color: { argb: 'FF0F172A' } }
+
+    const dateRow = worksheet.addRow([`Date: ${dateStr}`])
+    dateRow.getCell(1).font = { name: 'Calibri', size: 10, color: { argb: 'FF475569' } }
+
+    const footerRow = worksheet.addRow(['Rise Above Foundation Cebu · Official System Export · Confidential'])
+    footerRow.getCell(1).font = { name: 'Calibri', size: 9, italic: true, color: { argb: 'FF94A3B8' } }
+
+    // 7. Write to Buffer & Trigger Download
+    const buffer = await workbook.xlsx.writeBuffer()
+    const blob = new Blob([buffer], {
+      type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    })
+    const cleanName = filename.replace(/\.(xlsx|xls)$/i, '')
+    triggerDownloadBlob(`${cleanName}.xlsx`, blob)
+    notify.success(`Exported ${cleanName}.xlsx successfully.`)
+  } catch (err) {
+    console.error('Failed to generate Excel report:', err)
+    notify.error('Failed to export Excel file: ' + err.message)
+  }
 }
 
 /**
  * Open a print-ready window and trigger the browser print dialog (Save as PDF).
  * sections: [{ heading, columns, rows }] — supports multi-table reports.
+ * Includes Rise Above Foundation Cebu header, removes top date, and places
+ * Prepared By and Date at the bottom.
  */
-export function printPdf(title, sections) {
+export function printPdf(title, sections, options = {}) {
+  const opt = typeof options === 'string' ? { preparedBy: options } : (options || {})
+  const { preparedBy, dateStr } = resolveExportMeta(opt)
+
   const win = window.open('', '_blank', 'width=1050,height=750')
   if (!win) {
     notify.warning('Please allow pop-ups to export as PDF.')
@@ -73,10 +313,6 @@ export function printPdf(title, sections) {
   }
 
   const logoUrl = new URL(logo, window.location.origin).href
-  const now = new Date().toLocaleString('en-US', {
-    dateStyle: 'medium',
-    timeStyle: 'short',
-  })
   const blocks = sections
     .filter((s) => s.rows && s.rows.length)
     .map((s) => {
@@ -180,6 +416,38 @@ export function printPdf(title, sections) {
       table.report-table tr:nth-child(even) td {
         background: #f8fafc;
       }
+      .report-signoff {
+        margin-top: 24px;
+        padding: 14px 18px;
+        background: #f8fafc;
+        border: 1px solid #e2e8f0;
+        border-left: 4px solid #AF101A;
+        border-radius: 6px;
+        display: inline-flex;
+        flex-direction: column;
+        gap: 6px;
+        min-width: 280px;
+      }
+      .report-signoff__row {
+        display: flex;
+        align-items: baseline;
+        gap: 8px;
+        font-size: 0.86rem;
+      }
+      .report-signoff__label {
+        color: #64748b;
+        font-weight: 600;
+        width: 95px;
+        flex-shrink: 0;
+      }
+      .report-signoff__value {
+        color: #0f172a;
+        font-weight: 700;
+      }
+      .report-signoff__value--date {
+        color: #334155;
+        font-weight: 500;
+      }
       .report-footer {
         margin-top: 28px;
         padding-top: 10px;
@@ -194,6 +462,7 @@ export function printPdf(title, sections) {
         body { padding: 16px 20px; }
         .report-header { margin-bottom: 16px; padding-bottom: 12px; }
         .report-table th { background: #1e293b !important; color: #ffffff !important; }
+        .report-signoff { background: #ffffff !important; border: 1px solid #cbd5e1 !important; border-left: 4px solid #AF101A !important; }
       }
     </style></head><body>
     <header class="report-header">
@@ -205,11 +474,21 @@ export function printPdf(title, sections) {
         </div>
       </div>
       <div class="report-header__meta">
-        <div><strong>Date Generated:</strong> ${htmlEscape(now)}</div>
         <div><strong>System:</strong> Donation & Operations Management</div>
+        <div><strong>Status:</strong> Official System Export</div>
       </div>
     </header>
     ${blocks || '<p style="color:#64748b; font-size:0.9rem; padding: 20px 0;">No data to export.</p>'}
+    <div class="report-signoff">
+      <div class="report-signoff__row">
+        <span class="report-signoff__label">Prepared By:</span>
+        <span class="report-signoff__value">${htmlEscape(preparedBy)}</span>
+      </div>
+      <div class="report-signoff__row">
+        <span class="report-signoff__label">Date:</span>
+        <span class="report-signoff__value report-signoff__value--date">${htmlEscape(dateStr)}</span>
+      </div>
+    </div>
     <footer class="report-footer">
       <span>Rise Above Foundation Cebu · Official System Export</span>
       <span>Confidential</span>

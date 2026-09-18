@@ -490,7 +490,16 @@ export default function StaffPage() {
         </div>
       </div>
 
-      <FilterBar controller={filters} searchPlaceholder="Search by ID, name, or email..." />
+      <FilterBar
+        controller={filters}
+        searchPlaceholder="Search by ID, name, or email..."
+        exportConfig={{
+          filename: 'staff-accounts-report',
+          title: 'Staff Accounts Report',
+          columns,
+          rows: filters.filtered,
+        }}
+      />
       <ApiState loading={loading} error={error} onRetry={reload}>
         <DataTable
           columns={columns}

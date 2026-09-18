@@ -289,7 +289,16 @@ export default function AdminsPage() {
         <div className="admin-banner admin-banner--success" role="status">{successMsg}</div>
       ) : null}
 
-      <FilterBar controller={filters} searchPlaceholder="Search by ID, name, or email..." />
+      <FilterBar
+        controller={filters}
+        searchPlaceholder="Search by ID, name, or email..."
+        exportConfig={{
+          filename: 'admin-accounts-report',
+          title: 'Admin Accounts Report',
+          columns,
+          rows: filters.filtered,
+        }}
+      />
       <ApiState loading={loading} error={error} onRetry={reload}>
         <DataTable
           columns={columns}

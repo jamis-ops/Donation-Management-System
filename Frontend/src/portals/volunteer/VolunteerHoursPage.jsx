@@ -17,6 +17,7 @@ import { getPortalData } from '../../api/resources'
 import { useApiObject } from '../../hooks/useApiList'
 import { usePagination, DEFAULT_PAGE_SIZE } from '../../hooks/usePagination'
 import Pagination from '../../admin/components/shared/Pagination'
+import ExportMenu from '../../admin/components/shared/ExportMenu'
 import { notify } from '../../utils/toast'
 
 const ACTIVITY_TYPE_COLORS = {
@@ -149,34 +150,16 @@ export default function VolunteerHoursPage() {
     return found ? found.label : `Month ${selectedMonth}`
   }, [selectedMonth])
 
-  const handleExportCSV = () => {
-    if (!filteredActivityLog.length) {
-      notify.warning('No activity records in the selected period to export.')
-      return
-    }
-
-    const headers = ['Date', 'Task Code', 'Activity', 'Program', 'Duty Hours', 'Duty Schedule', 'Attendance', 'Status']
-    const rows = filteredActivityLog.map((log) => [
-      log.date,
-      log.id || '',
-      `"${String(log.activity || '').replace(/"/g, '""')}"`,
-      log.type || 'General',
-      `${log.hours || 0} hrs`,
-      `"${String(log.dutyLabel || '').replace(/"/g, '""')}"`,
-      log.attendance || 'Present / Completed',
-      log.status || 'Verified',
-    ])
-
-    const csv = [headers.join(','), ...rows.map((r) => r.join(','))].join('\n')
-    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
-    const url = window.URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url
-    a.download = `volunteer-hours-${selectedYear}-${selectedMonth === 'all' ? 'all-months' : selectedMonthLabel.toLowerCase()}.csv`
-    a.click()
-    window.URL.revokeObjectURL(url)
-    notify.success(`Exported ${filteredActivityLog.length} activity records to CSV.`)
-  }
+  const exportColumns = useMemo(() => [
+    { key: 'date', label: 'Date' },
+    { key: 'id', label: 'Task Code' },
+    { key: 'activity', label: 'Activity' },
+    { key: 'type', label: 'Program', exportValue: (r) => r.type || 'General' },
+    { key: 'hours', label: 'Duty Hours', exportValue: (r) => `${r.hours || 0} hrs` },
+    { key: 'dutyLabel', label: 'Duty Schedule', exportValue: (r) => r.dutyLabel || '—' },
+    { key: 'attendance', label: 'Attendance', exportValue: (r) => r.attendance || 'Present / Completed' },
+    { key: 'status', label: 'Status', exportValue: (r) => r.status || 'Verified' },
+  ], [])
 
   const handleBarClick = (monthIndex) => {
     const monthNum = String(monthIndex + 1)
@@ -251,13 +234,12 @@ export default function VolunteerHoursPage() {
               </button>
             )}
 
-            <button
-              type="button"
-              className="btn btn--sm btn--outline"
-              onClick={handleExportCSV}
-            >
-              <Download size={14} /> Export CSV
-            </button>
+            <ExportMenu
+              columns={exportColumns}
+              rows={filteredActivityLog}
+              filename={`volunteer-hours-${selectedYear}-${selectedMonth === 'all' ? 'all-months' : selectedMonthLabel.toLowerCase()}`}
+              title={`Volunteer Hours Report (${selectedYear})`}
+            />
           </div>
         </div>
 
