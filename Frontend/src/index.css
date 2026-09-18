@@ -2035,8 +2035,9 @@ address { font-style: normal; }
 }
 
 .stats-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
   gap: 1.25rem;
   position: relative;
   z-index: 1;
@@ -2050,6 +2051,33 @@ address { font-style: normal; }
   border-radius: var(--radius-lg);
   backdrop-filter: blur(4px);
   transition: background 0.3s ease, transform 0.3s ease, border-color 0.3s ease;
+  flex: 0 0 calc((100% - 4 * 1.25rem) / 5);
+  max-width: 220px;
+  min-width: 175px;
+  box-sizing: border-box;
+}
+
+@media (max-width: 1024px) {
+  .stat-card {
+    flex: 0 0 calc((100% - 2 * 1.25rem) / 3);
+    max-width: 250px;
+    min-width: 160px;
+  }
+}
+
+@media (max-width: 640px) {
+  .stat-card {
+    flex: 0 0 calc((100% - 1.25rem) / 2);
+    max-width: 240px;
+    min-width: 140px;
+  }
+}
+
+@media (max-width: 420px) {
+  .stat-card {
+    flex: 0 0 100%;
+    max-width: 280px;
+  }
 }
 
 .stat-card:hover {
