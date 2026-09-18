@@ -6,6 +6,7 @@ import { submitPublicVolunteer } from '../../api/resources'
 import Req from '../../components/shared/Req'
 import NameFields from '../../components/shared/NameFields'
 import SkillTagPicker from '../../components/shared/SkillTagPicker'
+import MultiSelectBox from '../../components/shared/MultiSelectBox'
 import PolicyConsentBox from '../../components/shared/PolicyConsentBox'
 import { emptyNameParts, formatFullName } from '../../utils/personName'
 import { emailError, phoneError } from '../../utils/validation'
@@ -413,46 +414,22 @@ export default function VolunteerPage() {
               {/* VOLUNTEER ONLY FIELDS: Preferred Program, Skills & Expertise, Experience */}
               {applicantType === 'Volunteer' && (
                 <>
-                  {/* Preferred Programs (Multi-Select Checkboxes) */}
-                  <div className="volunteer-programs-field">
-                    <label className="volunteer-programs-field__label">
-                      <Req required>Preferred Volunteer Programs</Req>
-                    </label>
-                    <span className="volunteer-programs-field__hint">
-                      Select the foundation outreach programs you wish to join (choose one or more):
-                    </span>
-                    <div className="volunteer-programs-grid">
-                      {availablePrograms.map((prog) => {
-                        const isChecked = (form.programs || []).includes(prog)
-                        return (
-                          <label
-                            key={prog}
-                            className={`volunteer-program-card ${isChecked ? 'volunteer-program-card--checked' : ''}`}
-                          >
-                            <input
-                              type="checkbox"
-                              name="volunteer_programs"
-                              value={prog}
-                              checked={isChecked}
-                              onChange={(e) => {
-                                const current = form.programs || []
-                                const next = e.target.checked
-                                  ? [...current, prog]
-                                  : current.filter((p) => p !== prog)
-                                setForm((prev) => ({
-                                  ...prev,
-                                  programs: next,
-                                  program: next[0] || '',
-                                }))
-                              }}
-                              className="volunteer-program-card__checkbox"
-                            />
-                            <span className="volunteer-program-card__text">{prog}</span>
-                          </label>
-                        )
-                      })}
-                    </div>
-                  </div>
+                  {/* Preferred Programs (Multi-Select Checkbox Dropdown) */}
+                  <MultiSelectBox
+                    catalog="volunteer_programs"
+                    fallback={VOLUNTEER_PROGRAMS}
+                    value={form.programs}
+                    onChange={(programs) => setForm((prev) => ({
+                      ...prev,
+                      programs,
+                      program: programs[0] || '',
+                    }))}
+                    label="Preferred Volunteer Programs"
+                    placeholder="Select preferred programs from dropdown…"
+                    icon={HeartHandshake}
+                    required
+                    hint="Choose the foundation programs you wish to join (click dropdown to check multiple)."
+                  />
 
                   <SkillTagPicker
                     required

@@ -1,9 +1,10 @@
-import { useState } from 'react'
-import { Check, ChevronDown, Plus, Sparkles, X } from 'lucide-react'
+import { useState, useRef, useEffect } from 'react'
+import { Check, ChevronDown, Sparkles, X } from 'lucide-react'
 import { useCatalogOptions } from '../../hooks/useCatalogOptions'
 
 /**
- * Clean card/box layout with a dropdown selector and active chip tags.
+ * Clean card/box layout with a dropdown selector containing checkboxes and active chip tags.
+ * Supports multi-select via dropdown checkboxes.
  * Automatically synchronizes with Admin CMS Catalogs.
  */
 export default function MultiSelectBox({
@@ -24,16 +25,24 @@ export default function MultiSelectBox({
 }) {
   const { options: availableOptions, loading } = useCatalogOptions(catalog, fallback)
   const selected = Array.isArray(value) ? value : []
-  const [dropdownValue, setDropdownValue] = useState('')
+  const [isOpen, setIsOpen] = useState(false)
+  const dropdownRef = useRef(null)
 
-  const handleDropdownSelect = (e) => {
-    const val = e.target.value
-    if (!val) return
-    if (!selected.includes(val)) {
-      onChange?.([...selected, val])
+  useEffect(() => {
+    function handleClickOutside(e) {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target)) {
+        setIsOpen(false)
+      }
     }
-    setDropdownValue('')
-  }
+    if (isOpen) {
+      document.addEventListener('mousedown', handleClickOutside)
+      document.addEventListener('touchstart', handleClickOutside)
+    }
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside)
+      document.removeEventListener('touchstart', handleClickOutside)
+    }
+  }, [isOpen])
 
   const toggleOption = (opt) => {
     if (selected.includes(opt)) {
@@ -50,9 +59,6 @@ export default function MultiSelectBox({
   const clearAll = () => {
     onChange?.([])
   }
-
-  // Options that are not yet selected
-  const unselectedOptions = availableOptions.filter((opt) => !selected.includes(opt))
 
   return (
     <div className="multi-select-card">
@@ -85,28 +91,80 @@ export default function MultiSelectBox({
 
       {hint && <p className="multi-select-card__hint">{hint}</p>}
 
-      {/* Dropdown Selector */}
-      <div className="multi-select-card__dropdown-wrapper">
-        <div className="multi-select-card__select-container">
-          <select
-            className="multi-select-card__select"
-            value={dropdownValue}
-            onChange={handleDropdownSelect}
-            disabled={loading}
-          >
-            <option value="">
-              {loading ? 'Loading options…' : unselectedOptions.length === 0 ? 'All options selected' : placeholder}
-            </option>
-            {unselectedOptions.map((opt) => (
-              <option key={opt} value={opt}>
-                + Add {opt}
-              </option>
-            ))}
-          </select>
-          <span className="multi-select-card__select-chevron" aria-hidden="true">
-            <ChevronDown size={16} />
+      {/* Dropdown with Checkboxes */}
+      <div className="multi-select-card__dropdown-wrapper" ref={dropdownRef}>
+        <button
+          type="button"
+          className={`multi-select-card__trigger ${isOpen ? 'multi-select-card__trigger--open' : ''}`}
+          onClick={() => setIsOpen(!isOpen)}
+          aria-haspopup="listbox"
+          aria-expanded={isOpen}
+          disabled={loading}
+        >
+          <span className="multi-select-card__trigger-text">
+            {loading
+              ? 'Loading options…'
+              : selected.length === 0
+                ? placeholder
+                : `${selected.length} selected (${selected.slice(0, 2).join(', ')}${selected.length > 2 ? `, +${selected.length - 2} more` : ''})`}
           </span>
-        </div>
+          <ChevronDown
+            size={16}
+            className={`multi-select-card__chevron ${isOpen ? 'multi-select-card__chevron--rotated' : ''}`}
+          />
+        </button>
+
+        {isOpen && (
+          <div className="multi-select-card__menu" role="listbox">
+            <div className="multi-select-card__menu-header">
+              <span>{selected.length} of {availableOptions.length} selected</span>
+              <div className="multi-select-card__menu-actions">
+                {selected.length < availableOptions.length && (
+                  <button
+                    type="button"
+                    className="multi-select-card__menu-action-btn"
+                    onClick={() => onChange?.([...availableOptions])}
+                  >
+                    Select All
+                  </button>
+                )}
+                {selected.length > 0 && (
+                  <button
+                    type="button"
+                    className="multi-select-card__menu-action-btn"
+                    onClick={() => onChange?.([])}
+                  >
+                    Clear
+                  </button>
+                )}
+              </div>
+            </div>
+            <div className="multi-select-card__menu-list">
+              {availableOptions.map((opt) => {
+                const isChecked = selected.includes(opt)
+                return (
+                  <label
+                    key={opt}
+                    className={`multi-select-card__menu-item ${isChecked ? 'multi-select-card__menu-item--checked' : ''}`}
+                  >
+                    <input
+                      type="checkbox"
+                      className="multi-select-card__checkbox"
+                      checked={isChecked}
+                      onChange={() => toggleOption(opt)}
+                    />
+                    <span className="multi-select-card__item-label">{opt}</span>
+                  </label>
+                )
+              })}
+              {availableOptions.length === 0 && !loading && (
+                <div style={{ padding: '0.65rem 0.85rem', color: '#64748b', fontSize: '0.85rem' }}>
+                  No options available.
+                </div>
+              )}
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Active Selected Tags Display */}
