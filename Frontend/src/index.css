@@ -1302,35 +1302,54 @@ address { font-style: normal; }
   );
 }
 
+.project-detail__hero-top-bar {
+  position: absolute;
+  top: 1.5rem;
+  left: 0;
+  right: 0;
+  display: flex;
+  justify-content: flex-end;
+  z-index: 5;
+  pointer-events: none;
+}
+
+.project-detail__hero-top-bar .project-detail__back {
+  pointer-events: auto;
+}
+
 .project-detail__hero-content {
   position: relative;
   z-index: 1;
   color: #fff;
-  padding: 3.5rem 1.5rem 3rem;
+  padding: 4.5rem 1.5rem 3rem;
   max-width: 880px;
 }
 
 .project-detail__back {
   display: inline-flex;
   align-items: center;
-  gap: 0.45rem;
-  color: rgba(255, 255, 255, 0.88);
+  gap: 0.5rem;
+  color: #fff;
   text-decoration: none;
   font-size: 0.88rem;
   font-weight: 600;
-  margin-bottom: 1.25rem;
-  padding: 0.4rem 0.85rem;
+  margin-bottom: 0;
+  padding: 0.5rem 1.05rem;
   border-radius: 50px;
-  background: rgba(255, 255, 255, 0.12);
-  backdrop-filter: blur(8px);
-  border: 1px solid rgba(255, 255, 255, 0.2);
+  background: rgba(15, 23, 42, 0.45);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.18);
   transition: all 0.25s ease;
 }
 
 .project-detail__back:hover {
   color: #fff;
-  background: rgba(255, 255, 255, 0.22);
+  background: rgba(15, 23, 42, 0.75);
+  border-color: rgba(255, 255, 255, 0.45);
   transform: translateX(-3px);
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.28);
 }
 
 .project-detail__badge {
@@ -1694,6 +1713,13 @@ address { font-style: normal; }
   .project-detail__nav-link {
     max-width: 100%;
     flex: 1 1 100%;
+  }
+  .project-detail__hero-top-bar {
+    top: 1rem;
+  }
+  .project-detail__back {
+    font-size: 0.82rem;
+    padding: 0.4rem 0.85rem;
   }
 }
 

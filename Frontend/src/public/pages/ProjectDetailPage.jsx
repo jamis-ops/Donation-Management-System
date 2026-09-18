@@ -121,10 +121,15 @@ function ProjectDetailView({ project, list }) {
           <img src={project.image} alt={project.name} className="project-detail__hero-img" />
         )}
         <div className="project-detail__hero-overlay" />
-        <div className="container project-detail__hero-content">
+
+        {/* Top Right Back Button */}
+        <div className="container project-detail__hero-top-bar">
           <Link to="/#programs" className="project-detail__back">
             <ArrowLeft size={16} /> Back to Projects
           </Link>
+        </div>
+
+        <div className="container project-detail__hero-content">
           {project.category && (
             <span className="project-detail__badge">{project.category}</span>
           )}
