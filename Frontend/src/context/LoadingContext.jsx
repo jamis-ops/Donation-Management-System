@@ -93,14 +93,17 @@ export function LoadingProvider({ children }) {
     }
   }, [showLoading, hideLoading])
 
-  // Cleanup timers on unmount
+  // Cleanup timers on unmount and listen to global dismiss events
   useEffect(() => {
+    const handleGlobalHide = () => hideLoading(true)
+    window.addEventListener('app:hide-loading', handleGlobalHide)
     return () => {
+      window.removeEventListener('app:hide-loading', handleGlobalHide)
       if (hideTimerRef.current) clearTimeout(hideTimerRef.current)
       if (cleanupTimerRef.current) clearTimeout(cleanupTimerRef.current)
       if (enterTimerRef.current) clearTimeout(enterTimerRef.current)
     }
-  }, [])
+  }, [hideLoading])
 
   const api = useMemo(
     () => ({

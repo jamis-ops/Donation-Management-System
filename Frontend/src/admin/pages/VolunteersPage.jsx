@@ -300,6 +300,7 @@ export default function VolunteersPage() {
           ? ` Temporary password: ${res.temporaryPassword}`
           : ''
 
+      hideLoading()
       await showSuccessModal(
         `“${row.name}” has been successfully approved as a ${typeLabel.toLowerCase()}.${credentialMsg}`,
         `${typeLabel} Approved`
@@ -307,6 +308,7 @@ export default function VolunteersPage() {
       reload()
       notifyBadgesChanged()
     } catch (err) {
+      hideLoading()
       showErrorModal(err.message || `Failed to approve ${typeLabel.toLowerCase()}`)
     } finally {
       hideLoading()
@@ -339,6 +341,7 @@ export default function VolunteersPage() {
         }
       })
 
+      hideLoading()
       await showSuccessModal(
         `Application for “${row.name}” has been rejected.`,
         `${typeLabel} Rejected`
@@ -346,6 +349,7 @@ export default function VolunteersPage() {
       reload()
       notifyBadgesChanged()
     } catch (err) {
+      hideLoading()
       showErrorModal(err.message || 'Failed to reject application')
     } finally {
       hideLoading()
@@ -367,12 +371,14 @@ export default function VolunteersPage() {
     try {
       await volunteersApi.remove(row.dbId)
       notify.success(`${typeLabel} deleted.`)
-      showSuccessModal('Successfully deleted.')
+      hideLoading()
+      await showSuccessModal('Successfully deleted.')
       reload()
       notifyBadgesChanged()
       if (selected?.dbId === row.dbId) closeVolunteer()
     } catch (err) {
-      notify.error(err.message || `Failed to delete ${typeLabel.toLowerCase()}`)
+      hideLoading()
+      showErrorModal(err.message || `Failed to delete ${typeLabel.toLowerCase()}`)
     } finally {
       hideLoading()
     }
@@ -395,9 +401,11 @@ export default function VolunteersPage() {
       }
       reload()
       notify.success('Hours updated successfully.')
-      showSuccessModal('Hours successfully updated.')
+      hideLoading()
+      await showSuccessModal('Hours successfully updated.')
     } catch (err) {
-      notify.error(err.message)
+      hideLoading()
+      showErrorModal(err.message || 'Failed to update hours')
     } finally {
       hideLoading()
       setSaving(false)
@@ -446,9 +454,11 @@ export default function VolunteersPage() {
       setSelectedProgramToEnroll('')
       reload()
       notify.success(`Enrolled ${selected.name} in "${targetProgram}".`)
-      showSuccessModal(`Successfully assigned to ${targetProgram}.`)
+      hideLoading()
+      await showSuccessModal(`Successfully assigned to ${targetProgram}.`)
     } catch (err) {
-      notify.error(err.message || 'Failed to set program')
+      hideLoading()
+      showErrorModal(err.message || 'Failed to set program')
     } finally {
       hideLoading()
       setSaving(false)
@@ -569,12 +579,14 @@ export default function VolunteersPage() {
       if (selected) loadTasks(selected)
       reload()
       notifyBadgesChanged()
-      showSuccessModal(
+      hideLoading()
+      await showSuccessModal(
         generalSelectedVolunteerIds.length === 1
           ? 'Task created and assigned successfully.'
           : `Task created and assigned to ${generalSelectedVolunteerIds.length} assignees successfully.`
       )
     } catch (err) {
+      hideLoading()
       showErrorModal(err.message || 'Failed to create task')
     } finally {
       hideLoading()
@@ -627,9 +639,11 @@ export default function VolunteersPage() {
       reload()
       notifyBadgesChanged()
       notify.success(`Task assigned to ${selected.name} successfully.`)
-      showSuccessModal(`Task successfully assigned to ${selected.name}.`)
+      hideLoading()
+      await showSuccessModal(`Task successfully assigned to ${selected.name}.`)
     } catch (err) {
-      notify.error(err.message)
+      hideLoading()
+      showErrorModal(err.message || 'Failed to assign task')
     } finally {
       hideLoading()
       setSaving(false)
@@ -654,12 +668,14 @@ export default function VolunteersPage() {
     try {
       await tasksApi.update(task.dbId, { boardColumn: 'done', status: 'Completed' })
       notify.success(`Task "${task.title}" marked as completed.`)
-      showSuccessModal('Task successfully completed.')
+      hideLoading()
+      await showSuccessModal('Task successfully completed.')
       if (selected) loadTasks(selected)
       reload()
       notifyBadgesChanged()
     } catch (err) {
-      notify.error(err.message || 'Failed to complete task')
+      hideLoading()
+      showErrorModal(err.message || 'Failed to complete task')
     } finally {
       hideLoading()
       setSaving(false)

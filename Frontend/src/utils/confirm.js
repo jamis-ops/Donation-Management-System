@@ -22,6 +22,10 @@ export function registerConfirmHandler(fn) {
  * @returns {Promise<boolean>} Resolves to true if confirmed/dismissed, false if cancelled
  */
 export function confirmAction(options = {}) {
+  // Always dismiss any active loading spinner overlay so it cannot block the modal dialog
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new CustomEvent('app:hide-loading'))
+  }
   if (confirmHandler) {
     return confirmHandler(options)
   }
