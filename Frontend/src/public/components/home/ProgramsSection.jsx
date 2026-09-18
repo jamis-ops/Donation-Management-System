@@ -14,7 +14,7 @@ const FALLBACK_COLORS = [
 
 function mapCmsProgram(item, index) {
   const meta = item.meta || {}
-  const mock = findMockMatch(item, mockPrograms) || mockPrograms[index] || null
+  const mock = findMockMatch(item, mockPrograms) || null
   return {
     id: meta.slug || mock?.id || `cms-${item.id}`,
     name: item.title || mock?.name || 'Program',
@@ -22,6 +22,12 @@ function mapCmsProgram(item, index) {
     description: item.body || item.summary || mock?.description || '',
     image: resolveCmsImage(item, mock, ['image', 'logo']),
     color: meta.color || mock?.color || FALLBACK_COLORS[index % FALLBACK_COLORS.length],
+    category: meta.category || mock?.category || 'Foundation Outreach',
+    location: meta.location || mock?.location || 'Cebu, Philippines',
+    targetBeneficiaries: meta.targetBeneficiaries || mock?.targetBeneficiaries || '',
+    impact: meta.impact || mock?.impact || '',
+    objectives: Array.isArray(meta.objectives) && meta.objectives.length ? meta.objectives : (mock?.objectives || []),
+    activities: Array.isArray(meta.activities) && meta.activities.length ? meta.activities : (mock?.activities || []),
     active: meta.active !== false && mock?.active !== false,
   }
 }
@@ -41,8 +47,8 @@ function ProgramCard({ program, index }) {
     const centerX = rect.width / 2
     const centerY = rect.height / 2
     
-    const tiltX = ((y - centerY) / centerY) * -10 // Negative for natural tilt
-    const tiltY = ((x - centerX) / centerX) * 10
+    const tiltX = ((y - centerY) / centerY) * -4 // Subtle tilt
+    const tiltY = ((x - centerX) / centerX) * 4
     
     setTilt({ x: tiltX, y: tiltY })
   }
@@ -58,9 +64,12 @@ function ProgramCard({ program, index }) {
 
   return (
     <Reveal
-      as="article"
+      as={Link}
+      to={`/projects/${program.id}`}
       className={`project-card ${isHovered ? 'project-card--hovered' : ''}`}
       delay={Math.min(index * 40, 280)}
+      aria-label={`View details for ${program.name}`}
+      style={{ textDecoration: 'none', color: 'inherit', display: 'flex' }}
     >
       <div
         className="project-card__tilt"
@@ -68,8 +77,8 @@ function ProgramCard({ program, index }) {
         onMouseEnter={handleMouseEnter}
         onMouseLeave={handleMouseLeave}
         style={{
-          transform: `perspective(1000px) rotateX(${tilt.x}deg) rotateY(${tilt.y}deg) translateZ(${isHovered ? '10px' : '0px'})`,
-          transition: isHovered ? 'transform 0.1s ease-out' : 'transform 0.3s ease-out',
+          transform: `perspective(1000px) rotateX(${tilt.x}deg) rotateY(${tilt.y}deg) translateY(${isHovered ? '-4px' : '0px'})`,
+          transition: isHovered ? 'transform 0.15s ease-out' : 'transform 0.35s ease-out',
         }}
       >
         <div
@@ -83,8 +92,8 @@ function ProgramCard({ program, index }) {
               loading="lazy"
               className="project-card__image"
               style={{
-                transform: isHovered ? 'scale(1.1)' : 'scale(1)',
-                transition: 'transform 0.6s ease-out',
+                transform: isHovered ? 'scale(1.05)' : 'scale(1)',
+                transition: 'transform 0.5s cubic-bezier(0.22, 1, 0.36, 1)',
               }}
             />
           ) : (
@@ -104,19 +113,19 @@ function ProgramCard({ program, index }) {
         <div className="project-card__body">
           <h3>{program.name}</h3>
           <p>{program.short}</p>
-          <Link to={`/projects/${program.id}`} className="project-card__link">
+          <span className="project-card__link">
             Read more
             <span className="project-card__link-icon">
               <ArrowRight size={14} />
             </span>
-          </Link>
+          </span>
         </div>
 
         <div
           className="project-card__shadow"
           style={{
-            opacity: isHovered ? 0.5 : 0.2,
-            transform: `translateX(${tilt.y * 0.5}px) translateY(${tilt.x * 0.5}px)`,
+            opacity: isHovered ? 0.35 : 0.15,
+            transform: `translateX(${tilt.y * 0.4}px) translateY(${tilt.x * 0.4}px)`,
           }}
         />
       </div>
