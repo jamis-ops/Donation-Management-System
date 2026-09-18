@@ -687,6 +687,8 @@ export const announcements = [
     category: 'Education',
     excerpt:
       'Accounts All Sorted, a company from Australia, visited Rise Above Foundation Cebu as part of their team-building activity that included outreach and a donation drive.',
+    content:
+      'During their impactful visit, the team from Accounts All Sorted (Australia) dedicated their time to engage directly with children and families at the Rise Above Community Center and Family Care Center in Cebu. Their donation drive and heartfelt outreach provided nutritious meals, essential school supplies, and memorable recreational activities. This corporate partnership highlights how compassionate organizations can make a measurable, heartwarming difference in grassroots communities.',
     image: storyWhereKindness,
   },
   {
@@ -696,6 +698,8 @@ export const announcements = [
     category: 'Purpose',
     excerpt:
       'A story of perseverance and the life-changing impact of Rise Above Foundation Cebu’s educational assistance program.',
+    content:
+      'Through our Educational Sponsorship Program, sponsored scholars receive comprehensive tuition assistance, uniforms, textbooks, daily nutritious meals, and dedicated mentorship. Despite severe financial hardships and personal obstacles, our featured scholar graduated with Cum Laude honors. This incredible milestone stands as a testament to what determined youth can accomplish when given the tools, love, and community backing to thrive.',
     image: storyEducation,
   },
   {
@@ -705,6 +709,8 @@ export const announcements = [
     category: 'Education',
     excerpt:
       'Rise Above Foundation Cebu Inc. conducted a Free Dental Clinic at Barangay Tejero Sports Complex, serving 494 patients with restorations, extractions teeth, and prophylaxis.',
+    content:
+      'In active collaboration with international volunteer dental practitioners from the Philippines, Denmark, and Germany, Rise Above Foundation Cebu successfully conducted a multi-day Free Dental Mission at the Barangay Tejero Sports Complex. In total, 494 underserved residents received vital dental treatments, including 238 teeth restored, 518 teeth extracted, and 191 preventive cleanings, alongside dental hygiene education and free care packages.',
     image: storyDental,
   },
 ]
