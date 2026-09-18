@@ -3,7 +3,7 @@ import {
   Clock3, ListTodo, Mail, UserCheck, Pencil, Trash2,
   CheckCircle2, XCircle, CalendarDays, Briefcase, Truck, Users, Plus,
   FileText, Download, ExternalLink, GraduationCap, Sparkles, RefreshCw,
-  Award, School, Check, Phone, Info, Lock, Unlock, AlertTriangle, Quote, User,
+  Award, School, Check, Phone, Info, Lock, Unlock, AlertTriangle, Quote, User, Eye,
 } from 'lucide-react'
 import { volunteersApi, tasksApi, volunteerMatchApi, distributionsApi, internAiMatchApi } from '../../api/resources'
 import { getTodayDateString, isPastDateString } from '../../utils/date'
@@ -19,7 +19,7 @@ import Req from '../../components/shared/Req'
 import { useSeeMore } from '../../hooks/useSeeMore'
 import { SeeMoreToggle } from '../components/shared/SeeMoreList'
 import { useBulkSelection } from '../../hooks/useBulkSelection'
-import { notify, confirmAction, showSuccessModal } from '../../utils/confirm'
+import { notify, confirmAction, showSuccessModal, showErrorModal } from '../../utils/confirm'
 import { notifyBadgesChanged } from '../../utils/badgeSync'
 import { useCatalogOptions } from '../../hooks/useCatalogOptions'
 import { VOLUNTEER_PROGRAMS, VOLUNTEER_SKILLS } from '../../constants/options'
@@ -283,26 +283,31 @@ export default function VolunteersPage() {
     try {
       const res = await volunteersApi.update(row.dbId, { status: 'Approved' })
       const status = res?.data?.status || 'Approved'
-      if (res?.accountCreated || res?.credentialsSent) {
-        if (res.credentialsSent) {
-          notify.success(`Status successfully updated to: ${status}. Login credentials were emailed.`)
-        } else {
-          notify.warning(
-            [
-              `Status successfully updated to: ${status}. Account was created.`,
-              res?.temporaryPassword ? `Temporary password: ${res.temporaryPassword}` : '',
-              res?.mailError ? `Email note: ${res.mailError}` : 'Credential email was not delivered.',
-            ].filter(Boolean).join('. '),
-          )
+
+      // Refresh currently open modal immediately so it transitions to Approved
+      setSelected((prev) => {
+        if (!prev || (prev.dbId !== row.dbId && prev.id !== row.id)) return prev
+        return {
+          ...prev,
+          status: 'Approved',
+          ...(res?.data || {}),
         }
-      } else {
-        notify.success(`Status successfully updated to: ${status}.`)
-      }
-      showSuccessModal(`Successfully approved ${typeLabel.toLowerCase()}.`)
+      })
+
+      const credentialMsg = res?.credentialsSent
+        ? ' Login credentials have been sent to their email.'
+        : res?.temporaryPassword
+          ? ` Temporary password: ${res.temporaryPassword}`
+          : ''
+
+      await showSuccessModal(
+        `“${row.name}” has been successfully approved as a ${typeLabel.toLowerCase()}.${credentialMsg}`,
+        `${typeLabel} Approved`
+      )
       reload()
       notifyBadgesChanged()
     } catch (err) {
-      notify.error(err.message || `Failed to approve ${typeLabel.toLowerCase()}`)
+      showErrorModal(err.message || `Failed to approve ${typeLabel.toLowerCase()}`)
     } finally {
       hideLoading()
     }
@@ -323,13 +328,25 @@ export default function VolunteersPage() {
     try {
       const res = await volunteersApi.update(row.dbId, { status: 'Rejected' })
       const status = res?.data?.status || 'Rejected'
-      notify.success(`Status successfully updated to: ${status}.`)
-      showSuccessModal('Successfully rejected.')
+
+      // Refresh currently open modal immediately so it reflects Rejected
+      setSelected((prev) => {
+        if (!prev || (prev.dbId !== row.dbId && prev.id !== row.id)) return prev
+        return {
+          ...prev,
+          status: 'Rejected',
+          ...(res?.data || {}),
+        }
+      })
+
+      await showSuccessModal(
+        `Application for “${row.name}” has been rejected.`,
+        `${typeLabel} Rejected`
+      )
       reload()
       notifyBadgesChanged()
-      if (selected?.dbId === row.dbId) closeVolunteer()
     } catch (err) {
-      notify.error(err.message || 'Failed to reject application')
+      showErrorModal(err.message || 'Failed to reject application')
     } finally {
       hideLoading()
     }
@@ -487,6 +504,10 @@ export default function VolunteersPage() {
 
   // 1. Open General Assign Task modal (Outside Manage)
   const openGeneralAssignTask = () => {
+    if (activeAssigneesList.length === 0) {
+      showErrorModal('No approved volunteers or interns are available to assign tasks to. Please approve volunteer applications first.')
+      return
+    }
     const firstVolId = activeAssigneesList[0]?.dbId ? String(activeAssigneesList[0].dbId) : ''
     setGeneralSelectedVolunteerIds(firstVolId ? [firstVolId] : [])
     setGeneralTaskForm({ ...emptyGeneralTaskForm, module: programOptions[0] || 'Volunteer' })
@@ -498,8 +519,8 @@ export default function VolunteersPage() {
   // 2. Open Direct Assign Task modal (Inside Manage)
   const openAssignTaskForSelected = () => {
     if (!selected) return
-    if (['Completed', 'Rejected'].includes(selected.status)) {
-      notify.error(`Cannot assign task: ${selected.name}'s profile is ${selected.status} (finalized).`)
+    if (selected.status !== 'Approved') {
+      showErrorModal(`Cannot assign task: ${selected.name}'s status is ${selected.status}. Only Approved volunteers can be assigned tasks.`)
       return
     }
     const enrolledProg = (selected.programs && selected.programs.length > 0) ? selected.programs[0] : ''
@@ -511,15 +532,15 @@ export default function VolunteersPage() {
   const handleCreateGeneralTask = async (e) => {
     if (e?.preventDefault) e.preventDefault()
     if (!generalSelectedVolunteerIds.length) {
-      notify.error('Please select at least one active member to assign this task to.')
+      showErrorModal('Please select at least one approved member to assign this task to.')
       return
     }
     if (!generalTaskForm.title.trim()) {
-      notify.error('Task title is required.')
+      showErrorModal('Task title is required.')
       return
     }
     if (generalTaskForm.dueDate && isPastDateString(generalTaskForm.dueDate)) {
-      notify.error('Due date cannot be in the past. Please select today or a future date.')
+      showErrorModal('Due date cannot be in the past. Please select today or a future date.')
       return
     }
     setSaving(true)
@@ -548,14 +569,13 @@ export default function VolunteersPage() {
       if (selected) loadTasks(selected)
       reload()
       notifyBadgesChanged()
-      notify.success(
+      showSuccessModal(
         generalSelectedVolunteerIds.length === 1
           ? 'Task created and assigned successfully.'
           : `Task created and assigned to ${generalSelectedVolunteerIds.length} assignees successfully.`
       )
-      showSuccessModal('Task successfully created and assigned.')
     } catch (err) {
-      notify.error(err.message)
+      showErrorModal(err.message || 'Failed to create task')
     } finally {
       hideLoading()
       setSaving(false)
@@ -565,15 +585,15 @@ export default function VolunteersPage() {
   const handleCreateDirectTask = async (e) => {
     if (e?.preventDefault) e.preventDefault()
     if (!selected?.dbId) {
-      notify.error('No record selected.')
+      showErrorModal('No record selected.')
       return
     }
-    if (['Completed', 'Rejected'].includes(selected.status)) {
-      notify.error(`Cannot assign task: ${selected.name}'s profile is ${selected.status} (finalized).`)
+    if (selected.status !== 'Approved') {
+      showErrorModal(`Cannot assign task: ${selected.name}'s status is ${selected.status}. Only Approved volunteers can be assigned tasks.`)
       return
     }
     if (!directTaskForm.title.trim()) {
-      notify.error('Task title is required.')
+      showErrorModal('Task title is required.')
       return
     }
     if (directTaskForm.dueDate && isPastDateString(directTaskForm.dueDate)) {
@@ -708,20 +728,23 @@ export default function VolunteersPage() {
       label: 'Actions',
       render: (row) => (
         <div className="table-actions">
-          <button
-            type="button"
-            className="btn btn--sm btn--outline"
-            onClick={(e) => { e.stopPropagation(); openVolunteer(row) }}
-          >
-            <Pencil size={13} /> Manage
-          </button>
-          {row.status === 'Pending Review' && (
+          {row.status === 'Pending Review' || row.status === 'Rejected' ? (
             <button
               type="button"
-              className="btn btn--sm btn--primary"
-              onClick={(e) => { e.stopPropagation(); handleApprove(row) }}
+              className="btn btn--sm btn--outline"
+              onClick={(e) => { e.stopPropagation(); openVolunteer(row) }}
+              title={row.status === 'Pending Review' ? 'View volunteer application' : 'View volunteer details'}
             >
-              Approve
+              <Eye size={13} /> View
+            </button>
+          ) : (
+            <button
+              type="button"
+              className="btn btn--sm btn--outline"
+              onClick={(e) => { e.stopPropagation(); openVolunteer(row) }}
+              title="Manage volunteer"
+            >
+              <Pencil size={13} /> Manage
             </button>
           )}
         </div>
@@ -788,20 +811,23 @@ export default function VolunteersPage() {
       label: 'Actions',
       render: (row) => (
         <div className="table-actions">
-          <button
-            type="button"
-            className="btn btn--sm btn--outline"
-            onClick={(e) => { e.stopPropagation(); openVolunteer(row) }}
-          >
-            <Pencil size={13} /> Manage
-          </button>
-          {row.status === 'Pending Review' && (
+          {row.status === 'Pending Review' || row.status === 'Rejected' ? (
             <button
               type="button"
-              className="btn btn--sm btn--primary"
-              onClick={(e) => { e.stopPropagation(); handleApprove(row) }}
+              className="btn btn--sm btn--outline"
+              onClick={(e) => { e.stopPropagation(); openVolunteer(row) }}
+              title={row.status === 'Pending Review' ? 'View intern application' : 'View intern details'}
             >
-              Approve
+              <Eye size={13} /> View
+            </button>
+          ) : (
+            <button
+              type="button"
+              className="btn btn--sm btn--outline"
+              onClick={(e) => { e.stopPropagation(); openVolunteer(row) }}
+              title="Manage intern"
+            >
+              <Pencil size={13} /> Manage
             </button>
           )}
         </div>
@@ -937,7 +963,7 @@ export default function VolunteersPage() {
           <div className="admin-modal admin-modal--xl volunteer-manage-modal" onClick={(e) => e.stopPropagation()}>
             <ModalHeader
               title={`${selected.name}`}
-              subtitle={`${selected.applicantType === 'Intern' ? 'Intern' : 'Volunteer'} · ${selected.id} · ${selected.email || 'No email'}${selected.institution ? ` · ${selected.institution}` : ''}`}
+              subtitle={`${selected.applicantType === 'Intern' ? (selected.status === 'Pending Review' ? 'Intern Applicant (Pending Review)' : 'Intern') : (selected.status === 'Pending Review' ? 'Volunteer Applicant (Pending Review)' : 'Volunteer')} · ${selected.id} · ${selected.email || 'No email'}${selected.institution ? ` · ${selected.institution}` : ''}`}
               onClose={closeVolunteer}
             />
 
@@ -959,7 +985,9 @@ export default function VolunteersPage() {
                     {singleEnrolledProgram ? (
                       <span><Briefcase size={14} aria-hidden /> {singleEnrolledProgram}</span>
                     ) : null}
-                    <span><ListTodo size={14} aria-hidden /> {selected.assignedTasks || tasks.length} tasks</span>
+                    {selected.status === 'Approved' && (
+                      <span><ListTodo size={14} aria-hidden /> {selected.assignedTasks || tasks.length} tasks</span>
+                    )}
                     {selected.availability ? (
                       <span><CalendarDays size={14} aria-hidden /> {selected.availability}</span>
                     ) : null}
@@ -975,9 +1003,51 @@ export default function VolunteersPage() {
                     ) : null}
                   </div>
                 </div>
-                <div className="volunteer-detail__hero-aside">
+                <div className="volunteer-detail__hero-aside" style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', flexWrap: 'wrap' }}>
                   <StatusBadge status={selected.status} />
                   {selected.userId ? <span className="volunteer-detail__pill">Portal linked</span> : null}
+                  {selected.status === 'Pending Review' && (
+                    <div className="volunteer-hero__actions" style={{ display: 'inline-flex', gap: '0.45rem', alignItems: 'center' }}>
+                      <button
+                        type="button"
+                        className="btn btn--sm"
+                        onClick={() => handleApprove(selected)}
+                        title="Approve application"
+                        style={{
+                          backgroundColor: '#16a34a',
+                          color: '#ffffff',
+                          border: '1px solid #15803d',
+                          fontWeight: 650,
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '0.35rem',
+                          padding: '0.35rem 0.85rem',
+                          borderRadius: '6px',
+                          boxShadow: '0 1px 2px rgba(0,0,0,0.08)',
+                          cursor: 'pointer',
+                        }}
+                      >
+                        <CheckCircle2 size={14} /> Approve
+                      </button>
+                      <button
+                        type="button"
+                        className="btn btn--sm btn--danger"
+                        onClick={() => handleReject(selected)}
+                        title="Reject application"
+                        style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '0.35rem',
+                          padding: '0.35rem 0.85rem',
+                          fontWeight: 650,
+                          borderRadius: '6px',
+                          cursor: 'pointer',
+                        }}
+                      >
+                        <XCircle size={14} /> Reject
+                      </button>
+                    </div>
+                  )}
                 </div>
               </header>
 
@@ -1019,17 +1089,19 @@ export default function VolunteersPage() {
                       ) : null}
                     </button>
 
-                    <button
-                      type="button"
-                      role="tab"
-                      aria-selected={internModalTab === 'tasks'}
-                      className={`intern-modal-tab ${internModalTab === 'tasks' ? 'intern-modal-tab--active' : ''}`}
-                      onClick={() => setInternModalTab('tasks')}
-                    >
-                      <ListTodo size={15} />
-                      <span>Assign Task</span>
-                      <span className="intern-modal-tab__badge">{tasks.length}</span>
-                    </button>
+                    {selected.status === 'Approved' && (
+                      <button
+                        type="button"
+                        role="tab"
+                        aria-selected={internModalTab === 'tasks'}
+                        className={`intern-modal-tab ${internModalTab === 'tasks' ? 'intern-modal-tab--active' : ''}`}
+                        onClick={() => setInternModalTab('tasks')}
+                      >
+                        <ListTodo size={15} />
+                        <span>Assign Task</span>
+                        <span className="intern-modal-tab__badge">{tasks.length}</span>
+                      </button>
+                    )}
                   </div>
 
                   {/* TAB 1: DETAILS ONLY (Personal & Academic Info, Resume, Program) */}
@@ -1931,43 +2003,89 @@ export default function VolunteersPage() {
                           <h4>
                             <ListTodo size={15} aria-hidden /> Assigned Tasks
                           </h4>
-                          <span className="volunteer-tasks-count-pill">{tasks.length}</span>
+                          {selected.status === 'Approved' && (
+                            <span className="volunteer-tasks-count-pill">{tasks.length}</span>
+                          )}
                         </div>
-                        <button
-                          type="button"
-                          className="btn btn--sm btn--primary"
-                          onClick={openAssignTaskForSelected}
-                          disabled={['Completed', 'Rejected'].includes(selected.status)}
-                          title={['Completed', 'Rejected'].includes(selected.status) ? 'Cannot assign tasks to a completed/rejected volunteer' : ''}
-                        >
-                          + Assign Task
-                        </button>
+                        {selected.status === 'Approved' && (
+                          <button
+                            type="button"
+                            className="btn btn--sm btn--primary"
+                            onClick={openAssignTaskForSelected}
+                          >
+                            + Assign Task
+                          </button>
+                        )}
                       </div>
 
-                      {['Completed', 'Rejected'].includes(selected.status) && (
+                      {selected.status === 'Pending Review' ? (
+                        <div className="volunteer-tasks-empty-state" style={{ padding: '2.25rem 1.5rem', textAlign: 'center' }}>
+                          <div style={{
+                            width: '46px',
+                            height: '46px',
+                            borderRadius: '50%',
+                            background: '#fef3c7',
+                            color: '#b45309',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            margin: '0 auto 0.75rem',
+                          }}>
+                            <Lock size={22} />
+                          </div>
+                          <strong style={{ display: 'block', fontSize: '0.92rem', color: '#1e293b', marginBottom: '0.35rem' }}>
+                            Task Assignment Unavailable
+                          </strong>
+                          <p style={{ fontSize: '0.84rem', color: '#64748b', maxWidth: '320px', margin: '0 auto', lineHeight: 1.5 }}>
+                            This volunteer is currently <strong>Pending Review</strong>. Tasks can only be assigned after the application is approved.
+                          </p>
+                        </div>
+                      ) : selected.status === 'Rejected' ? (
+                        <div className="volunteer-tasks-empty-state" style={{ padding: '2.25rem 1.5rem', textAlign: 'center' }}>
+                          <div style={{
+                            width: '46px',
+                            height: '46px',
+                            borderRadius: '50%',
+                            background: '#fee2e2',
+                            color: '#dc2626',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            margin: '0 auto 0.75rem',
+                          }}>
+                            <Lock size={22} />
+                          </div>
+                          <strong style={{ display: 'block', fontSize: '0.92rem', color: '#1e293b', marginBottom: '0.35rem' }}>
+                            Task Assignment Locked
+                          </strong>
+                          <p style={{ fontSize: '0.84rem', color: '#64748b', maxWidth: '320px', margin: '0 auto', lineHeight: 1.5 }}>
+                            This volunteer application was <strong>Rejected</strong>. Tasks cannot be assigned.
+                          </p>
+                        </div>
+                      ) : ['Completed'].includes(selected.status) ? (
                         <div className="action-locked-banner action-locked-banner--accent" style={{ margin: '0.5rem 0 0.85rem' }}>
                           <Lock size={14} />
                           <span>This volunteer record is <strong>{selected.status}</strong> (finalized). Task assignment is locked.</span>
                         </div>
-                      )}
+                      ) : null}
 
-                      {tasksLoading ? (
-                        <p className="beneficiary-view-empty">Loading tasks…</p>
-                      ) : tasks.length === 0 ? (
-                        <div className="volunteer-tasks-empty-state">
-                          <ListTodo size={28} className="volunteer-tasks-empty-icon" />
-                          <p>No tasks assigned to this volunteer yet.</p>
-                          <button
-                            type="button"
-                            className="btn btn--sm btn--outline"
-                            onClick={openAssignTaskForSelected}
-                            disabled={['Completed', 'Rejected'].includes(selected.status)}
-                          >
-                            + Create First Task
-                          </button>
-                        </div>
-                      ) : (
-                        <div className="volunteer-tasks-scroll-container">
+                      {selected.status === 'Approved' && (
+                        tasksLoading ? (
+                          <p className="beneficiary-view-empty">Loading tasks…</p>
+                        ) : tasks.length === 0 ? (
+                          <div className="volunteer-tasks-empty-state">
+                            <ListTodo size={28} className="volunteer-tasks-empty-icon" />
+                            <p>No tasks assigned to this volunteer yet.</p>
+                            <button
+                              type="button"
+                              className="btn btn--sm btn--outline"
+                              onClick={openAssignTaskForSelected}
+                            >
+                              + Create First Task
+                            </button>
+                          </div>
+                        ) : (
+                          <div className="volunteer-tasks-scroll-container">
                           <div className="see-more-wrap">
                             <div className="volunteer-task-list">
                               {tasksSeeMore.visible.map((t) => (
@@ -2022,7 +2140,7 @@ export default function VolunteersPage() {
                             )}
                           </div>
                         </div>
-                      )}
+                      ))}
                     </section>
                   </div>
                 </div>
@@ -2036,10 +2154,39 @@ export default function VolunteersPage() {
               <div className="admin-modal__actions-group">
                 {selected.status === 'Pending Review' && (
                   <>
-                    <button type="button" className="btn btn--primary" onClick={() => handleApprove(selected)}>
+                    <button
+                      type="button"
+                      className="btn"
+                      onClick={() => handleApprove(selected)}
+                      style={{
+                        backgroundColor: '#16a34a',
+                        color: '#ffffff',
+                        border: '1px solid #15803d',
+                        fontWeight: 650,
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '0.35rem',
+                        padding: '0.45rem 0.95rem',
+                        borderRadius: '6px',
+                        cursor: 'pointer',
+                      }}
+                    >
                       <CheckCircle2 size={15} /> Approve
                     </button>
-                    <button type="button" className="btn btn--outline" onClick={() => handleReject(selected)}>
+                    <button
+                      type="button"
+                      className="btn btn--danger"
+                      onClick={() => handleReject(selected)}
+                      style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '0.35rem',
+                        padding: '0.45rem 0.95rem',
+                        fontWeight: 650,
+                        borderRadius: '6px',
+                        cursor: 'pointer',
+                      }}
+                    >
                       <XCircle size={15} /> Reject
                     </button>
                   </>

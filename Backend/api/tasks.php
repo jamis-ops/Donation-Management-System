@@ -300,17 +300,18 @@ if ($method === 'POST') {
     $volunteerIds = [(int) $body['volunteerId']];
   }
 
-  // Check that assignees are not in Completed or Rejected terminal status
+  // Check that assignees are Approved volunteers
   if (!empty($volunteerIds)) {
     $inClause = implode(',', array_fill(0, count($volunteerIds), '?'));
     $vCheck = $pdo->prepare("SELECT full_name, status FROM volunteers WHERE id IN ($inClause)");
     $vCheck->execute($volunteerIds);
     $vRows = $vCheck->fetchAll();
     foreach ($vRows as $vRow) {
-      if (in_array($vRow['status'] ?? '', ['Completed', 'Rejected'], true)) {
+      $st = $vRow['status'] ?? '';
+      if (!in_array($st, ['Approved', 'Active', 'Assigned'], true)) {
         json_response([
           'ok' => false,
-          'error' => "Cannot assign task to \"{$vRow['full_name']}\" because their status is {$vRow['status']} (finalized).",
+          'error' => "Cannot assign task to \"{$vRow['full_name']}\" because their status is {$st}. Only Approved volunteers can be assigned tasks.",
         ], 400);
       }
     }
@@ -324,10 +325,11 @@ if ($method === 'POST') {
     $vol->execute([$assigneeUserId]);
     $volRow = $vol->fetch();
     if ($volRow) {
-      if (in_array($volRow['status'] ?? '', ['Completed', 'Rejected'], true)) {
+      $st = $volRow['status'] ?? '';
+      if (!in_array($st, ['Approved', 'Active', 'Assigned'], true)) {
         json_response([
           'ok' => false,
-          'error' => "Cannot assign task to \"{$volRow['full_name']}\" because their status is {$volRow['status']} (finalized).",
+          'error' => "Cannot assign task to \"{$volRow['full_name']}\" because their status is {$st}. Only Approved volunteers can be assigned tasks.",
         ], 400);
       }
       $assignee = $volRow['full_name'];
@@ -335,6 +337,19 @@ if ($method === 'POST') {
       $uName = $pdo->prepare('SELECT full_name FROM users WHERE id = ? LIMIT 1');
       $uName->execute([$assigneeUserId]);
       $assignee = (string) ($uName->fetchColumn() ?: '');
+    }
+  } elseif ($assignee !== '' && empty($volunteerIds) && !$assigneeUserId) {
+    $volByName = $pdo->prepare('SELECT full_name, status FROM volunteers WHERE full_name = ? LIMIT 1');
+    $volByName->execute([$assignee]);
+    $vbn = $volByName->fetch();
+    if ($vbn) {
+      $st = $vbn['status'] ?? '';
+      if (!in_array($st, ['Approved', 'Active', 'Assigned'], true)) {
+        json_response([
+          'ok' => false,
+          'error' => "Cannot assign task to \"{$vbn['full_name']}\" because their status is {$st}. Only Approved volunteers can be assigned tasks.",
+        ], 400);
+      }
     }
   } elseif (count($volunteerIds) === 1) {
     $vol = $pdo->prepare('SELECT full_name, user_id FROM volunteers WHERE id = ? LIMIT 1');
@@ -651,19 +666,46 @@ if ($method === 'PUT') {
   $singleVolId = null;
   if (!empty($body['volunteerId'])) {
     $singleVolId = (int) $body['volunteerId'];
-    $vol = $pdo->prepare('SELECT full_name, user_id FROM volunteers WHERE id = ? LIMIT 1');
+    $vol = $pdo->prepare('SELECT full_name, user_id, status FROM volunteers WHERE id = ? LIMIT 1');
     $vol->execute([$singleVolId]);
     $volRow = $vol->fetch();
     if ($volRow) {
+      $st = $volRow['status'] ?? '';
+      if (!in_array($st, ['Approved', 'Active', 'Assigned'], true)) {
+        json_response([
+          'ok' => false,
+          'error' => "Cannot assign task to \"{$volRow['full_name']}\" because their status is {$st}. Only Approved volunteers can be assigned tasks.",
+        ], 400);
+      }
       $assignee = $volRow['full_name'];
       $assigneeUserId = $volRow['user_id'] ? (int) $volRow['user_id'] : null;
     }
   } elseif ($assigneeUserId && !array_key_exists('assignee', $body)) {
-    $vol = $pdo->prepare('SELECT full_name FROM volunteers WHERE user_id = ? LIMIT 1');
+    $vol = $pdo->prepare('SELECT full_name, status FROM volunteers WHERE user_id = ? LIMIT 1');
     $vol->execute([$assigneeUserId]);
-    $volName = $vol->fetchColumn();
-    if ($volName) {
-      $assignee = $volName;
+    $volRow = $vol->fetch();
+    if ($volRow) {
+      $st = $volRow['status'] ?? '';
+      if (!in_array($st, ['Approved', 'Active', 'Assigned'], true)) {
+        json_response([
+          'ok' => false,
+          'error' => "Cannot assign task to \"{$volRow['full_name']}\" because their status is {$st}. Only Approved volunteers can be assigned tasks.",
+        ], 400);
+      }
+      $assignee = $volRow['full_name'];
+    }
+  } elseif (!empty($body['assignee'])) {
+    $vol = $pdo->prepare('SELECT full_name, status FROM volunteers WHERE full_name = ? LIMIT 1');
+    $vol->execute([trim((string) $body['assignee'])]);
+    $volRow = $vol->fetch();
+    if ($volRow) {
+      $st = $volRow['status'] ?? '';
+      if (!in_array($st, ['Approved', 'Active', 'Assigned'], true)) {
+        json_response([
+          'ok' => false,
+          'error' => "Cannot assign task to \"{$volRow['full_name']}\" because their status is {$st}. Only Approved volunteers can be assigned tasks.",
+        ], 400);
+      }
     }
   }
 
