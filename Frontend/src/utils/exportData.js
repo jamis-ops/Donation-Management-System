@@ -327,6 +327,10 @@ export function printPdf(title, sections, options = {}) {
   win.document.write(`<!DOCTYPE html><html lang="en"><head><meta charset="utf-8">
     <title>${htmlEscape(title)} — Rise Above Foundation Cebu</title>
     <style>
+      @page {
+        size: auto;
+        margin: 0;
+      }
       * { box-sizing: border-box; }
       body {
         font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
@@ -459,7 +463,11 @@ export function printPdf(title, sections, options = {}) {
         color: #94a3b8;
       }
       @media print {
-        body { padding: 16px 20px; }
+        @page {
+          size: auto;
+          margin: 0;
+        }
+        body { padding: 16mm 20mm; }
         .report-header { margin-bottom: 16px; padding-bottom: 12px; }
         .report-table th { background: #1e293b !important; color: #ffffff !important; }
         .report-signoff { background: #ffffff !important; border: 1px solid #cbd5e1 !important; border-left: 4px solid #AF101A !important; }

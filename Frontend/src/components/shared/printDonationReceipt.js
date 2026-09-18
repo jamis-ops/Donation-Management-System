@@ -57,7 +57,7 @@ export function printDonationReceipt(donation, options = {}) {
   <style>
     @page {
       size: A4;
-      margin: 18mm 20mm;
+      margin: 0;
     }
     * {
       box-sizing: border-box;
@@ -241,11 +241,15 @@ export function printDonationReceipt(donation, options = {}) {
       box-shadow: 0 4px 12px rgba(175, 16, 26, 0.25);
     }
     @media print {
+      @page {
+        size: A4;
+        margin: 0;
+      }
       .btn-print {
         display: none;
       }
       body {
-        padding: 0;
+        padding: 16mm 20mm;
       }
     }
   </style>
