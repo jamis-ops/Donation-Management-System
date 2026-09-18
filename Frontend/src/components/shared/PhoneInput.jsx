@@ -88,6 +88,7 @@ export default function PhoneInput({
   const currentCountryObj = useMemo(() => {
     return (
       COUNTRY_DIAL_CODES.find((c) => c.dialCode === selectedCountry) ||
+      COUNTRY_DIAL_CODES.find((c) => c.code === 'PH') ||
       COUNTRY_DIAL_CODES[0]
     )
   }, [selectedCountry])
