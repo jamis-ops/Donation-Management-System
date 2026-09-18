@@ -256,12 +256,6 @@ function ProjectDetailView({ project, list }) {
                     <dd>Rise Above Foundation Cebu</dd>
                   </div>
                 </dl>
-
-                <div style={{ marginTop: '1.25rem', paddingTop: '1.25rem', borderTop: '1px solid var(--color-border)' }}>
-                  <Link to="/#programs" className="project-detail__sidebar-back">
-                    <ArrowLeft size={14} /> Back to All Projects
-                  </Link>
-                </div>
               </div>
             </aside>
           </div>
@@ -274,10 +268,6 @@ function ProjectDetailView({ project, list }) {
                 <span className="project-detail__nav-sub">Previous Project</span>
                 <span className="project-detail__nav-title">{prev.name}</span>
               </div>
-            </Link>
-
-            <Link to="/#programs" className="btn btn--outline btn--sm project-detail__center-back">
-              All Projects
             </Link>
 
             <Link to={`/projects/${next.id}`} className="project-detail__nav-link project-detail__nav-link--next">

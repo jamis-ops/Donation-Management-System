@@ -1626,21 +1626,6 @@ address { font-style: normal; }
   font-size: 0.92rem;
 }
 
-.project-detail__sidebar-back {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.45rem;
-  font-size: 0.88rem;
-  font-weight: 600;
-  color: var(--color-brand);
-  text-decoration: none;
-  transition: all 0.2s ease;
-}
-
-.project-detail__sidebar-back:hover {
-  gap: 0.65rem;
-  color: var(--color-brand-dark);
-}
 
 .project-detail__nav {
   display: flex;
@@ -1650,7 +1635,6 @@ address { font-style: normal; }
   padding-top: 2rem;
   margin-top: 1rem;
   border-top: 1px solid var(--color-border);
-  flex-wrap: wrap;
 }
 
 .project-detail__nav-link {
@@ -1664,7 +1648,7 @@ address { font-style: normal; }
   background: var(--color-surface);
   border: 1px solid var(--color-border);
   transition: all 0.25s ease;
-  max-width: 42%;
+  max-width: 48%;
 }
 
 .project-detail__nav-link:hover {
@@ -1695,13 +1679,6 @@ address { font-style: normal; }
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-}
-
-.project-detail__center-back {
-  border-radius: 50px;
-  padding: 0.55rem 1.35rem;
-  font-weight: 600;
-  font-size: 0.88rem;
 }
 
 @media (max-width: 900px) {
