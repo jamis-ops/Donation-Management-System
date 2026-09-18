@@ -1259,34 +1259,38 @@ export default function AllocationPage() {
           <h2>Recommended Allocations</h2>
           <p className="alloc-panel-hint">Auto-matched from barangay needs × affected families against available inventory.</p>
           <div className="see-more-wrap">
-          <div className="volunteer-task-list">
-            {recsSeeMore.visible.map((rec) => (
-              <article
-                key={`${rec.assistanceRequestId || 'b'}-${rec.beneficiaryId}-${rec.inventoryId}-${rec.need}`}
-                className="volunteer-task-card"
-              >
-                <div className="volunteer-task-card__top">
-                  <strong>{rec.resource} × {rec.quantity} {rec.unit}</strong>
-                  <StatusBadge status={rec.priority} />
-                </div>
-                <div className="volunteer-task-card__meta">
-                  <span>{rec.beneficiary || '—'}</span>
-                  <span>{rec.affectedFamilies || 0} families</span>
-                  <span>Need: {rec.need || rec.requestType}</span>
-                  <span>Stock: {rec.available}</span>
-                </div>
-                {(rec.beneficiaryNeeds || []).length > 0 && (
-                  <div className="alloc-need-tags" style={{ marginTop: '0.45rem' }}>
-                    {rec.beneficiaryNeeds.map((n) => <span key={n} className="alloc-need-tag">{n}</span>)}
+            <div className="volunteer-task-list">
+              {recsSeeMore.visible.map((rec) => (
+                <article
+                  key={`${rec.assistanceRequestId || 'b'}-${rec.beneficiaryId}-${rec.inventoryId}-${rec.need}`}
+                  className="volunteer-task-card alloc-rec-card"
+                >
+                  <div className="alloc-rec-card__body">
+                    <div className="volunteer-task-card__top">
+                      <strong>{rec.resource} × {rec.quantity} {rec.unit}</strong>
+                      <StatusBadge status={rec.priority} />
+                    </div>
+                    <div className="volunteer-task-card__meta">
+                      <span>{rec.beneficiary || '—'}</span>
+                      <span>{rec.affectedFamilies || 0} families</span>
+                      <span>Need: {rec.need || rec.requestType}</span>
+                      <span>Stock: {rec.available}</span>
+                    </div>
+                    {(rec.beneficiaryNeeds || []).length > 0 && (
+                      <div className="alloc-need-tags" style={{ marginTop: '0.45rem' }}>
+                        {rec.beneficiaryNeeds.map((n) => <span key={n} className="alloc-need-tag">{n}</span>)}
+                      </div>
+                    )}
+                    <p style={{ margin: '0.4rem 0 0', fontSize: '0.82rem', color: '#64748b' }}>{rec.reason}</p>
                   </div>
-                )}
-                <p style={{ margin: '0.4rem 0 0.6rem', fontSize: '0.82rem', color: '#64748b' }}>{rec.reason}</p>
-                <button type="button" className="btn btn--sm btn--primary" onClick={() => applyRecommendation(rec)}>
-                  Use Recommendation
-                </button>
-              </article>
-            ))}
-          </div>
+                  <div className="alloc-rec-card__actions">
+                    <button type="button" className="btn btn--sm btn--primary" onClick={() => applyRecommendation(rec)}>
+                      Use Recommendation
+                    </button>
+                  </div>
+                </article>
+              ))}
+            </div>
           {recsSeeMore.needsToggle && (
             <SeeMoreToggle
               expanded={recsSeeMore.expanded}

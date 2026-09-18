@@ -210,6 +210,32 @@
   overflow: hidden;
 }
 
+/* Recommendation Card Layout — Anchored Bottom-Left Button */
+.alloc-rec-card {
+  display: flex !important;
+  flex-direction: column !important;
+  height: 100%;
+}
+
+.alloc-rec-card__body {
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+}
+
+.alloc-rec-card__actions {
+  margin-top: auto;
+  padding-top: 1rem;
+  display: flex;
+  justify-content: flex-start;
+  align-items: center;
+}
+
+.alloc-rec-card__actions .btn {
+  margin: 0;
+  align-self: flex-start;
+}
+
 .volunteer-task-card::before {
   content: '';
   position: absolute;
