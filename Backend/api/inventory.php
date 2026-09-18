@@ -22,6 +22,7 @@ function ensure_inventory_items_columns(PDO $pdo): void
   $ensured = true;
 }
 ensure_inventory_items_columns($pdo);
+ensure_allocation_inventory_schema($pdo);
 
 function map_inventory(array $row): array
 {
@@ -45,7 +46,7 @@ function map_inventory(array $row): array
     'stockPercent' => $moderate > 0 ? min(100, (int) round(($qty / $moderate) * 100)) : 100,
     'allocated' => (int) ($row['allocated'] ?? 0),
     'distributed' => (int) ($row['distributed'] ?? 0),
-    'available' => max(0, $qty - (int) ($row['allocated'] ?? 0)),
+    'available' => $qty,
     'stockState' => $row['stock_state'] ?? 'Available',
     'lowStockThreshold' => $low,
     'moderateStockThreshold' => $moderate,

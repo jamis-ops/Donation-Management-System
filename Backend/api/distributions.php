@@ -1020,6 +1020,17 @@ if ($method === 'PUT') {
     notify_admins($pdo, 'status_update', 'Distribution status updated', "Distribution {$existing['code']} is now {$newStatus}", '/admin/distributions?id=' . (int) $id . '#distributions-table');
     if (in_array($newStatus, ['Delivered', 'Completed'], true)) {
       try {
+        $allocStmt = $pdo->prepare("SELECT id, inventory_item_id, deducted_quantity FROM allocations WHERE distribution_id = ? AND status IN ('Reserved','Allocated') AND inventory_deducted = 1");
+        $allocStmt->execute([$id]);
+        $linkedAllocs = $allocStmt->fetchAll();
+        foreach ($linkedAllocs as $la) {
+          $invId = !empty($la['inventory_item_id']) ? (int) $la['inventory_item_id'] : null;
+          $dQty = (int) ($la['deducted_quantity'] ?? 0);
+          if ($invId && $dQty > 0) {
+            $pdo->prepare("UPDATE inventory_items SET allocated = GREATEST(0, allocated - ?), distributed = distributed + ? WHERE id = ?")
+              ->execute([$dQty, $dQty, $invId]);
+          }
+        }
         $pdo->prepare("UPDATE allocations SET status = 'Delivered' WHERE distribution_id = ? AND status IN ('Reserved','Allocated')")
           ->execute([$id]);
       } catch (Throwable $e) {

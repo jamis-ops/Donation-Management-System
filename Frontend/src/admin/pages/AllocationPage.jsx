@@ -46,12 +46,12 @@ const filterConfig = {
 }
 
 const emptyForm = {
-  // Multiple resources to allocate: [{ key, resource, quantity }]
+  // Multiple resources to allocate: [{ key, resource, quantity, inventoryItemId }]
   lines: [],
   program: '',
   beneficiaryId: '',
   assistanceRequestId: '',
-  status: 'Pending',
+  status: 'Allocated',
   priority: 'Medium',
   notes: '',
 }
@@ -62,8 +62,8 @@ function nextLineKey() {
   return `line-${lineKeySeq}`
 }
 
-function makeLine(resource = '', quantity = '') {
-  return { key: nextLineKey(), resource, quantity: quantity === 0 ? '' : String(quantity || '') }
+function makeLine(resource = '', quantity = '', inventoryItemId = null) {
+  return { key: nextLineKey(), resource, quantity: quantity === 0 ? '' : String(quantity || ''), inventoryItemId }
 }
 
 /** Parse structured notes written by the barangay request form. */
@@ -396,6 +396,44 @@ const styles = `
   flex-wrap: wrap;
 }
 
+.alloc-resource-line-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  padding: 0.65rem 0.75rem;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  margin-bottom: 0.5rem;
+}
+
+.alloc-stock-feedback {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.76rem;
+  font-weight: 600;
+  padding: 0.15rem 0.35rem;
+  border-radius: 4px;
+}
+.alloc-stock-feedback--ok {
+  color: #166534;
+  background: #f0fdf4;
+}
+.alloc-stock-feedback--err {
+  color: #b91c1c;
+  background: #fef2f2;
+}
+
+.alloc-inventory-packs__list li {
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+.alloc-inventory-packs__list li:hover {
+  background: #e2e8f0 !important;
+  transform: translateX(2px);
+}
+
 @media (max-width: 768px) {
   .alloc-detail-grid {
     grid-template-columns: 1fr;
@@ -410,7 +448,7 @@ export default function AllocationPage() {
   const { data, loading, error, reload } = useApiList(() => allocationsApi.list())
   const { data: barangays } = useApiList(() => beneficiariesApi.list())
   const { data: requests } = useApiList(() => assistanceRequestsApi.list())
-  const { data: inventoryData } = useApiList(() => inventoryApi.list())
+  const { data: inventoryData, reload: reloadInventory } = useApiList(() => inventoryApi.list())
   const filters = useFilters(data, filterConfig)
   const bulk = useBulkSelection(
     filters.filtered,
@@ -440,11 +478,25 @@ export default function AllocationPage() {
   const needsSeeMore = useSeeMore(beneficiaryNeeds, 3)
   const recsSeeMore = useSeeMore(recs, 3)
 
-  // Display-only: inventory items whose unit is packs
-  const inventoryPacks = (inventoryData || []).filter((item) => {
-    const unit = String(item.unit || '').toLowerCase()
-    return unit.includes('pack')
-  })
+  const findMatchingInventory = (resourceName, inventoryItemId = null) => {
+    if (inventoryItemId) {
+      const byId = (inventoryData || []).find((i) => String(i.dbId) === String(inventoryItemId))
+      if (byId) return byId
+    }
+    const clean = String(resourceName || '').trim().toLowerCase()
+    if (!clean) return null
+    return (inventoryData || []).find((i) =>
+      String(i.item || '').trim().toLowerCase() === clean ||
+      String(i.id || '').trim().toLowerCase() === clean
+    ) || (inventoryData || []).find((i) =>
+      String(i.item || '').trim().toLowerCase().includes(clean) ||
+      clean.includes(String(i.item || '').trim().toLowerCase())
+    ) || null
+  }
+
+  // Display available warehouse inventory items
+  const availableInventory = (inventoryData || []).filter((item) => (Number(item.quantity) > 0 || Number(item.available) > 0))
+  const inventoryPacks = availableInventory.length ? availableInventory : (inventoryData || [])
 
   const updateLine = (key, patch) => {
     setForm((f) => ({
@@ -661,6 +713,20 @@ export default function AllocationPage() {
         notify.warning(`Enter a valid quantity for "${line.resource}".`)
         return
       }
+      // Validate available stock for confirmed allocations
+      if (['Reserved', 'Allocated', 'Delivered'].includes(form.status)) {
+        const matched = findMatchingInventory(line.resource, line.inventoryItemId)
+        if (matched) {
+          const avail = Number(matched.available ?? matched.quantity ?? 0)
+          const effectiveAvail = (editRow && editRow.dbId && (matched.dbId === editRow.inventoryItemId || matched.item === editRow.resource))
+            ? avail + Number(editRow.deductedQuantity || editRow.quantity || 0)
+            : avail
+          if (Number(line.quantity) > effectiveAvail) {
+            notify.error(`Requested quantity (${line.quantity}) exceeds available stock (${effectiveAvail} ${matched.unit}) for "${matched.item}".`)
+            return
+          }
+        }
+      }
     }
 
     setSaving(true)
@@ -683,9 +749,13 @@ export default function AllocationPage() {
             return
           }
         }
+        const matched = findMatchingInventory(lines[0]?.resource, lines[0]?.inventoryItemId)
         const res = await allocationsApi.update(editRow.dbId, {
           resource: lines[0]?.resource?.trim() || form.lines[0]?.resource?.trim(),
           quantity: Number(lines[0]?.quantity || form.lines[0]?.quantity || 0),
+          inventoryItemId: matched?.dbId || null,
+          unit: matched?.unit || null,
+          variant: matched?.variant || null,
           program: form.program,
           beneficiaryId: form.beneficiaryId ? Number(form.beneficiaryId) : null,
           beneficiary: benName,
@@ -705,9 +775,13 @@ export default function AllocationPage() {
       } else {
         let lastDraftInfo = null
         for (const line of lines) {
+          const matched = findMatchingInventory(line.resource, line.inventoryItemId)
           const payload = {
             resource: line.resource.trim(),
             quantity: Number(line.quantity),
+            inventoryItemId: matched?.dbId || null,
+            unit: matched?.unit || null,
+            variant: matched?.variant || null,
             program: form.program,
             beneficiaryId: form.beneficiaryId ? Number(form.beneficiaryId) : null,
             beneficiary: benName,
@@ -731,6 +805,7 @@ export default function AllocationPage() {
       }
 
       reload()
+      if (typeof reloadInventory === 'function') reloadInventory()
       notifyBadgesChanged()
       notify.success(editRow ? 'Allocation updated.' : 'Allocation saved.')
       showSuccessModal(editRow ? 'Successfully updated.' : 'Successfully added.')
@@ -772,6 +847,7 @@ export default function AllocationPage() {
       setStatusRow(null)
       setDetailRow(null)
       reload()
+      if (typeof reloadInventory === 'function') reloadInventory()
       notifyBadgesChanged()
       notify.success(`Status successfully updated to: ${status}.`)
       showSuccessModal('Successfully updated.')
@@ -798,6 +874,7 @@ export default function AllocationPage() {
       notify.success(`Allocation ${row.id} deleted.`)
       showSuccessModal('Successfully deleted.')
       reload()
+      if (typeof reloadInventory === 'function') reloadInventory()
       notifyBadgesChanged()
       if (detailRow?.dbId === row.dbId) setDetailRow(null)
     } catch (err) {
@@ -983,15 +1060,36 @@ export default function AllocationPage() {
       )}
 
       <div className="alloc-inventory-packs">
-        <strong>Available packs in inventory</strong>
-        {inventoryPacks.length === 0 ? (
-          <p className="alloc-inventory-packs__empty">No pack items in inventory yet.</p>
+        <strong>Available items in warehouse inventory</strong>
+        {availableInventory.length === 0 ? (
+          <p className="alloc-inventory-packs__empty">No inventory items available.</p>
         ) : (
           <ul className="alloc-inventory-packs__list">
-            {inventoryPacks.map((pack) => (
-              <li key={pack.dbId}>
+            {availableInventory.map((pack) => (
+              <li
+                key={pack.dbId}
+                onClick={() => {
+                  if (editRow) {
+                    setForm((f) => ({
+                      ...f,
+                      lines: [{ ...f.lines[0], resource: pack.item, inventoryItemId: pack.dbId }]
+                    }))
+                    return
+                  }
+                  const emptyIdx = (form.lines || []).findIndex((l) => !String(l.resource || '').trim())
+                  if (emptyIdx >= 0) {
+                    const lineKey = form.lines[emptyIdx].key
+                    updateLine(lineKey, { resource: pack.item, inventoryItemId: pack.dbId, quantity: form.lines[emptyIdx].quantity || recommendedQty || '1' })
+                  } else {
+                    addLine(pack.item, recommendedQty || '1', pack.dbId)
+                  }
+                }}
+                title="Click to select this item"
+              >
                 <span>{pack.item}</span>
-                <span>{pack.available ?? pack.quantity} {pack.unit}</span>
+                <span style={{ fontWeight: 700, color: (pack.available ?? pack.quantity) > 0 ? '#166534' : '#b91c1c' }}>
+                  {pack.available ?? pack.quantity} {pack.unit}
+                </span>
               </li>
             ))}
           </ul>
@@ -1004,7 +1102,7 @@ export default function AllocationPage() {
           <span>{(form.lines || []).length} item{(form.lines || []).length === 1 ? '' : 's'}</span>
         </div>
         <p className="alloc-resource-lines__hint">
-          Add multiple packs the barangay requested (e.g. rice, water, hygiene kits). Each row becomes its own allocation.
+          Add multiple packs the barangay requested (e.g. rice, water, hygiene kits). Each row becomes its own allocation and automatically deducts stock upon confirmation.
         </p>
 
         {(form.lines || []).length === 0 && (
@@ -1012,45 +1110,76 @@ export default function AllocationPage() {
         )}
 
         <div className="alloc-resource-lines__rows">
-          {(form.lines || []).map((line) => (
-            <div key={line.key} className="alloc-resource-line">
-              <label>
-                Resource
-                <input
-                  list="allocation-resource-options"
-                  required
-                  value={line.resource}
-                  onChange={(e) => updateLine(line.key, { resource: e.target.value })}
-                  placeholder="e.g. Rice, Water, Food Packs"
-                />
-              </label>
-              <label>
-                Quantity
-                <input
-                  type="number"
-                  min="1"
-                  required
-                  value={line.quantity}
-                  onChange={(e) => updateLine(line.key, { quantity: e.target.value })}
-                  placeholder={recommendedQty ? String(recommendedQty) : '0'}
-                />
-              </label>
-              <button
-                type="button"
-                className="icon-btn icon-btn--danger"
-                title="Remove"
-                aria-label="Remove resource"
-                onClick={() => removeLine(line.key)}
-                disabled={(form.lines || []).length <= 1 && editRow}
-              >
-                <X size={16} />
-              </button>
-            </div>
-          ))}
+          {(form.lines || []).map((line) => {
+            const matched = findMatchingInventory(line.resource, line.inventoryItemId)
+            const qtyNum = Number(line.quantity) || 0
+            const avail = matched ? Number(matched.available ?? matched.quantity ?? 0) : null
+            const isOverStock = avail !== null && ['Reserved', 'Allocated', 'Delivered'].includes(form.status) && qtyNum > avail
+
+            return (
+              <div key={line.key} className="alloc-resource-line-wrap">
+                <div className="alloc-resource-line">
+                  <label>
+                    Resource
+                    <input
+                      list="allocation-resource-options"
+                      required
+                      value={line.resource}
+                      onChange={(e) => {
+                        const val = e.target.value
+                        const m = findMatchingInventory(val)
+                        updateLine(line.key, { resource: val, inventoryItemId: m?.dbId || null })
+                      }}
+                      placeholder="e.g. 5kg Family Rice Packs, Water, Hygiene kits"
+                    />
+                  </label>
+                  <label>
+                    Quantity
+                    <input
+                      type="number"
+                      min="1"
+                      required
+                      value={line.quantity}
+                      onChange={(e) => updateLine(line.key, { quantity: e.target.value })}
+                      placeholder={recommendedQty ? String(recommendedQty) : '0'}
+                    />
+                  </label>
+                  <button
+                    type="button"
+                    className="icon-btn icon-btn--danger"
+                    title="Remove"
+                    aria-label="Remove resource"
+                    onClick={() => removeLine(line.key)}
+                    disabled={(form.lines || []).length <= 1 && editRow}
+                  >
+                    <X size={16} />
+                  </button>
+                </div>
+                {matched && (
+                  <div className={`alloc-stock-feedback ${isOverStock ? 'alloc-stock-feedback--err' : 'alloc-stock-feedback--ok'}`}>
+                    {isOverStock ? (
+                      <>
+                        <AlertCircle size={13} />
+                        <span>Insufficient stock! Available: {avail} {matched.unit}. Requested: {qtyNum} {matched.unit}.</span>
+                      </>
+                    ) : (
+                      <>
+                        <CheckCircle2 size={13} />
+                        <span>In Stock: {avail} {matched.unit} available in warehouse</span>
+                      </>
+                    )}
+                  </div>
+                )}
+              </div>
+            )
+          })}
         </div>
 
         <datalist id="allocation-resource-options">
-          {[...needOptions, ...inventoryPacks.map((p) => p.item)].filter(Boolean).map((n) => (
+          {[...new Set([
+            ...needOptions,
+            ...(inventoryData || []).map((p) => p.item),
+          ])].filter(Boolean).map((n) => (
             <option key={n} value={n} />
           ))}
         </datalist>
@@ -1472,8 +1601,47 @@ function AllocationDetailModal({
                 <div className="alloc-qty-badge">
                   <span>Quantity:</span>
                   <strong>{detailRow.quantity}</strong>
-                  <span style={{ fontSize: '0.75rem', fontWeight: 500, color: '#3b82f6' }}>Packs / Units</span>
+                  <span style={{ fontSize: '0.75rem', fontWeight: 500, color: '#3b82f6' }}>{detailRow.unit || 'Packs / Units'}</span>
                 </div>
+                {detailRow.inventoryDeducted && (
+                  <div style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '5px',
+                    background: '#ecfdf5',
+                    border: '1px solid #a7f3d0',
+                    color: '#065f46',
+                    padding: '0.35rem 0.65rem',
+                    borderRadius: '6px',
+                    fontSize: '0.78rem',
+                    fontWeight: 600
+                  }}>
+                    <CheckCircle2 size={14} style={{ color: '#059669' }} />
+                    <span>Deducted from Inventory ({detailRow.deductedQuantity || detailRow.quantity} {detailRow.unit || 'units'})</span>
+                    {detailRow.inventoryItemCode && (
+                      <code style={{ fontSize: '0.72rem', background: '#d1fae5', padding: '1px 5px', borderRadius: '4px' }}>
+                        {detailRow.inventoryItemCode}
+                      </code>
+                    )}
+                  </div>
+                )}
+                {detailRow.status === 'Cancelled' && (
+                  <div style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '5px',
+                    background: '#f8fafc',
+                    border: '1px solid #cbd5e1',
+                    color: '#475569',
+                    padding: '0.35rem 0.65rem',
+                    borderRadius: '6px',
+                    fontSize: '0.78rem',
+                    fontWeight: 600
+                  }}>
+                    <Check size={14} />
+                    <span>Stock Restored to Warehouse</span>
+                  </div>
+                )}
               </div>
 
               {isMonetaryFunded ? (

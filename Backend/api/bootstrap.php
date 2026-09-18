@@ -1703,7 +1703,58 @@ const WORKFLOW_ALLOCATION_TERMINAL = ['Delivered', 'Cancelled'];
 const WORKFLOW_ALLOCATION_BRANCHES = [
   'Pending' => ['Cancelled'],
   'Reserved' => ['Cancelled'],
+  'Allocated' => ['Cancelled'],
 ];
+
+/**
+ * Ensures database columns and tables exist for syncing Inventory with Resource Allocation.
+ */
+function ensure_allocation_inventory_schema(PDO $pdo): void
+{
+  static $ensured = false;
+  if ($ensured) return;
+  $ensured = true;
+
+  try {
+    $pdo->exec("ALTER TABLE allocations ADD COLUMN inventory_item_id BIGINT UNSIGNED NULL AFTER beneficiary_id");
+  } catch (Throwable $e) {}
+  try {
+    $pdo->exec("ALTER TABLE allocations ADD COLUMN inventory_deducted TINYINT(1) NOT NULL DEFAULT 0 AFTER distribution_id");
+  } catch (Throwable $e) {}
+  try {
+    $pdo->exec("ALTER TABLE allocations ADD COLUMN deducted_quantity INT UNSIGNED NOT NULL DEFAULT 0 AFTER inventory_deducted");
+  } catch (Throwable $e) {}
+  try {
+    $pdo->exec("ALTER TABLE allocations ADD COLUMN unit VARCHAR(30) NULL AFTER deducted_quantity");
+  } catch (Throwable $e) {}
+  try {
+    $pdo->exec("ALTER TABLE allocations ADD COLUMN variant VARCHAR(100) NULL AFTER unit");
+  } catch (Throwable $e) {}
+
+  try {
+    $pdo->exec("
+      CREATE TABLE IF NOT EXISTS inventory_transactions (
+        id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+        inventory_item_id BIGINT UNSIGNED NOT NULL,
+        transaction_type ENUM('Allocation', 'Restoration', 'Distribution', 'Adjustment') NOT NULL,
+        quantity INT NOT NULL,
+        balance_after INT NOT NULL,
+        reference_code VARCHAR(50) NULL,
+        destination VARCHAR(180) NULL,
+        notes TEXT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        INDEX idx_inv_item (inventory_item_id),
+        INDEX idx_ref_code (reference_code)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+    ");
+  } catch (Throwable $e) {}
+
+  // Normalize legacy inventory rows where allocated > quantity
+  try {
+    $pdo->exec("UPDATE inventory_items SET allocated = quantity WHERE allocated > quantity");
+  } catch (Throwable $e) {}
+}
+
 
 const WORKFLOW_VOLUNTEER_STEPS = ['Pending Review', 'Approved', 'Active', 'Assigned', 'Completed'];
 const WORKFLOW_VOLUNTEER_TERMINAL = ['Completed', 'Rejected'];

@@ -68,6 +68,7 @@ export const ALLOCATION_TERMINAL = ['Delivered', 'Cancelled']
 export const ALLOCATION_BRANCHES = {
   Pending: ['Cancelled'],
   Reserved: ['Cancelled'],
+  Allocated: ['Cancelled'],
 }
 
 // ── 6. Volunteers Workflow ──

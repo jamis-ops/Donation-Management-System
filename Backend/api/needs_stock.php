@@ -90,7 +90,7 @@ function inventory_match_score(string $needKey, array $inv): int
 
 function inventory_available(array $inv): int
 {
-  return max(0, (int) ($inv['quantity'] ?? 0) - (int) ($inv['allocated'] ?? 0));
+  return max(0, (int) ($inv['quantity'] ?? 0));
 }
 
 // ---------- Inventory (live) ----------
