@@ -2891,4 +2891,100 @@
   border-color: #15803d;
 }
 
+/* =========================================================
+   Allocation Modal: Priority, Status & Notes Alignment
+   ========================================================= */
+.admin-modal .alloc-meta-row {
+  display: grid !important;
+  grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  gap: 0.85rem !important;
+  align-items: start !important;
+  margin-top: 0.75rem !important;
+  margin-bottom: 0 !important;
+}
+
+.alloc-meta-label {
+  display: block !important;
+  margin: 0 !important;
+  font-size: 0.875rem !important;
+  font-weight: 600 !important;
+  color: var(--admin-text, var(--color-text, #111827)) !important;
+}
+
+.alloc-meta-control {
+  display: flex !important;
+  align-items: center !important;
+  width: 100% !important;
+  height: 46px !important;
+  min-height: 46px !important;
+  margin-top: 0.4rem !important;
+  margin-bottom: 0 !important;
+  padding: 0 1rem !important;
+  font-family: var(--font-sans, system-ui, sans-serif) !important;
+  font-size: 0.925rem !important;
+  font-weight: 500 !important;
+  color: var(--admin-text, var(--color-text, #111827)) !important;
+  border: 1.5px solid var(--color-border, #e5e7eb) !important;
+  border-radius: 9px !important;
+  background: #ffffff !important;
+  box-sizing: border-box !important;
+  line-height: 1.4 !important;
+}
+
+select.alloc-meta-control {
+  appearance: auto !important;
+  cursor: pointer !important;
+  padding: 0.72rem 1rem !important;
+}
+
+select.alloc-meta-control:focus {
+  outline: none !important;
+  border-color: var(--color-brand, #AF101A) !important;
+  box-shadow: 0 0 0 3px rgba(175, 16, 26, 0.1) !important;
+}
+
+.alloc-status-readonly {
+  user-select: none;
+  cursor: default;
+}
+
+.alloc-notes-label {
+  display: block !important;
+  margin-top: 1.15rem !important;
+  margin-bottom: 0 !important;
+  font-size: 0.875rem !important;
+  font-weight: 600 !important;
+  color: var(--admin-text, var(--color-text, #111827)) !important;
+}
+
+.alloc-notes-textarea {
+  display: block !important;
+  width: 100% !important;
+  margin-top: 0.4rem !important;
+  margin-bottom: 0 !important;
+  padding: 0.72rem 1rem !important;
+  font-family: var(--font-sans, system-ui, sans-serif) !important;
+  font-size: 0.925rem !important;
+  color: var(--admin-text, var(--color-text, #111827)) !important;
+  background: #ffffff !important;
+  border: 1.5px solid var(--color-border, #e5e7eb) !important;
+  border-radius: 9px !important;
+  box-sizing: border-box !important;
+  resize: vertical;
+}
+
+.alloc-notes-textarea:focus {
+  outline: none !important;
+  border-color: var(--color-brand, #AF101A) !important;
+  box-shadow: 0 0 0 3px rgba(175, 16, 26, 0.1) !important;
+}
+
+@media (max-width: 540px) {
+  .admin-modal .alloc-meta-row {
+    grid-template-columns: 1fr !important;
+    gap: 0.85rem !important;
+  }
+}
+
+
 

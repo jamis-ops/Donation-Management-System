@@ -1399,69 +1399,59 @@ export default function AllocationPage() {
         </div>
       )}
 
-      <div className="form-row">
-        <label>
+      <div className="alloc-meta-row">
+        <label className="alloc-meta-label">
           Priority
-          <select value={form.priority} onChange={(e) => setForm({ ...form, priority: e.target.value })}>
+          <select
+            value={form.priority}
+            onChange={(e) => setForm({ ...form, priority: e.target.value })}
+            className="alloc-meta-control"
+          >
             {PRIORITY_OPTIONS.map((p) => <option key={p} value={p}>{p}</option>)}
           </select>
         </label>
         {editRow ? (
-          <label>
+          <label className="alloc-meta-label">
             Status
             <select
               value={form.status}
-              disabled={editRow && isTerminalStatus(editRow.status, ALLOCATION_TERMINAL)}
+              disabled={isTerminalStatus(editRow.status, ALLOCATION_TERMINAL)}
               onChange={(e) => setForm({ ...form, status: e.target.value })}
+              className="alloc-meta-control"
             >
               {getAvailableNextStatuses({
-                currentStatus: editRow ? editRow.status : form.status,
+                currentStatus: editRow.status,
                 allStatuses: STATUS_OPTIONS,
                 workflowOrder: ALLOCATION_WORKFLOW,
                 terminalStatuses: ALLOCATION_TERMINAL,
                 branches: ALLOCATION_BRANCHES,
               }).map((s) => <option key={s} value={s}>{s}</option>)}
             </select>
-            {editRow && isTerminalStatus(editRow.status, ALLOCATION_TERMINAL) && (
+            {isTerminalStatus(editRow.status, ALLOCATION_TERMINAL) && (
               <small style={{ display: 'block', color: 'var(--admin-text-muted)', marginTop: '4px' }}>
-                🔒 Status is finalized and locked.
+                Status is finalized and locked.
               </small>
             )}
           </label>
         ) : (
-          <div className="form-group" style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-            <label style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--admin-text-sub)' }}>Status</label>
-            <div style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '8px',
-              height: '42px',
-              padding: '0 12px',
-              background: '#f8fafc',
-              border: '1px solid #e2e8f0',
-              borderRadius: '6px',
-            }}>
-              <span style={{
-                background: '#ecfdf5',
-                color: '#047857',
-                border: '1px solid #a7f3d0',
-                padding: '2px 8px',
-                borderRadius: '4px',
-                fontWeight: 700,
-                fontSize: '0.82rem',
-              }}>
-                Allocated
-              </span>
-              <span style={{ fontSize: '0.78rem', color: '#64748b' }}>
-                🔒 Locked (automatically allocated)
-              </span>
+          <label className="alloc-meta-label">
+            Status
+            <div className="alloc-meta-control alloc-status-readonly">
+              Allocated
             </div>
-          </div>
+          </label>
         )}
       </div>
-      <label>
+
+      <label className="alloc-notes-label">
         Notes
-        <textarea rows={2} value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} placeholder="Optional internal allocation notes..." />
+        <textarea
+          rows={2}
+          value={form.notes}
+          onChange={(e) => setForm({ ...form, notes: e.target.value })}
+          placeholder="Optional internal allocation notes..."
+          className="alloc-notes-textarea"
+        />
       </label>
     </>
   )
