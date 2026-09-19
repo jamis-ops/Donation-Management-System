@@ -307,103 +307,167 @@ if ($method === 'GET') {
 $body = read_json_body();
 
 if ($method === 'POST') {
-  $code = generate_code('ALC');
+  $status = 'Allocated'; // Enforce Allocated status
   $priority = in_array($body['priority'] ?? 'Medium', ['Low', 'Medium', 'High', 'Critical'], true) ? $body['priority'] : 'Medium';
   $assistanceRequestId = !empty($body['assistanceRequestId']) ? (int) $body['assistanceRequestId'] : null;
-  $qty = (int) ($body['quantity'] ?? 0);
-  $resource = trim((string) ($body['resource'] ?? ''));
-  $status = $body['status'] ?? 'Allocated';
-  $inventoryItemId = !empty($body['inventoryItemId']) ? (int) $body['inventoryItemId'] : null;
-  $variant = isset($body['variant']) ? trim((string) $body['variant']) : null;
-  $beneficiary = trim((string) ($body['beneficiary'] ?? ''));
   $beneficiaryId = !empty($body['beneficiaryId']) ? (int) $body['beneficiaryId'] : null;
+  $beneficiary = trim((string) ($body['beneficiary'] ?? ''));
+  $program = $body['program'] ?? null;
+  $notes = $body['notes'] ?? null;
+  $allocationDate = $body['allocationDate'] ?? date('Y-m-d');
 
-  if ($qty <= 0) {
-    json_response(['ok' => false, 'error' => 'Quantity must be greater than zero.'], 400);
+  // Validate Relief Request if provided
+  if ($assistanceRequestId) {
+    $arStmt = $pdo->prepare('
+      SELECT ar.*, b.full_name AS beneficiary_name, b.barangay, b.municipality
+      FROM assistance_requests ar
+      JOIN beneficiaries b ON b.id = ar.beneficiary_id
+      WHERE ar.id = ? LIMIT 1
+    ');
+    $arStmt->execute([$assistanceRequestId]);
+    $arRow = $arStmt->fetch();
+    if (!$arRow) {
+      json_response(['ok' => false, 'error' => 'Linked relief request not found.'], 404);
+    }
+    // Target Barangay MUST come from the Relief Request and cannot be changed
+    $beneficiaryId = (int) $arRow['beneficiary_id'];
+    $beneficiary = $arRow['beneficiary_name'] ?: ($arRow['barangay'] ?: 'Beneficiary');
   }
-  if ($resource === '') {
-    json_response(['ok' => false, 'error' => 'Resource name is required.'], 400);
+
+  // Parse lines: either $body['lines'] or single item
+  $rawLines = [];
+  if (!empty($body['lines']) && is_array($body['lines'])) {
+    $rawLines = $body['lines'];
+  } elseif (!empty($body['resource'])) {
+    $rawLines = [[
+      'resource' => $body['resource'],
+      'quantity' => $body['quantity'] ?? 0,
+      'inventoryItemId' => $body['inventoryItemId'] ?? null,
+      'unit' => $body['unit'] ?? null,
+      'variant' => $body['variant'] ?? null,
+    ]];
   }
+
+  // Filter valid lines
+  $linesToProcess = [];
+  foreach ($rawLines as $l) {
+    $resName = trim((string) ($l['resource'] ?? ''));
+    $q = (int) ($l['quantity'] ?? 0);
+    $invId = !empty($l['inventoryItemId']) ? (int) $l['inventoryItemId'] : null;
+    if ($resName === '' && !$invId) continue;
+    $linesToProcess[] = [
+      'resource' => $resName,
+      'quantity' => $q,
+      'inventoryItemId' => $invId,
+      'unit' => $l['unit'] ?? null,
+      'variant' => $l['variant'] ?? null,
+    ];
+  }
+
+  if (count($linesToProcess) === 0) {
+    json_response(['ok' => false, 'error' => 'At least one resource item with a valid name or inventory selection is required.'], 400);
+  }
+
+  foreach ($linesToProcess as $l) {
+    if ($l['quantity'] <= 0) {
+      json_response(['ok' => false, 'error' => "Quantity for '{$l['resource']}' must be greater than zero."], 400);
+    }
+  }
+
+  $createdAllocations = [];
+  $firstAllocRow = null;
 
   // Start transaction for atomic inventory deduction and allocation creation
   $pdo->beginTransaction();
   try {
-    $invItem = find_inventory_item($pdo, $inventoryItemId, $resource, $variant);
-    $deducted = 0;
-    $unit = $body['unit'] ?? ($invItem['unit'] ?? 'packs');
-    $matchedInvId = null;
+    foreach ($linesToProcess as $line) {
+      $qty = (int) $line['quantity'];
+      $invId = $line['inventoryItemId'] ? (int) $line['inventoryItemId'] : null;
+      $resourceName = $line['resource'];
+      $variant = isset($line['variant']) ? trim((string) $line['variant']) : null;
 
-    $shouldDeduct = in_array($status, ['Reserved', 'Allocated', 'Delivered'], true);
+      $invItem = find_inventory_item($pdo, $invId, $resourceName, $variant);
+      if (!$invItem) {
+        throw new RuntimeException("Inventory item '{$resourceName}' could not be found in warehouse stock.");
+      }
 
-    if ($invItem) {
       $matchedInvId = (int) $invItem['id'];
-      $unit = $invItem['unit'] ?? $unit;
+      $unit = $invItem['unit'] ?? ($line['unit'] ?? 'packs');
+      $resourceClean = $invItem['item_name'];
       $variant = $variant ?: ($invItem['variant'] ?? null);
 
-      if ($shouldDeduct) {
-        // Lock inventory row with FOR UPDATE
-        $lockStmt = $pdo->prepare('SELECT * FROM inventory_items WHERE id = ? FOR UPDATE');
-        $lockStmt->execute([$matchedInvId]);
-        $lockedInv = $lockStmt->fetch();
+      // Lock inventory row with FOR UPDATE
+      $lockStmt = $pdo->prepare('SELECT * FROM inventory_items WHERE id = ? FOR UPDATE');
+      $lockStmt->execute([$matchedInvId]);
+      $lockedInv = $lockStmt->fetch();
 
-        if (!$lockedInv) {
-          throw new RuntimeException('Selected inventory item not found.');
+      if (!$lockedInv) {
+        throw new RuntimeException("Inventory item '{$resourceClean}' not found.");
+      }
+
+      $availableStock = (int) ($lockedInv['quantity'] ?? 0);
+      if ($qty > $availableStock) {
+        throw new RuntimeException("Insufficient inventory stock for '{$lockedInv['item_name']}'. Available: {$availableStock} {$lockedInv['unit']}, Requested: {$qty} {$lockedInv['unit']}.");
+      }
+
+      $newStock = $availableStock - $qty;
+      $newAllocated = (int) ($lockedInv['allocated'] ?? 0) + $qty;
+      $lowThreshold = (int) ($lockedInv['low_stock_threshold'] ?? 10);
+      $newStockState = ($newStock <= 0) ? 'Out of Stock' : (($newStock <= $lowThreshold) ? 'Low Stock' : 'Available');
+
+      $updInv = $pdo->prepare('UPDATE inventory_items SET quantity = ?, allocated = ?, stock_state = ? WHERE id = ?');
+      $updInv->execute([$newStock, $newAllocated, $newStockState, $matchedInvId]);
+
+      $code = generate_code('ALC');
+
+      log_inventory_transaction(
+        $pdo,
+        $matchedInvId,
+        'Allocation',
+        $qty,
+        $newStock,
+        $code,
+        $beneficiary ?: 'Beneficiary',
+        "Allocated {$qty} {$lockedInv['unit']} of {$lockedInv['item_name']} ({$status})"
+      );
+
+      $stmt = $pdo->prepare('
+        INSERT INTO allocations (
+          code, resource_name, quantity, program, beneficiary_target, beneficiary_id,
+          assistance_request_id, status, priority, notes, allocation_date,
+          inventory_item_id, inventory_deducted, deducted_quantity, unit, variant
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      ');
+      $stmt->execute([
+        $code,
+        $resourceClean,
+        $qty,
+        $program,
+        $beneficiary ?: null,
+        $beneficiaryId,
+        $assistanceRequestId,
+        $status,
+        $priority,
+        $notes,
+        $allocationDate,
+        $matchedInvId,
+        1,
+        $qty,
+        $unit,
+        $variant,
+      ]);
+      $newId = (int) $pdo->lastInsertId();
+
+      $fetchStmt = $pdo->prepare('SELECT * FROM allocations WHERE id = ?');
+      $fetchStmt->execute([$newId]);
+      $allocRow = $fetchStmt->fetch();
+      if ($allocRow) {
+        if (!$firstAllocRow) {
+          $firstAllocRow = $allocRow;
         }
-
-        $availableStock = (int) ($lockedInv['quantity'] ?? 0);
-        if ($qty > $availableStock) {
-          throw new RuntimeException("Insufficient inventory stock for '{$lockedInv['item_name']}'. Available: {$availableStock} {$lockedInv['unit']}, Requested: {$qty} {$lockedInv['unit']}.");
-        }
-
-        $newStock = $availableStock - $qty;
-        $newAllocated = (int) ($lockedInv['allocated'] ?? 0) + $qty;
-        $lowThreshold = (int) ($lockedInv['low_stock_threshold'] ?? 10);
-        $newStockState = ($newStock <= 0) ? 'Out of Stock' : (($newStock <= $lowThreshold) ? 'Low Stock' : 'Available');
-
-        $updInv = $pdo->prepare('UPDATE inventory_items SET quantity = ?, allocated = ?, stock_state = ? WHERE id = ?');
-        $updInv->execute([$newStock, $newAllocated, $newStockState, $matchedInvId]);
-
-        $deducted = 1;
-
-        log_inventory_transaction(
-          $pdo,
-          $matchedInvId,
-          'Allocation',
-          $qty,
-          $newStock,
-          $code,
-          $beneficiary ?: 'Beneficiary',
-          "Allocated {$qty} {$lockedInv['unit']} of {$lockedInv['item_name']} ({$status})"
-        );
+        $createdAllocations[] = map_allocation($pdo, $allocRow);
       }
     }
-
-    $stmt = $pdo->prepare('
-      INSERT INTO allocations (
-        code, resource_name, quantity, program, beneficiary_target, beneficiary_id,
-        assistance_request_id, status, priority, notes, allocation_date,
-        inventory_item_id, inventory_deducted, deducted_quantity, unit, variant
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    ');
-    $stmt->execute([
-      $code,
-      $resource,
-      $qty,
-      $body['program'] ?? null,
-      $beneficiary ?: null,
-      $beneficiaryId,
-      $assistanceRequestId,
-      $status,
-      $priority,
-      $body['notes'] ?? null,
-      $body['allocationDate'] ?? date('Y-m-d'),
-      $matchedInvId,
-      $deducted,
-      $deducted ? $qty : 0,
-      $unit,
-      $variant,
-    ]);
-    $newId = (int) $pdo->lastInsertId();
 
     $pdo->commit();
   } catch (Throwable $e) {
@@ -413,35 +477,29 @@ if ($method === 'POST') {
     json_response(['ok' => false, 'error' => $e->getMessage()], 400);
   }
 
-  notify_admins($pdo, 'allocation', 'New resource allocation', "Allocated {$resource} for {$beneficiary}", '/admin/allocation');
-  audit_log($pdo, 'create', 'allocation', $code, "Allocated {$resource} for {$beneficiary}");
+  foreach ($createdAllocations as $ca) {
+    notify_admins($pdo, 'allocation', 'New resource allocation', "Allocated {$ca['resource']} for {$beneficiary}", '/admin/allocation');
+    audit_log($pdo, 'create', 'allocation', $ca['id'], "Allocated {$ca['resource']} for {$beneficiary}");
+  }
 
   // Leave Relief Requests queue once this request has been allocated
   mark_request_allocated($pdo, $assistanceRequestId);
 
   // ── Auto-create distribution draft if status is Allocated ──
   $draftDistId = null;
-  if ($status === 'Allocated' && !empty($beneficiaryId)) {
-    $stmt2 = $pdo->prepare('SELECT * FROM allocations WHERE id = ?');
-    $stmt2->execute([$newId]);
-    $newAlloc = $stmt2->fetch();
-    if ($newAlloc) {
-      $draftDistId = auto_create_distribution_draft($pdo, $newAlloc);
-    }
+  if (!empty($beneficiaryId) && $firstAllocRow) {
+    $draftDistId = auto_create_distribution_draft($pdo, $firstAllocRow);
   }
 
-  $stmt = $pdo->prepare('SELECT * FROM allocations WHERE id = ?');
-  $stmt->execute([$newId]);
-  $allocRow = $stmt->fetch();
-  if (!$allocRow) {
-    json_response(['ok' => false, 'error' => 'Failed to retrieve created allocation'], 500);
-  }
-  $result = map_allocation($pdo, $allocRow);
+  $primaryResult = $createdAllocations[0] ?? [];
   if ($draftDistId) {
-    $result['draftDistributionCreated'] = true;
-    $result['draftDistributionId'] = $draftDistId;
+    $primaryResult['draftDistributionCreated'] = true;
+    $primaryResult['draftDistributionId'] = $draftDistId;
   }
-  json_response(['ok' => true, 'data' => $result], 201);
+  $primaryResult['createdCount'] = count($createdAllocations);
+  $primaryResult['allocations'] = $createdAllocations;
+
+  json_response(['ok' => true, 'data' => $primaryResult], 201);
 }
 
 if ($method === 'PUT') {

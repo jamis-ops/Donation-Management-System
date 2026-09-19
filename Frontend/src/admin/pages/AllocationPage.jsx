@@ -62,11 +62,18 @@ function nextLineKey() {
   return `line-${lineKeySeq}`
 }
 
-function makeLine(resource = '', quantity = '', inventoryItemId = null) {
-  return { key: nextLineKey(), resource, quantity: quantity === 0 ? '' : String(quantity || ''), inventoryItemId }
+function makeLine(resource = '', quantity = '', inventoryItemId = null, unit = '', variant = '') {
+  return {
+    key: nextLineKey(),
+    resource,
+    quantity: quantity === 0 ? '' : String(quantity || ''),
+    inventoryItemId,
+    unit,
+    variant,
+  }
 }
 
-/** Parse structured notes written by the barangay request form. */
+/** Parse structured notes written by the barangay request form or enriched API fields. */
 function parseRequestDetails(request) {
   if (!request) return null
   const notes = String(request.notes || '')
@@ -75,19 +82,24 @@ function parseRequestDetails(request) {
     return m ? m[1].trim() : ''
   }
 
-  const reason = pick(/Calamity\/Program:\s*(.+?)(?:\n|$)/i)
+  const reason = request.reason
+    || pick(/Calamity\/Program:\s*(.+?)(?:\n|$)/i)
     || (Array.isArray(request.calamityTags) && request.calamityTags[0])
     || ''
-  const assistanceType = pick(/Assistance Type:\s*(.+?)(?:\n|$)/i) || request.type || ''
+  const assistanceType = request.assistanceType || pick(/Assistance Type:\s*(.+?)(?:\n|$)/i) || request.type || ''
   const familiesRaw = pick(/Families Affected:\s*(\d+)/i)
-  const familiesAffected = familiesRaw
-    ? Number(familiesRaw)
-    : (Number(request.affectedFamilies) || 0)
-  const goodsRaw = pick(/Goods Required:\s*(.+?)(?:\n|$)/i)
-  const goods = goodsRaw
-    ? goodsRaw.split(',').map((g) => g.trim()).filter(Boolean)
-    : []
-  const additionalNotes = pick(/Additional Notes:\s*([\s\S]+)/i)
+  const familiesAffected = Number(request.affectedFamilies)
+    || (familiesRaw ? Number(familiesRaw) : 0)
+
+  let goods = []
+  if (Array.isArray(request.needs) && request.needs.length) {
+    goods = request.needs
+  } else {
+    const goodsRaw = pick(/Goods Required:\s*(.+?)(?:\n|$)/i) || pick(/Type of Needs:\s*(.+?)(?:\n|$)/i)
+    goods = goodsRaw ? goodsRaw.split(',').map((g) => g.trim()).filter(Boolean) : []
+  }
+
+  const additionalNotes = request.additionalNotes || pick(/Additional Notes:\s*([\s\S]+)/i)
 
   return {
     reason,
@@ -97,7 +109,11 @@ function parseRequestDetails(request) {
     priority: request.priority || 'Medium',
     additionalNotes,
     status: request.status || '',
-    reference: request.id || request.code || '',
+    reference: request.id || request.code || request.reference_code || '',
+    beneficiary: request.beneficiary || request.beneficiary_name || '',
+    municipality: request.municipality || '',
+    barangay: request.barangay || '',
+    beneficiaryId: request.beneficiaryId || request.beneficiary_id,
   }
 }
 
@@ -425,13 +441,46 @@ const styles = `
   background: #fef2f2;
 }
 
-.alloc-inventory-packs__list li {
-  cursor: pointer;
-  transition: all 0.15s ease;
+.alloc-resource-table-head {
+  display: grid;
+  grid-template-columns: 2.2fr 1.2fr 1fr 40px;
+  gap: 12px;
+  padding: 8px 12px;
+  background: #f1f5f9;
+  border-radius: 6px;
+  font-size: 0.74rem;
+  font-weight: 700;
+  color: #475569;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 6px;
 }
-.alloc-inventory-packs__list li:hover {
-  background: #e2e8f0 !important;
-  transform: translateX(2px);
+.alloc-resource-row {
+  display: grid;
+  grid-template-columns: 2.2fr 1.2fr 1fr 40px;
+  gap: 12px;
+  align-items: center;
+}
+.alloc-avail-stock {
+  font-size: 0.85rem;
+  padding: 0.45rem 0.65rem;
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: flex;
+  align-items: center;
+}
+@media (max-width: 640px) {
+  .alloc-resource-table-head {
+    display: none;
+  }
+  .alloc-resource-row {
+    grid-template-columns: 1fr;
+    gap: 8px;
+  }
 }
 
 @media (max-width: 768px) {
@@ -463,6 +512,8 @@ export default function AllocationPage() {
   const [statusValue, setStatusValue] = useState('')
   const [showCreate, setShowCreate] = useState(false)
   const [form, setForm] = useState(emptyForm)
+  const [activeReliefRequest, setActiveReliefRequest] = useState(null)
+  const [activeRequestLoading, setActiveRequestLoading] = useState(false)
 
   useEffect(() => {
     const s = document.createElement('style')
@@ -480,7 +531,7 @@ export default function AllocationPage() {
 
   const findMatchingInventory = (resourceName, inventoryItemId = null) => {
     if (inventoryItemId) {
-      const byId = (inventoryData || []).find((i) => String(i.dbId) === String(inventoryItemId))
+      const byId = (inventoryData || []).find((i) => Number(i.dbId) === Number(inventoryItemId))
       if (byId) return byId
     }
     const clean = String(resourceName || '').trim().toLowerCase()
@@ -491,12 +542,51 @@ export default function AllocationPage() {
     ) || (inventoryData || []).find((i) =>
       String(i.item || '').trim().toLowerCase().includes(clean) ||
       clean.includes(String(i.item || '').trim().toLowerCase())
-    ) || null
+    ) || (inventoryData || []).find((i) => {
+      const keywords = clean.split(/[\s,&]+/).filter((k) => k.length > 3)
+      const iName = String(i.item || '').toLowerCase()
+      return keywords.some((k) => iName.includes(k))
+    }) || null
   }
 
-  // Display available warehouse inventory items
+  const matchGoodsToInventory = (goodsName) => {
+    if (!goodsName) return null
+    const clean = String(goodsName).toLowerCase().trim()
+    const availableItems = (inventoryData || []).filter((i) => Number(i.available ?? i.quantity ?? 0) > 0)
+    return availableItems.find((i) => {
+      const iName = String(i.item || '').toLowerCase()
+      const iCode = String(i.id || '').toLowerCase()
+      return iName === clean || iCode === clean
+    }) || availableItems.find((i) => {
+      const iName = String(i.item || '').toLowerCase()
+      return iName.includes(clean) || clean.includes(iName)
+    }) || availableItems.find((i) => {
+      const keywords = clean.split(/[\s,&]+/).filter((k) => k.length > 3)
+      const iName = String(i.item || '').toLowerCase()
+      return keywords.some((k) => iName.includes(k))
+    }) || null
+  }
+
+  // Calculate live remaining stock for an item considering other rows in the same allocation modal
+  const getItemAvailableStock = (inventoryItemId, currentLineKey) => {
+    if (!inventoryItemId) return 0
+    const item = (inventoryData || []).find((i) => Number(i.dbId) === Number(inventoryItemId))
+    if (!item) return 0
+    const totalBaseStock = Number(item.available ?? item.quantity ?? 0)
+
+    const editOffset = (editRow && Number(editRow.inventoryItemId) === Number(inventoryItemId))
+      ? Number(editRow.deductedQuantity || editRow.quantity || 0)
+      : 0
+
+    const otherRowsSum = (form.lines || [])
+      .filter((l) => l.key !== currentLineKey && Number(l.inventoryItemId) === Number(inventoryItemId))
+      .reduce((sum, l) => sum + (Number(l.quantity) || 0), 0)
+
+    return Math.max(0, totalBaseStock + editOffset - otherRowsSum)
+  }
+
+  // Available inventory items (stock > 0)
   const availableInventory = (inventoryData || []).filter((item) => (Number(item.quantity) > 0 || Number(item.available) > 0))
-  const inventoryPacks = availableInventory.length ? availableInventory : (inventoryData || [])
 
   const updateLine = (key, patch) => {
     setForm((f) => ({
@@ -512,10 +602,10 @@ export default function AllocationPage() {
     }))
   }
 
-  const addLine = (resource = '', quantity = '') => {
+  const addLine = (resource = '', quantity = '', inventoryItemId = null, unit = '', variant = '') => {
     setForm((f) => ({
       ...f,
-      lines: [...f.lines, makeLine(resource, quantity)],
+      lines: [...f.lines, makeLine(resource, quantity, inventoryItemId, unit, variant)],
     }))
   }
 
@@ -523,9 +613,21 @@ export default function AllocationPage() {
     const qty = suggestedQuantityFromFamilies(details?.familiesAffected)
     const goods = details?.goods || []
     if (!goods.length) {
-      return existingLines.length ? existingLines : [makeLine('', qty || '')]
+      const firstAvail = (inventoryData || []).find((i) => Number(i.available ?? i.quantity ?? 0) > 0)
+      return existingLines.length ? existingLines : [makeLine(firstAvail?.item || '', qty || '1', firstAvail?.dbId || null, firstAvail?.unit || 'packs', firstAvail?.variant || '')]
     }
-    return goods.map((g) => makeLine(g, qty || ''))
+    return goods.map((g) => {
+      const matched = matchGoodsToInventory(g)
+      const maxAvail = matched ? Number(matched.available ?? matched.quantity ?? 0) : 0
+      const lineQty = maxAvail > 0 ? (qty ? Math.min(qty, maxAvail) : 1) : (qty || 1)
+      return makeLine(
+        matched ? matched.item : g,
+        lineQty,
+        matched ? matched.dbId : null,
+        matched ? (matched.unit || 'packs') : 'packs',
+        matched ? (matched.variant || '') : ''
+      )
+    })
   }
 
   useEffect(() => {
@@ -533,43 +635,37 @@ export default function AllocationPage() {
     if (!pref) return
 
     const requestId = pref.requestId || pref.assistanceRequestId
-    // Wait for requests list when a specific request was passed in
-    if (requestId && !(requests || []).length) {
-      setShowCreate(true)
-      return
-    }
+    if (!requestId) return
 
-    const req = requestId
-      ? (requests || []).find((r) => String(r.dbId) === String(requestId))
-      : null
-
-    if (req) {
-      const details = parseRequestDetails(req)
-      setForm({
-        ...emptyForm,
-        lines: seedLinesFromRequest(details),
-        program: pref.program || details.assistanceType || pref.type || '',
-        beneficiaryId: String(pref.beneficiaryId || req.beneficiaryId || ''),
-        assistanceRequestId: String(requestId),
-        priority: details.priority || 'Medium',
-        notes: '',
-        status: 'Allocated',
+    setActiveRequestLoading(true)
+    assistanceRequestsApi.get(requestId)
+      .then((res) => {
+        const fullReq = res.data || res
+        setActiveReliefRequest(fullReq)
+        const details = parseRequestDetails(fullReq)
+        const lines = seedLinesFromRequest(details)
+        setForm({
+          ...emptyForm,
+          lines,
+          program: details.reason || details.assistanceType || fullReq.type || '',
+          beneficiaryId: String(fullReq.beneficiaryId || ''),
+          assistanceRequestId: String(fullReq.dbId || requestId),
+          priority: details.priority || 'Medium',
+          notes: '',
+          status: 'Allocated',
+        })
+        setShowCreate(true)
       })
-    } else {
-      setForm({
-        ...emptyForm,
-        lines: [makeLine(pref.resource || pref.type || '', pref.quantity || '')],
-        program: pref.program || pref.type || '',
-        beneficiaryId: pref.beneficiaryId ? String(pref.beneficiaryId) : '',
-        assistanceRequestId: requestId ? String(requestId) : '',
-        notes: '',
-        status: 'Allocated',
+      .catch((err) => {
+        console.error('Failed to load relief request details:', err)
+        setShowCreate(true)
       })
-    }
+      .finally(() => {
+        setActiveRequestLoading(false)
+      })
 
-    setShowCreate(true)
     window.history.replaceState({}, document.title)
-  }, [location.state, requests])
+  }, [location.state])
 
   useEffect(() => {
     needsStockApi.get()
@@ -585,14 +681,12 @@ export default function AllocationPage() {
       })
   }, [data])
 
-  const selectedBarangay = barangays.find((b) => String(b.dbId) === String(form.beneficiaryId))
-  const selectedRequest = (requests || []).find((r) => String(r.dbId) === String(form.assistanceRequestId))
+  const selectedRequest = activeReliefRequest || (requests || []).find((r) => String(r.dbId) === String(form.assistanceRequestId))
   const requestDetails = parseRequestDetails(selectedRequest)
+  const selectedBarangay = barangays.find((b) => String(b.dbId) === String(form.beneficiaryId || selectedRequest?.beneficiaryId))
   const barangayRequests = (requests || []).filter((r) => {
-    // Only show requests still waiting for allocation on the relief side
     if (['Allocated', 'Completed', 'Rejected', 'Cancelled', 'Done'].includes(r.status)) return false
-    if (!form.beneficiaryId) return true
-    return Number(r.beneficiaryId) === Number(form.beneficiaryId)
+    return true
   })
   const familiesForSuggestion = requestDetails?.familiesAffected
     || Number(selectedBarangay?.affectedFamilies)
@@ -617,10 +711,12 @@ export default function AllocationPage() {
 
   const openEdit = (row) => {
     setEditRow(row)
+    setActiveReliefRequest(null)
     setDetailRow(null)
     setStatusRow(null)
+    const matched = findMatchingInventory(row.resource, row.inventoryItemId)
     setForm({
-      lines: [makeLine(row.resource || '', row.quantity || '')],
+      lines: [makeLine(row.resource || '', row.quantity || '', matched?.dbId || row.inventoryItemId || null, matched?.unit || row.unit || '', matched?.variant || row.variant || '')],
       program: row.program || '',
       beneficiaryId: row.beneficiaryId || '',
       assistanceRequestId: row.assistanceRequestId || '',
@@ -628,6 +724,7 @@ export default function AllocationPage() {
       priority: row.priority || 'Medium',
       notes: row.notes || '',
     })
+    setShowCreate(true)
   }
 
   const openStatus = (row) => {
@@ -644,12 +741,14 @@ export default function AllocationPage() {
     setShowCreate(true)
     setEditRow(null)
     setDetailRow(null)
+    setActiveReliefRequest(null)
+    const matched = findMatchingInventory(rec.resource, rec.inventoryId)
     setForm({
-      lines: [makeLine(rec.resource || '', rec.quantity || '')],
+      lines: [makeLine(rec.resource || '', rec.quantity || '', matched?.dbId || rec.inventoryId || null, matched?.unit || rec.unit || '', matched?.variant || '')],
       program: rec.requestType || rec.need || '',
       beneficiaryId: rec.beneficiaryId || '',
       assistanceRequestId: rec.assistanceRequestId || '',
-      status: 'Reserved',
+      status: 'Allocated',
       priority: rec.priority || 'Medium',
       notes: rec.reason || '',
     })
@@ -657,17 +756,22 @@ export default function AllocationPage() {
 
   const quickAllocateForNeed = (barangay, need) => {
     const qty = suggestedQuantity(barangay)
+    const matched = matchGoodsToInventory(need) || findMatchingInventory(need)
+    const remStock = matched ? getItemAvailableStock(matched.dbId, 'line-1') : 0
+    const finalQty = remStock > 0 ? (qty ? Math.min(qty, remStock) : 1) : (qty || 1)
     setDetailRow(null)
     setEditRow(null)
+    setActiveReliefRequest(null)
     setForm({
       ...emptyForm,
-      lines: [makeLine(need, qty || '')],
+      lines: [makeLine(matched ? matched.item : need, finalQty || '', matched ? matched.dbId : null, matched ? matched.unit : 'packs', matched ? matched.variant : '')],
       program: need,
       beneficiaryId: String(barangay.beneficiaryId ?? barangay.dbId ?? ''),
       priority: barangay.status === 'Critical' ? 'Critical' : 'Medium',
       notes: qty
         ? `Auto-suggested: ${barangay.affectedFamilies || 0} affected families × ${PACKS_PER_FAMILY} pack(s) for "${need}".`
         : '',
+      status: 'Allocated',
     })
     setShowCreate(true)
   }
@@ -700,40 +804,45 @@ export default function AllocationPage() {
     })
   }
 
+  const closeForm = () => {
+    setEditRow(null)
+    setShowCreate(false)
+    setActiveReliefRequest(null)
+    setForm(emptyForm)
+  }
+
   const handleSave = async (e) => {
     e.preventDefault()
 
-    const lines = (form.lines || []).filter((l) => String(l.resource || '').trim())
+    const lines = (form.lines || []).filter((l) => l.inventoryItemId || String(l.resource || '').trim())
     if (!lines.length) {
-      notify.warning('Add at least one resource pack (e.g. rice, water) with a name.')
+      notify.warning('Select at least one eligible inventory pack to allocate.')
       return
     }
+
     for (const line of lines) {
-      if (!line.quantity || Number(line.quantity) < 1) {
-        notify.warning(`Enter a valid quantity for "${line.resource}".`)
+      if (!line.inventoryItemId && !line.resource) {
+        notify.warning('Please select an inventory item for each pack row.')
         return
       }
-      // Validate available stock for confirmed allocations
-      if (['Reserved', 'Allocated', 'Delivered'].includes(form.status)) {
-        const matched = findMatchingInventory(line.resource, line.inventoryItemId)
-        if (matched) {
-          const avail = Number(matched.available ?? matched.quantity ?? 0)
-          const effectiveAvail = (editRow && editRow.dbId && (matched.dbId === editRow.inventoryItemId || matched.item === editRow.resource))
-            ? avail + Number(editRow.deductedQuantity || editRow.quantity || 0)
-            : avail
-          if (Number(line.quantity) > effectiveAvail) {
-            notify.error(`Requested quantity (${line.quantity}) exceeds available stock (${effectiveAvail} ${matched.unit}) for "${matched.item}".`)
-            return
-          }
-        }
+      const qtyNum = Number(line.quantity) || 0
+      if (qtyNum <= 0) {
+        notify.warning(`Please enter a valid quantity greater than 0 for "${line.resource || 'selected pack'}".`)
+        return
+      }
+      const lineAvail = getItemAvailableStock(line.inventoryItemId, line.key)
+      if (qtyNum > lineAvail) {
+        notify.error(`Requested quantity (${qtyNum}) exceeds available stock (${lineAvail}) for "${line.resource}".`)
+        return
       }
     }
 
     setSaving(true)
-    showLoading('Saving…')
+    showLoading('Allocating resources & updating inventory…')
     try {
-      const ben = barangays.find((b) => Number(b.dbId) === Number(form.beneficiaryId))
-      const benName = ben?.barangay || ben?.name || ben?.fullName || ''
+      const ben = barangays.find((b) => Number(b.dbId) === Number(form.beneficiaryId || activeReliefRequest?.beneficiaryId))
+      const benName = activeReliefRequest?.barangay || activeReliefRequest?.beneficiary || ben?.barangay || ben?.name || ben?.fullName || ''
+
       if (editRow) {
         if (form.status !== editRow.status) {
           const check = validateStatusTransition({
@@ -773,44 +882,50 @@ export default function AllocationPage() {
           })
         }
       } else {
-        let lastDraftInfo = null
-        for (const line of lines) {
-          const matched = findMatchingInventory(line.resource, line.inventoryItemId)
-          const payload = {
-            resource: line.resource.trim(),
-            quantity: Number(line.quantity),
-            inventoryItemId: matched?.dbId || null,
-            unit: matched?.unit || null,
-            variant: matched?.variant || null,
-            program: form.program,
-            beneficiaryId: form.beneficiaryId ? Number(form.beneficiaryId) : null,
-            beneficiary: benName,
-            assistanceRequestId: form.assistanceRequestId ? Number(form.assistanceRequestId) : null,
-            status: form.status,
-            priority: form.priority,
-            notes: form.notes,
-          }
-          const res = await allocationsApi.create(payload)
-          if (res?.draftDistributionCreated) {
-            lastDraftInfo = {
-              id: res.draftDistributionId,
-              code: res.draftDistributionCode,
-              barangay: benName,
+        // Multi-line batch atomic allocation
+        const payload = {
+          assistanceRequestId: form.assistanceRequestId ? Number(form.assistanceRequestId) : null,
+          beneficiaryId: form.beneficiaryId ? Number(form.beneficiaryId) : null,
+          beneficiary: benName,
+          program: form.program,
+          priority: form.priority,
+          notes: form.notes,
+          status: 'Allocated',
+          lines: lines.map((l) => {
+            const matched = findMatchingInventory(l.resource, l.inventoryItemId)
+            return {
+              resource: (matched?.item || l.resource || '').trim(),
+              quantity: Number(l.quantity),
+              inventoryItemId: matched?.dbId || l.inventoryItemId || null,
+              unit: matched?.unit || l.unit || null,
+              variant: matched?.variant || l.variant || null,
             }
-          }
+          }),
         }
-        if (lastDraftInfo) setDraftNotice(lastDraftInfo)
+
+        const res = await allocationsApi.create(payload)
+        const draftCreated = res?.data?.draftDistributionCreated || res?.draftDistributionCreated
+        const draftId = res?.data?.draftDistributionId || res?.draftDistributionId
+        const draftCode = res?.data?.draftDistributionCode || res?.draftDistributionCode
+        if (draftCreated) {
+          setDraftNotice({
+            id: draftId,
+            code: draftCode,
+            barangay: benName || 'Barangay',
+          })
+        }
         setShowCreate(false)
         setForm(emptyForm)
+        setActiveReliefRequest(null)
       }
 
       reload()
       if (typeof reloadInventory === 'function') reloadInventory()
       notifyBadgesChanged()
-      notify.success(editRow ? 'Allocation updated.' : 'Allocation saved.')
-      showSuccessModal(editRow ? 'Successfully updated.' : 'Successfully added.')
+      notify.success(editRow ? 'Allocation updated.' : 'Resources successfully allocated and warehouse stock deducted.')
+      showSuccessModal(editRow ? 'Successfully updated.' : 'Successfully allocated resources. Warehouse inventory stock has been deducted.')
     } catch (err) {
-      notify.error(err.message)
+      notify.error(err.message || 'Failed to complete allocation.')
     } finally {
       hideLoading()
       setSaving(false)
@@ -891,11 +1006,6 @@ export default function AllocationPage() {
 
   const canPlan = (row) => Boolean(row && !row.distributionId && ['Reserved', 'Allocated'].includes(row.status))
 
-  const closeForm = () => {
-    setEditRow(null)
-    setShowCreate(false)
-  }
-
   const columns = [
     {
       key: 'request',
@@ -955,217 +1065,294 @@ export default function AllocationPage() {
 
   const FormFields = (
     <>
-      <label>
-        Target Barangay
-        <select
-          value={form.beneficiaryId}
-          onChange={(e) => {
-            const id = e.target.value
-            setForm((f) => {
-              const stillValid = !f.assistanceRequestId || (requests || []).some(
-                (r) => String(r.dbId) === String(f.assistanceRequestId)
-                  && Number(r.beneficiaryId) === Number(id),
-              )
-              return {
-                ...f,
-                beneficiaryId: id,
-                assistanceRequestId: stillValid ? f.assistanceRequestId : '',
+      {activeReliefRequest ? (
+        <div style={{
+          marginBottom: '1rem',
+          padding: '0.85rem 1.1rem',
+          background: '#f8fafc',
+          border: '1px solid #e2e8f0',
+          borderRadius: '10px',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+        }}>
+          <div>
+            <div style={{ fontSize: '0.72rem', textTransform: 'uppercase', letterSpacing: '0.5px', color: '#64748b', fontWeight: 700 }}>
+              Target Barangay (Locked from Relief Request)
+            </div>
+            <div style={{ fontSize: '1.05rem', fontWeight: 700, color: '#0f172a', display: 'flex', alignItems: 'center', gap: '6px', marginTop: '3px' }}>
+              <MapPin size={17} style={{ color: '#AF101A' }} />
+              Barangay {activeReliefRequest.barangay || activeReliefRequest.beneficiary || selectedBarangay?.barangay || selectedBarangay?.name}
+              {(activeReliefRequest.municipality || selectedBarangay?.municipality) ? `, ${activeReliefRequest.municipality || selectedBarangay?.municipality}` : ''}
+            </div>
+          </div>
+          <span style={{
+            fontSize: '0.75rem',
+            color: '#0369a1',
+            background: '#e0f2fe',
+            border: '1px solid #bae6fd',
+            padding: '3px 10px',
+            borderRadius: '20px',
+            fontWeight: 600
+          }}>
+            📍 Pre-determined
+          </span>
+        </div>
+      ) : (
+        <label>
+          Linked Relief Request
+          <select
+            value={form.assistanceRequestId}
+            onChange={async (e) => {
+              const val = e.target.value
+              if (!val) {
+                setActiveReliefRequest(null)
+                setForm({ ...emptyForm, lines: [makeLine()] })
+                return
               }
-            })
-          }}
-        >
-          <option value="">Select barangay</option>
-          {barangays.map((b) => {
-            const openCount = (requests || []).filter(
-              (r) => Number(r.beneficiaryId) === Number(b.dbId)
-                && !['Completed', 'Rejected', 'Cancelled', 'Done'].includes(r.status),
-            ).length
-            return (
-              <option key={b.dbId} value={b.dbId}>
-                {b.barangay || b.name}
-                {openCount ? ` — ${openCount} open request${openCount === 1 ? '' : 's'}` : ''}
+              try {
+                const res = await assistanceRequestsApi.get(val)
+                const fullReq = res.data || res
+                setActiveReliefRequest(fullReq)
+                const details = parseRequestDetails(fullReq)
+                setForm({
+                  ...emptyForm,
+                  assistanceRequestId: String(val),
+                  beneficiaryId: String(fullReq.beneficiaryId || ''),
+                  program: details.reason || details.assistanceType || fullReq.type || '',
+                  priority: details.priority || 'Medium',
+                  status: 'Allocated',
+                  notes: '',
+                  lines: seedLinesFromRequest(details),
+                })
+              } catch {
+                notify.error('Failed to load relief request details.')
+              }
+            }}
+          >
+            <option value="">Select a relief request to allocate…</option>
+            {barangayRequests.map((r) => (
+              <option key={r.dbId} value={r.dbId}>
+                {r.id} — {r.beneficiary || 'Barangay'} · {r.type} ({r.priority || 'Medium'})
               </option>
-            )
-          })}
-        </select>
-      </label>
+            ))}
+          </select>
+        </label>
+      )}
 
-      <label>
-        Linked Relief Request
-        <select
-          value={form.assistanceRequestId}
-          onChange={(e) => setForm((f) => applyRequestToForm(e.target.value, f))}
-        >
-          <option value="">{form.beneficiaryId ? 'Select a request for this barangay…' : 'Select a request…'}</option>
-          {barangayRequests.map((r) => (
-            <option key={r.dbId} value={r.dbId}>
-              {r.id} — {r.type} ({r.status}) · {r.priority || 'Medium'}
-            </option>
-          ))}
-        </select>
-      </label>
+      {requestDetails && (
+        <div className="alloc-ben-context alloc-request-context" style={{ marginBottom: '1.25rem' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.75rem', paddingBottom: '0.5rem', borderBottom: '1px solid #e2e8f0' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <span style={{ fontWeight: 700, color: '#1e293b', fontSize: '0.92rem' }}>
+                Relief Request: <code>{requestDetails.reference || activeReliefRequest?.id}</code>
+              </span>
+              <span style={{ fontSize: '0.75rem', color: '#64748b' }}>
+                (Status: <strong style={{ color: '#059669' }}>{requestDetails.status || 'Approved'}</strong>)
+              </span>
+            </div>
+            <StatusBadge status={requestDetails.priority || 'Medium'} />
+          </div>
 
-      {requestDetails ? (
-        <div className="alloc-ben-context alloc-request-context">
-          <strong>Request details</strong>
           <dl className="alloc-request-facts">
             <div>
-              <dt>Reason for Assistance Request</dt>
-              <dd>{requestDetails.reason || '—'}</dd>
-            </div>
-            <div>
-              <dt>Type of Assistance Needed</dt>
-              <dd>{requestDetails.assistanceType || '—'}</dd>
-            </div>
-            <div>
               <dt>Families Affected</dt>
-              <dd>{requestDetails.familiesAffected || '—'}</dd>
+              <dd><strong>{requestDetails.familiesAffected || '0'}</strong> families</dd>
             </div>
             <div>
-              <dt>Priority</dt>
-              <dd>{requestDetails.priority || '—'}</dd>
+              <dt>Program / Need</dt>
+              <dd>{requestDetails.reason || requestDetails.assistanceType || '—'}</dd>
             </div>
             <div className="alloc-request-facts__full">
               <dt>Goods That Might Be Required</dt>
               <dd>
                 {goodsOptions.length ? (
                   <div className="alloc-need-tags">
-                    {goodsOptions.map((g) => (
-                      <span
-                        key={g}
-                        className="alloc-need-tag"
-                      >
-                        {g}
-                      </span>
-                    ))}
+                    {goodsOptions.map((g) => {
+                      const matched = matchGoodsToInventory(g)
+                      const hasStock = matched && (Number(matched.available ?? matched.quantity ?? 0) > 0)
+                      return (
+                        <span
+                          key={g}
+                          className="alloc-need-tag"
+                          style={{
+                            background: hasStock ? '#f0fdf4' : '#fef2f2',
+                            color: hasStock ? '#166534' : '#991b1b',
+                            border: `1px solid ${hasStock ? '#bbf7d0' : '#fecaca'}`,
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '5px',
+                          }}
+                        >
+                          <strong>{g}</strong>
+                          {hasStock ? (
+                            <span style={{ fontSize: '0.72rem', opacity: 0.85 }}>
+                              ({matched.available ?? matched.quantity} {matched.unit} available)
+                            </span>
+                          ) : (
+                            <span style={{ fontSize: '0.72rem', fontWeight: 700, color: '#dc2626' }}>
+                              ⚠️ Out of Stock
+                            </span>
+                          )}
+                        </span>
+                      )
+                    })}
                   </div>
-                ) : '—'}
+                ) : (
+                  <span style={{ color: '#94a3b8' }}>—</span>
+                )}
               </dd>
             </div>
-            <div className="alloc-request-facts__full">
-              <dt>Additional Information</dt>
-              <dd>{requestDetails.additionalNotes || '—'}</dd>
-            </div>
+            {requestDetails.additionalNotes && (
+              <div className="alloc-request-facts__full">
+                <dt>Additional Information</dt>
+                <dd>{requestDetails.additionalNotes}</dd>
+              </div>
+            )}
           </dl>
-        </div>
-      ) : (
-        <div className="alloc-ben-context alloc-ben-context--muted">
-          <strong>Request details</strong>
-          <p>
-            {form.beneficiaryId
-              ? 'Select a linked relief request above to load the barangay’s submitted details (reason, assistance type, goods, families affected, and notes).'
-              : 'Select a barangay and a relief request to see what they submitted.'}
-          </p>
         </div>
       )}
 
-      <div className="alloc-inventory-packs">
-        <strong>Available items in warehouse inventory</strong>
-        {availableInventory.length === 0 ? (
-          <p className="alloc-inventory-packs__empty">No inventory items available.</p>
-        ) : (
-          <ul className="alloc-inventory-packs__list">
-            {availableInventory.map((pack) => (
-              <li
-                key={pack.dbId}
-                onClick={() => {
-                  if (editRow) {
-                    setForm((f) => ({
-                      ...f,
-                      lines: [{ ...f.lines[0], resource: pack.item, inventoryItemId: pack.dbId }]
-                    }))
-                    return
-                  }
-                  const emptyIdx = (form.lines || []).findIndex((l) => !String(l.resource || '').trim())
-                  if (emptyIdx >= 0) {
-                    const lineKey = form.lines[emptyIdx].key
-                    updateLine(lineKey, { resource: pack.item, inventoryItemId: pack.dbId, quantity: form.lines[emptyIdx].quantity || recommendedQty || '1' })
-                  } else {
-                    addLine(pack.item, recommendedQty || '1', pack.dbId)
-                  }
-                }}
-                title="Click to select this item"
-              >
-                <span>{pack.item}</span>
-                <span style={{ fontWeight: 700, color: (pack.available ?? pack.quantity) > 0 ? '#166534' : '#b91c1c' }}>
-                  {pack.available ?? pack.quantity} {pack.unit}
-                </span>
-              </li>
-            ))}
-          </ul>
-        )}
-      </div>
-
       <div className="alloc-resource-lines">
         <div className="alloc-resource-lines__head">
-          <strong>Resource packs to allocate</strong>
-          <span>{(form.lines || []).length} item{(form.lines || []).length === 1 ? '' : 's'}</span>
+          <strong style={{ fontSize: '0.95rem', color: '#0f172a' }}>Resource packs to allocate</strong>
+          <span style={{ fontSize: '0.8rem', color: '#64748b' }}>{(form.lines || []).length} pack item{(form.lines || []).length === 1 ? '' : 's'}</span>
         </div>
         <p className="alloc-resource-lines__hint">
-          Add multiple packs the barangay requested (e.g. rice, water, hygiene kits). Each row becomes its own allocation and automatically deducts stock upon confirmation.
+          Select warehouse inventory packs for this relief request. Quantities will be validated against live stock and automatically deducted upon confirmation.
         </p>
 
         {(form.lines || []).length === 0 && (
-          <p className="alloc-resource-lines__empty">No resources yet. Add a pack below or select a relief request to load requested goods.</p>
+          <p className="alloc-resource-lines__empty">No resource packs added yet. Click &quot;Add another pack&quot; below.</p>
+        )}
+
+        {(form.lines || []).length > 0 && (
+          <div className="alloc-resource-table-head">
+            <span>Resource (Available Stock)</span>
+            <span>Available Stock</span>
+            <span>Quantity</span>
+            <span></span>
+          </div>
         )}
 
         <div className="alloc-resource-lines__rows">
           {(form.lines || []).map((line) => {
-            const matched = findMatchingInventory(line.resource, line.inventoryItemId)
+            const currentItem = (inventoryData || []).find((i) => Number(i.dbId) === Number(line.inventoryItemId))
+            const lineAvail = getItemAvailableStock(line.inventoryItemId, line.key)
             const qtyNum = Number(line.quantity) || 0
-            const avail = matched ? Number(matched.available ?? matched.quantity ?? 0) : null
-            const isOverStock = avail !== null && ['Reserved', 'Allocated', 'Delivered'].includes(form.status) && qtyNum > avail
+            const isOverStock = line.inventoryItemId && qtyNum > lineAvail
+
+            // Filter only available warehouse items
+            const availableItems = (inventoryData || []).filter((i) => Number(i.available ?? i.quantity ?? 0) > 0)
+            const requestedMatches = availableItems.filter((i) => {
+              const iName = String(i.item || '').toLowerCase()
+              return goodsOptions.some((g) => {
+                const gClean = String(g).toLowerCase()
+                return iName.includes(gClean) || gClean.includes(iName)
+              })
+            })
+            const otherItems = availableItems.filter((i) => !requestedMatches.some((rm) => rm.dbId === i.dbId))
 
             return (
               <div key={line.key} className="alloc-resource-line-wrap">
-                <div className="alloc-resource-line">
-                  <label>
-                    Resource
-                    <input
-                      list="allocation-resource-options"
+                <div className="alloc-resource-row">
+                  <div>
+                    <select
                       required
-                      value={line.resource}
+                      value={line.inventoryItemId || ''}
                       onChange={(e) => {
-                        const val = e.target.value
-                        const m = findMatchingInventory(val)
-                        updateLine(line.key, { resource: val, inventoryItemId: m?.dbId || null })
+                        const chosenId = e.target.value
+                        const item = availableItems.find((i) => String(i.dbId) === String(chosenId))
+                        if (!item) {
+                          updateLine(line.key, { inventoryItemId: null, resource: '', unit: '', variant: '' })
+                          return
+                        }
+                        const remStock = getItemAvailableStock(item.dbId, line.key)
+                        const defaultQty = line.quantity ? Math.min(Number(line.quantity), remStock) : Math.min(remStock, recommendedQty || 1)
+                        updateLine(line.key, {
+                          inventoryItemId: item.dbId,
+                          resource: item.item,
+                          unit: item.unit,
+                          variant: item.variant || '',
+                          quantity: defaultQty || '1',
+                        })
                       }}
-                      placeholder="e.g. 5kg Family Rice Packs, Water, Hygiene kits"
-                    />
-                  </label>
-                  <label>
-                    Quantity
+                      style={{ width: '100%', padding: '0.45rem 0.65rem', borderRadius: '6px', border: '1px solid #cbd5e1' }}
+                    >
+                      <option value="">-- Select an eligible inventory item --</option>
+                      {requestedMatches.length > 0 && (
+                        <optgroup label="⭐ Requested by Barangay (Matching Available Stock)">
+                          {requestedMatches.map((item) => (
+                            <option key={item.dbId} value={item.dbId}>
+                              {item.item} — {item.available ?? item.quantity} {item.unit} available
+                            </option>
+                          ))}
+                        </optgroup>
+                      )}
+                      <optgroup label={requestedMatches.length > 0 ? 'Other Available Warehouse Items' : 'Available Warehouse Items'}>
+                        {otherItems.map((item) => (
+                          <option key={item.dbId} value={item.dbId}>
+                            {item.item} — {item.available ?? item.quantity} {item.unit} available
+                          </option>
+                        ))}
+                      </optgroup>
+                    </select>
+                  </div>
+
+                  <div className="alloc-avail-stock">
+                    {currentItem ? (
+                      <span style={{ fontWeight: 600, color: lineAvail > 0 ? '#166534' : '#b91c1c', fontSize: '0.85rem' }}>
+                        {lineAvail} {currentItem.unit} available
+                      </span>
+                    ) : (
+                      <span style={{ color: '#94a3b8', fontSize: '0.82rem' }}>Select an item</span>
+                    )}
+                  </div>
+
+                  <div>
                     <input
                       type="number"
                       min="1"
+                      max={lineAvail > 0 ? lineAvail : undefined}
                       required
                       value={line.quantity}
                       onChange={(e) => updateLine(line.key, { quantity: e.target.value })}
                       placeholder={recommendedQty ? String(recommendedQty) : '0'}
+                      style={{
+                        width: '100%',
+                        padding: '0.45rem 0.65rem',
+                        borderRadius: '6px',
+                        border: isOverStock ? '1px solid #ef4444' : '1px solid #cbd5e1',
+                        background: isOverStock ? '#fef2f2' : '#ffffff',
+                      }}
                     />
-                  </label>
-                  <button
-                    type="button"
-                    className="icon-btn icon-btn--danger"
-                    title="Remove"
-                    aria-label="Remove resource"
-                    onClick={() => removeLine(line.key)}
-                    disabled={(form.lines || []).length <= 1 && editRow}
-                  >
-                    <X size={16} />
-                  </button>
+                  </div>
+
+                  <div>
+                    <button
+                      type="button"
+                      className="icon-btn icon-btn--danger"
+                      title="Remove pack"
+                      aria-label="Remove resource pack"
+                      onClick={() => removeLine(line.key)}
+                      disabled={(form.lines || []).length <= 1 && editRow}
+                    >
+                      <X size={16} />
+                    </button>
+                  </div>
                 </div>
-                {matched && (
-                  <div className={`alloc-stock-feedback ${isOverStock ? 'alloc-stock-feedback--err' : 'alloc-stock-feedback--ok'}`}>
+
+                {currentItem && (
+                  <div className={`alloc-stock-feedback ${isOverStock ? 'alloc-stock-feedback--err' : 'alloc-stock-feedback--ok'}`} style={{ marginTop: '4px' }}>
                     {isOverStock ? (
                       <>
                         <AlertCircle size={13} />
-                        <span>Insufficient stock! Available: {avail} {matched.unit}. Requested: {qtyNum} {matched.unit}.</span>
+                        <span>Insufficient stock! Remaining available: {lineAvail} {currentItem.unit}. Requested: {qtyNum} {currentItem.unit}.</span>
                       </>
                     ) : (
                       <>
                         <CheckCircle2 size={13} />
-                        <span>In Stock: {avail} {matched.unit} available in warehouse</span>
+                        <span>Valid allocation: {qtyNum || 0} of {lineAvail} {currentItem.unit} selected</span>
                       </>
                     )}
                   </div>
@@ -1175,20 +1362,12 @@ export default function AllocationPage() {
           })}
         </div>
 
-        <datalist id="allocation-resource-options">
-          {[...new Set([
-            ...needOptions,
-            ...(inventoryData || []).map((p) => p.item),
-          ])].filter(Boolean).map((n) => (
-            <option key={n} value={n} />
-          ))}
-        </datalist>
-
         {!editRow && (
           <button
             type="button"
             className="btn btn--outline btn--sm"
             onClick={() => addLine('', recommendedQty || '')}
+            style={{ marginTop: '0.5rem', display: 'inline-flex', alignItems: 'center', gap: '5px' }}
           >
             <Plus size={14} /> Add another pack
           </button>
@@ -1201,10 +1380,10 @@ export default function AllocationPage() {
           list="allocation-program-options"
           value={form.program}
           onChange={(e) => setForm({ ...form, program: e.target.value })}
-          placeholder={requestDetails?.assistanceType || 'e.g. Food Supplies'}
+          placeholder={requestDetails?.reason || requestDetails?.assistanceType || 'e.g. Food Supplies'}
         />
         <datalist id="allocation-program-options">
-          {[requestDetails?.assistanceType, ...needOptions].filter(Boolean).map((n) => (
+          {[requestDetails?.reason, requestDetails?.assistanceType, ...needOptions].filter(Boolean).map((n) => (
             <option key={n} value={n} />
           ))}
         </datalist>
@@ -1227,31 +1406,62 @@ export default function AllocationPage() {
             {PRIORITY_OPTIONS.map((p) => <option key={p} value={p}>{p}</option>)}
           </select>
         </label>
-        <label>
-          Status
-          <select
-            value={form.status}
-            disabled={editRow && isTerminalStatus(editRow.status, ALLOCATION_TERMINAL)}
-            onChange={(e) => setForm({ ...form, status: e.target.value })}
-          >
-            {getAvailableNextStatuses({
-              currentStatus: editRow ? editRow.status : form.status,
-              allStatuses: STATUS_OPTIONS,
-              workflowOrder: ALLOCATION_WORKFLOW,
-              terminalStatuses: ALLOCATION_TERMINAL,
-              branches: ALLOCATION_BRANCHES,
-            }).map((s) => <option key={s} value={s}>{s}</option>)}
-          </select>
-          {editRow && isTerminalStatus(editRow.status, ALLOCATION_TERMINAL) && (
-            <small style={{ display: 'block', color: 'var(--admin-text-muted)', marginTop: '4px' }}>
-              🔒 Status is finalized and locked.
-            </small>
-          )}
-        </label>
+        {editRow ? (
+          <label>
+            Status
+            <select
+              value={form.status}
+              disabled={editRow && isTerminalStatus(editRow.status, ALLOCATION_TERMINAL)}
+              onChange={(e) => setForm({ ...form, status: e.target.value })}
+            >
+              {getAvailableNextStatuses({
+                currentStatus: editRow ? editRow.status : form.status,
+                allStatuses: STATUS_OPTIONS,
+                workflowOrder: ALLOCATION_WORKFLOW,
+                terminalStatuses: ALLOCATION_TERMINAL,
+                branches: ALLOCATION_BRANCHES,
+              }).map((s) => <option key={s} value={s}>{s}</option>)}
+            </select>
+            {editRow && isTerminalStatus(editRow.status, ALLOCATION_TERMINAL) && (
+              <small style={{ display: 'block', color: 'var(--admin-text-muted)', marginTop: '4px' }}>
+                🔒 Status is finalized and locked.
+              </small>
+            )}
+          </label>
+        ) : (
+          <div className="form-group" style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+            <label style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--admin-text-sub)' }}>Status</label>
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px',
+              height: '42px',
+              padding: '0 12px',
+              background: '#f8fafc',
+              border: '1px solid #e2e8f0',
+              borderRadius: '6px',
+            }}>
+              <span style={{
+                background: '#ecfdf5',
+                color: '#047857',
+                border: '1px solid #a7f3d0',
+                padding: '2px 8px',
+                borderRadius: '4px',
+                fontWeight: 700,
+                fontSize: '0.82rem',
+              }}>
+                Allocated
+              </span>
+              <span style={{ fontSize: '0.78rem', color: '#64748b' }}>
+                🔒 Locked (automatically allocated)
+              </span>
+            </div>
+          </div>
+        )}
       </div>
       <label>
         Notes
-        <textarea rows={2} value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} />
+        <textarea rows={2} value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} placeholder="Optional internal allocation notes..." />
       </label>
     </>
   )
@@ -1499,14 +1709,16 @@ export default function AllocationPage() {
         <div className="admin-modal-overlay" onClick={closeForm}>
           <div className="admin-modal admin-modal--wide" onClick={(e) => e.stopPropagation()}>
             <ModalHeader
-              title={editRow ? `Edit Allocation` : 'New Allocation'}
+              title={editRow ? `Edit Allocation` : (activeReliefRequest ? `Create Allocation — ${activeReliefRequest.id || activeReliefRequest.reference_code || ''}` : 'Create Allocation')}
               onClose={closeForm}
             />
             <form onSubmit={handleSave}>
               {FormFields}
               <div className="admin-modal__actions">
-                <button type="submit" className="btn btn--primary" disabled={saving}>{saving ? 'Saving...' : 'Save'}</button>
-                <button type="button" className="btn btn--ghost" onClick={closeForm}>Cancel</button>
+                <button type="submit" className="btn btn--primary" disabled={saving}>
+                  {saving ? 'Saving...' : (editRow ? 'Save Changes' : 'Confirm Allocation')}
+                </button>
+                <button type="button" className="btn btn--ghost" onClick={closeForm} disabled={saving}>Cancel</button>
               </div>
             </form>
           </div>

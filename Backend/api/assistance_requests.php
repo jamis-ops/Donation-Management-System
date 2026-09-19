@@ -104,6 +104,29 @@ function map_request(array $row, string $beneficiaryName, ?array $extra = null):
       $mapped['needs'] = array_values(array_unique($extractedNeeds));
     }
   }
+  if (empty($mapped['needs']) && !empty($row['notes'])) {
+    if (preg_match('/(?:Goods Required|Type of Needs):\s*([^\n\r]+)/i', (string) $row['notes'], $m)) {
+      $extractedNeeds = array_values(array_filter(array_map('trim', explode(',', $m[1]))));
+      if ($extractedNeeds) {
+        $mapped['needs'] = $extractedNeeds;
+      }
+    }
+  }
+
+  $cleanNotes = (string) ($row['notes'] ?? '');
+  $reason = '';
+  if (preg_match('/Calamity\/Program:\s*([^\n\r]+)/i', $cleanNotes, $m)) {
+    $reason = trim($m[1]);
+  } elseif (!empty($mapped['calamityTags'][0])) {
+    $reason = $mapped['calamityTags'][0];
+  }
+  $additionalNotes = '';
+  if (preg_match('/Additional Notes:\s*([\s\S]+)/i', $cleanNotes, $m)) {
+    $additionalNotes = trim($m[1]);
+  }
+  $mapped['reason'] = $reason;
+  $mapped['additionalNotes'] = $additionalNotes;
+
   // SLA status computation
   if (!empty($row['sla_deadline']) && !in_array($row['status'], ['Completed', 'Rejected'], true)) {
     $deadline = strtotime($row['sla_deadline']);
@@ -132,6 +155,28 @@ function map_request(array $row, string $beneficiaryName, ?array $extra = null):
 
 if ($method === 'GET') {
   $user = require_auth(['Admin', 'Staff', 'Beneficiary']);
+
+  // ── Single request endpoint ──
+  if ($id) {
+    $stmt = $pdo->prepare('
+      SELECT ar.*, b.full_name AS beneficiary_name, b.affected_families, b.municipality, b.representative_name, b.barangay
+      FROM assistance_requests ar
+      JOIN beneficiaries b ON b.id = ar.beneficiary_id
+      WHERE ar.id = ? LIMIT 1
+    ');
+    $stmt->execute([$id]);
+    $row = $stmt->fetch();
+    if (!$row) {
+      json_response(['ok' => false, 'error' => 'Relief request not found'], 404);
+    }
+    $extra = [
+      'affectedFamilies' => (int) ($row['affected_families'] ?? 0),
+      'municipality' => $row['municipality'] ?? '',
+      'representativeName' => $row['representative_name'] ?? '',
+      'barangay' => $row['barangay'] ?? '',
+    ];
+    json_response(['ok' => true, 'data' => map_request($row, $row['beneficiary_name'], $extra)]);
+  }
 
   // ── Stats endpoint ──
   if ($action === 'stats') {
