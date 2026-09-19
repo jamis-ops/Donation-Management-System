@@ -577,7 +577,7 @@ export default function InventoryCategoryExplorer({
                   title={`Add a new item to ${selectedCategory}`}
                 >
                   <Plus size={15} style={{ marginRight: '5px' }} />
-                  <span>+ Add {selectedCategory} Item</span>
+                  <span>Add {selectedCategory} Item</span>
                 </button>
 
                 {onDeleteCategory && (
@@ -926,7 +926,7 @@ export default function InventoryCategoryExplorer({
                   title={`Add product under ${selectedItemType}`}
                 >
                   <Plus size={15} style={{ marginRight: '5px' }} />
-                  <span>+ Add {selectedItemType}</span>
+                  <span>Add {selectedItemType}</span>
                 </button>
 
                 {onDeleteItemType && (

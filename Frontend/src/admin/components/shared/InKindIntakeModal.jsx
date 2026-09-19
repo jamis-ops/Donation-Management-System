@@ -334,7 +334,7 @@ export default function InKindIntakeModal({
               className="btn btn--outline btn--sm"
               onClick={handleAddItemRow}
             >
-              <Plus size={14} className="mr-1" /> + Add Another Item From This Donation
+              <Plus size={14} className="mr-1" /> Add Another Item From This Donation
             </button>
           </div>
 
