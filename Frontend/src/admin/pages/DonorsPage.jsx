@@ -263,7 +263,7 @@ export default function DonorsPage() {
         searchPlaceholder="Search by ID, company, email, country, or address..."
         exportConfig={{ filename: 'donor-report', title: 'Donor Report', columns, rows: filters.filtered }}
       />
-      <ApiState loading={loading} error={error} onRetry={reload}>
+      <ApiState loading={loading} error={error} message="Loading donors…" onRetry={reload}>
         <DataTable
           columns={columns}
           data={filters.filtered}

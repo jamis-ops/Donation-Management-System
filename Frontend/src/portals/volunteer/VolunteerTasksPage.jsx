@@ -144,7 +144,7 @@ export default function VolunteerTasksPage() {
     if (!ok) return
 
     setSaving(true)
-    showLoading('Saving…')
+    showLoading('Saving changes…')
     try {
       const res = await tasksApi.update(task.dbId, { distributionStatus })
       showSuccessModal(`Status successfully updated to: ${label}.`)

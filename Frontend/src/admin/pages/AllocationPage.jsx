@@ -838,7 +838,7 @@ export default function AllocationPage() {
     }
 
     setSaving(true)
-    showLoading('Allocating resources & updating inventory…')
+    showLoading('Processing allocation…')
     try {
       const ben = barangays.find((b) => Number(b.dbId) === Number(form.beneficiaryId || activeReliefRequest?.beneficiaryId))
       const benName = activeReliefRequest?.barangay || activeReliefRequest?.beneficiary || ben?.barangay || ben?.name || ben?.fullName || ''
@@ -948,7 +948,7 @@ export default function AllocationPage() {
       return
     }
     setSaving(true)
-    showLoading('Saving…')
+    showLoading('Saving changes…')
     try {
       const res = await allocationsApi.update(statusRow.dbId, { status: statusValue })
       if (res?.draftDistributionCreated) {
@@ -983,7 +983,7 @@ export default function AllocationPage() {
     })
     if (!ok) return
 
-    showLoading('Deleting allocation…')
+    showLoading('Deleting…')
     try {
       await allocationsApi.remove(row.dbId)
       notify.success(`Allocation ${row.id} deleted.`)
@@ -1636,7 +1636,7 @@ export default function AllocationPage() {
         exportConfig={{ filename: 'allocation-report', title: 'Resource Allocation Report', columns, rows: filters.filtered }}
       />
 
-      <ApiState loading={loading} error={error} onRetry={reload}>
+      <ApiState loading={loading} error={error} message="Loading allocations…" onRetry={reload}>
         <DataTable
           columns={columns}
           data={filters.filtered}

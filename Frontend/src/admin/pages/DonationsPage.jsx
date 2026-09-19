@@ -863,7 +863,7 @@ export default function DonationsPage() {
       />
 
       {/* Data Table */}
-      <ApiState loading={loading} error={error} onRetry={reload}>
+      <ApiState loading={loading} error={error} message="Loading donations…" onRetry={reload}>
         <DataTable
           columns={activeColumns}
           data={currentFilters.filtered}

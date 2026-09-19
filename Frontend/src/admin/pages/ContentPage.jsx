@@ -281,7 +281,7 @@ export default function ContentPage() {
         </Link>
       </div>
 
-      <ApiState loading={loading} error={error} onRetry={load}>
+      <ApiState loading={loading} error={error} message="Loading content…" onRetry={load}>
         {filtered.length === 0 ? (
           <div className="cms-empty">
             <p>No {TYPES.find((t) => t.key === type)?.label || 'items'} found.</p>

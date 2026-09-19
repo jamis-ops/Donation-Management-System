@@ -958,7 +958,7 @@ export default function VolunteersPage() {
         }}
       />
 
-      <ApiState loading={loading} error={error} onRetry={reload}>
+      <ApiState loading={loading} error={error} message="Loading volunteers…" onRetry={reload}>
         <DataTable
           columns={activeColumns}
           data={filters.filtered}

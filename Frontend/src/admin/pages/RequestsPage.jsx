@@ -1309,7 +1309,7 @@ export default function RequestsPage() {
         description="Manage and review incoming relief requests from partner barangays."
       />
 
-      <ApiState loading={reqLoading} error={reqError} onRetry={reqReload}>
+      <ApiState loading={reqLoading} error={reqError} message="Loading relief requests…" onRetry={reqReload}>
         <div className="requests-stats">
           <div
             className={`stat-card stat-card--clickable ${filterController.values.status === 'all' && filterController.values.priority === 'all' ? 'stat-card--active' : ''}`}

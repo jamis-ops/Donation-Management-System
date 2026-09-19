@@ -293,14 +293,24 @@
 
 .raf-loading-message {
   font-family: 'DM Sans', var(--font-sans, system-ui), sans-serif;
-  font-size: 0.95rem;
+  font-size: 0.96rem;
   font-weight: 600;
   color: #1e293b;
-  letter-spacing: 0.015em;
+  letter-spacing: 0.012em;
   text-align: center;
   animation: rafTextShimmer 2.2s ease-in-out infinite;
   user-select: none;
   line-height: 1.35;
+}
+
+.raf-loading-subtext {
+  font-family: 'DM Sans', var(--font-sans, system-ui), sans-serif;
+  font-size: 0.82rem;
+  font-weight: 500;
+  color: #64748b;
+  text-align: center;
+  user-select: none;
+  line-height: 1.25;
 }
 
 /* ── Responsive ── */

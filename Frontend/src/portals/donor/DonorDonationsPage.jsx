@@ -89,7 +89,7 @@ export default function DonorDonationsPage() {
     if (!ok) return
 
     setBusy(true)
-    showLoading('Cancelling donation…')
+    showLoading('Processing…')
     try {
       await donationsApi.remove(row.dbId)
       setSelected(null)
@@ -105,7 +105,7 @@ export default function DonorDonationsPage() {
 
   const handleRequestCert = async (row) => {
     setBusy(true)
-    showLoading('Requesting certificate…')
+    showLoading('Sending…')
     try {
       await certificatesApi.create({ type: 'Certificate of Donation', reference: row.trackingCode })
       setSelected(null)

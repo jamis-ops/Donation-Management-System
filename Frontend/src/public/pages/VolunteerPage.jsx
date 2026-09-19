@@ -152,7 +152,7 @@ export default function VolunteerPage() {
     }
 
     setSubmitting(true)
-    showLoading('Submitting…')
+    showLoading('Sending…')
     try {
       const programNames = applicantType === 'Volunteer'
         ? (form.programs?.length ? form.programs : (form.program ? [form.program] : []))

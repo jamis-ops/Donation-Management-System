@@ -45,7 +45,7 @@ export default function ChangePasswordPage() {
       return
     }
     setLoading(true)
-    showLoading('Please wait…')
+    showLoading('Saving changes…')
     try {
       await changePassword({ currentPassword, newPassword })
       await refreshUser()

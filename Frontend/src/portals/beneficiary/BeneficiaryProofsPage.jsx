@@ -139,7 +139,7 @@ export default function BeneficiaryProofsPage() {
       return
     }
     setUploading(true)
-    showLoading('Uploading…')
+    showLoading('Sending…')
     setMessage('')
     try {
       const fd = new FormData()

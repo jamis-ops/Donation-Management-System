@@ -8,16 +8,17 @@ import '../../styles/loading-spinner.css'
  * to prevent duplicate loaders throughout the system.
  */
 export default function LoadingSpinner({
-  message = 'Please wait…',
+  message = 'Loading…',
+  subtext = 'Please wait.',
 }) {
   const { showLoading, hideLoading } = useLoading()
 
   useLayoutEffect(() => {
-    showLoading(message || 'Please wait…')
+    showLoading({ message: message || 'Loading…', subtext: subtext ?? 'Please wait.' })
     return () => {
       hideLoading()
     }
-  }, [showLoading, hideLoading, message])
+  }, [showLoading, hideLoading, message, subtext])
 
   return null
 }
@@ -25,22 +26,22 @@ export default function LoadingSpinner({
 /**
  * Full-page loading overlay consolidated into the single heart-and-butterfly modal.
  */
-export function LoadingOverlay({ message = 'Please wait…' }) {
-  return <LoadingSpinner message={message} />
+export function LoadingOverlay({ message = 'Loading…', subtext = 'Please wait.' }) {
+  return <LoadingSpinner message={message} subtext={subtext} />
 }
 
 /**
  * Consolidated into the single heart-and-butterfly modal.
  */
-export function LoadingHeart({ message = 'Please wait…' }) {
-  return <LoadingSpinner message={message} />
+export function LoadingHeart({ message = 'Loading…', subtext = 'Please wait.' }) {
+  return <LoadingSpinner message={message} subtext={subtext} />
 }
 
 /**
  * Consolidated skeleton loader into the single heart-and-butterfly modal.
  */
-export function SkeletonLoader({ message = 'Please wait…' }) {
-  return <LoadingSpinner message={message} />
+export function SkeletonLoader({ message = 'Loading…', subtext = 'Please wait.' }) {
+  return <LoadingSpinner message={message} subtext={subtext} />
 }
 
 /**

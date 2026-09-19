@@ -208,6 +208,7 @@ export default function DashboardPage() {
       <ApiState
         loading={loading}
         error={error}
+        message="Loading dashboard…"
         onRetry={() => {
           reload()
           loadNeeds()

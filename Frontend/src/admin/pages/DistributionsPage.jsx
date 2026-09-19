@@ -1050,7 +1050,7 @@ export default function DistributionsPage() {
       />
 
       <div id="distributions-table">
-        <ApiState loading={loading} error={error} onRetry={reload}>
+        <ApiState loading={loading} error={error} message="Loading distribution data…" onRetry={reload}>
           <DataTable
             columns={columns}
             data={filters.filtered}

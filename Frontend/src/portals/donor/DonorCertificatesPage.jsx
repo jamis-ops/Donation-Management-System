@@ -69,7 +69,7 @@ export default function DonorCertificatesPage() {
   const handleRequest = async (e) => {
     e.preventDefault()
     setBusy(true)
-    showLoading('Requesting certificate…')
+    showLoading('Sending…')
     try {
       await certificatesApi.create({ type: form.type, reference: form.reference || undefined })
       setShowRequest(false)

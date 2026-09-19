@@ -297,7 +297,7 @@ export default function AdminsPage() {
           rows: filters.filtered,
         }}
       />
-      <ApiState loading={loading} error={error} onRetry={reload}>
+      <ApiState loading={loading} error={error} message="Loading administrators…" onRetry={reload}>
         <DataTable
           columns={columns}
           data={filters.filtered}

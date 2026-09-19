@@ -326,7 +326,7 @@ export default function BeneficiariesPage() {
       confirmText: 'Delete Beneficiary',
       type: 'danger',
     })
-    showLoading('Deleting beneficiary…')
+    showLoading('Deleting…')
     try {
       await beneficiariesApi.remove(row.dbId)
       setData((prev) => (prev || []).filter((b) => Number(b.dbId) !== Number(row.dbId)))
@@ -355,7 +355,7 @@ export default function BeneficiariesPage() {
     })
     if (!ok) return
 
-    showLoading('Sending invitation…')
+    showLoading('Sending…')
     try {
       const res = await beneficiariesApi.reinvite(row.dbId, {
         email,
@@ -389,7 +389,7 @@ export default function BeneficiariesPage() {
       }
     }
     setActionBusyId(approveTarget.dbId)
-    showLoading('Approving partnership…')
+    showLoading('Saving changes…')
     try {
       const payload = {
         acceptedTerms: true,
@@ -434,7 +434,7 @@ export default function BeneficiariesPage() {
   const handleConfirmReject = async () => {
     if (!rejectTarget) return
     setActionBusyId(rejectTarget.dbId)
-    showLoading('Rejecting application…')
+    showLoading('Saving changes…')
     try {
       const res = await beneficiariesApi.reject(rejectTarget.dbId, { reason: rejectionReason })
       showSuccessModal(res?.message || 'Successfully rejected.')
@@ -462,7 +462,7 @@ export default function BeneficiariesPage() {
       return
     }
     setSaving(true)
-    showLoading('Saving…')
+    showLoading('Sending…')
     try {
       const existing = (beneficiaries || []).find((row) => (
         normalizeLocationLabel(row.barangay || row.name) === normalizeLocationLabel(inviteForm.barangay)
@@ -781,7 +781,7 @@ export default function BeneficiariesPage() {
           />
 
           <div id="barangays-table">
-            <ApiState loading={loading} error={error} onRetry={reload}>
+            <ApiState loading={loading} error={error} message="Loading barangays…" onRetry={reload}>
               <DataTable
                 columns={columns}
                 data={filters.filtered}

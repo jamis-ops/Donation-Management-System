@@ -174,7 +174,7 @@ export default function BeneficiaryRequestsPage() {
     ].filter(Boolean).join('\n\n')
     
     setSaving(true)
-    showLoading('Submitting…')
+    showLoading('Sending…')
     try {
       await assistanceRequestsApi.create({
         type: assistanceType,
@@ -206,7 +206,7 @@ export default function BeneficiaryRequestsPage() {
     if (!ok) return
 
     setSaving(true)
-    showLoading('Saving…')
+    showLoading('Processing…')
     try {
       await assistanceRequestsApi.remove(requestId)
       showSuccessModal('Status successfully updated to: Cancelled.')

@@ -12,6 +12,7 @@ import DonutChart from '../components/charts/DonutChart'
 import { useSeeMore } from '../../hooks/useSeeMore'
 import { SeeMoreToggle } from '../components/shared/SeeMoreList'
 import { useAuth } from '../../context/AuthContext'
+import { useLoading } from '../../context/LoadingContext'
 
 const GRANULARITIES = [
   { value: 'week', label: 'Week' },
@@ -25,6 +26,7 @@ function ChartEmpty({ message }) {
 
 export default function ReportsPage() {
   const { user } = useAuth()
+  const { showLoading, hideLoading } = useLoading()
   const { data, loading, error, reload } = useApiObject(() => getReports())
   const [gran, setGran] = useState('month')
 
@@ -119,13 +121,37 @@ export default function ReportsPage() {
             <details className="export-menu">
               <summary className="btn btn--admin-outline export-menu__trigger"><Download size={14} /> Export</summary>
               <div className="export-menu__list">
-                <button type="button" disabled={!summary} onClick={(e) => { exportCsv('analytics-summary', summaryColumns, summaryRows, { title: 'Analytics Summary Report', user }); closeMenu(e) }}>
+                <button type="button" disabled={!summary} onClick={async (e) => {
+                  showLoading('Generating report…')
+                  try {
+                    await exportCsv('analytics-summary', summaryColumns, summaryRows, { title: 'Analytics Summary Report', user })
+                  } finally {
+                    hideLoading()
+                  }
+                  closeMenu(e)
+                }}>
                   <FileText size={14} /> Summary CSV (.csv)
                 </button>
-                <button type="button" disabled={!summary} onClick={(e) => { exportExcel('donation-trends', donationTrendColumns, donationsByMonth, { title: 'Donation Trends Report', user }); closeMenu(e) }}>
+                <button type="button" disabled={!summary} onClick={async (e) => {
+                  showLoading('Generating report…')
+                  try {
+                    await exportExcel('donation-trends', donationTrendColumns, donationsByMonth, { title: 'Donation Trends Report', user })
+                  } finally {
+                    hideLoading()
+                  }
+                  closeMenu(e)
+                }}>
                   <FileSpreadsheet size={14} /> Trends Excel (.xlsx)
                 </button>
-                <button type="button" disabled={!data} onClick={(e) => { printPdf('Analytics Report', reportSections, { user }); closeMenu(e) }}>
+                <button type="button" disabled={!data} onClick={async (e) => {
+                  showLoading('Generating report…')
+                  try {
+                    await printPdf('Analytics Report', reportSections, { user })
+                  } finally {
+                    hideLoading()
+                  }
+                  closeMenu(e)
+                }}>
                   <Printer size={14} /> Full Report PDF / Print
                 </button>
               </div>
@@ -135,7 +161,7 @@ export default function ReportsPage() {
         }
       />
 
-      <ApiState loading={loading} error={error} onRetry={reload}>
+      <ApiState loading={loading} error={error} message="Loading reports…" onRetry={reload}>
         {data && (
           <>
             <div className="admin-stats-grid admin-stats-grid--compact">

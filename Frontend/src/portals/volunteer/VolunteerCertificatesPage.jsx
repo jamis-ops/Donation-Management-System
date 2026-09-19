@@ -83,7 +83,7 @@ export default function VolunteerCertificatesPage() {
   const handleRequest = async (e) => {
     e.preventDefault()
     setBusy(true)
-    showLoading('Submitting certificate request…')
+    showLoading('Sending…')
     try {
       await certificatesApi.create({
         type: form.type,

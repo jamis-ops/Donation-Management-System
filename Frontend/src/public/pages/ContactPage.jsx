@@ -18,7 +18,7 @@ export default function ContactPage() {
     e.preventDefault()
     setSubmitError('')
     setSubmitting(true)
-    showLoading('Submitting…')
+    showLoading('Sending…')
     try {
       const res = await submitContactMessage(form)
       const code = res.trackingCode || res.data?.code

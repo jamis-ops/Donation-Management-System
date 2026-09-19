@@ -151,7 +151,7 @@ export default function DonatePage() {
     }
 
     setSubmitting(true)
-    showLoading('Submitting…')
+    showLoading('Processing…')
     try {
       const fullName = formatFullName(form.nameParts)
       const selectedRegion = form.stateProvince === 'Other' ? form.customRegion.trim() : form.stateProvince.trim()

@@ -162,7 +162,7 @@ export default function BarangayDetailsPage() {
   const distributionsPaging = usePagination(bDistributions, DEFAULT_PAGE_SIZE, 'dist')
 
   if (loading && !beneficiary) {
-    return <ApiState loading />
+    return <ApiState loading message="Loading barangays…" />
   }
 
   if (!beneficiary) {

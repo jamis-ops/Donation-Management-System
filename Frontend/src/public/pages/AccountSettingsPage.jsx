@@ -127,7 +127,7 @@ export default function AccountSettingsPage() {
       return
     }
     setSavingProfile(true)
-    showLoading('Saving profile…')
+    showLoading('Saving changes…')
     try {
       await updateAccount({ name, phone, recoveryPhone })
       notify.success('Profile updated.')
@@ -152,7 +152,7 @@ export default function AccountSettingsPage() {
       return
     }
     setSavingPassword(true)
-    showLoading('Updating password…')
+    showLoading('Saving changes…')
     try {
       await changePassword({ currentPassword, newPassword })
       setCurrentPassword('')
@@ -174,7 +174,7 @@ export default function AccountSettingsPage() {
       return
     }
     setSavingVolDetails(true)
-    showLoading('Saving volunteer details…')
+    showLoading('Saving changes…')
     try {
       await volunteersApi.update(volunteerDbId, {
         programs: volPrograms,
@@ -247,7 +247,7 @@ export default function AccountSettingsPage() {
       return
     }
     setUploadingPhoto(true)
-    showLoading('Uploading photo…')
+    showLoading('Saving changes…')
     try {
       const processedFile = await compressImage(photoFile, 400, 0.85)
       const fd = new FormData()

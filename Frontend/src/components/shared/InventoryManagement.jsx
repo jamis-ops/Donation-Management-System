@@ -153,7 +153,7 @@ export default function InventoryManagement() {
 
   const handleItemSave = async (payload) => {
     setSaving(true)
-    showLoading('Saving…')
+    showLoading('Saving changes…')
     try {
       if (itemModal === 'create') {
         await inventoryApi.create(payload)
@@ -181,7 +181,7 @@ export default function InventoryManagement() {
     })
     if (!ok) return
 
-    showLoading('Deleting item…')
+    showLoading('Deleting…')
     try {
       await inventoryApi.remove(row.dbId)
       showSuccessModal(`${row.item} successfully deleted.`)
@@ -205,7 +205,7 @@ export default function InventoryManagement() {
     })
     if (!ok) return false
 
-    showLoading(`Deleting category "${categoryName}"…`)
+    showLoading('Deleting…')
     try {
       if (typeof inventoryApi.deleteCategory === 'function') {
         await inventoryApi.deleteCategory(categoryName)
@@ -235,7 +235,7 @@ export default function InventoryManagement() {
     })
     if (!ok) return false
 
-    showLoading(`Deleting "${itemTypeName}"…`)
+    showLoading('Deleting…')
     try {
       if (typeof inventoryApi.deleteItemType === 'function') {
         await inventoryApi.deleteItemType(categoryName, itemTypeName)
@@ -300,7 +300,7 @@ export default function InventoryManagement() {
   const handleBatchSave = async (e) => {
     e.preventDefault()
     setSaving(true)
-    showLoading('Saving…')
+    showLoading('Saving changes…')
     try {
       if (batchModal === 'create') {
         await repackingApi.create({
@@ -337,7 +337,7 @@ export default function InventoryManagement() {
 
   // Handle multi-source repacking batch submission
   const handleMultiSourceSubmit = async (batchData) => {
-    showLoading('Creating repacking batch…')
+    showLoading('Saving changes…')
     try {
       const result = await repackingApi.create(batchData)
       reloadAll()
@@ -368,7 +368,7 @@ export default function InventoryManagement() {
       if (!ok) return
     }
 
-    showLoading('Updating batch status…')
+    showLoading('Saving changes…')
     try {
       await repackingApi.update(row.dbId, { status })
       showSuccessModal(
@@ -395,7 +395,7 @@ export default function InventoryManagement() {
     })
     if (!ok) return
 
-    showLoading('Deleting repacking batch…')
+    showLoading('Deleting…')
     try {
       await repackingApi.remove(row.dbId)
       showSuccessModal(`Batch ${row.id} successfully deleted.`)
@@ -608,7 +608,7 @@ export default function InventoryManagement() {
           </div>
 
           {viewMode === 'category' ? (
-            <ApiState loading={loading} error={error} onRetry={reload}>
+            <ApiState loading={loading} error={error} message="Loading inventory…" onRetry={reload}>
               <InventoryCategoryExplorer
                 items={items}
                 onEditItem={openItemEdit}
@@ -627,7 +627,7 @@ export default function InventoryManagement() {
                 exportConfig={{ filename: 'inventory-report', title: 'Inventory Report', columns: inventoryColumns, rows: invFilters.filtered }}
               />
 
-              <ApiState loading={loading} error={error} onRetry={reload}>
+              <ApiState loading={loading} error={error} message="Loading inventory…" onRetry={reload}>
                 <DataTable
                   columns={inventoryColumns}
                   data={invFilters.filtered}
@@ -721,7 +721,7 @@ export default function InventoryManagement() {
             exportConfig={{ filename: 'repacking-report', title: 'Repacking Report', columns: repackingColumns, rows: rpkFilters.filtered }}
           />
 
-          <ApiState loading={rpkLoading} error={rpkError} onRetry={reloadRpk}>
+          <ApiState loading={rpkLoading} error={rpkError} message="Loading repacked inventory…" onRetry={reloadRpk}>
             <DataTable
               columns={repackingColumns}
               data={rpkFilters.filtered}

@@ -499,7 +499,7 @@ export default function StaffPage() {
           rows: filters.filtered,
         }}
       />
-      <ApiState loading={loading} error={error} onRetry={reload}>
+      <ApiState loading={loading} error={error} message="Loading staff…" onRetry={reload}>
         <DataTable
           columns={columns}
           data={filters.filtered}

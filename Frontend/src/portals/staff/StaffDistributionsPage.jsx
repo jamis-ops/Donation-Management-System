@@ -98,7 +98,7 @@ export default function StaffDistributionsPage() {
     if (!ok) return
 
     setSaving(true)
-    showLoading('Saving…')
+    showLoading('Saving changes…')
     try {
       const res = await distributionsApi.update(dist.dbId, { status: next })
       const status = res?.data?.status || next

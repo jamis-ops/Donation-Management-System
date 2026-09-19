@@ -307,7 +307,7 @@ export default function CertificatesPage() {
         }}
       />
 
-      <ApiState loading={loading} error={error} onRetry={reload}>
+      <ApiState loading={loading} error={error} message="Loading certificates…" onRetry={reload}>
         <DataTable
           columns={columns}
           data={filters.filtered}

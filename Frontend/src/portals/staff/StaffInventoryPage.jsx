@@ -143,7 +143,7 @@ export default function StaffInventoryPage() {
     })
     if (!ok) return
 
-    showLoading(stockAction === 'add' ? 'Adding stock…' : 'Removing stock…')
+    showLoading('Saving changes…')
     try {
       await inventoryApi.update(selectedItem.dbId, {
         quantity: newStock,

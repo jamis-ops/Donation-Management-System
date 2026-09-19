@@ -31,7 +31,7 @@ export default function AssistancePage() {
       return
     }
     setSubmitting(true)
-    showLoading('Submitting…')
+    showLoading('Sending…')
     try {
       const data = {
         name: form.name,

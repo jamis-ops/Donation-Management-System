@@ -29,7 +29,7 @@ export default function LoginPage() {
     e.preventDefault()
     setError('')
     setLoading(true)
-    showLoading('Please wait…')
+    showLoading('Processing…')
     try {
       const result = await login(email, password, { remember })
       if (remember) {

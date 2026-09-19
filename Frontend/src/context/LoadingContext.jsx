@@ -15,7 +15,8 @@ const LoadingContext = createContext(null)
 export function LoadingProvider({ children }) {
   const [state, setState] = useState({
     visible: false,
-    message: 'Processing…',
+    message: 'Loading…',
+    subtext: 'Please wait.',
     entering: false,
     leaving: false,
   })
@@ -26,7 +27,20 @@ export function LoadingProvider({ children }) {
   const cleanupTimerRef = useRef(null)
   const enterTimerRef = useRef(null)
 
-  const showLoading = useCallback((message = 'Processing…') => {
+  const showLoading = useCallback((input = 'Loading…', maybeSubtext) => {
+    let message = 'Loading…'
+    let subtext = 'Please wait.'
+
+    if (typeof input === 'object' && input !== null) {
+      message = input.message || 'Loading…'
+      subtext = input.subtext !== undefined ? input.subtext : 'Please wait.'
+    } else if (typeof input === 'string') {
+      message = input || 'Loading…'
+      if (maybeSubtext !== undefined) {
+        subtext = maybeSubtext
+      }
+    }
+
     // Clear any pending dismissal
     if (hideTimerRef.current) {
       clearTimeout(hideTimerRef.current)
@@ -45,6 +59,7 @@ export function LoadingProvider({ children }) {
     setState({
       visible: true,
       message,
+      subtext,
       entering: true,
       leaving: false,
     })
@@ -67,7 +82,7 @@ export function LoadingProvider({ children }) {
     }
 
     const elapsed = Date.now() - showTimeRef.current
-    const minDisplay = 320 // ms: ensures smooth fast transitions without flashing
+    const minDisplay = 300 // ms: ensures smooth fast transitions without flashing
     const remainingTime = Math.max(0, minDisplay - elapsed)
 
     if (hideTimerRef.current) clearTimeout(hideTimerRef.current)
@@ -76,13 +91,13 @@ export function LoadingProvider({ children }) {
 
       if (cleanupTimerRef.current) clearTimeout(cleanupTimerRef.current)
       cleanupTimerRef.current = setTimeout(() => {
-        setState({ visible: false, message: 'Processing…', entering: false, leaving: false })
+        setState({ visible: false, message: 'Loading…', subtext: 'Please wait.', entering: false, leaving: false })
       }, 220) // matches fade-out duration
     }, remainingTime)
   }, [])
 
-  const withLoading = useCallback(async (actionFnOrPromise, message = 'Processing…') => {
-    showLoading(message)
+  const withLoading = useCallback(async (actionFnOrPromise, message = 'Processing…', subtext = 'Please wait.') => {
+    showLoading(message, subtext)
     try {
       if (typeof actionFnOrPromise === 'function') {
         return await actionFnOrPromise()
@@ -96,8 +111,14 @@ export function LoadingProvider({ children }) {
   // Cleanup timers on unmount and listen to global loading events
   useEffect(() => {
     const handleGlobalShow = (e) => {
-      const msg = (e && typeof e.detail === 'string') ? e.detail : (e?.detail?.message || 'Processing…')
-      showLoading(msg)
+      const payload = e?.detail
+      if (typeof payload === 'string') {
+        showLoading(payload)
+      } else if (payload && typeof payload === 'object') {
+        showLoading(payload.message || 'Loading…', payload.subtext ?? 'Please wait.')
+      } else {
+        showLoading('Loading…')
+      }
     }
     const handleGlobalHide = () => hideLoading(true)
 
@@ -164,7 +185,10 @@ export function LoadingProvider({ children }) {
 
             {/* Message */}
             <div className="raf-loading-text-wrap">
-              <span className="raf-loading-message">{state.message || 'Processing…'}</span>
+              <span className="raf-loading-message">{state.message || 'Loading…'}</span>
+              {state.subtext && (
+                <span className="raf-loading-subtext">{state.subtext}</span>
+              )}
             </div>
           </div>
         </div>
@@ -182,7 +206,7 @@ export function useLoading() {
   if (!ctx) {
     // Fallback if used outside provider — safe dispatch to window events
     return {
-      showLoading: (message = 'Processing…') => showGlobalLoading(message),
+      showLoading: (message = 'Loading…', subtext = 'Please wait.') => showGlobalLoading(message, subtext),
       hideLoading: () => hideGlobalLoading(),
       withLoading: async (fn) => (typeof fn === 'function' ? fn() : fn),
       isLoading: false,
@@ -194,9 +218,12 @@ export function useLoading() {
 /**
  * Trigger the single Rise Above Foundation heart-and-butterfly loading modal globally.
  */
-export function showGlobalLoading(message = 'Processing…') {
+export function showGlobalLoading(message = 'Loading…', subtext = 'Please wait.') {
   if (typeof window !== 'undefined') {
-    window.dispatchEvent(new CustomEvent('app:show-loading', { detail: message }))
+    const payload = typeof message === 'object' && message !== null
+      ? message
+      : { message: message || 'Loading…', subtext: subtext ?? 'Please wait.' }
+    window.dispatchEvent(new CustomEvent('app:show-loading', { detail: payload }))
   }
 }
 

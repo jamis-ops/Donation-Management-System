@@ -160,7 +160,7 @@ export default function BeneficiaryDistributionsPage() {
       return
     }
     setSaving(true)
-    showLoading('Saving…')
+    showLoading('Saving changes…')
     try {
       if (modal.mode === 'receive') {
         await distributionsApi.update(modal.row.dbId, {

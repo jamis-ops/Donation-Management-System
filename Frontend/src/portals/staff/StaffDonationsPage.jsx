@@ -44,7 +44,7 @@ export default function StaffDonationsPage() {
     if (!ok) return
 
     setBusy(true)
-    showLoading('Verifying donation…')
+    showLoading('Saving changes…')
     try {
       const res = await donationsApi.update(row.dbId, { status: 'Verified' })
       const status = res?.data?.status || 'Verified'
@@ -73,7 +73,7 @@ export default function StaffDonationsPage() {
     if (!ok) return
 
     setBusy(true)
-    showLoading('Rejecting donation…')
+    showLoading('Saving changes…')
     try {
       const res = await donationsApi.update(row.dbId, {
         status: 'Rejected',

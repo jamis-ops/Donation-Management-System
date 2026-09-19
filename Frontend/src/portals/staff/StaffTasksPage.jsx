@@ -111,7 +111,7 @@ export default function StaffTasksPage() {
     })
     if (!ok) return
     setSaving(true)
-    showLoading('Saving…')
+    showLoading('Saving changes…')
     try {
       const res = await tasksApi.update(task.dbId, { boardColumn: 'done' })
       const status = res?.data?.status || 'Done'
@@ -380,7 +380,7 @@ export default function StaffTasksPage() {
                           disabled={saving}
                           onClick={async () => {
                             setSaving(true)
-                            showLoading('Saving…')
+                            showLoading('Saving changes…')
                             try {
                               const res = await tasksApi.update(selectedTask.dbId, { boardColumn: 'inProgress' })
                               const status = res?.data?.status || 'In Progress'
