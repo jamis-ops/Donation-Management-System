@@ -1,17 +1,13 @@
 import { Navigate, useLocation } from 'react-router-dom'
 import { useAuth } from '../../context/AuthContext'
+import LoadingSpinner from '../../components/shared/LoadingSpinner'
 
 export default function RoleProtectedRoute({ children, allowedRoles }) {
   const { user, loading, isAuthenticated } = useAuth()
   const location = useLocation()
 
   if (loading) {
-    return (
-      <div className="portal-loading">
-        <div className="portal-loading__spinner" />
-        <p>Loading your account...</p>
-      </div>
-    )
+    return <LoadingSpinner message="Loading your account…" />
   }
 
   if (!isAuthenticated) {

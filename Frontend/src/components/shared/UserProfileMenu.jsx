@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom'
 import { Settings, LogOut, ChevronDown } from 'lucide-react'
 import { useAuth } from '../../context/AuthContext'
 import { apiUrl } from '../../api/resources'
+import { useLoading } from '../../context/LoadingContext'
 
 function getInitials(name, email) {
   if (!name && !email) return 'U'
@@ -16,6 +17,7 @@ function getInitials(name, email) {
 
 export default function UserProfileMenu({ settingsPath = '/admin/settings', roleLabel }) {
   const { user, logout } = useAuth()
+  const { showLoading } = useLoading()
   const navigate = useNavigate()
   const [open, setOpen] = useState(false)
   const [avatarErr, setAvatarErr] = useState(false)
@@ -68,6 +70,7 @@ export default function UserProfileMenu({ settingsPath = '/admin/settings', role
 
   const handleLogout = async () => {
     setOpen(false)
+    showLoading('Signing out…')
     try {
       await logout()
     } finally {

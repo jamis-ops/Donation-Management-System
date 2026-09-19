@@ -3,6 +3,7 @@
 
 import { notify } from './confirm'
 import { logo } from '../assets'
+import { showGlobalLoading, hideGlobalLoading } from '../context/LoadingContext'
 
 function cellValue(value) {
   if (value === null || value === undefined) return ''
@@ -138,20 +139,25 @@ export async function getLogoBase64() {
  * Date: [Date and Time]
  */
 export function exportCsv(filename, columns, rows, options = {}) {
-  const opt = typeof options === 'string' ? { title: options } : (options || {})
-  const { preparedBy, dateStr } = resolveExportMeta(opt)
-  const { header, body } = buildMatrix(columns, rows)
-  const lines = [header, ...body].map((r) => r.map(csvEscape).join(','))
+  showGlobalLoading('Exporting CSV…')
+  try {
+    const opt = typeof options === 'string' ? { title: options } : (options || {})
+    const { preparedBy, dateStr } = resolveExportMeta(opt)
+    const { header, body } = buildMatrix(columns, rows)
+    const lines = [header, ...body].map((r) => r.map(csvEscape).join(','))
 
-  // Standardized bottom sign-off section
-  lines.push('')
-  lines.push(`Prepared By,"${csvEscape(preparedBy)}"`)
-  lines.push(`Date,"${csvEscape(dateStr)}"`)
-  lines.push('"Rise Above Foundation Cebu · Official System Export · Confidential"')
+    // Standardized bottom sign-off section
+    lines.push('')
+    lines.push(`Prepared By,"${csvEscape(preparedBy)}"`)
+    lines.push(`Date,"${csvEscape(dateStr)}"`)
+    lines.push('"Rise Above Foundation Cebu · Official System Export · Confidential"')
 
-  const cleanName = filename.replace(/\.csv$/i, '')
-  // BOM so Excel reads UTF-8 (₱, accents) correctly.
-  triggerDownload(`${cleanName}.csv`, '\uFEFF' + lines.join('\r\n'), 'text/csv;charset=utf-8;')
+    const cleanName = filename.replace(/\.csv$/i, '')
+    // BOM so Excel reads UTF-8 (₱, accents) correctly.
+    triggerDownload(`${cleanName}.csv`, '\uFEFF' + lines.join('\r\n'), 'text/csv;charset=utf-8;')
+  } finally {
+    hideGlobalLoading()
+  }
 }
 
 /**
@@ -160,6 +166,7 @@ export function exportCsv(filename, columns, rows, options = {}) {
  * standardized bottom sign-off (Prepared By & Date).
  */
 export async function exportExcel(filename, columns, rows, options = {}) {
+  showGlobalLoading('Generating Excel report…')
   const opt = typeof options === 'string' ? { title: options } : (options || {})
   const rawTitle = opt.title || filename.replace(/[-_]/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase())
   const reportTitle = rawTitle.includes('Report') ? rawTitle : `${rawTitle} Report`
@@ -297,6 +304,8 @@ export async function exportExcel(filename, columns, rows, options = {}) {
   } catch (err) {
     console.error('Failed to generate Excel report:', err)
     notify.error('Failed to export Excel file: ' + err.message)
+  } finally {
+    hideGlobalLoading()
   }
 }
 

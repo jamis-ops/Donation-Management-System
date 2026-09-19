@@ -1,12 +1,20 @@
-import LoadingSpinner from '../../../components/shared/LoadingSpinner'
+import { useEffect } from 'react'
+import { useLoading } from '../../../context/LoadingContext'
 
 export default function ApiState({ loading, error, onRetry, children }) {
+  const { showLoading, hideLoading } = useLoading()
+
+  useEffect(() => {
+    if (loading) {
+      showLoading('Loading data from database…')
+      return () => {
+        hideLoading()
+      }
+    }
+  }, [loading, showLoading, hideLoading])
+
   if (loading) {
-    return (
-      <div style={{ minHeight: '200px' }}>
-        <LoadingSpinner variant="card" message="Loading data from database..." />
-      </div>
-    )
+    return <div style={{ minHeight: '200px' }} />
   }
 
   if (error) {

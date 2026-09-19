@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Check, Clock, Package, CheckCircle, Truck, MapPin, AlertCircle } from 'lucide-react'
 import { donationUpdatesApi } from '../../api/resources'
+import LoadingSpinner from '../shared/LoadingSpinner'
 
 const WORKFLOW_STAGES = [
   {
@@ -198,12 +199,7 @@ export default function DonationProgressTracker({ donation, donationId }) {
         </div>
       )}
 
-      {loading && (
-        <div className="progress-tracker-loading">
-          <div className="spinner" />
-          <span>Loading progress details...</span>
-        </div>
-      )}
+      {loading && <LoadingSpinner message="Loading progress details…" />}
     </div>
   )
 }

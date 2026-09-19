@@ -93,17 +93,24 @@ export function LoadingProvider({ children }) {
     }
   }, [showLoading, hideLoading])
 
-  // Cleanup timers on unmount and listen to global dismiss events
+  // Cleanup timers on unmount and listen to global loading events
   useEffect(() => {
+    const handleGlobalShow = (e) => {
+      const msg = (e && typeof e.detail === 'string') ? e.detail : (e?.detail?.message || 'Processing…')
+      showLoading(msg)
+    }
     const handleGlobalHide = () => hideLoading(true)
+
+    window.addEventListener('app:show-loading', handleGlobalShow)
     window.addEventListener('app:hide-loading', handleGlobalHide)
     return () => {
+      window.removeEventListener('app:show-loading', handleGlobalShow)
       window.removeEventListener('app:hide-loading', handleGlobalHide)
       if (hideTimerRef.current) clearTimeout(hideTimerRef.current)
       if (cleanupTimerRef.current) clearTimeout(cleanupTimerRef.current)
       if (enterTimerRef.current) clearTimeout(enterTimerRef.current)
     }
-  }, [hideLoading])
+  }, [showLoading, hideLoading])
 
   const api = useMemo(
     () => ({
@@ -173,13 +180,32 @@ export function LoadingProvider({ children }) {
 export function useLoading() {
   const ctx = useContext(LoadingContext)
   if (!ctx) {
-    // Fallback if used outside provider — safe no-op
+    // Fallback if used outside provider — safe dispatch to window events
     return {
-      showLoading: () => {},
-      hideLoading: () => {},
+      showLoading: (message = 'Processing…') => showGlobalLoading(message),
+      hideLoading: () => hideGlobalLoading(),
       withLoading: async (fn) => (typeof fn === 'function' ? fn() : fn),
       isLoading: false,
     }
   }
   return ctx
 }
+
+/**
+ * Trigger the single Rise Above Foundation heart-and-butterfly loading modal globally.
+ */
+export function showGlobalLoading(message = 'Processing…') {
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new CustomEvent('app:show-loading', { detail: message }))
+  }
+}
+
+/**
+ * Dismiss the single Rise Above Foundation heart-and-butterfly loading modal globally.
+ */
+export function hideGlobalLoading() {
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new CustomEvent('app:hide-loading'))
+  }
+}
+

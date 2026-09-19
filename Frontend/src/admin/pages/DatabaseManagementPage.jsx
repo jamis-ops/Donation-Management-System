@@ -26,6 +26,7 @@ import { isSuperAdminRole } from '../../utils/roleRoutes'
 import { databaseManagementApi } from '../../api/resources'
 import { useLoading } from '../../context/LoadingContext'
 import { notify } from '../../utils/confirm'
+import LoadingSpinner from '../../components/shared/LoadingSpinner'
 import ModalHeader from '../components/shared/ModalHeader'
 import PageHeader from '../components/shared/PageHeader'
 
@@ -383,7 +384,7 @@ export default function DatabaseManagementPage() {
                     disabled={dataLoading}
                     title="Reload records"
                   >
-                    <RefreshCw size={13} className={dataLoading ? 'spin-animation' : ''} /> Reload
+                    <RefreshCw size={13} /> Reload
                   </button>
                   <button
                     type="button"
@@ -441,10 +442,7 @@ export default function DatabaseManagementPage() {
               {/* Dynamic Grid */}
               <div className="db-grid-container">
                 {dataLoading ? (
-                  <div style={{ padding: '3rem', textAlign: 'center', color: '#64748b' }}>
-                    <RefreshCw size={24} className="spin-animation" style={{ margin: '0 auto 0.5rem', display: 'block', color: '#AF101A' }} />
-                    <p style={{ margin: 0, fontSize: '0.88rem' }}>Loading live records from {selectedTable}…</p>
-                  </div>
+                  <LoadingSpinner message={`Loading live records from ${selectedTable}…`} />
                 ) : !tableData?.rows || tableData.rows.length === 0 ? (
                   <div className="portal-empty" style={{ padding: '3.5rem 1rem' }}>
                     <Table2 size={36} />

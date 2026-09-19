@@ -643,33 +643,6 @@
   margin-bottom: 1rem;
 }
 
-/* =========================================================
-   Portal Loading (RoleProtectedRoute)
-   ========================================================= */
-
-.portal-loading {
-  min-height: 100vh;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 1rem;
-  background: #f4f5f7;
-  color: #6b7280;
-  font-family: var(--font-sans);
-  font-size: 0.9rem;
-}
-
-.portal-loading__spinner {
-  width: 36px;
-  height: 36px;
-  border: 3px solid #e5e7eb;
-  border-top-color: #AF101A;
-  border-radius: 50%;
-  animation: portalSpin 0.75s linear infinite;
-}
-
-@keyframes portalSpin { to { transform: rotate(360deg); } }
 
 /* =========================================================
    Portal Empty State

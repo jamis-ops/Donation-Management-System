@@ -4,6 +4,7 @@ import {
   Package, RefreshCw, AlertCircle, Phone, Mail, UserCheck, FileText
 } from 'lucide-react'
 import { needsStockApi } from '../../api/resources'
+import LoadingSpinner from './LoadingSpinner'
 
 export default function BarangayNeedsAnalyzer({
   beneficiaries,
@@ -186,13 +187,10 @@ export default function BarangayNeedsAnalyzer({
           </div>
 
           {loadingAnalysis ? (
-            <div className="analysis-loading">
-              <div className="spinner" />
-              <p>Analyzing barangay relief requests and available warehouse inventory...</p>
-            </div>
+            <LoadingSpinner message="Analyzing barangay relief requests and available warehouse inventory…" />
           ) : analysisError ? (
-            <div className="analysis-loading" style={{ color: '#ef4444' }}>
-              <AlertCircle size={28} style={{ marginBottom: '0.25rem' }} />
+            <div style={{ padding: '2.5rem 1rem', textAlign: 'center', color: '#ef4444' }}>
+              <AlertCircle size={28} style={{ marginBottom: '0.25rem', display: 'inline-block' }} />
               <p style={{ fontWeight: 600, color: '#b91c1c', margin: '0.25rem 0' }}>{analysisError}</p>
               <button
                 type="button"

@@ -27,7 +27,6 @@ import { useHashScroll, useQueryFocus } from '../../hooks/useDeepLinkFocus'
 import PhoneInput from '../../components/shared/PhoneInput'
 import PasswordRequirements from '../../components/shared/PasswordRequirements'
 import { phoneError, emailError, passwordError } from '../../utils/validation'
-import LoadingSpinner, { LoadingHeart, InlineLoader } from '../../components/shared/LoadingSpinner'
 import { useLoading } from '../../context/LoadingContext'
 
 const STATUS_OPTIONS = ['Active', 'Approved', 'Pending Approval', 'Suspended', 'Rejected']
@@ -1392,13 +1391,9 @@ export default function BeneficiariesPage() {
                   className="btn approval-overlay__btn-approve"
                   disabled={actionBusyId === approveTarget.dbId}
                 >
-                  {actionBusyId === approveTarget.dbId ? (
-                    <>
-                      <InlineLoader size={16} /> Approving & Sending Credentials...
-                    </>
-                  ) : (
-                    'Approve & Send Credentials'
-                  )}
+                  {actionBusyId === approveTarget.dbId
+                    ? 'Approving & Sending Credentials...'
+                    : 'Approve & Send Credentials'}
                 </button>
                 <button
                   type="button"

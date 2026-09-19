@@ -8,11 +8,7 @@ export default function ProtectedRoute({ children }) {
   const location = useLocation()
 
   if (loading) {
-    return (
-      <div className="admin-loading">
-        <LoadingSpinner size="large" message="Verifying authentication..." />
-      </div>
-    )
+    return <LoadingSpinner message="Verifying authentication…" />
   }
 
   if (!isAuthenticated) {

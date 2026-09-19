@@ -25,6 +25,7 @@ import { useCatalogOptions } from '../../hooks/useCatalogOptions'
 import { VOLUNTEER_PROGRAMS, VOLUNTEER_SKILLS } from '../../constants/options'
 import { useTaskTitles } from '../../hooks/useTaskTitles'
 import { useLoading } from '../../context/LoadingContext'
+import LoadingSpinner from '../../components/shared/LoadingSpinner'
 
 const filterConfig = {
   searchKeys: ['id', 'name', 'email', 'institution', 'skills', 'programs'],
@@ -1384,7 +1385,7 @@ export default function VolunteersPage() {
                               onClick={() => loadAiRecommendations(selected)}
                               disabled={aiLoading}
                             >
-                              <RefreshCw size={13} className={aiLoading ? 'spin' : ''} />
+                              <RefreshCw size={13} />
                               {aiLoading ? 'Analyzing…' : 'Re-analyze CV'}
                             </button>
                           </div>
@@ -1417,11 +1418,7 @@ export default function VolunteersPage() {
                         )}
 
                         {aiLoading ? (
-                          <div className="ai-loading-box">
-                            <Sparkles size={26} className="ai-sparkle-icon spin" />
-                            <strong>Analyzing CV credentials with strict evidence matching…</strong>
-                            <span>Extracting authentic document text, verifying credentials, and checking program requirements</span>
-                          </div>
+                          <LoadingSpinner message="Analyzing CV credentials with strict evidence matching…" />
                         ) : aiRecs.length === 0 && !aiError ? (
                           <div className="ai-empty-box">
                             <Sparkles size={24} style={{ color: '#94a3b8', marginBottom: '0.5rem' }} />

@@ -9,13 +9,14 @@ import Req from '../../components/shared/Req'
 import PasswordRequirements from '../../components/shared/PasswordRequirements'
 import { heroBg } from '../../assets'
 import { useLoading } from '../../context/LoadingContext'
+import LoadingSpinner from '../../components/shared/LoadingSpinner'
 
 export default function ChangePasswordPage() {
   const { user, loading: authLoading, isAuthenticated, changePassword, refreshUser } = useAuth()
   const navigate = useNavigate()
+  const { showLoading, hideLoading } = useLoading()
   const [currentPassword, setCurrentPassword] = useState('')
   const [showCurrentPassword, setShowCurrentPassword] = useState(false)
-  const { showLoading, hideLoading } = useLoading()
   const [newPassword, setNewPassword] = useState('')
   const [showNewPassword, setShowNewPassword] = useState(false)
   const [confirmPassword, setConfirmPassword] = useState('')
@@ -24,12 +25,7 @@ export default function ChangePasswordPage() {
   const [loading, setLoading] = useState(false)
 
   if (authLoading) {
-    return (
-      <div className="portal-loading">
-        <div className="portal-loading__spinner" />
-        <p>Loading your account...</p>
-      </div>
-    )
+    return <LoadingSpinner message="Loading your account…" />
   }
 
   if (!isAuthenticated) {
