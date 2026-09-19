@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import { inventoryCatalogApi } from '../api/resources'
+import { cacheManager, CACHE_CONFIG } from '../utils/cacheManager'
 
 export const DEFAULT_CATEGORIES = [
   { id: 1, name: 'Water', icon: 'Droplets', isActive: true },
@@ -78,16 +79,22 @@ export const DEFAULT_UNITS = [
 
 export function useInventoryCatalog(options = {}) {
   const { activeOnly = true } = options
-  const [categories, setCategories] = useState(DEFAULT_CATEGORIES)
-  const [itemTypes, setItemTypes] = useState(DEFAULT_ITEM_TYPES)
-  const [brands, setBrands] = useState([])
-  const [variants, setVariants] = useState([])
-  const [units, setUnits] = useState(DEFAULT_UNITS)
-  const [loading, setLoading] = useState(true)
+  const cacheKey = cacheManager.makeKey(`inventory_catalog::${activeOnly}`, true)
+  const cached = cacheManager.get(cacheKey)
+
+  const [categories, setCategories] = useState(() => cached.data?.categories || DEFAULT_CATEGORIES)
+  const [itemTypes, setItemTypes] = useState(() => cached.data?.itemTypes || DEFAULT_ITEM_TYPES)
+  const [brands, setBrands] = useState(() => cached.data?.brands || [])
+  const [variants, setVariants] = useState(() => cached.data?.variants || [])
+  const [units, setUnits] = useState(() => cached.data?.units || DEFAULT_UNITS)
+  const [loading, setLoading] = useState(() => cached.isMissing)
   const [error, setError] = useState(null)
 
-  const fetchAll = useCallback(async () => {
-    setLoading(true)
+  const fetchAll = useCallback(async (silent = false) => {
+    const currentCached = cacheManager.get(cacheKey)
+    if (!silent && currentCached.isMissing) {
+      setLoading(true)
+    }
     setError(null)
     try {
       // First try fetching the entire catalog via single unified response
@@ -95,21 +102,30 @@ export function useInventoryCatalog(options = {}) {
       const data = res?.data
 
       if (data && typeof data === 'object' && !Array.isArray(data)) {
-        if (Array.isArray(data.categories)) {
-          setCategories(data.categories)
-        } else {
-          setCategories(DEFAULT_CATEGORIES)
-        }
+        const nextCategories = Array.isArray(data.categories) ? data.categories : DEFAULT_CATEGORIES
+        const nextItemTypes = Array.isArray(data.itemTypes) ? data.itemTypes : DEFAULT_ITEM_TYPES
+        const nextBrands = Array.isArray(data.brands) && data.brands.length > 0 ? data.brands : []
+        const nextVariants = Array.isArray(data.variants) && data.variants.length > 0 ? data.variants : []
+        const nextUnits = Array.isArray(data.units) && data.units.length > 0 ? data.units : DEFAULT_UNITS
 
-        if (Array.isArray(data.itemTypes)) {
-          setItemTypes(data.itemTypes)
-        } else {
-          setItemTypes(DEFAULT_ITEM_TYPES)
-        }
+        setCategories(nextCategories)
+        setItemTypes(nextItemTypes)
+        setBrands(nextBrands)
+        setVariants(nextVariants)
+        setUnits(nextUnits)
 
-        if (Array.isArray(data.brands) && data.brands.length > 0) setBrands(data.brands)
-        if (Array.isArray(data.variants) && data.variants.length > 0) setVariants(data.variants)
-        if (Array.isArray(data.units) && data.units.length > 0) setUnits(data.units)
+        cacheManager.set(cacheKey, {
+          categories: nextCategories,
+          itemTypes: nextItemTypes,
+          brands: nextBrands,
+          variants: nextVariants,
+          units: nextUnits,
+        }, {
+          ttl: CACHE_CONFIG.CATALOGS.ttl,
+          staleTime: CACHE_CONFIG.CATALOGS.staleTime,
+          tags: ['inventory_catalog', 'catalogs'],
+          isPublic: true,
+        })
       } else if (Array.isArray(data)) {
         setCategories(data)
       }
@@ -119,10 +135,24 @@ export function useInventoryCatalog(options = {}) {
     } finally {
       setLoading(false)
     }
-  }, [activeOnly])
+  }, [activeOnly, cacheKey])
 
   useEffect(() => {
-    fetchAll()
+    const currentCached = cacheManager.get(cacheKey)
+    if (currentCached.isMissing || currentCached.isStale) {
+      fetchAll(Boolean(!currentCached.isMissing))
+    }
+  }, [fetchAll, cacheKey])
+
+  useEffect(() => {
+    const onInvalidate = (e) => {
+      const tags = e.detail?.tags || []
+      if (tags.includes('inventory_catalog') || tags.includes('catalogs')) {
+        void fetchAll(true)
+      }
+    }
+    window.addEventListener('raf:cache-invalidate', onInvalidate)
+    return () => window.removeEventListener('raf:cache-invalidate', onInvalidate)
   }, [fetchAll])
 
   const getItemTypesByCategory = useCallback(

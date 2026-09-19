@@ -1,5 +1,6 @@
 import { createContext, useContext, useState, useEffect } from 'react'
 import * as authApi from '../api/auth'
+import { cacheManager } from '../utils/cacheManager'
 
 const AuthContext = createContext(null)
 
@@ -46,6 +47,7 @@ export function AuthProvider({ children }) {
   }, [])
 
   const login = async (email, password, options = {}) => {
+    cacheManager.clearUserScope()
     const res = await authApi.login(email, password, options)
     setUser(res.user)
     return { success: true, user: res.user }
@@ -61,6 +63,7 @@ export function AuthProvider({ children }) {
     try {
       await authApi.logout()
     } finally {
+      cacheManager.clearUserScope()
       setUser(null)
     }
   }

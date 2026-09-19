@@ -22,43 +22,63 @@ function getStoredToken() {
   return ''
 }
 
-export async function apiFetch(path, options = {}) {
-  const url = apiUrl(path)
-  const token = getStoredToken()
-  const isFormData = options.body instanceof FormData
-  const headers = {
-    ...(isFormData ? {} : { 'Content-Type': 'application/json' }),
-    ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
-    ...(options.headers || {}),
-  }
-  const res = await fetch(url, {
-    credentials: 'include',
-    headers,
-    ...options,
-  })
+import { cacheManager } from '../utils/cacheManager'
 
-  const text = await res.text()
-  let data = null
-  try {
-    if (text) data = JSON.parse(text)
-  } catch (err) {
-    // If not valid JSON, we still want to throw so the UI shows the real error instead of 'Cannot read properties of null'.
+export async function apiFetch(path, options = {}) {
+  const method = (options.method || 'GET').toUpperCase()
+
+  const executeFetch = async () => {
+    const url = apiUrl(path)
+    const token = getStoredToken()
+    const isFormData = options.body instanceof FormData
+    const headers = {
+      ...(isFormData ? {} : { 'Content-Type': 'application/json' }),
+      ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
+      ...(options.headers || {}),
+    }
+    const res = await fetch(url, {
+      credentials: 'include',
+      headers,
+      ...options,
+    })
+
+    const text = await res.text()
+    let data = null
+    try {
+      if (text) data = JSON.parse(text)
+    } catch (err) {
+      if (!res.ok) {
+        if (res.status === 502 || res.status === 503) {
+          throw new Error('Cannot reach the PHP backend. Run: npm run api')
+        }
+        throw new Error(`Request failed (${res.status}): ` + text.substring(0, 200))
+      }
+      throw new Error('Invalid JSON from server: ' + text.substring(0, 200))
+    }
+
     if (!res.ok) {
       if (res.status === 502 || res.status === 503) {
         throw new Error('Cannot reach the PHP backend. Run: npm run api')
       }
-      throw new Error(`Request failed (${res.status}): ` + text.substring(0, 200))
+      throw new Error(data?.error || `Request failed (${res.status})`)
     }
-    throw new Error('Invalid JSON from server: ' + text.substring(0, 200))
+
+    // Auto-invalidate matching resource cache tags upon successful mutation
+    if (['POST', 'PUT', 'DELETE', 'PATCH'].includes(method)) {
+      const tags = options.invalidateTags || cacheManager.resolveTags(path)
+      cacheManager.invalidateTags(tags)
+    }
+
+    return data
   }
 
-  if (!res.ok) {
-    if (res.status === 502 || res.status === 503) {
-      throw new Error('Cannot reach the PHP backend. Run: npm run api')
-    }
-    throw new Error(data?.error || `Request failed (${res.status})`)
+  // Deduplicate concurrent GET requests to avoid duplicate network roundtrips
+  if (method === 'GET' && !options.noDedupe) {
+    const dedupeKey = `fetch::${path}`
+    return cacheManager.deduplicate(dedupeKey, executeFetch)
   }
-  return data
+
+  return executeFetch()
 }
 
 export function resourceApi(basePath) {

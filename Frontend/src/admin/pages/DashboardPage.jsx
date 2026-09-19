@@ -1,7 +1,8 @@
 import { useState, useEffect, useCallback } from 'react'
 import { Link } from 'react-router-dom'
 import { HeartHandshake, UserCheck, Users, Package, Truck, UserCog, Layers } from 'lucide-react'
-import { getDashboard, needsStockApi } from '../../api/resources'
+import { getDashboard, needsStockApi, inventoryApi, allocationsApi, donationsApi, distributionsApi } from '../../api/resources'
+import { cacheManager } from '../../utils/cacheManager'
 import { useApiObject } from '../../hooks/useApiList'
 import PageHeader from '../components/shared/PageHeader'
 import ApiState from '../components/shared/ApiState'
@@ -151,6 +152,24 @@ export default function DashboardPage() {
       window.removeEventListener('focus', onFocus)
     }
   }, [loadNeeds])
+
+  useEffect(() => {
+    // Idle prefetching for key admin navigation targets to make page transitions instant
+    const prefetchKeyData = () => {
+      cacheManager.prefetch('/api/inventory.php', () => inventoryApi.list())
+      cacheManager.prefetch('/api/allocations.php', () => allocationsApi.list())
+      cacheManager.prefetch('/api/donations.php', () => donationsApi.list())
+      cacheManager.prefetch('/api/distributions.php', () => distributionsApi.list())
+    }
+
+    if (typeof window !== 'undefined' && 'requestIdleCallback' in window) {
+      const handle = window.requestIdleCallback(prefetchKeyData, { timeout: 3500 })
+      return () => window.cancelIdleCallback(handle)
+    } else {
+      const timer = setTimeout(prefetchKeyData, 1500)
+      return () => clearTimeout(timer)
+    }
+  }, [])
 
   const charts = data?.charts || {}
   const trend = charts.trend?.[gran] || charts.monthlyTrend || []

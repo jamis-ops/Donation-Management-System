@@ -522,12 +522,27 @@ try {
   $pdo->exec("UPDATE volunteers SET hours = 0, required_hours = 0 WHERE applicant_type = 'Volunteer' OR applicant_type IS NULL");
   echo "Cleared duty hours from volunteer profiles\n";
 
-  // v28: Expand tasks module column to accommodate full program titles
-  try {
-    $pdo->exec("ALTER TABLE tasks MODIFY COLUMN module VARCHAR(191) NULL");
-    echo "Expanded tasks.module to VARCHAR(191)\n";
-  } catch (Throwable $e) {
-    // Ignore if already modified or table doesn't exist yet
+  // v29: Query optimization indexes for fast list queries and caching
+  $performanceIndexes = [
+    'CREATE INDEX idx_donations_status_date ON donations (status, donation_date)',
+    'CREATE INDEX idx_donations_created_status ON donations (created_at, status)',
+    'CREATE INDEX idx_distributions_status_date ON distributions (status, distribution_date)',
+    'CREATE INDEX idx_distributions_updated_status ON distributions (updated_at, status)',
+    'CREATE INDEX idx_allocations_status_created ON allocations (status, created_at)',
+    'CREATE INDEX idx_requests_status_date ON assistance_requests (status, request_date)',
+    'CREATE INDEX idx_requests_created_status ON assistance_requests (created_at, status)',
+    'CREATE INDEX idx_inventory_category_type ON inventory_items (category, item_type)',
+    'CREATE INDEX idx_beneficiaries_status_created ON beneficiaries (status, created_at)',
+    'CREATE INDEX idx_volunteers_status_type ON volunteers (status, applicant_type)',
+    'CREATE INDEX idx_volunteers_created_status ON volunteers (created_at, status)',
+  ];
+  foreach ($performanceIndexes as $sql) {
+    try {
+      $pdo->exec($sql);
+      echo "Applied index: {$sql}\n";
+    } catch (Throwable $e) {
+      // index already exists or table not present
+    }
   }
 
   echo "\nMigration complete!\n";

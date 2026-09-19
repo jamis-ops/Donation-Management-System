@@ -18,33 +18,24 @@ if ($userId <= 0 && is_super_admin_user($user)) {
   $userId = 999999;
 }
 
-function safe_table_exists(PDO $pdo, string $tableName): bool
+function ensure_section_views_table(PDO $pdo): void
 {
+  static $initialized = false;
+  if ($initialized) return;
+  $initialized = true;
   try {
-    $stmt = $pdo->prepare("
-      SELECT COUNT(*) FROM information_schema.tables 
-      WHERE table_schema = DATABASE() AND table_name = ?
+    $pdo->exec("
+      CREATE TABLE IF NOT EXISTS admin_section_views (
+        id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+        user_id BIGINT UNSIGNED NOT NULL,
+        section_key VARCHAR(80) NOT NULL,
+        last_seen_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        UNIQUE KEY uq_user_section (user_id, section_key)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
     ");
-    $stmt->execute([$tableName]);
-    return (int) $stmt->fetchColumn() > 0;
   } catch (Throwable $e) {
-    return false;
+    // table creation fallback
   }
-}
-
-// Ensure section views tracking table exists
-try {
-  $pdo->exec("
-    CREATE TABLE IF NOT EXISTS admin_section_views (
-      id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-      user_id BIGINT UNSIGNED NOT NULL,
-      section_key VARCHAR(80) NOT NULL,
-      last_seen_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-      UNIQUE KEY uq_user_section (user_id, section_key)
-    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
-  ");
-} catch (Throwable $e) {
-  // table creation fallback
 }
 
 function get_last_seen(PDO $pdo, int $userId, string $sectionKey): ?string
@@ -55,7 +46,22 @@ function get_last_seen(PDO $pdo, int $userId, string $sectionKey): ?string
     $val = $stmt->fetchColumn();
     return $val ? (string) $val : null;
   } catch (Throwable $e) {
+    ensure_section_views_table($pdo);
     return null;
+  }
+}
+
+function safe_count(PDO $pdo, string $sql, array $params = []): int
+{
+  try {
+    if (empty($params)) {
+      return (int) $pdo->query($sql)->fetchColumn();
+    }
+    $stmt = $pdo->prepare($sql);
+    $stmt->execute($params);
+    return (int) $stmt->fetchColumn();
+  } catch (Throwable $e) {
+    return 0;
   }
 }
 
@@ -79,162 +85,68 @@ if ($method === 'POST') {
       ");
       $upsert->execute([$userId, $section]);
     } catch (Throwable $e) {
-      // ignore write error
+      ensure_section_views_table($pdo);
+      try {
+        $upsert = $pdo->prepare("
+          INSERT INTO admin_section_views (user_id, section_key, last_seen_at) 
+          VALUES (?, ?, NOW()) 
+          ON DUPLICATE KEY UPDATE last_seen_at = NOW()
+        ");
+        $upsert->execute([$userId, $section]);
+      } catch (Throwable $e2) {
+        // ignore write error
+      }
     }
   }
 }
 
 // 1. Pending Volunteers
-$pendingVolunteers = 0;
-if (safe_table_exists($pdo, 'volunteers')) {
-  $seen = get_last_seen($pdo, $userId, '/admin/volunteers');
-  if ($seen) {
-    $stmt = $pdo->prepare("
-      SELECT COUNT(*) FROM volunteers 
-      WHERE status IN ('Pending', 'Pending Review') AND created_at > ?
-    ");
-    $stmt->execute([$seen]);
-    $pendingVolunteers = (int) $stmt->fetchColumn();
-  } else {
-    $pendingVolunteers = (int) $pdo->query("
-      SELECT COUNT(*) FROM volunteers 
-      WHERE status IN ('Pending', 'Pending Review')
-    ")->fetchColumn();
-  }
-}
+$seen = get_last_seen($pdo, $userId, '/admin/volunteers');
+$pendingVolunteers = $seen
+  ? safe_count($pdo, "SELECT COUNT(*) FROM volunteers WHERE status IN ('Pending', 'Pending Review') AND created_at > ?", [$seen])
+  : safe_count($pdo, "SELECT COUNT(*) FROM volunteers WHERE status IN ('Pending', 'Pending Review')");
 
 // 2. Pending Barangays & Proof Reviews
-$pendingBeneficiaries = 0;
-$pendingProofs = 0;
 $seenBarangays = get_last_seen($pdo, $userId, '/admin/beneficiaries');
+$pendingBeneficiaries = $seenBarangays
+  ? safe_count($pdo, "SELECT COUNT(*) FROM beneficiaries WHERE status IN ('Pending', 'Pending Approval', 'Pending Review') AND created_at > ?", [$seenBarangays])
+  : safe_count($pdo, "SELECT COUNT(*) FROM beneficiaries WHERE status IN ('Pending', 'Pending Approval', 'Pending Review')");
 
-if (safe_table_exists($pdo, 'beneficiaries')) {
-  if ($seenBarangays) {
-    $stmt = $pdo->prepare("
-      SELECT COUNT(*) FROM beneficiaries 
-      WHERE status IN ('Pending', 'Pending Approval', 'Pending Review') AND created_at > ?
-    ");
-    $stmt->execute([$seenBarangays]);
-    $pendingBeneficiaries = (int) $stmt->fetchColumn();
-  } else {
-    $pendingBeneficiaries = (int) $pdo->query("
-      SELECT COUNT(*) FROM beneficiaries 
-      WHERE status IN ('Pending', 'Pending Approval', 'Pending Review')
-    ")->fetchColumn();
-  }
-}
+$pendingProofs = $seenBarangays
+  ? safe_count($pdo, "SELECT COUNT(*) FROM delivery_proofs WHERE status IN ('Pending', 'Pending Review') AND created_at > ?", [$seenBarangays])
+  : safe_count($pdo, "SELECT COUNT(*) FROM delivery_proofs WHERE status IN ('Pending', 'Pending Review')");
 
-if (safe_table_exists($pdo, 'delivery_proofs')) {
-  if ($seenBarangays) {
-    $stmt = $pdo->prepare("
-      SELECT COUNT(*) FROM delivery_proofs 
-      WHERE status IN ('Pending', 'Pending Review') AND created_at > ?
-    ");
-    $stmt->execute([$seenBarangays]);
-    $pendingProofs = (int) $stmt->fetchColumn();
-  } else {
-    $pendingProofs = (int) $pdo->query("
-      SELECT COUNT(*) FROM delivery_proofs 
-      WHERE status IN ('Pending', 'Pending Review')
-    ")->fetchColumn();
-  }
-}
 $barangayBadge = $pendingBeneficiaries + $pendingProofs;
 
 // 3. Pending Relief Requests
-$pendingRequests = 0;
-if (safe_table_exists($pdo, 'assistance_requests')) {
-  $seen = get_last_seen($pdo, $userId, '/admin/requests');
-  if ($seen) {
-    $stmt = $pdo->prepare("
-      SELECT COUNT(*) FROM assistance_requests 
-      WHERE status IN ('Pending', 'Pending Review') AND created_at > ?
-    ");
-    $stmt->execute([$seen]);
-    $pendingRequests = (int) $stmt->fetchColumn();
-  } else {
-    $pendingRequests = (int) $pdo->query("
-      SELECT COUNT(*) FROM assistance_requests 
-      WHERE status IN ('Pending', 'Pending Review')
-    ")->fetchColumn();
-  }
-}
+$seen = get_last_seen($pdo, $userId, '/admin/requests');
+$pendingRequests = $seen
+  ? safe_count($pdo, "SELECT COUNT(*) FROM assistance_requests WHERE status IN ('Pending', 'Pending Review') AND created_at > ?", [$seen])
+  : safe_count($pdo, "SELECT COUNT(*) FROM assistance_requests WHERE status IN ('Pending', 'Pending Review')");
 
 // 4. Pending Donations
-$pendingDonations = 0;
-if (safe_table_exists($pdo, 'donations')) {
-  $seen = get_last_seen($pdo, $userId, '/admin/donations');
-  if ($seen) {
-    $stmt = $pdo->prepare("
-      SELECT COUNT(*) FROM donations 
-      WHERE status IN ('Pending', 'Pending Verification') AND created_at > ?
-    ");
-    $stmt->execute([$seen]);
-    $pendingDonations = (int) $stmt->fetchColumn();
-  } else {
-    $pendingDonations = (int) $pdo->query("
-      SELECT COUNT(*) FROM donations 
-      WHERE status IN ('Pending', 'Pending Verification')
-    ")->fetchColumn();
-  }
-}
+$seen = get_last_seen($pdo, $userId, '/admin/donations');
+$pendingDonations = $seen
+  ? safe_count($pdo, "SELECT COUNT(*) FROM donations WHERE status IN ('Pending', 'Pending Verification') AND created_at > ?", [$seen])
+  : safe_count($pdo, "SELECT COUNT(*) FROM donations WHERE status IN ('Pending', 'Pending Verification')");
 
 // 5. Pending Certificates
-$pendingCertificates = 0;
-if (safe_table_exists($pdo, 'certificates')) {
-  $seen = get_last_seen($pdo, $userId, '/admin/certificates');
-  if ($seen) {
-    $stmt = $pdo->prepare("
-      SELECT COUNT(*) FROM certificates 
-      WHERE status IN ('Requested', 'Pending') AND created_at > ?
-    ");
-    $stmt->execute([$seen]);
-    $pendingCertificates = (int) $stmt->fetchColumn();
-  } else {
-    $pendingCertificates = (int) $pdo->query("
-      SELECT COUNT(*) FROM certificates 
-      WHERE status IN ('Requested', 'Pending')
-    ")->fetchColumn();
-  }
-}
+$seen = get_last_seen($pdo, $userId, '/admin/certificates');
+$pendingCertificates = $seen
+  ? safe_count($pdo, "SELECT COUNT(*) FROM certificates WHERE status IN ('Requested', 'Pending') AND created_at > ?", [$seen])
+  : safe_count($pdo, "SELECT COUNT(*) FROM certificates WHERE status IN ('Requested', 'Pending')");
 
 // 6. Distributions Awaiting Proof
-$pendingDistributions = 0;
-if (safe_table_exists($pdo, 'distributions')) {
-  $seen = get_last_seen($pdo, $userId, '/admin/distributions');
-  if ($seen) {
-    $stmt = $pdo->prepare("
-      SELECT COUNT(*) FROM distributions 
-      WHERE status = 'Awaiting Proof' AND updated_at > ?
-    ");
-    $stmt->execute([$seen]);
-    $pendingDistributions = (int) $stmt->fetchColumn();
-  } else {
-    $pendingDistributions = (int) $pdo->query("
-      SELECT COUNT(*) FROM distributions 
-      WHERE status = 'Awaiting Proof'
-    ")->fetchColumn();
-  }
-}
+$seen = get_last_seen($pdo, $userId, '/admin/distributions');
+$pendingDistributions = $seen
+  ? safe_count($pdo, "SELECT COUNT(*) FROM distributions WHERE status = 'Awaiting Proof' AND updated_at > ?", [$seen])
+  : safe_count($pdo, "SELECT COUNT(*) FROM distributions WHERE status = 'Awaiting Proof'");
 
 // 7. Pending Allocations
-$pendingAllocations = 0;
-if (safe_table_exists($pdo, 'allocations')) {
-  $seen = get_last_seen($pdo, $userId, '/admin/allocation');
-  if ($seen) {
-    $stmt = $pdo->prepare("
-      SELECT COUNT(*) FROM allocations 
-      WHERE status = 'Pending' AND created_at > ?
-    ");
-    $stmt->execute([$seen]);
-    $pendingAllocations = (int) $stmt->fetchColumn();
-  } else {
-    $pendingAllocations = (int) $pdo->query("
-      SELECT COUNT(*) FROM allocations 
-      WHERE status = 'Pending'
-    ")->fetchColumn();
-  }
-}
+$seen = get_last_seen($pdo, $userId, '/admin/allocation');
+$pendingAllocations = $seen
+  ? safe_count($pdo, "SELECT COUNT(*) FROM allocations WHERE status = 'Pending' AND created_at > ?", [$seen])
+  : safe_count($pdo, "SELECT COUNT(*) FROM allocations WHERE status = 'Pending'");
 
 json_response([
   'ok' => true,
