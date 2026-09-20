@@ -486,38 +486,59 @@ if ($method === 'POST') {
   }
 
   $donorId = null;
-  if ($donorEmail !== '') {
+  $authenticatedUser = current_user();
+  $isLoggedInDonor = $authenticatedUser && (($authenticatedUser['role'] ?? '') === 'Donor');
+
+  if ($isLoggedInDonor) {
+    $uid = (int) ($authenticatedUser['id'] ?? 0);
+    $uEmail = strtolower(trim((string) ($authenticatedUser['email'] ?? $donorEmail)));
+    $find = $pdo->prepare('
+      SELECT * FROM donors 
+      WHERE (user_id IS NOT NULL AND user_id = ?) 
+         OR (email IS NOT NULL AND email <> "" AND LOWER(email) = ?)
+      ORDER BY (user_id = ?) DESC, id DESC 
+      LIMIT 1
+    ');
+    $find->execute([$uid, $uEmail, $uid]);
+    $donorRow = $find->fetch();
+
+    if ($donorRow) {
+      $donorId = (int) $donorRow['id'];
+      if (empty($donorRow['user_id']) && $uid > 0) {
+        $pdo->prepare('UPDATE donors SET user_id = ? WHERE id = ?')->execute([$uid, $donorId]);
+      }
+    } else {
+      // Auto-create persistent donor record for this registered donor user
+      $code = generate_code('DNR');
+      [$lName, $fName, $mInitial] = split_full_name($donorName);
+      $ins = $pdo->prepare('
+        INSERT INTO donors (code, full_name, first_name, last_name, middle_initial, donor_type, organization, contact_person, email, phone, country, address, user_id)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      ');
+      $ins->execute([
+        $code,
+        $fullName,
+        $firstName !== '' ? $firstName : ($fName ?: null),
+        $lastName !== '' ? $lastName : ($lName ?: null),
+        $miDb ?: ($mInitial ?: null),
+        $donorType,
+        $organization !== '' ? $organization : null,
+        $contactPerson !== '' ? $contactPerson : null,
+        $uEmail ?: null,
+        $phone !== '' ? $phone : null,
+        $country !== '' ? $country : null,
+        $address !== '' ? $address : null,
+        $uid,
+      ]);
+      $donorId = (int) $pdo->lastInsertId();
+    }
+  } elseif ($donorEmail !== '') {
     $find = $pdo->prepare('SELECT id FROM donors WHERE email = ? LIMIT 1');
     $find->execute([$donorEmail]);
     $existingDonorId = $find->fetchColumn();
 
     if ($existingDonorId) {
       $donorId = (int) $existingDonorId;
-      // Public give-now: refresh profile fields from the form.
-      if ($public) {
-        $upd = $pdo->prepare('
-          UPDATE donors
-          SET full_name = ?, first_name = ?, last_name = ?, middle_initial = ?,
-              donor_type = ?, organization = ?, contact_person = ?,
-              phone = COALESCE(NULLIF(?, ""), phone),
-              country = COALESCE(NULLIF(?, ""), country),
-              address = COALESCE(NULLIF(?, ""), address)
-          WHERE id = ?
-        ');
-        $upd->execute([
-          $fullName,
-          $firstName !== '' ? $firstName : null,
-          $lastName !== '' ? $lastName : null,
-          $miDb,
-          $donorType,
-          $organization !== '' ? $organization : null,
-          $contactPerson !== '' ? $contactPerson : null,
-          $phone,
-          $country,
-          $address,
-          $donorId,
-        ]);
-      }
     } elseif ($public) {
       // Create a donor row for public donations so they appear in Admin → Donors.
       $ins = $pdo->prepare('
@@ -569,10 +590,10 @@ if ($method === 'POST') {
   $stmt = $pdo->prepare('SELECT * FROM donations WHERE id = ?');
   $stmt->execute([$newId]);
   $donation = map_donation($stmt->fetch());
-  $actor = $public ? ['name' => 'Public Donor'] : ($user ?? current_user());
+  $actor = $isLoggedInDonor ? $authenticatedUser : ($public ? ['name' => 'Public Donor'] : ($user ?? current_user()));
   record_donation_update($pdo, $newId, 'Donation Received', 'Donation submitted and tracking code issued.', is_array($actor) ? $actor : null);
   notify_admins($pdo, 'donation', 'New donation received', "{$donation['donor']} submitted {$donation['amount']} ({$donation['trackingCode']})", '/admin/donations');
-  audit_log($pdo, 'create', 'donation', $tracking, "{$donorName} donated {$donation['amount']}", $public ? ['name' => $donorName, 'role' => 'Public'] : null);
+  audit_log($pdo, 'create', 'donation', $tracking, "{$donorName} donated {$donation['amount']}", $isLoggedInDonor ? ['name' => $donorName, 'role' => 'Donor'] : ($public ? ['name' => $donorName, 'role' => 'Public'] : null));
   json_response(['ok' => true, 'data' => $donation], 201);
 }
 

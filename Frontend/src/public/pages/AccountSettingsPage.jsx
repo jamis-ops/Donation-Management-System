@@ -1,7 +1,7 @@
 import { useEffect, useState, useRef } from 'react'
-import { Award, Clock, HeartHandshake, Sparkles, Eye, EyeOff, Camera, Upload } from 'lucide-react'
+import { Award, Clock, HeartHandshake, Sparkles, Eye, EyeOff, Camera, Upload, Building2, User, MapPin, Globe } from 'lucide-react'
 import { useAuth } from '../../context/AuthContext'
-import { apiFetch, uploadProfilePhoto, volunteersApi, apiUrl } from '../../api/resources'
+import { apiFetch, uploadProfilePhoto, volunteersApi, apiUrl, getDonorProfile, updateDonorProfile } from '../../api/resources'
 import PageHeader from '../../admin/components/shared/PageHeader'
 import MasterDataSettings from '../../admin/components/shared/MasterDataSettings'
 import MultiSelectBox from '../../components/shared/MultiSelectBox'
@@ -11,7 +11,8 @@ import { notify } from '../../utils/confirm'
 import { isSuperAdminRole } from '../../utils/roleRoutes'
 import PhoneInput from '../../components/shared/PhoneInput'
 import { phoneError, passwordError } from '../../utils/validation'
-import { VOLUNTEER_PROGRAMS, VOLUNTEER_SKILLS } from '../../constants/options'
+import { VOLUNTEER_PROGRAMS, VOLUNTEER_SKILLS, DONOR_TYPES } from '../../constants/options'
+import { COUNTRIES } from '../../constants/locations'
 import { useLoading } from '../../context/LoadingContext'
 
 function getPhotoUrl(photo) {
@@ -27,6 +28,7 @@ export default function AccountSettingsPage() {
   const { user, updateAccount, changePassword, refreshUser } = useAuth()
   const canManageLists = user?.role === 'Admin' || isSuperAdminRole(user?.role, user)
   const isVolunteer = user?.role === 'Volunteer'
+  const isDonor = user?.role === 'Donor'
 
   const fileInputRef = useRef(null)
   const [name, setName] = useState('')
@@ -53,6 +55,17 @@ export default function AccountSettingsPage() {
       setImgError(false)
     }
   }, [user?.profilePhoto])
+
+  // Donor-specific state
+  const [donorType, setDonorType] = useState('Individual')
+  const [organization, setOrganization] = useState('')
+  const [firstName, setFirstName] = useState('')
+  const [lastName, setLastName] = useState('')
+  const [middleInitial, setMiddleInitial] = useState('')
+  const [donorPhone, setDonorPhone] = useState('')
+  const [donorCountry, setDonorCountry] = useState('Philippines')
+  const [donorAddress, setDonorAddress] = useState('')
+  const [savingDonorDetails, setSavingDonorDetails] = useState(false)
 
   // Volunteer-specific state
   const [volunteerDbId, setVolunteerDbId] = useState(null)
@@ -111,8 +124,65 @@ export default function AccountSettingsPage() {
         .catch(() => {})
     }
 
+    if (isDonor) {
+      getDonorProfile()
+        .then((res) => {
+          if (cancelled || !res?.data) return
+          const d = res.data
+          setDonorType(d.donorType || 'Individual')
+          setOrganization(d.organization || '')
+          setFirstName(d.firstName || '')
+          setLastName(d.lastName || '')
+          setMiddleInitial(d.middleInitial || '')
+          setDonorPhone(d.phone || '')
+          setDonorCountry(d.country || 'Philippines')
+          setDonorAddress(d.address || '')
+        })
+        .catch(() => {})
+    }
+
     return () => { cancelled = true }
-  }, [user?.id, user?.email, isVolunteer])
+  }, [user?.id, user?.email, isVolunteer, isDonor])
+
+  const handleSaveDonorDetails = async (e) => {
+    e.preventDefault()
+    if (donorType === 'Company' && !organization.trim()) {
+      notify.warning('Company / Organization Name is required.')
+      return
+    }
+    const phoneMsg = phoneError(donorPhone, { required: false, allowInternational: true })
+    if (phoneMsg) {
+      notify.warning(phoneMsg)
+      return
+    }
+    setSavingDonorDetails(true)
+    showLoading('Saving donor profile…')
+    try {
+      const fullName = donorType === 'Company' && organization.trim()
+        ? organization.trim()
+        : [firstName.trim(), middleInitial.trim(), lastName.trim()].filter(Boolean).join(' ')
+      const contactPerson = [firstName.trim(), middleInitial.trim(), lastName.trim()].filter(Boolean).join(' ')
+      await updateDonorProfile({
+        donorType,
+        organization: organization.trim(),
+        firstName: firstName.trim(),
+        lastName: lastName.trim(),
+        middleInitial: middleInitial.trim(),
+        fullName: fullName || name,
+        contactPerson,
+        phone: donorPhone.trim(),
+        country: donorCountry,
+        address: donorAddress.trim(),
+      })
+      notify.success('Donor profile updated successfully.')
+      await refreshUser()
+    } catch (err) {
+      notify.error(err.message || 'Failed to update donor profile')
+    } finally {
+      hideLoading()
+      setSavingDonorDetails(false)
+    }
+  }
 
   const handleSaveProfile = async (e) => {
     e.preventDefault()
@@ -358,6 +428,127 @@ export default function AccountSettingsPage() {
                 disabled={savingVolDetails}
               >
                 Save volunteer profile
+              </button>
+            </div>
+          </form>
+        </section>
+      )}
+
+      {isDonor && (
+        <section className="portal-panel" style={{ marginBottom: '1.5rem' }}>
+          <div className="portal-panel__header">
+            <div>
+              <h2 style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                <HeartHandshake size={20} color="var(--color-brand)" /> Donor Profile Information
+              </h2>
+              <p className="portal-panel__subtitle">
+                Your saved donor details are automatically used when you donate and for issuing donation certificates and receipts.
+              </p>
+            </div>
+          </div>
+
+          <form onSubmit={handleSaveDonorDetails} className="settings-form" style={{ maxWidth: '100%' }}>
+            <div className="form-row">
+              <label>
+                <Req required>Donor Type</Req>
+                <select
+                  value={donorType}
+                  onChange={(e) => setDonorType(e.target.value)}
+                >
+                  {DONOR_TYPES.map((t) => (
+                    <option key={t.value} value={t.value}>{t.label}</option>
+                  ))}
+                </select>
+              </label>
+
+              {donorType === 'Company' ? (
+                <label>
+                  <Req required>Company / Organization Name</Req>
+                  <input
+                    type="text"
+                    required
+                    placeholder="e.g. Acme Foundation Inc."
+                    value={organization}
+                    onChange={(e) => setOrganization(e.target.value)}
+                  />
+                </label>
+              ) : (
+                <div />
+              )}
+            </div>
+
+            <div className="form-row form-row--3">
+              <label>
+                <Req required>First Name</Req>
+                <input
+                  type="text"
+                  required
+                  placeholder="First name"
+                  value={firstName}
+                  onChange={(e) => setFirstName(e.target.value)}
+                />
+              </label>
+              <label>
+                Middle Initial
+                <input
+                  type="text"
+                  maxLength={5}
+                  placeholder="M.I."
+                  value={middleInitial}
+                  onChange={(e) => setMiddleInitial(e.target.value)}
+                />
+              </label>
+              <label>
+                <Req required>Last Name</Req>
+                <input
+                  type="text"
+                  required
+                  placeholder="Last name"
+                  value={lastName}
+                  onChange={(e) => setLastName(e.target.value)}
+                />
+              </label>
+            </div>
+
+            <div className="form-row">
+              <label>
+                Phone Number
+                <PhoneInput
+                  allowInternational
+                  value={donorPhone}
+                  onChange={setDonorPhone}
+                />
+              </label>
+              <label>
+                Country
+                <select
+                  value={donorCountry}
+                  onChange={(e) => setDonorCountry(e.target.value)}
+                >
+                  {COUNTRIES.map((c) => (
+                    <option key={c.code} value={c.name}>{c.name}</option>
+                  ))}
+                </select>
+              </label>
+            </div>
+
+            <label>
+              Address
+              <input
+                type="text"
+                placeholder="Street, Barangay, City / Province, Postal Code"
+                value={donorAddress}
+                onChange={(e) => setDonorAddress(e.target.value)}
+              />
+            </label>
+
+            <div style={{ marginTop: '1rem', display: 'flex', justifyContent: 'flex-end' }}>
+              <button
+                type="submit"
+                className="btn btn--primary"
+                disabled={savingDonorDetails}
+              >
+                {savingDonorDetails ? 'Saving…' : 'Save Donor Profile'}
               </button>
             </div>
           </form>

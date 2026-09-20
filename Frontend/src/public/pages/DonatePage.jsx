@@ -1,15 +1,18 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect, useCallback } from 'react'
+import { Link } from 'react-router-dom'
 import { 
   Building2, User, MapPin, CreditCard, Copy, Check, QrCode, 
-  Landmark, Wallet, Globe, ShieldCheck, Info, FileText
+  Landmark, Wallet, Globe, ShieldCheck, Info, FileText,
+  Edit3, HeartHandshake, AlertCircle, RefreshCw, CheckCircle2
 } from 'lucide-react'
-import { submitPublicDonation } from '../../api/resources'
+import { submitPublicDonation, getDonorProfile } from '../../api/resources'
+import { useAuth } from '../../context/AuthContext'
 import { DONOR_TYPES } from '../../constants/options'
 import { COUNTRIES, getRegionsForCountry } from '../../constants/locations'
 import Req from '../../components/shared/Req'
 import NameFields from '../../components/shared/NameFields'
 import PolicyLinks from '../../components/shared/PolicyLinks'
-import { emptyNameParts, formatFullName } from '../../utils/personName'
+import { emptyNameParts, formatFullName, parseFullName } from '../../utils/personName'
 import { emailError, phoneError, fileSizeError, MAX_UPLOAD_BYTES } from '../../utils/validation'
 import PhoneInput from '../../components/shared/PhoneInput'
 import NeedsPicker from '../../components/shared/NeedsPicker'
@@ -79,6 +82,9 @@ const emptyForm = {
 }
 
 export default function DonatePage() {
+  const { user, isAuthenticated } = useAuth()
+  const isLoggedInDonor = Boolean(isAuthenticated && user?.role === 'Donor')
+
   const [submitted, setSubmitted] = useState(false)
   const { showLoading, hideLoading } = useLoading()
   const [trackingCode, setTrackingCode] = useState('')
@@ -86,6 +92,71 @@ export default function DonatePage() {
   const [submitting, setSubmitting] = useState(false)
   const [form, setForm] = useState(emptyForm)
   const [copiedKey, setCopiedKey] = useState('')
+
+  const [donorProfile, setDonorProfile] = useState(null)
+  const [profileLoading, setProfileLoading] = useState(false)
+  const [profileError, setProfileError] = useState('')
+
+  const loadProfile = useCallback(async () => {
+    if (!isLoggedInDonor) return
+    setProfileLoading(true)
+    setProfileError('')
+    try {
+      const res = await getDonorProfile()
+      if (res?.data) {
+        const p = res.data
+        setDonorProfile(p)
+        const nameParts = (p.firstName || p.lastName)
+          ? { firstName: p.firstName || '', lastName: p.lastName || '', middleInitial: p.middleInitial || '' }
+          : parseFullName(p.fullName || user?.name || '')
+
+        setForm((prev) => ({
+          ...prev,
+          donorType: p.donorType || 'Individual',
+          organization: p.organization || '',
+          nameParts,
+          email: p.email || user?.email || '',
+          phone: p.phone || user?.phone || '',
+          country: p.country || 'Philippines',
+          streetAddress: p.address || '',
+          address: p.address || '',
+          acceptedPolicies: true,
+        }))
+      }
+    } catch (err) {
+      setProfileError(err.message || 'Failed to load your donor profile. Please retry.')
+    } finally {
+      setProfileLoading(false)
+    }
+  }, [isLoggedInDonor, user?.name, user?.email, user?.phone])
+
+  useEffect(() => {
+    if (isLoggedInDonor) {
+      loadProfile()
+    }
+  }, [isLoggedInDonor, loadProfile])
+
+  const resetForm = () => {
+    if (isLoggedInDonor && donorProfile) {
+      const nameParts = (donorProfile.firstName || donorProfile.lastName)
+        ? { firstName: donorProfile.firstName || '', lastName: donorProfile.lastName || '', middleInitial: donorProfile.middleInitial || '' }
+        : parseFullName(donorProfile.fullName || user?.name || '')
+      setForm({
+        ...emptyForm,
+        donorType: donorProfile.donorType || 'Individual',
+        organization: donorProfile.organization || '',
+        nameParts,
+        email: donorProfile.email || user?.email || '',
+        phone: donorProfile.phone || user?.phone || '',
+        country: donorProfile.country || 'Philippines',
+        streetAddress: donorProfile.address || '',
+        address: donorProfile.address || '',
+        acceptedPolicies: true,
+      })
+    } else {
+      setForm(emptyForm)
+    }
+  }
 
   const isCompany = form.donorType === 'Company'
 
@@ -105,6 +176,11 @@ export default function DonatePage() {
   const handleSubmit = async (e) => {
     e.preventDefault()
     setSubmitError('')
+
+    if (isLoggedInDonor && profileError) {
+      setSubmitError('Unable to proceed: could not load your donor profile. Please click Retry.')
+      return
+    }
 
     if (isCompany && !form.organization.trim()) {
       setSubmitError('Company / Organization Name is required.')
@@ -169,7 +245,9 @@ export default function DonatePage() {
       fd.append('email', form.email.trim())
       fd.append('phone', form.phone.trim())
       if (form.country) fd.append('country', form.country)
-      if (composedAddress || form.streetAddress) fd.append('address', composedAddress || form.streetAddress.trim())
+      if (form.address || composedAddress || form.streetAddress) {
+        fd.append('address', form.address || composedAddress || form.streetAddress.trim())
+      }
       fd.append('acceptedPolicies', '1')
       fd.append('type', form.type === 'in-kind' ? 'In-Kind' : 'Monetary')
       if (form.type === 'monetary') {
@@ -187,7 +265,7 @@ export default function DonatePage() {
       const res = await submitPublicDonation(fd)
       setTrackingCode(res.data.trackingCode)
       setSubmitted(true)
-      setForm(emptyForm)
+      resetForm()
       notifyBadgesChanged()
     } catch (err) {
       setSubmitError(err.message || 'Failed to submit donation')
@@ -236,17 +314,190 @@ export default function DonatePage() {
                 <p style={{ marginTop: '0.75rem', color: 'var(--color-text-muted)', fontSize: '0.9rem' }}>
                   Status: <strong style={{ color: 'var(--color-brand)' }}>Pending Verification</strong>
                 </p>
-                <button
-                  type="button"
-                  className="btn btn--outline"
-                  style={{ marginTop: '1.5rem' }}
-                  onClick={() => setSubmitted(false)}
-                >
-                  Submit Another Donation
-                </button>
+                <div style={{ display: 'flex', gap: '0.75rem', justifyContent: 'center', flexWrap: 'wrap', marginTop: '1.5rem' }}>
+                  <button
+                    type="button"
+                    className="btn btn--outline"
+                    onClick={() => {
+                      resetForm()
+                      setSubmitted(false)
+                    }}
+                  >
+                    Submit Another Donation
+                  </button>
+                  {isLoggedInDonor && (
+                    <Link to="/donor/donations" className="btn btn--primary">
+                      View in My Donations &rarr;
+                    </Link>
+                  )}
+                </div>
+
+                {!isLoggedInDonor && (
+                  <div style={{
+                    marginTop: '2rem',
+                    padding: '1.25rem 1.5rem',
+                    background: '#f8fafc',
+                    borderRadius: '12px',
+                    border: '1px solid #e2e8f0',
+                    textAlign: 'center',
+                  }}>
+                    <h4 style={{ margin: '0 0 0.35rem', fontSize: '1rem', color: '#1e293b', fontWeight: 700 }}>
+                      Want faster donations next time?
+                    </h4>
+                    <p style={{ margin: '0 0 1rem', fontSize: '0.875rem', color: '#64748b' }}>
+                      Create a Donor Account to save your details for one-click future donations and monitor your contribution history.
+                    </p>
+                    <Link to="/contact" className="btn btn--primary btn--sm">
+                      Create a Donor Account
+                    </Link>
+                  </div>
+                )}
               </div>
             ) : (
               <form onSubmit={handleSubmit}>
+                {isLoggedInDonor ? (
+                  <div style={{ marginBottom: '1.5rem' }}>
+                    {profileLoading ? (
+                      <div style={{
+                        padding: '1.25rem',
+                        borderRadius: '12px',
+                        border: '1px solid #e2e8f0',
+                        background: '#f8fafc',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '0.75rem',
+                        color: '#64748b',
+                        fontSize: '0.9rem',
+                      }}>
+                        <div className="spinner" style={{ width: 18, height: 18 }} />
+                        <span>Loading your saved donor profile…</span>
+                      </div>
+                    ) : profileError ? (
+                      <div className="error-banner" style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        flexWrap: 'wrap',
+                        gap: '0.75rem',
+                        padding: '1rem 1.25rem',
+                        borderRadius: '10px',
+                        marginBottom: '1rem',
+                      }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                          <AlertCircle size={18} />
+                          <span>{profileError}</span>
+                        </div>
+                        <button type="button" className="btn btn--sm btn--outline" onClick={loadProfile}>
+                          <RefreshCw size={14} /> Retry
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="donor-profile-summary-card" style={{
+                        background: '#ffffff',
+                        border: '1px solid #e2e8f0',
+                        borderRadius: '12px',
+                        padding: '1.25rem 1.4rem',
+                        boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
+                      }}>
+                        <div style={{
+                          display: 'flex',
+                          justifyContent: 'space-between',
+                          alignItems: 'flex-start',
+                          flexWrap: 'wrap',
+                          gap: '0.75rem',
+                          marginBottom: '0.75rem',
+                          paddingBottom: '0.75rem',
+                          borderBottom: '1px solid #f1f5f9',
+                        }}>
+                          <div>
+                            <span style={{
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '0.35rem',
+                              fontSize: '0.75rem',
+                              textTransform: 'uppercase',
+                              letterSpacing: '0.05em',
+                              color: 'var(--color-brand, #AF101A)',
+                              fontWeight: 700,
+                            }}>
+                              <HeartHandshake size={13} />
+                              {form.donorType === 'Company' ? 'Company Donor Profile' : 'Verified Donor Profile'}
+                            </span>
+                            <h3 style={{
+                              margin: '0.2rem 0 0',
+                              fontSize: '1.15rem',
+                              color: '#1e293b',
+                              fontWeight: 700,
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: '0.45rem',
+                            }}>
+                              {form.donorType === 'Company' ? (
+                                <>
+                                  <Building2 size={18} color="var(--color-brand, #AF101A)" />
+                                  {form.organization || formatFullName(form.nameParts)}
+                                </>
+                              ) : (
+                                <>
+                                  <User size={18} color="var(--color-brand, #AF101A)" />
+                                  {formatFullName(form.nameParts) || user?.name || 'Registered Donor'}
+                                </>
+                              )}
+                            </h3>
+                          </div>
+
+                          <Link
+                            to="/donor/settings"
+                            className="btn btn--sm btn--ghost"
+                            style={{
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '0.35rem',
+                              color: 'var(--color-brand, #AF101A)',
+                              fontWeight: 600,
+                              border: '1px solid #e2e8f0',
+                              padding: '0.35rem 0.75rem',
+                              borderRadius: '8px',
+                            }}
+                            title="Update your donor details in settings"
+                          >
+                            <Edit3 size={14} /> Edit Profile
+                          </Link>
+                        </div>
+
+                        <div style={{
+                          display: 'grid',
+                          gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
+                          gap: '0.75rem',
+                          fontSize: '0.85rem',
+                          color: '#475569',
+                        }}>
+                          {form.donorType === 'Company' && (
+                            <div>
+                              <span style={{ display: 'block', fontSize: '0.72rem', color: '#64748b' }}>Contact Person</span>
+                              <strong style={{ color: '#1e293b' }}>{formatFullName(form.nameParts) || '—'}</strong>
+                            </div>
+                          )}
+                          <div>
+                            <span style={{ display: 'block', fontSize: '0.72rem', color: '#64748b' }}>Email</span>
+                            <strong style={{ color: '#1e293b' }}>{form.email || '—'}</strong>
+                          </div>
+                          <div>
+                            <span style={{ display: 'block', fontSize: '0.72rem', color: '#64748b' }}>Phone</span>
+                            <strong style={{ color: '#1e293b' }}>{form.phone || '—'}</strong>
+                          </div>
+                          <div>
+                            <span style={{ display: 'block', fontSize: '0.72rem', color: '#64748b' }}>Address</span>
+                            <strong style={{ color: '#1e293b' }}>
+                              {[form.streetAddress || form.address, form.country].filter(Boolean).join(', ') || '—'}
+                            </strong>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                ) : null}
+
                 <fieldset className="form-group" style={{ border: 'none', padding: 0, margin: '0 0 1.25rem' }}>
                   <legend className="form-label" style={{ fontWeight: 600, marginBottom: '0.5rem', display: 'block' }}>
                     <Req required>Donation Type</Req>
@@ -267,253 +518,257 @@ export default function DonatePage() {
                   </div>
                 </fieldset>
 
-                <label>
-                  <Req required>Donor Type</Req>
-                  <select
-                    required
-                    value={form.donorType}
-                    onChange={(e) => setForm({
-                      ...form,
-                      donorType: e.target.value,
-                      organization: e.target.value === 'Individual' ? '' : form.organization,
-                    })}
-                  >
-                    {DONOR_TYPES.map((t) => (
-                      <option key={t.value} value={t.value}>{t.label}</option>
-                    ))}
-                  </select>
-                </label>
-
-                {isCompany ? (
+                {!isLoggedInDonor && (
                   <>
-                    {/* Company / Organization Details */}
-                    <div style={{ marginTop: '1rem', marginBottom: '1.25rem' }}>
-                      <p className="form-section-title" style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-                        <Building2 size={15} /> Company / Organization Information
-                      </p>
-                      <label>
-                        <Req required>Company / Organization Name</Req>
-                        <input
-                          type="text"
-                          required
-                          placeholder="Acme Foundation Inc."
-                          value={form.organization}
-                          onChange={(e) => setForm({ ...form, organization: e.target.value })}
-                        />
-                      </label>
+                    <label>
+                      <Req required>Donor Type</Req>
+                      <select
+                        required
+                        value={form.donorType}
+                        onChange={(e) => setForm({
+                          ...form,
+                          donorType: e.target.value,
+                          organization: e.target.value === 'Individual' ? '' : form.organization,
+                        })}
+                      >
+                        {DONOR_TYPES.map((t) => (
+                          <option key={t.value} value={t.value}>{t.label}</option>
+                        ))}
+                      </select>
+                    </label>
 
-                      <div className="form-row">
-                        <label>
-                          Country
-                          <select
-                            value={form.country}
-                            onChange={(e) => {
-                              const nextCountry = e.target.value
-                              setForm({
-                                ...form,
-                                country: nextCountry,
-                                stateProvince: '',
-                                customRegion: '',
-                              })
-                            }}
-                          >
-                            {COUNTRIES.map((c) => (
-                              <option key={c.code} value={c.name}>{c.name}</option>
-                            ))}
-                          </select>
-                        </label>
-
-                        <label>
-                          {form.country === 'Philippines' ? 'Province / Region' : 'State / Province / Region'}
-                          {availableRegions.length > 0 ? (
-                            <select
-                              value={form.stateProvince}
-                              onChange={(e) => setForm({ ...form, stateProvince: e.target.value })}
-                            >
-                              <option value="">
-                                {form.country === 'Philippines' ? '-- Select Province / Region --' : '-- Select State / Province --'}
-                              </option>
-                              {availableRegions.map((r) => (
-                                <option key={r} value={r}>{r}</option>
-                              ))}
-                              <option value="Other">Other / Custom Region</option>
-                            </select>
-                          ) : (
+                    {isCompany ? (
+                      <>
+                        {/* Company / Organization Details */}
+                        <div style={{ marginTop: '1rem', marginBottom: '1.25rem' }}>
+                          <p className="form-section-title" style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                            <Building2 size={15} /> Company / Organization Information
+                          </p>
+                          <label>
+                            <Req required>Company / Organization Name</Req>
                             <input
-                              value={form.stateProvince}
-                              onChange={(e) => setForm({ ...form, stateProvince: e.target.value })}
-                              placeholder="State / Province / Region"
+                              type="text"
+                              required
+                              placeholder="Acme Foundation Inc."
+                              value={form.organization}
+                              onChange={(e) => setForm({ ...form, organization: e.target.value })}
                             />
+                          </label>
+
+                          <div className="form-row">
+                            <label>
+                              Country
+                              <select
+                                value={form.country}
+                                onChange={(e) => {
+                                  const nextCountry = e.target.value
+                                  setForm({
+                                    ...form,
+                                    country: nextCountry,
+                                    stateProvince: '',
+                                    customRegion: '',
+                                  })
+                                }}
+                              >
+                                {COUNTRIES.map((c) => (
+                                  <option key={c.code} value={c.name}>{c.name}</option>
+                                ))}
+                              </select>
+                            </label>
+
+                            <label>
+                              {form.country === 'Philippines' ? 'Province / Region' : 'State / Province / Region'}
+                              {availableRegions.length > 0 ? (
+                                <select
+                                  value={form.stateProvince}
+                                  onChange={(e) => setForm({ ...form, stateProvince: e.target.value })}
+                                >
+                                  <option value="">
+                                    {form.country === 'Philippines' ? '-- Select Province / Region --' : '-- Select State / Province --'}
+                                  </option>
+                                  {availableRegions.map((r) => (
+                                    <option key={r} value={r}>{r}</option>
+                                  ))}
+                                  <option value="Other">Other / Custom Region</option>
+                                </select>
+                              ) : (
+                                <input
+                                  value={form.stateProvince}
+                                  onChange={(e) => setForm({ ...form, stateProvince: e.target.value })}
+                                  placeholder="State / Province / Region"
+                                />
+                              )}
+                            </label>
+                          </div>
+
+                          {form.stateProvince === 'Other' && (
+                            <label>
+                              Specify State / Province / Region
+                              <input
+                                value={form.customRegion}
+                                onChange={(e) => setForm({ ...form, customRegion: e.target.value })}
+                                placeholder="Enter state/province name"
+                              />
+                            </label>
                           )}
-                        </label>
-                      </div>
 
-                      {form.stateProvince === 'Other' && (
-                        <label>
-                          Specify State / Province / Region
-                          <input
-                            value={form.customRegion}
-                            onChange={(e) => setForm({ ...form, customRegion: e.target.value })}
-                            placeholder="Enter state/province name"
-                          />
-                        </label>
-                      )}
-
-                      <label>
-                        Company / Organization Address
-                        <input
-                          type="text"
-                          placeholder="Building, Street, Barangay, City, Postal Code"
-                          value={form.streetAddress}
-                          onChange={(e) => setForm({ ...form, streetAddress: e.target.value })}
-                        />
-                      </label>
-                    </div>
-
-                    {/* Authorized Representative / Contact Person */}
-                    <div style={{ marginTop: '1rem', marginBottom: '1.25rem' }}>
-                      <p className="form-section-title" style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-                        <User size={15} /> Authorized Representative / Contact Person
-                      </p>
-                      <NameFields
-                        value={form.nameParts}
-                        onChange={(nameParts) => setForm({ ...form, nameParts })}
-                      />
-
-                      <div className="form-row">
-                        <label>
-                          <Req required>Email</Req>
-                          <input
-                            type="email"
-                            required
-                            placeholder="contact@company.com"
-                            value={form.email}
-                            onChange={(e) => setForm({ ...form, email: e.target.value })}
-                          />
-                        </label>
-
-                        <label>
-                          <Req required>Contact Number</Req>
-                          <PhoneInput
-                            allowInternational
-                            required
-                            value={form.phone}
-                            onChange={(phone) => setForm({ ...form, phone })}
-                            showError={Boolean(submitError)}
-                          />
-                        </label>
-                      </div>
-                    </div>
-                  </>
-                ) : (
-                  <>
-                    {/* Individual Donor */}
-                    <div style={{ marginTop: '1rem', marginBottom: '1.25rem' }}>
-                      <p className="form-section-title" style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-                        <User size={15} /> Donor Name &amp; Contact
-                      </p>
-                      <NameFields
-                        value={form.nameParts}
-                        onChange={(nameParts) => setForm({ ...form, nameParts })}
-                      />
-
-                      <div className="form-row">
-                        <label>
-                          <Req required>Email</Req>
-                          <input
-                            type="email"
-                            required
-                            placeholder="you@email.com"
-                            value={form.email}
-                            onChange={(e) => setForm({ ...form, email: e.target.value })}
-                          />
-                        </label>
-
-                        <label>
-                          <Req required>Contact Number</Req>
-                          <PhoneInput
-                            allowInternational
-                            required
-                            value={form.phone}
-                            onChange={(phone) => setForm({ ...form, phone })}
-                            showError={Boolean(submitError)}
-                          />
-                        </label>
-                      </div>
-                    </div>
-
-                    {/* Individual Address & Location */}
-                    <div style={{ marginTop: '1rem', marginBottom: '1.25rem' }}>
-                      <p className="form-section-title" style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-                        <MapPin size={15} /> Address &amp; Location Details
-                      </p>
-                      <div className="form-row">
-                        <label>
-                          Country
-                          <select
-                            value={form.country}
-                            onChange={(e) => {
-                              const nextCountry = e.target.value
-                              setForm({
-                                ...form,
-                                country: nextCountry,
-                                stateProvince: '',
-                                customRegion: '',
-                              })
-                            }}
-                          >
-                            {COUNTRIES.map((c) => (
-                              <option key={c.code} value={c.name}>{c.name}</option>
-                            ))}
-                          </select>
-                        </label>
-
-                        <label>
-                          {form.country === 'Philippines' ? 'Province / Region' : 'State / Province / Region'}
-                          {availableRegions.length > 0 ? (
-                            <select
-                              value={form.stateProvince}
-                              onChange={(e) => setForm({ ...form, stateProvince: e.target.value })}
-                            >
-                              <option value="">
-                                {form.country === 'Philippines' ? '-- Select Province / Region --' : '-- Select State / Province --'}
-                              </option>
-                              {availableRegions.map((r) => (
-                                <option key={r} value={r}>{r}</option>
-                              ))}
-                              <option value="Other">Other / Custom Region</option>
-                            </select>
-                          ) : (
+                          <label>
+                            Company / Organization Address
                             <input
-                              value={form.stateProvince}
-                              onChange={(e) => setForm({ ...form, stateProvince: e.target.value })}
-                              placeholder="State / Province / Region"
+                              type="text"
+                              placeholder="Building, Street, Barangay, City, Postal Code"
+                              value={form.streetAddress}
+                              onChange={(e) => setForm({ ...form, streetAddress: e.target.value })}
                             />
-                          )}
-                        </label>
-                      </div>
+                          </label>
+                        </div>
 
-                      {form.stateProvince === 'Other' && (
-                        <label>
-                          Specify State / Province / Region
-                          <input
-                            value={form.customRegion}
-                            onChange={(e) => setForm({ ...form, customRegion: e.target.value })}
-                            placeholder="Enter state/province name"
+                        {/* Authorized Representative / Contact Person */}
+                        <div style={{ marginTop: '1rem', marginBottom: '1.25rem' }}>
+                          <p className="form-section-title" style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                            <User size={15} /> Authorized Representative / Contact Person
+                          </p>
+                          <NameFields
+                            value={form.nameParts}
+                            onChange={(nameParts) => setForm({ ...form, nameParts })}
                           />
-                        </label>
-                      )}
 
-                      <label>
-                        Address
-                        <input
-                          type="text"
-                          placeholder="Street, Barangay, City, Postal Code"
-                          value={form.streetAddress}
-                          onChange={(e) => setForm({ ...form, streetAddress: e.target.value })}
-                        />
-                      </label>
-                    </div>
+                          <div className="form-row">
+                            <label>
+                              <Req required>Email</Req>
+                              <input
+                                type="email"
+                                required
+                                placeholder="contact@company.com"
+                                value={form.email}
+                                onChange={(e) => setForm({ ...form, email: e.target.value })}
+                              />
+                            </label>
+
+                            <label>
+                              <Req required>Contact Number</Req>
+                              <PhoneInput
+                                allowInternational
+                                required
+                                value={form.phone}
+                                onChange={(phone) => setForm({ ...form, phone })}
+                                showError={Boolean(submitError)}
+                              />
+                            </label>
+                          </div>
+                        </div>
+                      </>
+                    ) : (
+                      <>
+                        {/* Individual Donor */}
+                        <div style={{ marginTop: '1rem', marginBottom: '1.25rem' }}>
+                          <p className="form-section-title" style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                            <User size={15} /> Donor Name &amp; Contact
+                          </p>
+                          <NameFields
+                            value={form.nameParts}
+                            onChange={(nameParts) => setForm({ ...form, nameParts })}
+                          />
+
+                          <div className="form-row">
+                            <label>
+                              <Req required>Email</Req>
+                              <input
+                                type="email"
+                                required
+                                placeholder="you@email.com"
+                                value={form.email}
+                                onChange={(e) => setForm({ ...form, email: e.target.value })}
+                              />
+                            </label>
+
+                            <label>
+                              <Req required>Contact Number</Req>
+                              <PhoneInput
+                                allowInternational
+                                required
+                                value={form.phone}
+                                onChange={(phone) => setForm({ ...form, phone })}
+                                showError={Boolean(submitError)}
+                              />
+                            </label>
+                          </div>
+                        </div>
+
+                        {/* Individual Address & Location */}
+                        <div style={{ marginTop: '1rem', marginBottom: '1.25rem' }}>
+                          <p className="form-section-title" style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                            <MapPin size={15} /> Address &amp; Location Details
+                          </p>
+                          <div className="form-row">
+                            <label>
+                              Country
+                              <select
+                                value={form.country}
+                                onChange={(e) => {
+                                  const nextCountry = e.target.value
+                                  setForm({
+                                    ...form,
+                                    country: nextCountry,
+                                    stateProvince: '',
+                                    customRegion: '',
+                                  })
+                                }}
+                              >
+                                {COUNTRIES.map((c) => (
+                                  <option key={c.code} value={c.name}>{c.name}</option>
+                                ))}
+                              </select>
+                            </label>
+
+                            <label>
+                              {form.country === 'Philippines' ? 'Province / Region' : 'State / Province / Region'}
+                              {availableRegions.length > 0 ? (
+                                <select
+                                  value={form.stateProvince}
+                                  onChange={(e) => setForm({ ...form, stateProvince: e.target.value })}
+                                >
+                                  <option value="">
+                                    {form.country === 'Philippines' ? '-- Select Province / Region --' : '-- Select State / Province --'}
+                                  </option>
+                                  {availableRegions.map((r) => (
+                                    <option key={r} value={r}>{r}</option>
+                                  ))}
+                                  <option value="Other">Other / Custom Region</option>
+                                </select>
+                              ) : (
+                                <input
+                                  value={form.stateProvince}
+                                  onChange={(e) => setForm({ ...form, stateProvince: e.target.value })}
+                                  placeholder="State / Province / Region"
+                                />
+                              )}
+                            </label>
+                          </div>
+
+                          {form.stateProvince === 'Other' && (
+                            <label>
+                              Specify State / Province / Region
+                              <input
+                                value={form.customRegion}
+                                onChange={(e) => setForm({ ...form, customRegion: e.target.value })}
+                                placeholder="Enter state/province name"
+                              />
+                            </label>
+                          )}
+
+                          <label>
+                            Address
+                            <input
+                              type="text"
+                              placeholder="Street, Barangay, City, Postal Code"
+                              value={form.streetAddress}
+                              onChange={(e) => setForm({ ...form, streetAddress: e.target.value })}
+                            />
+                          </label>
+                        </div>
+                      </>
+                    )}
                   </>
                 )}
 

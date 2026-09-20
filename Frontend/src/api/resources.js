@@ -103,7 +103,19 @@ export const donationUpdatesApi = {
   list: (donationId) => apiFetch(`/api/donation_updates.php?donationId=${donationId}`),
   create: (body) => apiFetch('/api/donation_updates.php', { method: 'POST', body: JSON.stringify(body) }),
 }
-export const donorsApi = resourceApi('/api/donors.php')
+export const donorsApi = {
+  ...resourceApi('/api/donors.php'),
+  me: () => apiFetch('/api/donors.php?me=1'),
+  updateProfile: (body) => apiFetch('/api/donors.php?me=1', { method: 'PUT', body: JSON.stringify(body) }),
+}
+
+export function getDonorProfile() {
+  return apiFetch('/api/donors.php?me=1')
+}
+
+export function updateDonorProfile(body) {
+  return apiFetch('/api/donors.php?me=1', { method: 'PUT', body: JSON.stringify(body) })
+}
 export const beneficiariesApi = {
   ...resourceApi('/api/beneficiaries.php'),
   invite: (body) => apiFetch('/api/beneficiaries.php?action=invite', {

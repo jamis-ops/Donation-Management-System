@@ -141,9 +141,60 @@ function read_donor_fields(array $body, ?array $existing = null): array
   return compact('donorType', 'fullName', 'organization', 'contactPerson', 'email', 'phone', 'country', 'address', 'notes', 'firstName', 'lastName', 'middleInitial', 'miDb');
 }
 
-require_auth(['Admin', 'Staff']);
+$user = require_auth(['Admin', 'Staff', 'Donor']);
 
 if ($method === 'GET') {
+  if ($user['role'] === 'Donor' || isset($_GET['me'])) {
+    $uid = (int) ($user['id'] ?? 0);
+    $uEmail = strtolower(trim((string) ($user['email'] ?? '')));
+    $stmt = $pdo->prepare('
+      SELECT * FROM donors 
+      WHERE (user_id IS NOT NULL AND user_id = ?) 
+         OR (email IS NOT NULL AND email <> "" AND LOWER(email) = ?)
+      ORDER BY (user_id = ?) DESC, id DESC 
+      LIMIT 1
+    ');
+    $stmt->execute([$uid, $uEmail, $uid]);
+    $row = $stmt->fetch();
+
+    if (!$row && $uid > 0) {
+      // Auto-create a linked donor profile for this registered donor user if none exists
+      $uStmt = $pdo->prepare('SELECT * FROM users WHERE id = ? LIMIT 1');
+      $uStmt->execute([$uid]);
+      $uRow = $uStmt->fetch() ?: [];
+
+      $code = generate_code('DNR');
+      $displayName = trim((string) ($uRow['full_name'] ?? $user['name'] ?? 'Donor'));
+      [$lName, $fName, $mInitial] = split_full_name($displayName);
+      $ins = $pdo->prepare('
+        INSERT INTO donors (code, full_name, first_name, last_name, middle_initial, donor_type, email, phone, user_id)
+        VALUES (?, ?, ?, ?, ?, "Individual", ?, ?, ?)
+      ');
+      $ins->execute([
+        $code,
+        $displayName,
+        $uRow['first_name'] ?? ($fName ?: null),
+        $uRow['last_name'] ?? ($lName ?: null),
+        $uRow['middle_initial'] ?? ($mInitial ?: null),
+        $uEmail ?: null,
+        $uRow['phone'] ?? ($user['phone'] ?? null),
+        $uid,
+      ]);
+      $newDonorId = (int) $pdo->lastInsertId();
+      $stmt = $pdo->prepare('SELECT * FROM donors WHERE id = ? LIMIT 1');
+      $stmt->execute([$newDonorId]);
+      $row = $stmt->fetch();
+    } elseif ($row && empty($row['user_id']) && $uid > 0) {
+      $pdo->prepare('UPDATE donors SET user_id = ? WHERE id = ?')->execute([$uid, $row['id']]);
+      $row['user_id'] = $uid;
+    }
+
+    if (!$row) {
+      json_response(['ok' => false, 'error' => 'Donor profile not found'], 404);
+    }
+    json_response(['ok' => true, 'data' => map_donor($pdo, $row)]);
+  }
+
   if ($id) {
     $stmt = $pdo->prepare('SELECT * FROM donors WHERE id = ? LIMIT 1');
     $stmt->execute([$id]);
@@ -264,6 +315,61 @@ if ($method === 'POST') {
 }
 
 if ($method === 'PUT') {
+  if ($user['role'] === 'Donor' || isset($_GET['me'])) {
+    $uid = (int) ($user['id'] ?? 0);
+    $uEmail = strtolower(trim((string) ($user['email'] ?? '')));
+    $stmt = $pdo->prepare('
+      SELECT * FROM donors 
+      WHERE (user_id IS NOT NULL AND user_id = ?) 
+         OR (email IS NOT NULL AND email <> "" AND LOWER(email) = ?)
+      ORDER BY (user_id = ?) DESC, id DESC 
+      LIMIT 1
+    ');
+    $stmt->execute([$uid, $uEmail, $uid]);
+    $existing = $stmt->fetch();
+    if (!$existing) {
+      json_response(['ok' => false, 'error' => 'Donor profile not found'], 404);
+    }
+    $id = (int) $existing['id'];
+
+    $fields = read_donor_fields($body, $existing);
+    if ($fields['donorType'] === 'Company' && $fields['organization'] === '') {
+      json_response(['ok' => false, 'error' => 'Company / Organization Name is required for company donors'], 400);
+    }
+    if ($fields['contactPerson'] === '' && $fields['fullName'] === '') {
+      json_response(['ok' => false, 'error' => 'Contact Person is required'], 400);
+    }
+
+    $update = $pdo->prepare('
+      UPDATE donors
+      SET full_name = ?, first_name = ?, last_name = ?, middle_initial = ?, donor_type = ?, organization = ?, contact_person = ?, phone = ?, country = ?, address = ?, notes = COALESCE(NULLIF(?, ""), notes)
+      WHERE id = ?
+    ');
+    $update->execute([
+      $fields['fullName'],
+      $fields['firstName'] !== '' ? $fields['firstName'] : null,
+      $fields['lastName'] !== '' ? $fields['lastName'] : null,
+      $fields['miDb'],
+      $fields['donorType'],
+      $fields['organization'] !== '' ? $fields['organization'] : null,
+      $fields['contactPerson'] !== '' ? $fields['contactPerson'] : null,
+      $fields['phone'] !== '' ? $fields['phone'] : null,
+      $fields['country'] !== '' ? $fields['country'] : null,
+      $fields['address'] !== '' ? $fields['address'] : null,
+      $fields['notes'],
+      $id,
+    ]);
+
+    // Keep user table full_name and phone in sync
+    $displayName = $fields['contactPerson'] !== '' ? $fields['contactPerson'] : $fields['fullName'];
+    $pdo->prepare('UPDATE users SET full_name = ?, phone = COALESCE(?, phone) WHERE id = ?')
+      ->execute([$displayName, $fields['phone'] ?: null, $uid]);
+
+    $stmt = $pdo->prepare('SELECT * FROM donors WHERE id = ?');
+    $stmt->execute([$id]);
+    json_response(['ok' => true, 'data' => map_donor($pdo, $stmt->fetch())]);
+  }
+
   if (!$id) {
     json_response(['ok' => false, 'error' => 'Donor id is required'], 400);
   }
