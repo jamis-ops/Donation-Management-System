@@ -397,16 +397,16 @@ export default function AdminsPage() {
                   <Shield size={14} /> Database Admin accounts access the Admin portal. This is separate from the hardcoded Super Admin.
                 </p>
                 <div className="admin-modal__actions admin-modal__actions--split" style={{ marginTop: '1.25rem' }}>
-                  <button
-                    type="button"
-                    className="btn btn--danger"
-                    onClick={() => handleDelete(selected)}
-                  >
-                    <Trash2 size={14} /> Delete Account
-                  </button>
+                  <button type="button" className="btn btn--ghost" onClick={() => setSelected(null)}>Close</button>
                   <div className="admin-modal__actions-group">
+                    <button
+                      type="button"
+                      className="btn btn--danger"
+                      onClick={() => handleDelete(selected)}
+                    >
+                      <Trash2 size={14} /> Delete Account
+                    </button>
                     <button type="submit" className="btn btn--primary" disabled={saving}>Save Profile</button>
-                    <button type="button" className="btn btn--ghost" onClick={() => setSelected(null)}>Close</button>
                   </div>
                 </div>
               </form>
@@ -481,6 +481,7 @@ export default function AdminsPage() {
               </p>
 
               <div className="admin-modal__actions" style={{ marginTop: '1.25rem' }}>
+                <button type="button" className="btn btn--ghost" onClick={() => setShowForm(false)}>Cancel</button>
                 <button
                   type="submit"
                   className="btn btn--primary"
@@ -488,7 +489,6 @@ export default function AdminsPage() {
                 >
                   Create & Email Credentials
                 </button>
-                <button type="button" className="btn btn--ghost" onClick={() => setShowForm(false)}>Cancel</button>
               </div>
             </form>
           </div>

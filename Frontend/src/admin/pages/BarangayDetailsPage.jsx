@@ -385,19 +385,19 @@ export default function BarangayDetailsPage() {
               <div className="approval-confirm__actions" style={{ marginTop: '1.25rem' }}>
                 <button
                   type="button"
-                  className="btn approval-overlay__btn-approve"
-                  onClick={handleApprove}
-                  disabled={actionBusy}
-                >
-                  {actionBusy ? 'Approving…' : 'Yes, Approve & Send Credentials'}
-                </button>
-                <button
-                  type="button"
                   className="btn btn--ghost"
                   onClick={() => setApproveConfirm(false)}
                   disabled={actionBusy}
                 >
                   Cancel
+                </button>
+                <button
+                  type="button"
+                  className="btn approval-overlay__btn-approve"
+                  onClick={handleApprove}
+                  disabled={actionBusy}
+                >
+                  {actionBusy ? 'Approving…' : 'Yes, Approve & Send Credentials'}
                 </button>
               </div>
           </div>
@@ -419,19 +419,19 @@ export default function BarangayDetailsPage() {
             <div className="approval-confirm__actions">
               <button
                 type="button"
-                className="btn approval-overlay__btn-reject"
-                onClick={handleReject}
-                disabled={actionBusy}
-              >
-                {actionBusy ? 'Rejecting…' : 'Yes, Reject'}
-              </button>
-              <button
-                type="button"
                 className="btn btn--ghost"
                 onClick={() => setRejectConfirm(false)}
                 disabled={actionBusy}
               >
                 Cancel
+              </button>
+              <button
+                type="button"
+                className="btn approval-overlay__btn-reject"
+                onClick={handleReject}
+                disabled={actionBusy}
+              >
+                {actionBusy ? 'Rejecting…' : 'Yes, Reject'}
               </button>
             </div>
           </div>
@@ -958,8 +958,8 @@ export default function BarangayDetailsPage() {
                 </label>
               </div>
               <div className="admin-modal__actions" style={{ marginTop: '1.25rem' }}>
-                <button type="submit" className="btn btn--primary" disabled={saving}>Save Changes</button>
                 <button type="button" className="btn btn--ghost" onClick={() => setIsEditModalOpen(false)}>Cancel</button>
+                <button type="submit" className="btn btn--primary" disabled={saving}>Save Changes</button>
               </div>
             </form>
           </div>

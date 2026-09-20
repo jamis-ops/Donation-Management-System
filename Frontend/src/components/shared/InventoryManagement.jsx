@@ -899,7 +899,7 @@ export default function InventoryManagement() {
             </div>
 
             {/* Modal Actions */}
-            <div className="admin-modal__actions" style={{ justifyContent: 'flex-end', gap: '0.65rem', marginTop: '1.25rem', paddingTop: '1rem' }}>
+            <div className="admin-modal__actions" style={{ marginTop: '1.25rem', paddingTop: '1rem' }}>
               <button
                 type="button"
                 className="btn btn--ghost"
@@ -1231,10 +1231,10 @@ export default function InventoryManagement() {
               </div>
 
               <div className="admin-modal__actions">
+                <button type="button" className="btn btn--ghost" onClick={() => setBatchModal(null)}>Cancel</button>
                 <button type="submit" className="btn btn--primary" disabled={saving}>
                   {saving ? 'Saving...' : batchModal === 'create' ? 'Create Batch' : 'Save Changes'}
                 </button>
-                <button type="button" className="btn btn--ghost" onClick={() => setBatchModal(null)}>Cancel</button>
               </div>
             </form>
           </div>

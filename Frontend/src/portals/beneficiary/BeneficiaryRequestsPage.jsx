@@ -580,9 +580,6 @@ export default function BeneficiaryRequestsPage() {
                 </fieldset>
 
                 <div className="admin-modal__actions">
-                  <button type="submit" className="btn btn--primary" disabled={saving}>
-                    Submit Request
-                  </button>
                   <button 
                     type="button" 
                     className="btn btn--ghost" 
@@ -594,6 +591,9 @@ export default function BeneficiaryRequestsPage() {
                     disabled={saving}
                   >
                     Cancel
+                  </button>
+                  <button type="submit" className="btn btn--primary" disabled={saving}>
+                    Submit Request
                   </button>
                 </div>
               </form>

@@ -356,15 +356,15 @@ export default function VolunteerCertificatesPage() {
               </div>
 
               <div className="admin-modal__actions">
-                <button type="submit" className="btn btn--primary" disabled={busy}>
-                  {busy ? 'Submitting...' : 'Send Request'}
-                </button>
                 <button
                   type="button"
                   className="btn btn--ghost"
                   onClick={() => setShowRequest(false)}
                 >
                   Cancel
+                </button>
+                <button type="submit" className="btn btn--primary" disabled={busy}>
+                  {busy ? 'Submitting...' : 'Send Request'}
                 </button>
               </div>
             </form>

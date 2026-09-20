@@ -787,20 +787,20 @@ export default function InventoryItemModal({
 
           <div className="admin-modal__actions mt-4">
             <button
-              type="submit"
-              className="btn btn--primary"
-              disabled={saving || !effectiveItemName.trim()}
-              style={{ backgroundColor: '#AF101A' }}
-            >
-              {saving ? 'Saving...' : isEditing ? 'Save Changes' : '+ Add to Inventory'}
-            </button>
-            <button
               type="button"
               className="btn btn--ghost"
               onClick={onClose}
               disabled={saving}
             >
               Cancel
+            </button>
+            <button
+              type="submit"
+              className="btn btn--primary"
+              disabled={saving || !effectiveItemName.trim()}
+              style={{ backgroundColor: '#AF101A' }}
+            >
+              {saving ? 'Saving...' : isEditing ? 'Save Changes' : '+ Add to Inventory'}
             </button>
           </div>
         </form>

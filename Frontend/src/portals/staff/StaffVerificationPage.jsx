@@ -243,13 +243,15 @@ export default function StaffVerificationPage() {
             </dl>
             <DonationUpdatesTimeline donationId={selected.dbId} />
             <div className="admin-modal__actions">
-              <button type="button" className="btn btn--primary" disabled={busy || !selected.hasProof} onClick={() => handleVerify(selected)}>
-                <CheckCircle size={16} /> Verify
-              </button>
-              <button type="button" className="btn btn--outline" disabled={busy} onClick={() => handleReject(selected)}>
-                <XCircle size={16} /> Reject
-              </button>
               <button type="button" className="btn btn--ghost" onClick={() => setSelected(null)}>Close</button>
+              <div className="admin-modal__actions-group">
+                <button type="button" className="btn btn--outline" disabled={busy} onClick={() => handleReject(selected)}>
+                  <XCircle size={16} /> Reject
+                </button>
+                <button type="button" className="btn btn--primary" disabled={busy || !selected.hasProof} onClick={() => handleVerify(selected)}>
+                  <CheckCircle size={16} /> Verify
+                </button>
+              </div>
             </div>
           </div>
         </div>

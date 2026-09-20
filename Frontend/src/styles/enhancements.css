@@ -823,8 +823,10 @@ a.volunteer-kpi-card:hover,
   border-top: 1px solid #e2e8f0;
   display: flex;
   align-items: center;
-  justify-content: flex-end;
+  justify-content: space-between;
   gap: 0.65rem;
+  width: 100%;
+  box-sizing: border-box;
 }
 
 /* =========================================================
@@ -6385,9 +6387,11 @@ tr.data-table__row--selected:hover {
 .confirm-dialog__actions {
   display: flex;
   align-items: center;
-  justify-content: flex-end;
+  justify-content: space-between;
   gap: 0.75rem;
   padding: 1.15rem 1.5rem 1.45rem 1.5rem;
+  width: 100%;
+  box-sizing: border-box;
 }
 
 .confirm-dialog__actions--alert {
@@ -7883,17 +7887,27 @@ button:disabled,
 }
 
 /* Standardized Actions Footer */
-.admin-modal .admin-modal__actions {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 0.75rem;
-  margin-top: 1.25rem;
-  padding-top: 1rem;
-  border-top: 1px solid #e2e8f0;
+.admin-modal .admin-modal__actions,
+.admin-modal__actions {
+  display: flex !important;
+  justify-content: space-between !important;
+  align-items: center !important;
+  flex-wrap: wrap !important;
+  gap: 0.75rem !important;
+  width: 100% !important;
+  box-sizing: border-box !important;
+  margin-top: 1.25rem !important;
+  padding-top: 1rem !important;
+  border-top: 1px solid #e2e8f0 !important;
 }
 
-.admin-modal .admin-modal__actions .btn {
+.admin-modal .admin-modal__actions > :only-child,
+.admin-modal__actions > :only-child {
+  margin-left: auto;
+}
+
+.admin-modal .admin-modal__actions .btn,
+.admin-modal__actions .btn {
   height: 40px;
   padding: 0 1.35rem;
   font-size: 0.875rem;
@@ -7970,6 +7984,25 @@ button:disabled,
   align-items: center !important;
   gap: 0.75rem !important;
   flex-wrap: wrap !important;
+}
+
+@media (max-width: 540px) {
+  .admin-modal .admin-modal__actions,
+  .admin-modal__actions,
+  .vtask-modal__footer {
+    flex-direction: column-reverse !important;
+    align-items: stretch !important;
+    gap: 0.6rem !important;
+  }
+
+  .admin-modal .admin-modal__actions .btn,
+  .admin-modal__actions .btn,
+  .admin-modal__actions-group,
+  .admin-modal__actions-group .btn,
+  .vtask-modal__footer .btn {
+    width: 100% !important;
+    justify-content: center !important;
+  }
 }
 
 

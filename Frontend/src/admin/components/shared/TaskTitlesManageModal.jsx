@@ -484,11 +484,11 @@ export default function TaskTitlesManageModal({ open, onClose }) {
                 </label>
 
                 <div className="admin-modal__actions" style={{ marginTop: '0.75rem' }}>
-                  <button type="submit" className="btn btn--primary" disabled={busy}>
-                    {editingItem ? 'Save Changes' : 'Create Task Title'}
-                  </button>
                   <button type="button" className="btn btn--ghost" disabled={busy} onClick={() => setShowFormModal(false)}>
                     Cancel
+                  </button>
+                  <button type="submit" className="btn btn--primary" disabled={busy}>
+                    {editingItem ? 'Save Changes' : 'Create Task Title'}
                   </button>
                 </div>
               </form>

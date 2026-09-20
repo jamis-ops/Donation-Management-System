@@ -1687,8 +1687,8 @@ export default function AllocationPage() {
                 </select>
               </label>
               <div className="admin-modal__actions">
-                <button type="submit" className="btn btn--primary" disabled={saving}>{saving ? 'Saving...' : 'Save Status'}</button>
                 <button type="button" className="btn btn--ghost" onClick={() => setStatusRow(null)}>Cancel</button>
+                <button type="submit" className="btn btn--primary" disabled={saving}>{saving ? 'Saving...' : 'Save Status'}</button>
               </div>
             </form>
           </div>
@@ -1705,10 +1705,10 @@ export default function AllocationPage() {
             <form onSubmit={handleSave}>
               {FormFields}
               <div className="admin-modal__actions">
+                <button type="button" className="btn btn--ghost" onClick={closeForm} disabled={saving}>Cancel</button>
                 <button type="submit" className="btn btn--primary" disabled={saving}>
                   {saving ? 'Saving...' : (editRow ? 'Save Changes' : 'Confirm Allocation')}
                 </button>
-                <button type="button" className="btn btn--ghost" onClick={closeForm} disabled={saving}>Cancel</button>
               </div>
             </form>
           </div>
@@ -2031,21 +2031,21 @@ function AllocationDetailModal({
         <div className="alloc-detail-footer">
           <button
             type="button"
-            className="btn btn--danger btn--sm"
-            onClick={onDelete}
-            style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}
+            className="btn btn--outline btn--sm"
+            onClick={onClose}
           >
-            <Trash2 size={13} />
-            <span>Delete</span>
+            Close
           </button>
 
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
             <button
               type="button"
-              className="btn btn--outline btn--sm"
-              onClick={onClose}
+              className="btn btn--danger btn--sm"
+              onClick={onDelete}
+              style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}
             >
-              Close
+              <Trash2 size={13} />
+              <span>Delete</span>
             </button>
             <button
               type="button"

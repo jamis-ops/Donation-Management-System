@@ -640,17 +640,17 @@ export default function DatabaseManagementPage() {
               <div className="admin-modal__actions admin-modal__actions--split" style={{ marginTop: '1.25rem' }}>
                 <button
                   type="button"
-                  className="btn btn--danger"
-                  onClick={handleDeleteSelected}
-                >
-                  <Trash2 size={14} /> Permanently Delete
-                </button>
-                <button
-                  type="button"
                   className="btn btn--ghost"
                   onClick={() => setShowDeleteRowsModal(false)}
                 >
                   Cancel
+                </button>
+                <button
+                  type="button"
+                  className="btn btn--danger"
+                  onClick={handleDeleteSelected}
+                >
+                  <Trash2 size={14} /> Permanently Delete
                 </button>
               </div>
             </div>
@@ -685,17 +685,17 @@ export default function DatabaseManagementPage() {
               <div className="admin-modal__actions admin-modal__actions--split" style={{ marginTop: '1.25rem' }}>
                 <button
                   type="button"
-                  className="btn btn--danger"
-                  onClick={handleClearTable}
-                >
-                  <Trash2 size={14} /> Clear All Records
-                </button>
-                <button
-                  type="button"
                   className="btn btn--ghost"
                   onClick={() => setShowClearTableModal(false)}
                 >
                   Cancel
+                </button>
+                <button
+                  type="button"
+                  className="btn btn--danger"
+                  onClick={handleClearTable}
+                >
+                  <Trash2 size={14} /> Clear All Records
                 </button>
               </div>
             </div>
@@ -820,6 +820,13 @@ export default function DatabaseManagementPage() {
               <div className="admin-modal__actions admin-modal__actions--split" style={{ marginTop: '1.25rem' }}>
                 <button
                   type="button"
+                  className="btn btn--ghost"
+                  onClick={() => setShowWipeModal(false)}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
                   className="btn btn--danger"
                   onClick={handleWipeExcept}
                   disabled={
@@ -828,13 +835,6 @@ export default function DatabaseManagementPage() {
                   }
                 >
                   <Trash2 size={14} /> Wipe Unpreserved Tables
-                </button>
-                <button
-                  type="button"
-                  className="btn btn--ghost"
-                  onClick={() => setShowWipeModal(false)}
-                >
-                  Cancel
                 </button>
               </div>
             </div>

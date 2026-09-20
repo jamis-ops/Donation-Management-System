@@ -252,20 +252,22 @@ export default function AdminProofReview({
               )}
             </div>
             <div className="admin-modal__actions">
-              <a href={preview.fileUrl} download={preview.fileName} className="btn btn--outline" target="_blank" rel="noreferrer">
-                <Download size={14} /> Download
-              </a>
-              {isPending(preview.status) && (
-                <>
-                  <button type="button" className="btn btn--primary" onClick={() => { setPreview(null); approve(preview) }}>
-                    Approve
-                  </button>
-                  <button type="button" className="btn btn--danger" onClick={() => { setRejecting(preview); setRemarks(''); setPreview(null) }}>
-                    Reject
-                  </button>
-                </>
-              )}
               <button type="button" className="btn btn--ghost" onClick={() => setPreview(null)}>Close</button>
+              <div className="admin-modal__actions-group">
+                <a href={preview.fileUrl} download={preview.fileName} className="btn btn--outline" target="_blank" rel="noreferrer">
+                  <Download size={14} /> Download
+                </a>
+                {isPending(preview.status) && (
+                  <>
+                    <button type="button" className="btn btn--danger" onClick={() => { setRejecting(preview); setRemarks(''); setPreview(null) }}>
+                      Reject
+                    </button>
+                    <button type="button" className="btn btn--primary" onClick={() => { setPreview(null); approve(preview) }}>
+                      Approve
+                    </button>
+                  </>
+                )}
+              </div>
             </div>
           </div>
         </div>
@@ -291,10 +293,10 @@ export default function AdminProofReview({
                 />
               </label>
               <div className="admin-modal__actions">
+                <button type="button" className="btn btn--ghost" onClick={() => setRejecting(null)}>Cancel</button>
                 <button type="submit" className="btn btn--danger" disabled={busyId === rejecting.id}>
                   {busyId === rejecting.id ? 'Rejecting…' : 'Confirm Reject'}
                 </button>
-                <button type="button" className="btn btn--ghost" onClick={() => setRejecting(null)}>Cancel</button>
               </div>
             </form>
           </div>

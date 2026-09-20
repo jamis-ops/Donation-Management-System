@@ -954,10 +954,10 @@ export default function BeneficiariesPage() {
               </label>
 
               <div className="admin-modal__actions">
+                <button type="button" className="btn btn--ghost" onClick={() => setModalMode(null)}>Cancel</button>
                 <button type="submit" className="btn btn--primary" disabled={saving}>
                   {saving ? 'Sending…' : 'Send Invitation'}
                 </button>
-                <button type="button" className="btn btn--ghost" onClick={() => setModalMode(null)}>Cancel</button>
               </div>
             </form>
           </div>
@@ -1110,10 +1110,10 @@ export default function BeneficiariesPage() {
               )}
 
               <div className="admin-modal__actions">
+                <button type="button" className="btn btn--ghost" onClick={() => setModalMode(null)}>Cancel</button>
                 <button type="submit" className="btn btn--primary" disabled={saving}>
                   Save Barangay
                 </button>
-                <button type="button" className="btn btn--ghost" onClick={() => setModalMode(null)}>Cancel</button>
               </div>
             </form>
           </div>
@@ -1387,6 +1387,14 @@ export default function BeneficiariesPage() {
               </div>
               <div className="admin-modal__actions" style={{ marginTop: '1.25rem' }}>
                 <button
+                  type="button"
+                  className="btn btn--ghost"
+                  onClick={() => setApproveTarget(null)}
+                  disabled={actionBusyId === approveTarget.dbId}
+                >
+                  Cancel
+                </button>
+                <button
                   type="submit"
                   className="btn approval-overlay__btn-approve"
                   disabled={actionBusyId === approveTarget.dbId}
@@ -1394,14 +1402,6 @@ export default function BeneficiariesPage() {
                   {actionBusyId === approveTarget.dbId
                     ? 'Approving & Sending Credentials...'
                     : 'Approve & Send Credentials'}
-                </button>
-                <button
-                  type="button"
-                  className="btn btn--ghost"
-                  onClick={() => setApproveTarget(null)}
-                  disabled={actionBusyId === approveTarget.dbId}
-                >
-                  Cancel
                 </button>
               </div>
             </form>
@@ -1435,19 +1435,19 @@ export default function BeneficiariesPage() {
 
               <div className="admin-modal__actions">
                 <button
-                  type="submit"
-                  className="btn approval-overlay__btn-reject"
-                  disabled={actionBusyId === rejectTarget.dbId}
-                >
-                  {actionBusyId === rejectTarget.dbId ? 'Rejecting…' : 'Reject Application'}
-                </button>
-                <button
                   type="button"
                   className="btn btn--ghost"
                   onClick={() => setRejectTarget(null)}
                   disabled={actionBusyId === rejectTarget.dbId}
                 >
                   Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="btn approval-overlay__btn-reject"
+                  disabled={actionBusyId === rejectTarget.dbId}
+                >
+                  {actionBusyId === rejectTarget.dbId ? 'Rejecting…' : 'Reject Application'}
                 </button>
               </div>
             </form>

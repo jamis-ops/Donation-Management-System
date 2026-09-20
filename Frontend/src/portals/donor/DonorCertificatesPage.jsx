@@ -266,10 +266,10 @@ export default function DonorCertificatesPage() {
                 </select>
               </label>
               <div className="admin-modal__actions">
+                <button type="button" className="btn btn--ghost" onClick={() => setShowRequest(false)}>Cancel</button>
                 <button type="submit" className="btn btn--primary" disabled={busy}>
                   {busy ? 'Sending...' : 'Send Request'}
                 </button>
-                <button type="button" className="btn btn--ghost" onClick={() => setShowRequest(false)}>Cancel</button>
               </div>
             </form>
           </div>

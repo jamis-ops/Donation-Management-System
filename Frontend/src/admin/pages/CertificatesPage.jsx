@@ -425,21 +425,23 @@ export default function CertificatesPage() {
               </label>
 
               <div className="admin-modal__actions">
-                <button
-                  type="submit"
-                  className="btn btn--primary"
-                  disabled={saving || (editRow && isTerminalStatus(editRow.status, CERTIFICATE_TERMINAL))}
-                >
-                  {saving ? 'Saving...' : editRow ? (isTerminalStatus(editRow.status, CERTIFICATE_TERMINAL) ? 'Released (Locked)' : 'Save Changes') : 'Create Certificate'}
-                </button>
-                <button
-                  type="button"
-                  className="btn btn--outline"
-                  onClick={() => setPreview({ ...form, id: editRow?.id || 'CERT-PREVIEW', date: form.certDate })}
-                >
-                  <Eye size={14} /> Preview
-                </button>
                 <button type="button" className="btn btn--ghost" onClick={() => setShowForm(false)}>Cancel</button>
+                <div className="admin-modal__actions-group">
+                  <button
+                    type="button"
+                    className="btn btn--outline"
+                    onClick={() => setPreview({ ...form, id: editRow?.id || 'CERT-PREVIEW', date: form.certDate })}
+                  >
+                    <Eye size={14} /> Preview
+                  </button>
+                  <button
+                    type="submit"
+                    className="btn btn--primary"
+                    disabled={saving || (editRow && isTerminalStatus(editRow.status, CERTIFICATE_TERMINAL))}
+                  >
+                    {saving ? 'Saving...' : editRow ? (isTerminalStatus(editRow.status, CERTIFICATE_TERMINAL) ? 'Released (Locked)' : 'Save Changes') : 'Create Certificate'}
+                  </button>
+                </div>
               </div>
             </form>
           </div>

@@ -512,17 +512,17 @@ export default function DonorsPage() {
             <div className="admin-modal__actions admin-modal__actions--split" style={{ marginTop: '1.25rem' }}>
               <button 
                 type="button" 
-                className="btn btn--danger" 
-                onClick={() => handleDelete(active)}
-              >
-                <Trash2 size={15} /> Delete Donor
-              </button>
-              <button 
-                type="button" 
                 className="btn btn--ghost" 
                 onClick={() => setMode(null)}
               >
                 Close
+              </button>
+              <button 
+                type="button" 
+                className="btn btn--danger" 
+                onClick={() => handleDelete(active)}
+              >
+                <Trash2 size={15} /> Delete Donor
               </button>
             </div>
           </div>
@@ -775,7 +775,8 @@ export default function DonorsPage() {
               </div>
 
               {/* Modal Actions */}
-              <div className="admin-modal__actions" style={{ justifyContent: 'flex-start' }}>
+              <div className="admin-modal__actions">
+                <button type="button" className="btn btn--ghost" onClick={() => setMode(null)}>Cancel</button>
                 <button
                   type="submit"
                   className="btn btn--primary"
@@ -783,7 +784,6 @@ export default function DonorsPage() {
                 >
                   {saving ? 'Saving…' : form.createAccount ? 'Create & Save Donor' : 'Save Donor'}
                 </button>
-                <button type="button" className="btn btn--ghost" onClick={() => setMode(null)}>Cancel</button>
               </div>
             </form>
           </div>

@@ -2161,12 +2161,10 @@ export default function VolunteersPage() {
             </div>
 
             <div className="admin-modal__actions admin-modal__actions--split" style={{ marginTop: '1.25rem' }}>
+              <button type="button" className="btn btn--ghost" onClick={closeVolunteer}>Close</button>
               <button type="button" className="btn btn--danger" onClick={() => handleDelete(selected)}>
                 <Trash2 size={15} /> Delete Profile
               </button>
-              <div className="admin-modal__actions-group">
-                <button type="button" className="btn btn--ghost" onClick={closeVolunteer}>Close</button>
-              </div>
             </div>
           </div>
         </div>
@@ -2443,6 +2441,13 @@ export default function VolunteersPage() {
 
               <div className="admin-modal__actions">
                 <button
+                  type="button"
+                  className="btn btn--ghost"
+                  onClick={() => setShowGeneralTaskModal(false)}
+                >
+                  Cancel
+                </button>
+                <button
                   type="submit"
                   className="btn btn--primary"
                   disabled={saving || !generalSelectedVolunteerIds.length}
@@ -2450,13 +2455,6 @@ export default function VolunteersPage() {
                   {generalSelectedVolunteerIds.length > 1
                     ? `Assign Task to ${generalSelectedVolunteerIds.length} Members`
                     : 'Assign Task'}
-                </button>
-                <button
-                  type="button"
-                  className="btn btn--ghost"
-                  onClick={() => setShowGeneralTaskModal(false)}
-                >
-                  Cancel
                 </button>
               </div>
             </form>
@@ -2645,18 +2643,18 @@ export default function VolunteersPage() {
 
               <div className="admin-modal__actions">
                 <button
-                  type="submit"
-                  className="btn btn--primary"
-                  disabled={saving}
-                >
-                  {`Assign to ${selected.name}`}
-                </button>
-                <button
                   type="button"
                   className="btn btn--ghost"
                   onClick={() => setShowDirectTaskModal(false)}
                 >
                   Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="btn btn--primary"
+                  disabled={saving}
+                >
+                  {`Assign to ${selected.name}`}
                 </button>
               </div>
             </form>

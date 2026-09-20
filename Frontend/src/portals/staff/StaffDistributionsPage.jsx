@@ -535,6 +535,9 @@ export default function StaffDistributionsPage() {
                   )}
 
                   <div className="staff-modal__actions">
+                    <button type="button" className="btn btn--secondary" onClick={() => setSelectedDistribution(null)}>
+                      Close
+                    </button>
                     {STAFF_ADVANCE[selectedDistribution.status] ? (
                       <button 
                         className="btn btn--warning"
@@ -549,9 +552,6 @@ export default function StaffDistributionsPage() {
                         Waiting for barangay receipt confirmation and proof verification before Completed.
                       </p>
                     ) : null}
-                    <button type="button" className="btn btn--secondary" onClick={() => setSelectedDistribution(null)}>
-                      Close
-                    </button>
                   </div>
                 </div>
               </div>

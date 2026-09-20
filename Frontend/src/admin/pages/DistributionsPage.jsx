@@ -1370,20 +1370,20 @@ export default function DistributionsPage() {
 
             {/* Fixed Bottom Actions Footer */}
             <div className="dist-modal-footer admin-modal__actions--split">
-              <button type="button" className="btn btn--danger btn--sm" onClick={() => handleDelete(detailRow)}>
-                <Trash2 size={13} /> Delete Delivery
+              <button type="button" className="btn btn--ghost btn--sm" onClick={() => setDetailRow(null)}>
+                Close
               </button>
               <div className="admin-modal__actions-group">
-                <button type="button" className="btn btn--primary btn--sm" onClick={() => openEdit(detailRow)}>
-                  <Pencil size={13} /> Edit Delivery
+                <button type="button" className="btn btn--danger btn--sm" onClick={() => handleDelete(detailRow)}>
+                  <Trash2 size={13} /> Delete Delivery
                 </button>
                 {WORKFLOW.indexOf(detailRow.status) < WORKFLOW.length - 1 && (
                   <button type="button" className="btn btn--outline btn--sm" onClick={() => openStatus(detailRow)}>
                     <ArrowRightCircle size={13} /> Update Status
                   </button>
                 )}
-                <button type="button" className="btn btn--ghost btn--sm" onClick={() => setDetailRow(null)}>
-                  Close
+                <button type="button" className="btn btn--primary btn--sm" onClick={() => openEdit(detailRow)}>
+                  <Pencil size={13} /> Edit Delivery
                 </button>
               </div>
             </div>

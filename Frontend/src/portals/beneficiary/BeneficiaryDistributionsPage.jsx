@@ -547,6 +547,7 @@ export default function BeneficiaryDistributionsPage() {
                 </>
               )}
               <div className="admin-modal__actions">
+                <button type="button" className="btn btn--ghost" onClick={() => setModal(null)}>Cancel</button>
                 <button
                   type="submit"
                   className={`btn ${modal.mode === 'receive' ? 'btn--primary' : 'btn--danger'}`}
@@ -556,7 +557,6 @@ export default function BeneficiaryDistributionsPage() {
                     ? 'Confirm & Continue to Proof'
                     : 'Send Report'}
                 </button>
-                <button type="button" className="btn btn--ghost" onClick={() => setModal(null)}>Cancel</button>
               </div>
             </form>
           </div>
@@ -752,25 +752,27 @@ export default function BeneficiaryDistributionsPage() {
                 )}
 
                 {/* Actions Footer */}
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '0.65rem', borderTop: '1px solid #e2e8f0', paddingTop: '1.25rem' }}>
-                  {canConfirm(selectedDist) && (
-                    <button type="button" className="btn btn--primary" onClick={() => { const d = selectedDist; setSelectedDist(null); openReceive(d) }}>
-                      <CheckCircle2 size={14} /> Confirm Received
-                    </button>
-                  )}
-                  {canConfirm(selectedDist) && (
-                    <button type="button" className="btn btn--outline" onClick={() => { const d = selectedDist; setSelectedDist(null); openMissing(d) }}>
-                      <MessageSquare size={14} /> Report Issue
-                    </button>
-                  )}
-                  {needsProof(selectedDist) && (
-                    <button type="button" className="btn btn--primary" onClick={() => { const d = selectedDist; setSelectedDist(null); goToProof(d) }}>
-                      <Camera size={14} /> Submit Proof <ArrowRight size={14} />
-                    </button>
-                  )}
+                <div className="admin-modal__actions" style={{ marginTop: '1.25rem' }}>
                   <button type="button" className="btn btn--ghost" onClick={() => setSelectedDist(null)}>
                     Close
                   </button>
+                  <div className="admin-modal__actions-group">
+                    {canConfirm(selectedDist) && (
+                      <button type="button" className="btn btn--outline" onClick={() => { const d = selectedDist; setSelectedDist(null); openMissing(d) }}>
+                        <MessageSquare size={14} /> Report Issue
+                      </button>
+                    )}
+                    {canConfirm(selectedDist) && (
+                      <button type="button" className="btn btn--primary" onClick={() => { const d = selectedDist; setSelectedDist(null); openReceive(d) }}>
+                        <CheckCircle2 size={14} /> Confirm Received
+                      </button>
+                    )}
+                    {needsProof(selectedDist) && (
+                      <button type="button" className="btn btn--primary" onClick={() => { const d = selectedDist; setSelectedDist(null); goToProof(d) }}>
+                        <Camera size={14} /> Submit Proof <ArrowRight size={14} />
+                      </button>
+                    )}
+                  </div>
                 </div>
               </div>
             </div>

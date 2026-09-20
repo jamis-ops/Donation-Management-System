@@ -620,26 +620,6 @@ export default function VolunteerTasksPage() {
 
             {/* Modal Footer */}
             <div className="vtask-modal__footer">
-              {isDistributionTask(selectedTask) && selectedTask.canMarkInTransit && (
-                <button
-                  type="button"
-                  className="btn btn--outline"
-                  disabled={saving}
-                  onClick={() => handleDistributionStatus(selectedTask, 'In Transit')}
-                >
-                  <Truck size={15} /> Mark In Transit
-                </button>
-              )}
-              {isDistributionTask(selectedTask) && selectedTask.canMarkDelivered && (
-                <button
-                  type="button"
-                  className="btn btn--primary"
-                  disabled={saving}
-                  onClick={() => handleDistributionStatus(selectedTask, 'Delivered')}
-                >
-                  <PackageCheck size={15} /> Mark Delivered
-                </button>
-              )}
               <button
                 type="button"
                 className="btn btn--outline"
@@ -647,6 +627,30 @@ export default function VolunteerTasksPage() {
               >
                 Close
               </button>
+              {(isDistributionTask(selectedTask) && (selectedTask.canMarkInTransit || selectedTask.canMarkDelivered)) && (
+                <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.65rem', flexWrap: 'wrap' }}>
+                  {selectedTask.canMarkInTransit && (
+                    <button
+                      type="button"
+                      className="btn btn--outline"
+                      disabled={saving}
+                      onClick={() => handleDistributionStatus(selectedTask, 'In Transit')}
+                    >
+                      <Truck size={15} /> Mark In Transit
+                    </button>
+                  )}
+                  {selectedTask.canMarkDelivered && (
+                    <button
+                      type="button"
+                      className="btn btn--primary"
+                      disabled={saving}
+                      onClick={() => handleDistributionStatus(selectedTask, 'Delivered')}
+                    >
+                      <PackageCheck size={15} /> Mark Delivered
+                    </button>
+                  )}
+                </div>
+              )}
             </div>
           </div>
         </div>

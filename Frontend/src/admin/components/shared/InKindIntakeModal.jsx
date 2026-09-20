@@ -364,20 +364,20 @@ export default function InKindIntakeModal({
           {/* Action buttons */}
           <div className="admin-modal__actions mt-4 pt-3 border-t border-gray-200">
             <button
-              type="submit"
-              className="btn btn--primary"
-              disabled={saving}
-              style={{ backgroundColor: '#AF101A' }}
-            >
-              {saving ? 'Verifying & Posting...' : 'Verify & Add to Warehouse Inventory'}
-            </button>
-            <button
               type="button"
               className="btn btn--ghost"
               onClick={onClose}
               disabled={saving}
             >
               Cancel
+            </button>
+            <button
+              type="submit"
+              className="btn btn--primary"
+              disabled={saving}
+              style={{ backgroundColor: '#AF101A' }}
+            >
+              {saving ? 'Verifying & Posting...' : 'Verify & Add to Warehouse Inventory'}
             </button>
           </div>
         </form>

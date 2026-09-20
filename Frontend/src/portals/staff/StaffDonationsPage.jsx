@@ -231,8 +231,17 @@ export default function StaffDonationsPage() {
             />
 
             <div className="admin-modal__actions">
+              <button type="button" className="btn btn--ghost" onClick={() => setSelected(null)}>Close</button>
               {selected.status === 'Pending Verification' && (
-                <>
+                <div className="admin-modal__actions-group">
+                  <button
+                    type="button"
+                    className="btn btn--outline"
+                    onClick={() => handleReject(selected)}
+                    disabled={busy}
+                  >
+                    <XCircle size={16} /> Reject
+                  </button>
                   <button
                     type="button"
                     className="btn btn--primary"
@@ -242,17 +251,8 @@ export default function StaffDonationsPage() {
                   >
                     <CheckCircle2 size={16} /> Verify &amp; Approve
                   </button>
-                  <button
-                    type="button"
-                    className="btn btn--outline"
-                    onClick={() => handleReject(selected)}
-                    disabled={busy}
-                  >
-                    <XCircle size={16} /> Reject
-                  </button>
-                </>
+                </div>
               )}
-              <button type="button" className="btn btn--ghost" onClick={() => setSelected(null)}>Close</button>
             </div>
           </div>
         </div>

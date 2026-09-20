@@ -1046,11 +1046,11 @@ export default function DonationsPage() {
               </label>
 
               <div className="admin-modal__actions">
-                <button type="submit" className="btn btn--primary" disabled={saving}>
-                  {saving ? 'Saving...' : `Save ${form.type} Donation`}
-                </button>
                 <button type="button" className="btn btn--ghost" onClick={() => setShowForm(false)}>
                   Cancel
+                </button>
+                <button type="submit" className="btn btn--primary" disabled={saving}>
+                  {saving ? 'Saving...' : `Save ${form.type} Donation`}
                 </button>
               </div>
             </form>
@@ -1794,25 +1794,25 @@ export default function DonationsPage() {
             <div className="admin-modal__actions admin-modal__actions--split" style={{ marginTop: '1.25rem' }}>
               <button 
                 type="button" 
-                className="btn btn--danger" 
-                onClick={() => handleDelete(selected)}
+                className="btn btn--ghost" 
+                onClick={() => setSelected(null)}
               >
-                <Trash2 size={15} /> Delete Donation
+                Close
               </button>
               <div className="admin-modal__actions-group">
+                <button 
+                  type="button" 
+                  className="btn btn--danger" 
+                  onClick={() => handleDelete(selected)}
+                >
+                  <Trash2 size={15} /> Delete Donation
+                </button>
                 <button 
                   type="button" 
                   className="btn btn--outline" 
                   onClick={() => printDonationReceipt(selected)}
                 >
                   <Printer size={15} /> Print Receipt
-                </button>
-                <button 
-                  type="button" 
-                  className="btn btn--ghost" 
-                  onClick={() => setSelected(null)}
-                >
-                  Close
                 </button>
               </div>
             </div>

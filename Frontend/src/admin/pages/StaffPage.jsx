@@ -994,17 +994,17 @@ export default function StaffPage() {
                 >
                   <button
                     type="button"
-                    className="btn btn--danger"
-                    onClick={() => handleDelete(selected)}
-                  >
-                    <Trash2 size={14} /> Delete Staff Account
-                  </button>
-                  <button
-                    type="button"
                     className="btn btn--ghost"
                     onClick={() => setSelected(null)}
                   >
                     Close
+                  </button>
+                  <button
+                    type="button"
+                    className="btn btn--danger"
+                    onClick={() => handleDelete(selected)}
+                  >
+                    <Trash2 size={14} /> Delete Staff Account
                   </button>
                 </div>
               </div>
@@ -1087,8 +1087,8 @@ export default function StaffPage() {
               </div>
 
               <div className="admin-modal__actions">
-                <button type="submit" className="btn btn--primary" disabled={saving || !taskForm.title}>Assign Task</button>
                 <button type="button" className="btn btn--ghost" onClick={() => setShowTaskForm(false)}>Cancel</button>
+                <button type="submit" className="btn btn--primary" disabled={saving || !taskForm.title}>Assign Task</button>
               </div>
             </form>
           </div>
@@ -1158,6 +1158,7 @@ export default function StaffPage() {
               </div>
 
               <div className="admin-modal__actions" style={{ marginTop: '1.25rem' }}>
+                <button type="button" className="btn btn--ghost" onClick={() => setShowForm(false)}>Cancel</button>
                 <button
                   type="submit"
                   className="btn btn--primary"
@@ -1165,7 +1166,6 @@ export default function StaffPage() {
                 >
                   Create & Email Credentials
                 </button>
-                <button type="button" className="btn btn--ghost" onClick={() => setShowForm(false)}>Cancel</button>
               </div>
             </form>
           </div>

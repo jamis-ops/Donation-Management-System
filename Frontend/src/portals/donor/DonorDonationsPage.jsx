@@ -442,17 +442,21 @@ export default function DonorDonationsPage() {
             <DonationProgressTracker donation={selected} donationId={selected.dbId} />
 
             <div className="admin-modal__actions">
-              {canRequestCert && (
-                <button type="button" className="btn btn--primary" disabled={busy} onClick={() => handleRequestCert(selected)}>
-                  Request Certificate
-                </button>
-              )}
-              {selected.status === 'Pending Verification' && (
-                <button type="button" className="btn btn--outline" disabled={busy} onClick={() => handleCancel(selected)}>
-                  Cancel Donation
-                </button>
-              )}
               <button type="button" className="btn btn--ghost" onClick={() => setSelected(null)}>Close</button>
+              {(canRequestCert || selected.status === 'Pending Verification') && (
+                <div className="admin-modal__actions-group">
+                  {selected.status === 'Pending Verification' && (
+                    <button type="button" className="btn btn--outline" disabled={busy} onClick={() => handleCancel(selected)}>
+                      Cancel Donation
+                    </button>
+                  )}
+                  {canRequestCert && (
+                    <button type="button" className="btn btn--primary" disabled={busy} onClick={() => handleRequestCert(selected)}>
+                      Request Certificate
+                    </button>
+                  )}
+                </div>
+              )}
             </div>
           </div>
         </div>

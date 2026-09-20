@@ -523,17 +523,17 @@ export default function StaffInventoryPage() {
 
                   <div className="staff-modal__actions">
                     <button 
+                      className="btn btn--secondary"
+                      onClick={() => setShowStockModal(false)}
+                    >
+                      Cancel
+                    </button>
+                    <button 
                       className={`btn ${stockAction === 'add' ? 'btn--success' : 'btn--danger'}`}
                       onClick={handleStockUpdate}
                     >
                       {stockAction === 'add' ? <Plus size={16} /> : <Minus size={16} />}
                       {stockAction === 'add' ? 'Add' : 'Remove'} Stock
-                    </button>
-                    <button 
-                      className="btn btn--secondary"
-                      onClick={() => setShowStockModal(false)}
-                    >
-                      Cancel
                     </button>
                   </div>
                 </div>

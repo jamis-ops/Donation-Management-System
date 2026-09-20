@@ -8089,11 +8089,15 @@
 
 .staff-modal__actions {
   display: flex;
+  justify-content: space-between;
+  align-items: center;
   gap: 0.75rem;
   flex-wrap: wrap;
   margin-top: 2rem;
   padding-top: 1.5rem;
   border-top: 1px solid #e5e7eb;
+  width: 100%;
+  box-sizing: border-box;
 }
 
 .staff-modal__form-group {
