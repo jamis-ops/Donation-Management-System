@@ -633,10 +633,7 @@ export default function StaffPage() {
                   </div>
                 </div>
 
-                <div className="admin-modal__actions" style={{ justifyContent: 'flex-start' }}>
-                  <button type="submit" className="btn btn--primary" disabled={saving}>
-                    {saving ? 'Saving…' : 'Save Changes'}
-                  </button>
+                <div className="admin-modal__actions">
                   <button
                     type="button"
                     className="btn btn--ghost"
@@ -662,6 +659,9 @@ export default function StaffPage() {
                     }}
                   >
                     Cancel
+                  </button>
+                  <button type="submit" className="btn btn--primary" disabled={saving}>
+                    {saving ? 'Saving…' : 'Save Changes'}
                   </button>
                 </div>
               </form>

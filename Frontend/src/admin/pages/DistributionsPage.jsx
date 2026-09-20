@@ -2319,45 +2319,45 @@ export default function DistributionsPage() {
 
                 {formTab === 'logistics' && (
                   <>
-                    <button
-                      type="button"
-                      className="btn btn--outline btn--sm"
-                      onClick={() => setFormTab('destination')}
-                    >
-                      &larr; Back to Destination
-                    </button>
                     <div style={{ display: 'flex', gap: '0.5rem' }}>
                       <button type="button" className="btn btn--ghost btn--sm" onClick={closeForm}>
                         Cancel
                       </button>
                       <button
                         type="button"
-                        className="btn btn--primary btn--sm"
-                        onClick={() => handleGoToStep('requirements')}
+                        className="btn btn--outline btn--sm"
+                        onClick={() => setFormTab('destination')}
                       >
-                        Continue to Status &amp; Notes &rarr;
+                        &larr; Back to Destination
                       </button>
                     </div>
+                    <button
+                      type="button"
+                      className="btn btn--primary btn--sm"
+                      onClick={() => handleGoToStep('requirements')}
+                    >
+                      Continue to Status &amp; Notes &rarr;
+                    </button>
                   </>
                 )}
 
                 {formTab === 'requirements' && (
                   <>
-                    <button
-                      type="button"
-                      className="btn btn--outline btn--sm"
-                      onClick={() => setFormTab('logistics')}
-                    >
-                      &larr; Back to Cargo
-                    </button>
                     <div style={{ display: 'flex', gap: '0.5rem' }}>
                       <button type="button" className="btn btn--ghost btn--sm" onClick={closeForm}>
                         Cancel
                       </button>
-                      <button type="submit" className="btn btn--primary btn--sm" disabled={saving}>
-                        {saving ? 'Saving...' : (editRow ? 'Save Changes' : 'Confirm & Save Delivery')}
+                      <button
+                        type="button"
+                        className="btn btn--outline btn--sm"
+                        onClick={() => setFormTab('logistics')}
+                      >
+                        &larr; Back to Cargo
                       </button>
                     </div>
+                    <button type="submit" className="btn btn--primary btn--sm" disabled={saving}>
+                      {saving ? 'Saving...' : (editRow ? 'Save Changes' : 'Confirm & Save Delivery')}
+                    </button>
                   </>
                 )}
               </div>
