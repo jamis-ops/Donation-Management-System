@@ -15,6 +15,7 @@ import InventoryItemModal from './InventoryItemModal'
 import InventoryCategoryExplorer from './InventoryCategoryExplorer'
 import { useBulkSelection } from '../../hooks/useBulkSelection'
 import { notify, confirmAction, showSuccessModal } from '../../utils/confirm'
+import { useLoading } from '../../context/LoadingContext'
 import { calculateInventoryStatus } from '../../utils/inventoryStatus'
 
 const inventoryFilterConfig = {
