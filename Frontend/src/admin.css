@@ -1958,47 +1958,85 @@
 .status-badge {
   display: inline-flex;
   align-items: center;
-  padding: 0.2rem 0.65rem;
-  font-size: 0.72rem;
-  font-weight: 700;
+  gap: 0.38rem;
+  padding: 0.22rem 0.65rem;
+  font-size: 0.74rem;
+  font-weight: 600;
   border-radius: 999px;
   white-space: nowrap;
-  letter-spacing: 0.02em;
+  letter-spacing: 0.015em;
+  line-height: 1.25;
+  border: 1px solid transparent;
+  transition: all 0.15s ease-in-out;
+}
+
+.status-badge__dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  background-color: currentColor;
 }
 
 .status-badge--success {
-  background: rgba(22, 163, 74, 0.1);
-  color: var(--admin-success);
+  background: #f0fdf4;
+  border-color: #bbf7d0;
+  color: #15803d;
+}
+.status-badge--success .status-badge__dot {
+  background: #16a34a;
+  box-shadow: 0 0 0 2px rgba(22, 163, 74, 0.15);
 }
 
 .status-badge--warning {
-  background: rgba(217, 119, 6, 0.1);
-  color: var(--admin-warning);
+  background: #fffbeb;
+  border-color: #fde68a;
+  color: #b45309;
+}
+.status-badge--warning .status-badge__dot {
+  background: #d97706;
+  box-shadow: 0 0 0 2px rgba(217, 119, 6, 0.15);
 }
 
 .status-badge--danger {
-  background: rgba(220, 38, 38, 0.1);
-  color: var(--admin-danger);
+  background: #fef2f2;
+  border-color: #fecaca;
+  color: #b91c1c;
+}
+.status-badge--danger .status-badge__dot {
+  background: #dc2626;
+  box-shadow: 0 0 0 2px rgba(220, 38, 38, 0.15);
 }
 
-.status-badge--info {
-  background: rgba(37, 99, 235, 0.1);
-  color: var(--admin-info);
+.status-badge--info,
+.status-badge--primary {
+  background: #eff6ff;
+  border-color: #bfdbfe;
+  color: #1d4ed8;
+}
+.status-badge--info .status-badge__dot,
+.status-badge--primary .status-badge__dot {
+  background: #2563eb;
+  box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.15);
 }
 
 .status-badge--neutral {
-  background: rgba(107, 114, 128, 0.1);
-  color: var(--admin-text-muted);
+  background: #f8fafc;
+  border-color: #e2e8f0;
+  color: #475569;
+}
+.status-badge--neutral .status-badge__dot {
+  background: #64748b;
 }
 
 .status-badge--pending {
-  background: rgba(234, 179, 8, 0.1);
-  color: #ca8a04; /* Darker yellow for text legibility */
+  background: #fffdf0;
+  border-color: #fef08a;
+  color: #a16207;
 }
-
-.status-badge--primary {
-  background: rgba(59, 130, 246, 0.1);
-  color: var(--admin-primary);
+.status-badge--pending .status-badge__dot {
+  background: #ca8a04;
+  box-shadow: 0 0 0 2px rgba(202, 138, 4, 0.15);
 }
 
 /* =========================================================

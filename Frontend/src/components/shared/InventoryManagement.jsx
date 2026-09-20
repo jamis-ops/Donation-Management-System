@@ -1,5 +1,5 @@
 import { useCallback, useState, useEffect } from 'react'
-import { Package, PackagePlus, Pencil, Play, CheckCircle2, XCircle, Trash2, Calculator, Users, AlertCircle, Info, LayoutGrid, List } from 'lucide-react'
+import { Package, PackagePlus, Pencil, Play, CheckCircle2, XCircle, Trash2, Calculator, Users, AlertCircle, Info, LayoutGrid, List, Eye, Sliders } from 'lucide-react'
 import { inventoryApi, repackingApi, getStaff, volunteersApi, beneficiariesApi } from '../../api/resources'
 import { useApiList } from '../../hooks/useApiList'
 import { DONATION_CATEGORIES } from '../../constants/options'
@@ -15,7 +15,7 @@ import InventoryItemModal from './InventoryItemModal'
 import InventoryCategoryExplorer from './InventoryCategoryExplorer'
 import { useBulkSelection } from '../../hooks/useBulkSelection'
 import { notify, confirmAction, showSuccessModal } from '../../utils/confirm'
-import { useLoading } from '../../context/LoadingContext'
+import { calculateInventoryStatus } from '../../utils/inventoryStatus'
 
 const inventoryFilterConfig = {
   searchKeys: ['item', 'category'],
@@ -27,8 +27,13 @@ const inventoryFilterConfig = {
       allLabel: 'All Stock',
       match: (row, val) => {
         if (!val || val === 'all') return true
-        const level = row.stockLevel || row.status
-        return level === val
+        const normVal = String(val).toLowerCase().trim()
+        const level = String(row.stockLevel || '').toLowerCase().trim()
+        const status = String(row.status || '').toLowerCase().trim()
+        if (normVal === 'sufficient') return level === 'sufficient' || status === 'sufficient'
+        if (normVal === 'moderate') return level === 'moderate' || status === 'moderate'
+        if (normVal === 'low' || normVal === 'low stock') return level === 'low' || status === 'low stock'
+        return level === normVal || status === normVal
       },
     },
   ],
@@ -68,6 +73,7 @@ export default function InventoryManagement() {
 
   const [itemModal, setItemModal] = useState(null)   // null | 'create' | row
   const [itemForm, setItemForm] = useState(emptyItemForm)
+  const [viewDetailItem, setViewDetailItem] = useState(null)
   const [viewMode, setViewMode] = useState('category') // 'category' | 'table'
   const [presetCategory, setPresetCategory] = useState('')
   const [presetItemType, setPresetItemType] = useState('')
@@ -435,16 +441,33 @@ export default function InventoryManagement() {
     { key: 'available', label: 'Available' },
     { key: 'allocated', label: 'Allocated' },
     { key: 'distributed', label: 'Distributed' },
-    { key: 'status', label: 'Status', render: (row) => <StatusBadge status={row.status} /> },
+    { key: 'status', label: 'Status', render: (row) => <StatusBadge status={row.status} level={row.stockLevel} /> },
     {
       key: 'actions',
       label: 'Actions',
       render: (row) => (
         <div className="table-actions">
-          <button type="button" className="btn btn--sm btn--outline" onClick={(e) => { e.stopPropagation(); openItemEdit(row) }}>
-            <Pencil size={13} /> Update
+          <button
+            type="button"
+            className="btn btn--sm btn--ghost"
+            title="View Specifications & Thresholds"
+            onClick={(e) => { e.stopPropagation(); setViewDetailItem(row) }}
+          >
+            <Eye size={13} /> View
           </button>
-          <button type="button" className="btn btn--sm btn--ghost" title="Delete" onClick={(e) => { e.stopPropagation(); handleItemDelete(row) }}>
+          <button
+            type="button"
+            className="btn btn--sm btn--outline"
+            onClick={(e) => { e.stopPropagation(); openItemEdit(row) }}
+          >
+            <Pencil size={13} /> Edit
+          </button>
+          <button
+            type="button"
+            className="btn btn--sm btn--ghost text-danger"
+            title="Delete"
+            onClick={(e) => { e.stopPropagation(); handleItemDelete(row) }}
+          >
             <Trash2 size={13} />
           </button>
         </div>
@@ -631,7 +654,7 @@ export default function InventoryManagement() {
                 <DataTable
                   columns={inventoryColumns}
                   data={invFilters.filtered}
-                  onRowClick={openItemEdit}
+                  onRowClick={(row) => setViewDetailItem(row)}
                   pageSize={10}
                   resetKey={`${invFilters.search}|${JSON.stringify(invFilters.values)}`}
                   selectable
@@ -750,6 +773,153 @@ export default function InventoryManagement() {
           presetItemType={presetItemType}
           existingItems={items}
         />
+      )}
+
+      {/* Item Details & Threshold Modal */}
+      {viewDetailItem && (
+        <div
+          className="admin-modal-overlay"
+          onClick={() => setViewDetailItem(null)}
+          role="dialog"
+          aria-modal="true"
+        >
+          <div
+            className="admin-modal"
+            style={{ maxWidth: '620px', width: '94vw' }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <ModalHeader
+              title={viewDetailItem.item || 'Item Specifications'}
+              subtitle={`SKU: ${viewDetailItem.id || 'N/A'}`}
+              onClose={() => setViewDetailItem(null)}
+            />
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem', marginTop: '0.5rem' }}>
+              {/* Top Overview & Status */}
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.75rem', padding: '0.85rem 1rem', background: '#f8fafc', borderRadius: '10px', border: '1px solid #e2e8f0' }}>
+                <div>
+                  <div style={{ fontSize: '0.75rem', color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em', fontWeight: 600 }}>
+                    Current Stock Status
+                  </div>
+                  <div style={{ marginTop: '4px' }}>
+                    <StatusBadge status={viewDetailItem.status} level={viewDetailItem.stockLevel} />
+                  </div>
+                </div>
+
+                <div style={{ textAlign: 'right' }}>
+                  <div style={{ fontSize: '0.75rem', color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em', fontWeight: 600 }}>
+                    Available / Total
+                  </div>
+                  <div style={{ fontSize: '1.25rem', fontWeight: 700, color: '#0f172a', marginTop: '2px' }}>
+                    <span style={{ color: '#AF101A' }}>{viewDetailItem.available ?? viewDetailItem.quantity}</span>
+                    <span style={{ color: '#94a3b8', fontSize: '0.95rem' }}> / {viewDetailItem.quantity} {viewDetailItem.unit}</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Product Specifications Grid */}
+              <div className="admin-form-grid-2col" style={{ gap: '0.85rem' }}>
+                <div style={{ background: '#ffffff', border: '1px solid #e2e8f0', borderRadius: '8px', padding: '0.75rem 1rem' }}>
+                  <div style={{ fontSize: '0.75rem', color: '#64748b', fontWeight: 600 }}>Category</div>
+                  <div style={{ fontWeight: 600, color: '#1e293b', marginTop: '2px' }}>{viewDetailItem.category || 'General'}</div>
+                </div>
+                <div style={{ background: '#ffffff', border: '1px solid #e2e8f0', borderRadius: '8px', padding: '0.75rem 1rem' }}>
+                  <div style={{ fontSize: '0.75rem', color: '#64748b', fontWeight: 600 }}>Item Type / Subcategory</div>
+                  <div style={{ fontWeight: 600, color: '#1e293b', marginTop: '2px' }}>{viewDetailItem.itemType || '—'}</div>
+                </div>
+                <div style={{ background: '#ffffff', border: '1px solid #e2e8f0', borderRadius: '8px', padding: '0.75rem 1rem' }}>
+                  <div style={{ fontSize: '0.75rem', color: '#64748b', fontWeight: 600 }}>Brand</div>
+                  <div style={{ fontWeight: 600, color: '#1e293b', marginTop: '2px' }}>{viewDetailItem.brand || 'Generic / Unbranded'}</div>
+                </div>
+                <div style={{ background: '#ffffff', border: '1px solid #e2e8f0', borderRadius: '8px', padding: '0.75rem 1rem' }}>
+                  <div style={{ fontSize: '0.75rem', color: '#64748b', fontWeight: 600 }}>Variant / Size</div>
+                  <div style={{ fontWeight: 600, color: '#1e293b', marginTop: '2px' }}>{viewDetailItem.variant || 'Standard'}</div>
+                </div>
+              </div>
+
+              {/* Inventory Stock Breakdown */}
+              <div style={{ background: '#ffffff', border: '1px solid #e2e8f0', borderRadius: '10px', padding: '1rem' }}>
+                <div style={{ fontSize: '0.85rem', fontWeight: 700, color: '#1e293b', marginBottom: '0.75rem', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <Package size={15} color="#AF101A" /> Stock Breakdown
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '0.75rem', textAlign: 'center' }}>
+                  <div style={{ padding: '0.5rem', background: '#f8fafc', borderRadius: '6px' }}>
+                    <div style={{ fontSize: '0.72rem', color: '#64748b', fontWeight: 600 }}>Available</div>
+                    <div style={{ fontSize: '1.1rem', fontWeight: 700, color: '#16a34a', marginTop: '2px' }}>
+                      {viewDetailItem.available ?? viewDetailItem.quantity}
+                    </div>
+                  </div>
+                  <div style={{ padding: '0.5rem', background: '#f8fafc', borderRadius: '6px' }}>
+                    <div style={{ fontSize: '0.72rem', color: '#64748b', fontWeight: 600 }}>Allocated</div>
+                    <div style={{ fontSize: '1.1rem', fontWeight: 700, color: '#d97706', marginTop: '2px' }}>
+                      {viewDetailItem.allocated || 0}
+                    </div>
+                  </div>
+                  <div style={{ padding: '0.5rem', background: '#f8fafc', borderRadius: '6px' }}>
+                    <div style={{ fontSize: '0.72rem', color: '#64748b', fontWeight: 600 }}>Distributed</div>
+                    <div style={{ fontSize: '1.1rem', fontWeight: 700, color: '#2563eb', marginTop: '2px' }}>
+                      {viewDetailItem.distributed || 0}
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Threshold & Status Configuration */}
+              <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '10px', padding: '1rem' }}>
+                <div style={{ fontSize: '0.85rem', fontWeight: 700, color: '#1e293b', marginBottom: '0.65rem', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <Sliders size={15} color="#d97706" /> Configured Thresholds & Logic
+                </div>
+                <div className="admin-form-grid-2col" style={{ gap: '0.75rem' }}>
+                  <div style={{ background: '#ffffff', border: '1px solid #fecaca', borderRadius: '8px', padding: '0.65rem 0.85rem' }}>
+                    <div style={{ fontSize: '0.72rem', color: '#b91c1c', fontWeight: 700, textTransform: 'uppercase' }}>
+                      Low Stock Threshold
+                    </div>
+                    <div style={{ fontSize: '1.15rem', fontWeight: 700, color: '#dc2626', marginTop: '2px' }}>
+                      {viewDetailItem.lowStockThreshold || 100} <span style={{ fontSize: '0.8rem', fontWeight: 500, color: '#64748b' }}>{viewDetailItem.unit}</span>
+                    </div>
+                    <div style={{ fontSize: '0.72rem', color: '#64748b', marginTop: '2px' }}>
+                      Triggers 🔴 Low Stock when available ≤ {viewDetailItem.lowStockThreshold || 100}
+                    </div>
+                  </div>
+
+                  <div style={{ background: '#ffffff', border: '1px solid #fde68a', borderRadius: '8px', padding: '0.65rem 0.85rem' }}>
+                    <div style={{ fontSize: '0.72rem', color: '#b45309', fontWeight: 700, textTransform: 'uppercase' }}>
+                      Moderate Stock Threshold
+                    </div>
+                    <div style={{ fontSize: '1.15rem', fontWeight: 700, color: '#d97706', marginTop: '2px' }}>
+                      {viewDetailItem.moderateStockThreshold || (Number(viewDetailItem.lowStockThreshold || 100) * 2)} <span style={{ fontSize: '0.8rem', fontWeight: 500, color: '#64748b' }}>{viewDetailItem.unit}</span>
+                    </div>
+                    <div style={{ fontSize: '0.72rem', color: '#64748b', marginTop: '2px' }}>
+                      Triggers 🟡 Moderate stock level
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Modal Actions */}
+            <div className="admin-modal__actions" style={{ justifyContent: 'flex-end', gap: '0.65rem', marginTop: '1.25rem', paddingTop: '1rem' }}>
+              <button
+                type="button"
+                className="btn btn--ghost"
+                onClick={() => setViewDetailItem(null)}
+              >
+                Close
+              </button>
+              <button
+                type="button"
+                className="btn btn--primary"
+                onClick={() => {
+                  const target = viewDetailItem
+                  setViewDetailItem(null)
+                  openItemEdit(target)
+                }}
+              >
+                <Pencil size={13} style={{ marginRight: '4px' }} /> Edit Inventory
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
       {batchModal && (

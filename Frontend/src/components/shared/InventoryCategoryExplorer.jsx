@@ -23,7 +23,12 @@ import {
   HelpCircle,
   Pencil,
   Trash2,
+  Eye,
+  Info,
+  Sliders,
 } from 'lucide-react'
+import StatusBadge from '../../admin/components/shared/StatusBadge'
+import ModalHeader from '../../admin/components/shared/ModalHeader'
 
 // Enhanced Category Theme definition with colors, backgrounds, borders, gradients, and vibrant SVG icons
 export function getCategoryTheme(catName = '') {
@@ -169,6 +174,7 @@ export default function InventoryCategoryExplorer({
   const [selectedCategory, setSelectedCategory] = useState(null)
   const [selectedItemType, setSelectedItemType] = useState(null)
   const [searchQuery, setSearchQuery] = useState('')
+  const [detailItem, setDetailItem] = useState(null)
 
   const handleDeleteCategory = async (catName, catItems = []) => {
     if (typeof onDeleteCategory === 'function') {
@@ -680,27 +686,35 @@ export default function InventoryCategoryExplorer({
                           <span className="text-muted text-xs">{item.unit}</span>
                         </td>
                         <td>
-                          <span className={`badge badge--${item.stockLevel || 'moderate'}`}>
-                            {item.status || 'Available'}
-                          </span>
+                          <StatusBadge status={item.status} level={item.stockLevel} />
                         </td>
                         <td style={{ textAlign: 'right' }}>
-                          <button
-                            type="button"
-                            className="btn btn--ghost btn--xs"
-                            onClick={() => onEditItem(item)}
-                            title="Edit Stock"
-                          >
-                            <Pencil size={13} />
-                          </button>
-                          <button
-                            type="button"
-                            className="btn btn--ghost btn--xs text-red-600"
-                            onClick={() => onDeleteItem(item)}
-                            title="Delete"
-                          >
-                            <Trash2 size={13} />
-                          </button>
+                          <div className="inv-action-buttons">
+                            <button
+                              type="button"
+                              className="btn btn--ghost btn--xs"
+                              onClick={() => setDetailItem(item)}
+                              title="View Full Item Details & Thresholds"
+                            >
+                              <Eye size={13} />
+                            </button>
+                            <button
+                              type="button"
+                              className="btn btn--ghost btn--xs"
+                              onClick={() => onEditItem(item)}
+                              title="Edit Stock"
+                            >
+                              <Pencil size={13} />
+                            </button>
+                            <button
+                              type="button"
+                              className="btn btn--ghost btn--xs text-red-600"
+                              onClick={() => onDeleteItem(item)}
+                              title="Delete"
+                            >
+                              <Trash2 size={13} />
+                            </button>
+                          </div>
                         </td>
                       </tr>
                     ))
@@ -977,7 +991,6 @@ export default function InventoryCategoryExplorer({
                   <th>Variant / Size</th>
                   <th>Available / Total</th>
                   <th>Unit</th>
-                  <th>Threshold</th>
                   <th>Status</th>
                   <th style={{ textAlign: 'right' }}>Actions</th>
                 </tr>
@@ -985,7 +998,7 @@ export default function InventoryCategoryExplorer({
               <tbody>
                 {visibleItems.length === 0 ? (
                   <tr>
-                    <td colSpan={8} className="text-center py-6 text-muted">
+                    <td colSpan={7} className="text-center py-6 text-muted">
                       <div>No items recorded under {selectedItemType}.</div>
                       <button
                         type="button"
@@ -1025,15 +1038,18 @@ export default function InventoryCategoryExplorer({
                       </td>
                       <td>{item.unit}</td>
                       <td>
-                        <span className="text-xs text-muted">Low: {item.lowStockThreshold || 0}</span>
-                      </td>
-                      <td>
-                        <span className={`badge badge--${item.stockLevel || 'moderate'}`}>
-                          {item.status || 'Available'}
-                        </span>
+                        <StatusBadge status={item.status} level={item.stockLevel} />
                       </td>
                       <td style={{ textAlign: 'right' }}>
                         <div className="inv-action-buttons">
+                          <button
+                            type="button"
+                            className="btn btn--ghost btn--xs"
+                            onClick={() => setDetailItem(item)}
+                            title="View Full Item Details & Thresholds"
+                          >
+                            <Eye size={13} style={{ marginRight: '4px' }} /> View
+                          </button>
                           <button
                             type="button"
                             className="btn btn--ghost btn--xs"
@@ -1057,6 +1073,154 @@ export default function InventoryCategoryExplorer({
                 )}
               </tbody>
             </table>
+          </div>
+        </div>
+      )}
+
+      {/* Item Details & Threshold Modal */}
+      {detailItem && (
+        <div
+          className="admin-modal-overlay"
+          onClick={() => setDetailItem(null)}
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="inv-item-detail-title"
+        >
+          <div
+            className="admin-modal"
+            style={{ maxWidth: '620px', width: '94vw' }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <ModalHeader
+              title={detailItem.item || 'Item Specifications'}
+              subtitle={`SKU: ${detailItem.id || 'N/A'}`}
+              onClose={() => setDetailItem(null)}
+            />
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem', marginTop: '0.5rem' }}>
+              {/* Top Overview & Status */}
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.75rem', padding: '0.85rem 1rem', background: '#f8fafc', borderRadius: '10px', border: '1px solid #e2e8f0' }}>
+                <div>
+                  <div style={{ fontSize: '0.75rem', color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em', fontWeight: 600 }}>
+                    Current Stock Status
+                  </div>
+                  <div style={{ marginTop: '4px' }}>
+                    <StatusBadge status={detailItem.status} level={detailItem.stockLevel} />
+                  </div>
+                </div>
+
+                <div style={{ textAlign: 'right' }}>
+                  <div style={{ fontSize: '0.75rem', color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em', fontWeight: 600 }}>
+                    Available / Total
+                  </div>
+                  <div style={{ fontSize: '1.25rem', fontWeight: 700, color: '#0f172a', marginTop: '2px' }}>
+                    <span style={{ color: '#AF101A' }}>{detailItem.available ?? detailItem.quantity}</span>
+                    <span style={{ color: '#94a3b8', fontSize: '0.95rem' }}> / {detailItem.quantity} {detailItem.unit}</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Product Specifications Grid */}
+              <div className="admin-form-grid-2col" style={{ gap: '0.85rem' }}>
+                <div style={{ background: '#ffffff', border: '1px solid #e2e8f0', borderRadius: '8px', padding: '0.75rem 1rem' }}>
+                  <div style={{ fontSize: '0.75rem', color: '#64748b', fontWeight: 600 }}>Category</div>
+                  <div style={{ fontWeight: 600, color: '#1e293b', marginTop: '2px' }}>{detailItem.category || 'General'}</div>
+                </div>
+                <div style={{ background: '#ffffff', border: '1px solid #e2e8f0', borderRadius: '8px', padding: '0.75rem 1rem' }}>
+                  <div style={{ fontSize: '0.75rem', color: '#64748b', fontWeight: 600 }}>Item Type / Subcategory</div>
+                  <div style={{ fontWeight: 600, color: '#1e293b', marginTop: '2px' }}>{detailItem.itemType || '—'}</div>
+                </div>
+                <div style={{ background: '#ffffff', border: '1px solid #e2e8f0', borderRadius: '8px', padding: '0.75rem 1rem' }}>
+                  <div style={{ fontSize: '0.75rem', color: '#64748b', fontWeight: 600 }}>Brand</div>
+                  <div style={{ fontWeight: 600, color: '#1e293b', marginTop: '2px' }}>{detailItem.brand || 'Generic / Unbranded'}</div>
+                </div>
+                <div style={{ background: '#ffffff', border: '1px solid #e2e8f0', borderRadius: '8px', padding: '0.75rem 1rem' }}>
+                  <div style={{ fontSize: '0.75rem', color: '#64748b', fontWeight: 600 }}>Variant / Size</div>
+                  <div style={{ fontWeight: 600, color: '#1e293b', marginTop: '2px' }}>{detailItem.variant || 'Standard'}</div>
+                </div>
+              </div>
+
+              {/* Inventory Stock Breakdown */}
+              <div style={{ background: '#ffffff', border: '1px solid #e2e8f0', borderRadius: '10px', padding: '1rem' }}>
+                <div style={{ fontSize: '0.85rem', fontWeight: 700, color: '#1e293b', marginBottom: '0.75rem', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <Package size={15} color="#AF101A" /> Stock Breakdown
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '0.75rem', textAlign: 'center' }}>
+                  <div style={{ padding: '0.5rem', background: '#f8fafc', borderRadius: '6px' }}>
+                    <div style={{ fontSize: '0.72rem', color: '#64748b', fontWeight: 600 }}>Available</div>
+                    <div style={{ fontSize: '1.1rem', fontWeight: 700, color: '#16a34a', marginTop: '2px' }}>
+                      {detailItem.available ?? detailItem.quantity}
+                    </div>
+                  </div>
+                  <div style={{ padding: '0.5rem', background: '#f8fafc', borderRadius: '6px' }}>
+                    <div style={{ fontSize: '0.72rem', color: '#64748b', fontWeight: 600 }}>Allocated</div>
+                    <div style={{ fontSize: '1.1rem', fontWeight: 700, color: '#d97706', marginTop: '2px' }}>
+                      {detailItem.allocated || 0}
+                    </div>
+                  </div>
+                  <div style={{ padding: '0.5rem', background: '#f8fafc', borderRadius: '6px' }}>
+                    <div style={{ fontSize: '0.72rem', color: '#64748b', fontWeight: 600 }}>Distributed</div>
+                    <div style={{ fontSize: '1.1rem', fontWeight: 700, color: '#2563eb', marginTop: '2px' }}>
+                      {detailItem.distributed || 0}
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Threshold & Status Configuration */}
+              <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '10px', padding: '1rem' }}>
+                <div style={{ fontSize: '0.85rem', fontWeight: 700, color: '#1e293b', marginBottom: '0.65rem', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <Sliders size={15} color="#d97706" /> Configured Thresholds & Logic
+                </div>
+                <div className="admin-form-grid-2col" style={{ gap: '0.75rem' }}>
+                  <div style={{ background: '#ffffff', border: '1px solid #fecaca', borderRadius: '8px', padding: '0.65rem 0.85rem' }}>
+                    <div style={{ fontSize: '0.72rem', color: '#b91c1c', fontWeight: 700, textTransform: 'uppercase' }}>
+                      Low Stock Threshold
+                    </div>
+                    <div style={{ fontSize: '1.15rem', fontWeight: 700, color: '#dc2626', marginTop: '2px' }}>
+                      {detailItem.lowStockThreshold || 100} <span style={{ fontSize: '0.8rem', fontWeight: 500, color: '#64748b' }}>{detailItem.unit}</span>
+                    </div>
+                    <div style={{ fontSize: '0.72rem', color: '#64748b', marginTop: '2px' }}>
+                      Triggers 🔴 Low Stock when available ≤ {detailItem.lowStockThreshold || 100}
+                    </div>
+                  </div>
+
+                  <div style={{ background: '#ffffff', border: '1px solid #fde68a', borderRadius: '8px', padding: '0.65rem 0.85rem' }}>
+                    <div style={{ fontSize: '0.72rem', color: '#b45309', fontWeight: 700, textTransform: 'uppercase' }}>
+                      Moderate Stock Threshold
+                    </div>
+                    <div style={{ fontSize: '1.15rem', fontWeight: 700, color: '#d97706', marginTop: '2px' }}>
+                      {detailItem.moderateStockThreshold || (Number(detailItem.lowStockThreshold || 100) * 2)} <span style={{ fontSize: '0.8rem', fontWeight: 500, color: '#64748b' }}>{detailItem.unit}</span>
+                    </div>
+                    <div style={{ fontSize: '0.72rem', color: '#64748b', marginTop: '2px' }}>
+                      Triggers 🟡 Moderate stock level
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Modal Actions */}
+            <div className="admin-modal__actions" style={{ justifyContent: 'flex-end', gap: '0.65rem', marginTop: '1.25rem', paddingTop: '1rem' }}>
+              <button
+                type="button"
+                className="btn btn--ghost"
+                onClick={() => setDetailItem(null)}
+              >
+                Close
+              </button>
+              <button
+                type="button"
+                className="btn btn--primary"
+                onClick={() => {
+                  const target = detailItem
+                  setDetailItem(null)
+                  onEditItem(target)
+                }}
+              >
+                <Pencil size={13} style={{ marginRight: '4px' }} /> Edit Inventory
+              </button>
+            </div>
           </div>
         </div>
       )}

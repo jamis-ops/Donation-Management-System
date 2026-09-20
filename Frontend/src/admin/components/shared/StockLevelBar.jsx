@@ -4,7 +4,8 @@ export default function StockLevelBar({ level, percent, quantity, unit }) {
     moderate: { bar: '#d97706', bg: 'rgba(217,119,6,0.12)', label: 'Moderate' },
     low: { bar: '#dc2626', bg: 'rgba(220,38,38,0.12)', label: 'Low Stock' },
   }
-  const c = colors[level] || colors.sufficient
+  const normLevel = String(level || '').toLowerCase().trim()
+  const c = colors[normLevel] || (normLevel.includes('low') ? colors.low : normLevel.includes('mod') ? colors.moderate : colors.sufficient)
   const width = Math.min(100, Math.max(8, percent ?? 50))
 
   return (
