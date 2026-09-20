@@ -13,6 +13,7 @@ import {
   Layers3,
 } from 'lucide-react'
 import ModalHeader from './ModalHeader'
+import { Select } from '../../../components/ui/select'
 import { useInventoryCatalog } from '../../../hooks/useInventoryCatalog'
 
 export default function InKindIntakeModal({
@@ -180,8 +181,8 @@ export default function InKindIntakeModal({
           <div className="intake-items-list">
             {items.map((row, index) => {
               const typesForCat = getItemTypesByCategory(row.category)
-              const brandsForType = getBrandsByItemType(row.itemType)
-              const variantsForType = getVariantsByItemType(row.itemType)
+              const brandsForType = getBrandsByItemType(row.itemType, row.category)
+              const variantsForType = getVariantsByItemType(row.itemType, row.category)
               const assembled = assembleRowName(row)
 
               return (
@@ -209,19 +210,19 @@ export default function InKindIntakeModal({
                       <label className="text-xs font-semibold">
                         Category <span className="text-red-600">*</span>
                       </label>
-                      <input
-                        list={`intake-cat-list-${index}`}
+                      <Select
                         required
                         value={row.category}
                         onChange={(e) => handleUpdateItemRow(index, 'category', e.target.value)}
-                        className="form-input-enhanced form-input-sm"
-                        placeholder="Category..."
-                      />
-                      <datalist id={`intake-cat-list-${index}`}>
+                        className="form-select-sm"
+                      >
+                        <option value="" disabled>-- Category --</option>
                         {categories.map((c) => (
-                          <option key={c.id} value={c.name} />
+                          <option key={c.id || c.name} value={c.name}>
+                            {c.name}
+                          </option>
                         ))}
-                      </datalist>
+                      </Select>
                     </div>
 
                     {/* Item Type */}
@@ -229,19 +230,26 @@ export default function InKindIntakeModal({
                       <label className="text-xs font-semibold">
                         Item Type <span className="text-red-600">*</span>
                       </label>
-                      <input
-                        list={`intake-type-list-${index}`}
+                      <Select
                         required
+                        disabled={!row.category}
                         value={row.itemType}
                         onChange={(e) => handleUpdateItemRow(index, 'itemType', e.target.value)}
-                        className="form-input-enhanced form-input-sm"
-                        placeholder="e.g. Canned Goods, Rice..."
-                      />
-                      <datalist id={`intake-type-list-${index}`}>
-                        {typesForCat.map((t) => (
-                          <option key={t.id} value={t.name} />
-                        ))}
-                      </datalist>
+                        className="form-select-sm"
+                      >
+                        {!row.category ? (
+                          <option value="">-- Select Category First --</option>
+                        ) : (
+                          <>
+                            <option value="" disabled>-- Select Item Type --</option>
+                            {typesForCat.map((t) => (
+                              <option key={t.id || t.name} value={t.name}>
+                                {t.name}
+                              </option>
+                            ))}
+                          </>
+                        )}
+                      </Select>
                     </div>
 
                     {/* Brand */}
@@ -249,18 +257,26 @@ export default function InKindIntakeModal({
                       <label className="text-xs font-semibold">
                         Brand <span className="text-muted font-normal">(Optional)</span>
                       </label>
-                      <input
-                        list={`intake-brand-list-${index}`}
+                      <Select
+                        disabled={!row.itemType}
                         value={row.brand}
                         onChange={(e) => handleUpdateItemRow(index, 'brand', e.target.value)}
-                        className="form-input-enhanced form-input-sm"
-                        placeholder="e.g. Mega, Wilkins..."
-                      />
-                      <datalist id={`intake-brand-list-${index}`}>
-                        {brandsForType.map((b) => (
-                          <option key={b.id} value={b.name} />
-                        ))}
-                      </datalist>
+                        className="form-select-sm"
+                      >
+                        {!row.itemType ? (
+                          <option value="">-- Select Type First --</option>
+                        ) : (
+                          <>
+                            <option value="">-- Select or enter brand --</option>
+                            <option value="Generic / Unbranded">Generic / Unbranded</option>
+                            {brandsForType.map((b) => (
+                              <option key={b.id || b.name} value={b.name}>
+                                {b.name}
+                              </option>
+                            ))}
+                          </>
+                        )}
+                      </Select>
                     </div>
 
                     {/* Variant */}
@@ -268,18 +284,26 @@ export default function InKindIntakeModal({
                       <label className="text-xs font-semibold">
                         Variant / Size <span className="text-muted font-normal">(Optional)</span>
                       </label>
-                      <input
-                        list={`intake-var-list-${index}`}
+                      <Select
+                        disabled={!row.itemType}
                         value={row.variant}
                         onChange={(e) => handleUpdateItemRow(index, 'variant', e.target.value)}
-                        className="form-input-enhanced form-input-sm"
-                        placeholder="e.g. 155g, 500ml, XL..."
-                      />
-                      <datalist id={`intake-var-list-${index}`}>
-                        {variantsForType.map((v) => (
-                          <option key={v.id} value={v.name} />
-                        ))}
-                      </datalist>
+                        className="form-select-sm"
+                      >
+                        {!row.itemType ? (
+                          <option value="">-- Select Type First --</option>
+                        ) : (
+                          <>
+                            <option value="">-- e.g. 500ml, 155g, XL... --</option>
+                            <option value="Standard / Regular">Standard / Regular</option>
+                            {variantsForType.map((v) => (
+                              <option key={v.id || v.name} value={v.name}>
+                                {v.name}
+                              </option>
+                            ))}
+                          </>
+                        )}
+                      </Select>
                     </div>
 
                     {/* Quantity */}
@@ -302,25 +326,24 @@ export default function InKindIntakeModal({
                       <label className="text-xs font-semibold">
                         Unit <span className="text-red-600">*</span>
                       </label>
-                      <input
-                        list={`intake-unit-list-${index}`}
+                      <Select
                         required
                         value={row.unit}
                         onChange={(e) => handleUpdateItemRow(index, 'unit', e.target.value)}
-                        className="form-input-enhanced form-input-sm"
-                        placeholder="cans, pcs..."
-                      />
-                      <datalist id={`intake-unit-list-${index}`}>
+                        className="form-select-sm"
+                      >
                         {units.map((u) => (
-                          <option key={u.id} value={u.name} />
+                          <option key={u.id || u.name} value={u.name.toLowerCase()}>
+                            {u.name}
+                          </option>
                         ))}
-                        <option value="pcs" />
-                        <option value="cans" />
-                        <option value="bottles" />
-                        <option value="packs" />
-                        <option value="sacks" />
-                        <option value="boxes" />
-                      </datalist>
+                        <option value="pcs">pcs</option>
+                        <option value="bottles">bottles</option>
+                        <option value="cans">cans</option>
+                        <option value="packs">packs</option>
+                        <option value="sacks">sacks</option>
+                        <option value="boxes">boxes</option>
+                      </Select>
                     </div>
                   </div>
                 </div>

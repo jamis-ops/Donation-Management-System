@@ -189,45 +189,97 @@ export function useInventoryCatalog(options = {}) {
   )
 
   const getBrandsByItemType = useCallback(
-    (typeIdentifier) => {
+    (typeIdentifier, categoryIdentifier) => {
       const allBrands = Array.isArray(brands) ? brands : []
       const allTypes = Array.isArray(itemTypes) ? itemTypes : []
-      if (!typeIdentifier) return allBrands
+      const normCat = categoryIdentifier ? String(categoryIdentifier).trim().toLowerCase() : ''
+      const normType = typeIdentifier ? String(typeIdentifier).trim().toLowerCase() : ''
 
-      const t = allTypes.find(
-        (item) =>
-          item &&
-          (item.id === typeIdentifier ||
-            String(item.id) === String(typeIdentifier) ||
-            (item.name && item.name.toLowerCase() === String(typeIdentifier).toLowerCase()))
-      )
+      if (!normType && !normCat) return []
 
-      if (!t) return allBrands
-      return allBrands.filter(
-        (b) => b && (!b.itemTypeId || b.itemTypeId === t.id || !b.itemTypeName || b.itemTypeName === t.name)
-      )
+      const t = normType
+        ? allTypes.find(
+            (item) =>
+              item &&
+              (item.id === typeIdentifier ||
+                String(item.id) === String(typeIdentifier) ||
+                (item.name && item.name.toLowerCase() === normType))
+          )
+        : null
+
+      const effectiveCat = normCat || (t?.categoryName ? t.categoryName.toLowerCase() : '')
+
+      return allBrands.filter((b) => {
+        if (!b) return false
+        const bType = b.itemTypeName ? b.itemTypeName.toLowerCase() : ''
+        const bCat = b.categoryName ? b.categoryName.toLowerCase() : ''
+
+        if (t) {
+          if (bType && (bType === t.name.toLowerCase() || (b.itemTypeId && b.itemTypeId === t.id))) {
+            return true
+          }
+          // If brand has no specific item type, check if it matches the parent category
+          if (!bType && bCat && effectiveCat && bCat === effectiveCat) {
+            return true
+          }
+          return false
+        }
+
+        // If no item type chosen but category is provided
+        if (effectiveCat && bCat) {
+          return bCat === effectiveCat
+        }
+
+        return false
+      })
     },
     [itemTypes, brands]
   )
 
   const getVariantsByItemType = useCallback(
-    (typeIdentifier) => {
+    (typeIdentifier, categoryIdentifier) => {
       const allVariants = Array.isArray(variants) ? variants : []
       const allTypes = Array.isArray(itemTypes) ? itemTypes : []
-      if (!typeIdentifier) return allVariants
+      const normCat = categoryIdentifier ? String(categoryIdentifier).trim().toLowerCase() : ''
+      const normType = typeIdentifier ? String(typeIdentifier).trim().toLowerCase() : ''
 
-      const t = allTypes.find(
-        (item) =>
-          item &&
-          (item.id === typeIdentifier ||
-            String(item.id) === String(typeIdentifier) ||
-            (item.name && item.name.toLowerCase() === String(typeIdentifier).toLowerCase()))
-      )
+      if (!normType && !normCat) return []
 
-      if (!t) return allVariants
-      return allVariants.filter(
-        (v) => v && (!v.itemTypeId || v.itemTypeId === t.id || !v.itemTypeName || v.itemTypeName === t.name)
-      )
+      const t = normType
+        ? allTypes.find(
+            (item) =>
+              item &&
+              (item.id === typeIdentifier ||
+                String(item.id) === String(typeIdentifier) ||
+                (item.name && item.name.toLowerCase() === normType))
+          )
+        : null
+
+      const effectiveCat = normCat || (t?.categoryName ? t.categoryName.toLowerCase() : '')
+
+      return allVariants.filter((v) => {
+        if (!v) return false
+        const vType = v.itemTypeName ? v.itemTypeName.toLowerCase() : ''
+        const vCat = v.categoryName ? v.categoryName.toLowerCase() : ''
+
+        if (t) {
+          if (vType && (vType === t.name.toLowerCase() || (v.itemTypeId && v.itemTypeId === t.id))) {
+            return true
+          }
+          // If variant has no specific item type (e.g. clothing sizes), check if it matches category
+          if (!vType && vCat && effectiveCat && vCat === effectiveCat) {
+            return true
+          }
+          return false
+        }
+
+        // If no item type chosen but category is provided
+        if (effectiveCat && vCat) {
+          return vCat === effectiveCat
+        }
+
+        return false
+      })
     },
     [itemTypes, variants]
   )

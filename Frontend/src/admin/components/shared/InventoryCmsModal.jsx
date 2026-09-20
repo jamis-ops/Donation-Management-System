@@ -16,6 +16,7 @@ import {
   Filter,
 } from 'lucide-react'
 import ModalHeader from './ModalHeader'
+import { Select } from '../../../components/ui/select'
 import { inventoryCatalogApi } from '../../../api/resources'
 import { notify, confirmAction, showSuccessModal } from '../../../utils/confirm'
 import { useLoading } from '../../../context/LoadingContext'
@@ -469,8 +470,7 @@ export default function InventoryCmsModal({ open, onClose }) {
                     <label className="text-xs font-semibold block mb-1">
                       Parent Category <span className="text-muted font-normal">(Optional)</span>
                     </label>
-                    <select
-                      className="form-select-enhanced"
+                    <Select
                       value={formParentId}
                       onChange={(e) => setFormParentId(e.target.value)}
                     >
@@ -478,7 +478,7 @@ export default function InventoryCmsModal({ open, onClose }) {
                       {categories.map((c) => (
                         <option key={c.id} value={String(c.id)}>{c.name}</option>
                       ))}
-                    </select>
+                    </Select>
                   </div>
                 )}
 
@@ -487,8 +487,7 @@ export default function InventoryCmsModal({ open, onClose }) {
                     <label className="text-xs font-semibold block mb-1">
                       Parent Item Type <span className="text-muted font-normal">(Optional)</span>
                     </label>
-                    <select
-                      className="form-select-enhanced"
+                    <Select
                       value={formParentId}
                       onChange={(e) => setFormParentId(e.target.value)}
                     >
@@ -496,7 +495,7 @@ export default function InventoryCmsModal({ open, onClose }) {
                       {itemTypes.map((t) => (
                         <option key={t.id} value={String(t.id)}>{t.name}</option>
                       ))}
-                    </select>
+                    </Select>
                   </div>
                 )}
 

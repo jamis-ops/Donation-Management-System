@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo } from 'react'
 import { Package, Layers, Tag, Ruler, Hash, AlertTriangle, Sparkles, Check, X } from 'lucide-react'
 import ModalHeader from '../../admin/components/shared/ModalHeader'
+import { FormSelect, Select } from '../ui/select'
 import { useInventoryCatalog } from '../../hooks/useInventoryCatalog'
 
 export default function InventoryItemModal({
@@ -21,12 +22,15 @@ export default function InventoryItemModal({
   const [itemType, setItemType] = useState('')
   const [isCustomItemType, setIsCustomItemType] = useState(false)
   const [brand, setBrand] = useState('')
+  const [isCustomBrand, setIsCustomBrand] = useState(false)
   const [variant, setVariant] = useState('')
+  const [isCustomVariant, setIsCustomVariant] = useState(false)
   const [customItemName, setCustomItemName] = useState('')
   const [useCustomName, setUseCustomName] = useState(false)
   
   const [quantity, setQuantity] = useState('0')
   const [unit, setUnit] = useState('pcs')
+  const [isCustomUnit, setIsCustomUnit] = useState(false)
   const [lowStockThreshold, setLowStockThreshold] = useState('100')
   const [moderateStockThreshold, setModerateStockThreshold] = useState('')
   const [allocated, setAllocated] = useState('0')
@@ -92,9 +96,12 @@ export default function InventoryItemModal({
       setIsCustomItemType(false)
 
       setBrand(initialData.brand || '')
+      setIsCustomBrand(false)
       setVariant(initialData.variant || '')
+      setIsCustomVariant(false)
       setQuantity(String(initialData.quantity ?? '0'))
       setUnit(initialData.unit || 'pcs')
+      setIsCustomUnit(false)
       setLowStockThreshold(String(initialData.lowStockThreshold ?? '100'))
       setModerateStockThreshold(initialData.moderateStockThreshold ? String(initialData.moderateStockThreshold) : '')
       setAllocated(String(initialData.allocated ?? '0'))
@@ -115,11 +122,14 @@ export default function InventoryItemModal({
       setItemType(presetItemType || '')
       setIsCustomItemType(false)
       setBrand('')
+      setIsCustomBrand(false)
       setVariant('')
+      setIsCustomVariant(false)
       setCustomItemName('')
       setUseCustomName(false)
       setQuantity('0')
       setUnit('pcs')
+      setIsCustomUnit(false)
       setLowStockThreshold('50')
       setModerateStockThreshold('')
       setAllocated('0')
@@ -157,12 +167,92 @@ export default function InventoryItemModal({
   }, [category, getItemTypesByCategory, existingItems])
 
   const availableBrands = useMemo(() => {
-    return getBrandsByItemType(itemType)
-  }, [itemType, getBrandsByItemType])
+    const list = getBrandsByItemType(itemType, category)
+    const map = new Map()
+    if (Array.isArray(list)) {
+      list.forEach((b) => {
+        if (b && b.name && b.name.trim()) {
+          map.set(b.name.trim().toLowerCase(), { ...b, name: b.name.trim() })
+        }
+      })
+    }
+    // Include existing item brand if editing to preserve existing data
+    if (initialData?.brand && initialData.brand.trim()) {
+      const bName = initialData.brand.trim()
+      if (!map.has(bName.toLowerCase())) {
+        map.set(bName.toLowerCase(), { id: `ext-brand-${bName}`, name: bName })
+      }
+    }
+    // Also include any brands from existingItems matching same category/itemType
+    if (Array.isArray(existingItems) && itemType) {
+      existingItems.forEach((it) => {
+        if (
+          it &&
+          it.brand &&
+          it.brand.trim() &&
+          it.itemType &&
+          it.itemType.toLowerCase() === itemType.toLowerCase()
+        ) {
+          const name = it.brand.trim()
+          if (!map.has(name.toLowerCase())) {
+            map.set(name.toLowerCase(), { id: `ext-${name}`, name })
+          }
+        }
+      })
+    }
+    return Array.from(map.values())
+  }, [itemType, category, getBrandsByItemType, initialData, existingItems])
 
   const availableVariants = useMemo(() => {
-    return getVariantsByItemType(itemType)
-  }, [itemType, getVariantsByItemType])
+    const list = getVariantsByItemType(itemType, category)
+    const map = new Map()
+    if (Array.isArray(list)) {
+      list.forEach((v) => {
+        if (v && v.name && v.name.trim()) {
+          map.set(v.name.trim().toLowerCase(), { ...v, name: v.name.trim() })
+        }
+      })
+    }
+    // Include existing item variant if editing to preserve existing data
+    if (initialData?.variant && initialData.variant.trim()) {
+      const vName = initialData.variant.trim()
+      if (!map.has(vName.toLowerCase())) {
+        map.set(vName.toLowerCase(), { id: `ext-var-${vName}`, name: vName })
+      }
+    }
+    // Also include any variants from existingItems matching same category/itemType
+    if (Array.isArray(existingItems) && itemType) {
+      existingItems.forEach((it) => {
+        if (
+          it &&
+          it.variant &&
+          it.variant.trim() &&
+          it.itemType &&
+          it.itemType.toLowerCase() === itemType.toLowerCase()
+        ) {
+          const name = it.variant.trim()
+          if (!map.has(name.toLowerCase())) {
+            map.set(name.toLowerCase(), { id: `ext-${name}`, name })
+          }
+        }
+      })
+    }
+    return Array.from(map.values())
+  }, [itemType, category, getVariantsByItemType, initialData, existingItems])
+
+  const availableUnits = useMemo(() => {
+    const standard = ['pcs', 'bottles', 'cans', 'sacks', 'packs', 'boxes', 'kits', 'pairs', 'kg', 'gallons', 'liters']
+    const set = new Set(standard)
+    if (Array.isArray(units)) {
+      units.forEach((u) => {
+        if (u && u.name) set.add(u.name.toLowerCase())
+      })
+    }
+    if (initialData?.unit && initialData.unit.trim()) {
+      set.add(initialData.unit.trim().toLowerCase())
+    }
+    return Array.from(set)
+  }, [units, initialData])
 
   // Auto-assembled item name from hierarchy
   const autoGeneratedName = useMemo(() => {
@@ -227,38 +317,43 @@ export default function InventoryItemModal({
             </p>
 
             <div className="form-row form-row--2">
-              <label>
-                <span className="form-label-with-icon">
-                  <Package size={14} /> Category <span className="text-red-600">*</span>
-                </span>
-                {!isCustomCategory ? (
-                  <select
-                    required
-                    value={category}
-                    onChange={(e) => {
-                      if (e.target.value === '__custom__') {
-                        setIsCustomCategory(true)
-                        setCategory('')
-                      } else {
-                        setCategory(e.target.value)
-                      }
-                      setItemType('')
-                      setBrand('')
-                      setVariant('')
-                      setIsCustomItemType(false)
-                    }}
-                    className="form-input-enhanced"
-                    style={{ fontWeight: 600 }}
-                  >
-                    <option value="" disabled>-- Select Category --</option>
-                    {allCategoriesList.map((c) => (
-                      <option key={c.name} value={c.name}>
-                        {c.name}
-                      </option>
-                    ))}
-                    <option value="__custom__">+ Custom Category...</option>
-                  </select>
-                ) : (
+              {/* Category */}
+              {!isCustomCategory ? (
+                <FormSelect
+                  label="Category"
+                  icon={Package}
+                  required
+                  value={category}
+                  onChange={(e) => {
+                    if (e.target.value === '__custom__') {
+                      setIsCustomCategory(true)
+                      setCategory('')
+                    } else {
+                      setCategory(e.target.value)
+                    }
+                    setItemType('')
+                    setBrand('')
+                    setVariant('')
+                    setIsCustomItemType(false)
+                    setIsCustomBrand(false)
+                    setIsCustomVariant(false)
+                  }}
+                >
+                  <option value="" disabled>-- Select Category --</option>
+                  {allCategoriesList.map((c) => (
+                    <option key={c.name} value={c.name}>
+                      {c.name}
+                    </option>
+                  ))}
+                  <option value="__custom__">+ Custom Category...</option>
+                </FormSelect>
+              ) : (
+                <div className="form-select-group">
+                  <span className="form-label-with-icon">
+                    <Package size={14} className="form-label-icon" />
+                    <span className="form-label-title">Category</span>
+                    <span className="text-red-600 font-bold ml-0.5">*</span>
+                  </span>
                   <div style={{ display: 'flex', gap: '6px' }}>
                     <input
                       type="text"
@@ -288,38 +383,59 @@ export default function InventoryItemModal({
                       Choose list
                     </button>
                   </div>
-                )}
-              </label>
+                </div>
+              )}
 
-              <label>
-                <span className="form-label-with-icon">
-                  <Layers size={14} /> Item Type <span className="text-red-600">*</span>
-                </span>
-                {!isCustomItemType && availableItemTypes.length > 0 ? (
-                  <select
-                    required={!useCustomName}
-                    value={availableItemTypes.some(t => t.name.toLowerCase() === (itemType || '').toLowerCase()) ? itemType : (itemType ? '__custom__' : '')}
-                    onChange={(e) => {
-                      if (e.target.value === '__custom__') {
-                        setIsCustomItemType(true)
-                        setItemType('')
-                      } else {
-                        setItemType(e.target.value)
-                        setBrand('')
-                        setVariant('')
-                      }
-                    }}
-                    className="form-input-enhanced"
-                  >
-                    <option value="" disabled>-- Select {category || 'Item'} Type --</option>
-                    {availableItemTypes.map((t) => (
-                      <option key={t.id || t.name} value={t.name}>
-                        {t.name}
-                      </option>
-                    ))}
-                    <option value="__custom__">+ Custom Item Type...</option>
-                  </select>
-                ) : (
+              {/* Item Type */}
+              {!isCustomItemType && (!category || availableItemTypes.length > 0) ? (
+                <FormSelect
+                  label="Item Type"
+                  icon={Layers}
+                  required={!useCustomName}
+                  disabled={!category}
+                  value={
+                    !category
+                      ? ''
+                      : availableItemTypes.some((t) => t.name.toLowerCase() === (itemType || '').toLowerCase())
+                      ? itemType
+                      : itemType
+                      ? '__custom__'
+                      : ''
+                  }
+                  onChange={(e) => {
+                    if (e.target.value === '__custom__') {
+                      setIsCustomItemType(true)
+                      setItemType('')
+                    } else {
+                      setItemType(e.target.value)
+                    }
+                    setBrand('')
+                    setVariant('')
+                    setIsCustomBrand(false)
+                    setIsCustomVariant(false)
+                  }}
+                >
+                  {!category ? (
+                    <option value="">-- Select Category First --</option>
+                  ) : (
+                    <>
+                      <option value="" disabled>-- Select {category} Type --</option>
+                      {availableItemTypes.map((t) => (
+                        <option key={t.id || t.name} value={t.name}>
+                          {t.name}
+                        </option>
+                      ))}
+                      <option value="__custom__">+ Custom Item Type...</option>
+                    </>
+                  )}
+                </FormSelect>
+              ) : (
+                <div className="form-select-group">
+                  <span className="form-label-with-icon">
+                    <Layers size={14} className="form-label-icon" />
+                    <span className="form-label-title">Item Type</span>
+                    <span className="text-red-600 font-bold ml-0.5">*</span>
+                  </span>
                   <div style={{ display: 'flex', gap: '6px' }}>
                     <input
                       type="text"
@@ -335,60 +451,166 @@ export default function InventoryItemModal({
                       style={{ flex: 1 }}
                       autoFocus={isCustomItemType}
                     />
-                    {availableItemTypes.length > 0 && (
-                      <button
-                        type="button"
-                        className="btn btn--ghost btn--xs"
-                        onClick={() => {
-                          setIsCustomItemType(false)
-                          setItemType(availableItemTypes[0]?.name || '')
-                        }}
-                        title="Choose from list"
-                      >
-                        Choose list
-                      </button>
-                    )}
+                    <button
+                      type="button"
+                      className="btn btn--ghost btn--xs"
+                      onClick={() => {
+                        setIsCustomItemType(false)
+                        setItemType(availableItemTypes[0]?.name || '')
+                      }}
+                      title="Choose from list"
+                    >
+                      Choose list
+                    </button>
                   </div>
-                )}
-              </label>
+                </div>
+              )}
             </div>
 
             <div className="form-row form-row--2">
-              <label>
-                <span className="form-label-with-icon">
-                  <Tag size={14} /> Brand / Manufacturer <span className="field-hint-inline">(Optional)</span>
-                </span>
-                <input
-                  list="inv-modal-brand-list"
-                  value={brand}
-                  onChange={(e) => setBrand(e.target.value)}
-                  placeholder="e.g. Nature's Spring, Wilkins, Mega..."
-                  className="form-input-enhanced"
-                />
-                <datalist id="inv-modal-brand-list">
-                  {availableBrands.map((b) => (
-                    <option key={b.id || b.name} value={b.name} />
-                  ))}
-                </datalist>
-              </label>
+              {/* Brand / Manufacturer */}
+              {!isCustomBrand ? (
+                <FormSelect
+                  label="Brand / Manufacturer"
+                  icon={Tag}
+                  optional
+                  disabled={!itemType}
+                  value={
+                    !itemType
+                      ? ''
+                      : availableBrands.some((b) => b.name.toLowerCase() === (brand || '').toLowerCase()) ||
+                        brand === 'Generic / Unbranded' ||
+                        brand === ''
+                      ? brand
+                      : '__custom__'
+                  }
+                  onChange={(e) => {
+                    if (e.target.value === '__custom__') {
+                      setIsCustomBrand(true)
+                      setBrand('')
+                    } else {
+                      setBrand(e.target.value)
+                    }
+                  }}
+                >
+                  {!itemType ? (
+                    <option value="">-- Select Item Type First --</option>
+                  ) : (
+                    <>
+                      <option value="">-- Select or enter brand --</option>
+                      <option value="Generic / Unbranded">Generic / Unbranded</option>
+                      {availableBrands.map((b) => (
+                        <option key={b.id || b.name} value={b.name}>
+                          {b.name}
+                        </option>
+                      ))}
+                      <option value="__custom__">+ Custom Brand...</option>
+                    </>
+                  )}
+                </FormSelect>
+              ) : (
+                <div className="form-select-group">
+                  <span className="form-label-with-icon">
+                    <Tag size={14} className="form-label-icon" />
+                    <span className="form-label-title">Brand / Manufacturer</span>
+                    <span className="field-hint-inline">(Optional)</span>
+                  </span>
+                  <div style={{ display: 'flex', gap: '6px' }}>
+                    <input
+                      type="text"
+                      value={brand}
+                      onChange={(e) => setBrand(e.target.value)}
+                      placeholder="e.g. Nature's Spring, Wilkins, Mega..."
+                      className="form-input-enhanced"
+                      style={{ flex: 1 }}
+                      autoFocus
+                    />
+                    <button
+                      type="button"
+                      className="btn btn--ghost btn--xs"
+                      onClick={() => {
+                        setIsCustomBrand(false)
+                        setBrand('')
+                      }}
+                      title="Choose from list"
+                    >
+                      Choose list
+                    </button>
+                  </div>
+                </div>
+              )}
 
-              <label>
-                <span className="form-label-with-icon">
-                  <Ruler size={14} /> Variant / Size / Spec <span className="field-hint-inline">(Optional)</span>
-                </span>
-                <input
-                  list="inv-modal-variant-list"
-                  value={variant}
-                  onChange={(e) => setVariant(e.target.value)}
-                  placeholder="e.g. 500ml, 155g, XL, 25kg..."
-                  className="form-input-enhanced"
-                />
-                <datalist id="inv-modal-variant-list">
-                  {availableVariants.map((v) => (
-                    <option key={v.id || v.name} value={v.name} />
-                  ))}
-                </datalist>
-              </label>
+              {/* Variant / Size / Spec */}
+              {!isCustomVariant ? (
+                <FormSelect
+                  label="Variant / Size / Spec"
+                  icon={Ruler}
+                  optional
+                  disabled={!itemType}
+                  value={
+                    !itemType
+                      ? ''
+                      : availableVariants.some((v) => v.name.toLowerCase() === (variant || '').toLowerCase()) ||
+                        variant === 'Standard / Regular' ||
+                        variant === ''
+                      ? variant
+                      : '__custom__'
+                  }
+                  onChange={(e) => {
+                    if (e.target.value === '__custom__') {
+                      setIsCustomVariant(true)
+                      setVariant('')
+                    } else {
+                      setVariant(e.target.value)
+                    }
+                  }}
+                >
+                  {!itemType ? (
+                    <option value="">-- Select Item Type First --</option>
+                  ) : (
+                    <>
+                      <option value="">-- e.g. 500ml, 155g, XL, 25kg... --</option>
+                      <option value="Standard / Regular">Standard / Regular</option>
+                      {availableVariants.map((v) => (
+                        <option key={v.id || v.name} value={v.name}>
+                          {v.name}
+                        </option>
+                      ))}
+                      <option value="__custom__">+ Custom Spec / Size...</option>
+                    </>
+                  )}
+                </FormSelect>
+              ) : (
+                <div className="form-select-group">
+                  <span className="form-label-with-icon">
+                    <Ruler size={14} className="form-label-icon" />
+                    <span className="form-label-title">Variant / Size / Spec</span>
+                    <span className="field-hint-inline">(Optional)</span>
+                  </span>
+                  <div style={{ display: 'flex', gap: '6px' }}>
+                    <input
+                      type="text"
+                      value={variant}
+                      onChange={(e) => setVariant(e.target.value)}
+                      placeholder="e.g. 500ml, 155g, XL, 25kg..."
+                      className="form-input-enhanced"
+                      style={{ flex: 1 }}
+                      autoFocus
+                    />
+                    <button
+                      type="button"
+                      className="btn btn--ghost btn--xs"
+                      onClick={() => {
+                        setIsCustomVariant(false)
+                        setVariant('')
+                      }}
+                      title="Choose from list"
+                    >
+                      Choose list
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* Assembled Item Preview */}
@@ -432,7 +654,10 @@ export default function InventoryItemModal({
 
             <div className="form-row form-row--2">
               <label>
-                <span>Stock Quantity <span className="text-red-600">*</span></span>
+                <span className="form-label-with-icon">
+                  <span className="form-label-title">Stock Quantity</span>
+                  <span className="text-red-600 font-bold ml-0.5">*</span>
+                </span>
                 <input
                   type="number"
                   min="0"
@@ -443,35 +668,71 @@ export default function InventoryItemModal({
                 />
               </label>
 
-              <label>
-                <span>Unit of Measurement <span className="text-red-600">*</span></span>
-                <input
-                  list="inv-modal-unit-list"
+              {!isCustomUnit ? (
+                <FormSelect
+                  label="Unit of Measurement"
                   required
-                  value={unit}
-                  onChange={(e) => setUnit(e.target.value)}
-                  placeholder="e.g. bottles, cans, packs, kg, pcs..."
-                  className="form-input-enhanced"
-                />
-                <datalist id="inv-modal-unit-list">
-                  {units.map((u) => (
-                    <option key={u.id} value={u.name} />
+                  value={
+                    availableUnits.includes((unit || '').toLowerCase())
+                      ? (unit || '').toLowerCase()
+                      : unit
+                      ? '__custom__'
+                      : 'pcs'
+                  }
+                  onChange={(e) => {
+                    if (e.target.value === '__custom__') {
+                      setIsCustomUnit(true)
+                      setUnit('')
+                    } else {
+                      setUnit(e.target.value)
+                    }
+                  }}
+                >
+                  {availableUnits.map((u) => (
+                    <option key={u} value={u}>
+                      {u}
+                    </option>
                   ))}
-                  <option value="pcs" />
-                  <option value="bottles" />
-                  <option value="cans" />
-                  <option value="packs" />
-                  <option value="sacks" />
-                  <option value="boxes" />
-                  <option value="kg" />
-                  <option value="liters" />
-                </datalist>
-              </label>
+                  <option value="__custom__">+ Custom Unit...</option>
+                </FormSelect>
+              ) : (
+                <div className="form-select-group">
+                  <span className="form-label-with-icon">
+                    <span className="form-label-title">Unit of Measurement</span>
+                    <span className="text-red-600 font-bold ml-0.5">*</span>
+                  </span>
+                  <div style={{ display: 'flex', gap: '6px' }}>
+                    <input
+                      type="text"
+                      required
+                      value={unit}
+                      onChange={(e) => setUnit(e.target.value)}
+                      placeholder="e.g. bundles, crates..."
+                      className="form-input-enhanced"
+                      style={{ flex: 1 }}
+                      autoFocus
+                    />
+                    <button
+                      type="button"
+                      className="btn btn--ghost btn--xs"
+                      onClick={() => {
+                        setIsCustomUnit(false)
+                        setUnit('pcs')
+                      }}
+                      title="Choose from list"
+                    >
+                      Choose list
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
 
             <div className="form-row form-row--2">
               <label>
-                <span>Low Stock Threshold</span>
+                <span className="form-label-with-icon">
+                  <span className="form-label-title">Low Stock Threshold</span>
+                </span>
                 <input
                   type="number"
                   min="0"
@@ -483,14 +744,17 @@ export default function InventoryItemModal({
               </label>
 
               <label>
-                <span>Moderate Stock Threshold <span className="field-hint-inline">(Optional)</span></span>
+                <span className="form-label-with-icon">
+                  <span className="form-label-title">Moderate Stock Threshold</span>
+                  <span className="field-hint-inline">(Optional)</span>
+                </span>
                 <input
                   type="number"
                   min="0"
                   value={moderateStockThreshold}
                   onChange={(e) => setModerateStockThreshold(e.target.value)}
                   className="form-input-enhanced"
-                  placeholder="Defaults to 2× Low"
+                  placeholder="e.g. 150"
                 />
               </label>
             </div>
