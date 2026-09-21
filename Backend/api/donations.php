@@ -16,6 +16,14 @@ function ensure_donation_classified_columns(PDO $pdo): void
     ensure_column($pdo, 'donations', 'classified_items_json', 'TEXT NULL');
     ensure_column($pdo, 'donations', 'payment_reference', 'VARCHAR(100) NULL AFTER payment_method');
     ensure_column($pdo, 'donations', 'payment_method', 'VARCHAR(120) NULL');
+    ensure_column($pdo, 'donations', 'ai_extracted_amount', 'DECIMAL(12,2) NULL');
+    ensure_column($pdo, 'donations', 'ai_extracted_reference', 'VARCHAR(100) NULL');
+    ensure_column($pdo, 'donations', 'ai_extracted_method', 'VARCHAR(100) NULL');
+    ensure_column($pdo, 'donations', 'ai_verification_status', 'VARCHAR(50) NULL DEFAULT "Unverified"');
+    ensure_column($pdo, 'donations', 'ai_confidence', 'VARCHAR(50) NULL');
+    ensure_column($pdo, 'donations', 'ai_verification_notes', 'TEXT NULL');
+    ensure_column($pdo, 'donations', 'is_amount_manually_adjusted', 'TINYINT(1) NOT NULL DEFAULT 0');
+    ensure_column($pdo, 'donations', 'ai_verified_at', 'DATETIME NULL');
   } catch (Throwable $e) {}
   $done = true;
 }
@@ -141,6 +149,14 @@ function map_donation(array $row, ?PDO $pdo = null): array
     'proofUrl' => $hasProof
       ? ('/api/file.php?kind=donation_proofs&name=' . rawurlencode(basename((string) $proofPath)))
       : null,
+    'aiExtractedAmount' => isset($row['ai_extracted_amount']) && $row['ai_extracted_amount'] !== null ? (float) $row['ai_extracted_amount'] : null,
+    'aiExtractedReference' => $row['ai_extracted_reference'] ?? null,
+    'aiExtractedMethod' => $row['ai_extracted_method'] ?? null,
+    'aiVerificationStatus' => $row['ai_verification_status'] ?? 'Unverified',
+    'aiConfidence' => $row['ai_confidence'] ?? null,
+    'aiVerificationNotes' => $row['ai_verification_notes'] ?? null,
+    'isAmountManuallyAdjusted' => !empty($row['is_amount_manually_adjusted']),
+    'aiVerifiedAt' => $row['ai_verified_at'] ?? null,
   ];
 }
 
@@ -464,6 +480,31 @@ if ($method === 'POST') {
   $category = trim((string) ($body['category'] ?? '')) ?: null;
 
   $proof = $isMultipart ? save_donation_proof_upload() : null;
+  if (!$proof && !empty($body['tempProofToken'])) {
+    $safeToken = basename((string) $body['tempProofToken']);
+    $tokenFullPath = __DIR__ . '/uploads/donation_proofs/' . $safeToken;
+    if (file_exists($tokenFullPath)) {
+      $proof = [
+        'path' => $safeToken,
+        'name' => (string) ($body['proofFileName'] ?? $safeToken),
+        'type' => mime_content_type($tokenFullPath) ?: 'image/jpeg',
+      ];
+    }
+  }
+
+  $aiExtractedAmount = (isset($body['aiExtractedAmount']) && is_numeric($body['aiExtractedAmount']))
+    ? (float) $body['aiExtractedAmount']
+    : (isset($body['ai_extracted_amount']) && is_numeric($body['ai_extracted_amount']) ? (float) $body['ai_extracted_amount'] : null);
+  $aiExtractedReference = trim((string) ($body['aiExtractedReference'] ?? $body['ai_extracted_reference'] ?? '')) ?: null;
+  $aiExtractedMethod = trim((string) ($body['aiExtractedMethod'] ?? $body['ai_extracted_method'] ?? '')) ?: null;
+  $aiVerificationStatus = trim((string) ($body['aiVerificationStatus'] ?? $body['ai_verification_status'] ?? 'Unverified'));
+  $aiConfidence = trim((string) ($body['aiConfidence'] ?? $body['ai_confidence'] ?? '')) ?: null;
+  $aiVerificationNotes = trim((string) ($body['aiVerificationNotes'] ?? $body['ai_verification_notes'] ?? '')) ?: null;
+  $isAmountAdjusted = !empty($body['isAmountManuallyAdjusted']) || !empty($body['is_amount_manually_adjusted']);
+  if ($aiExtractedAmount !== null && $amount !== null && abs($amount - $aiExtractedAmount) > 0.009) {
+    $isAmountAdjusted = true;
+  }
+  $aiVerifiedAt = ($aiVerificationStatus !== 'Unverified' && $aiVerificationStatus !== '') ? date('Y-m-d H:i:s') : null;
 
   if ($donorEmail !== '') {
     $donorEmail = require_valid_email($donorEmail, 'Donor email');
@@ -569,8 +610,8 @@ if ($method === 'POST') {
 
   $stmt = $pdo->prepare('
     INSERT INTO donations
-      (tracking_code, donor_id, donor_name, donor_email, type, category, amount, items_description, status, donation_date, notes, payment_method, payment_reference, proof_path, proof_file_name, proof_file_type)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      (tracking_code, donor_id, donor_name, donor_email, type, category, amount, items_description, status, donation_date, notes, payment_method, payment_reference, proof_path, proof_file_name, proof_file_type, ai_extracted_amount, ai_extracted_reference, ai_extracted_method, ai_verification_status, ai_confidence, ai_verification_notes, is_amount_manually_adjusted, ai_verified_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   ');
   $stmt->execute([
     $tracking,
@@ -589,6 +630,14 @@ if ($method === 'POST') {
     $proof['path'] ?? null,
     $proof['name'] ?? null,
     $proof['type'] ?? null,
+    $aiExtractedAmount,
+    $aiExtractedReference,
+    $aiExtractedMethod,
+    $aiVerificationStatus,
+    $aiConfidence,
+    $aiVerificationNotes,
+    $isAmountAdjusted ? 1 : 0,
+    $aiVerifiedAt,
   ]);
 
   $newId = (int) $pdo->lastInsertId();
@@ -596,7 +645,17 @@ if ($method === 'POST') {
   $stmt->execute([$newId]);
   $donation = map_donation($stmt->fetch());
   $actor = $isLoggedInDonor ? $authenticatedUser : ($public ? ['name' => 'Public Donor'] : ($user ?? current_user()));
-  record_donation_update($pdo, $newId, 'Donation Received', 'Donation submitted and tracking code issued.', is_array($actor) ? $actor : null);
+
+  $timelineNote = 'Donation submitted and tracking code issued.';
+  if ($aiVerificationStatus === 'verified') {
+    $timelineNote .= " AI Proof Verification: Verified ({$aiExtractedMethod}, Extracted ₱" . number_format($aiExtractedAmount ?: 0, 2) . ($aiExtractedReference ? ", Ref: {$aiExtractedReference}" : '') . ').';
+  } elseif ($aiVerificationStatus === 'needs_review') {
+    $timelineNote .= " AI Proof Verification: Flagged for Staff Review (" . ($aiVerificationNotes ?: 'Awaiting manual verification') . ').';
+  }
+  if ($isAmountAdjusted && $aiExtractedAmount !== null) {
+    $timelineNote .= " Amount manually adjusted by donor from ₱" . number_format($aiExtractedAmount, 2) . " to ₱" . number_format($amount ?: 0, 2) . ".";
+  }
+  record_donation_update($pdo, $newId, 'Donation Received', $timelineNote, is_array($actor) ? $actor : null);
   notify_admins($pdo, 'donation', 'New donation received', "{$donation['donor']} submitted {$donation['amount']} ({$donation['trackingCode']})", '/admin/donations');
   audit_log($pdo, 'create', 'donation', $tracking, "{$donorName} donated {$donation['amount']}", $isLoggedInDonor ? ['name' => $donorName, 'role' => 'Donor'] : ($public ? ['name' => $donorName, 'role' => 'Public'] : null));
   json_response(['ok' => true, 'data' => $donation], 201);

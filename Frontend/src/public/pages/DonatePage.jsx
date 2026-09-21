@@ -4,9 +4,9 @@ import {
   Building2, User, MapPin, CreditCard, Copy, Check, QrCode, 
   Landmark, Wallet, Globe, ShieldCheck, Info, FileText,
   Edit3, HeartHandshake, AlertCircle, RefreshCw, CheckCircle2,
-  Package, LogIn
+  Package, LogIn, UploadCloud, AlertTriangle, XCircle, Trash2, Edit2
 } from 'lucide-react'
-import { submitPublicDonation, getDonorProfile, paymentMethodsApi } from '../../api/resources'
+import { submitPublicDonation, getDonorProfile, paymentMethodsApi, verifyPaymentProof } from '../../api/resources'
 import { useAuth } from '../../context/AuthContext'
 import { DONOR_TYPES } from '../../constants/options'
 import { COUNTRIES, getRegionsForCountry } from '../../constants/locations'
@@ -219,6 +219,13 @@ export default function DonatePage() {
   const [paymentMethods, setPaymentMethods] = useState(FALLBACK_PAYMENT_METHODS)
   const [methodsLoading, setMethodsLoading] = useState(true)
 
+  const [aiState, setAiState] = useState('idle') // 'idle' | 'analyzing' | 'verified' | 'needs_review' | 'invalid'
+  const [aiResult, setAiResult] = useState(null)
+  const [tempProofToken, setTempProofToken] = useState('')
+  const [proofPreviewUrl, setProofPreviewUrl] = useState(null)
+  const [isAmountManuallyAdjusted, setIsAmountManuallyAdjusted] = useState(false)
+  const [isDragOver, setIsDragOver] = useState(false)
+
   const [donorProfile, setDonorProfile] = useState(null)
   const [profileLoading, setProfileLoading] = useState(false)
   const [profileError, setProfileError] = useState('')
@@ -300,6 +307,16 @@ export default function DonatePage() {
   }, [paymentMethods, form.paymentMethod])
 
   const resetForm = () => {
+    setAiState('idle')
+    setAiResult(null)
+    setTempProofToken('')
+    if (proofPreviewUrl) {
+      URL.revokeObjectURL(proofPreviewUrl)
+    }
+    setProofPreviewUrl(null)
+    setIsAmountManuallyAdjusted(false)
+    setIsDragOver(false)
+
     if (isLoggedInDonor && donorProfile) {
       const nameParts = (donorProfile.firstName || donorProfile.lastName)
         ? { firstName: donorProfile.firstName || '', lastName: donorProfile.lastName || '', middleInitial: donorProfile.middleInitial || '' }
@@ -319,6 +336,73 @@ export default function DonatePage() {
     } else {
       setForm(emptyForm)
     }
+  }
+
+  const handleProcessProofFile = async (file) => {
+    if (!file) return
+    const sizeMsg = fileSizeError(file, MAX_UPLOAD_BYTES.donation, 'Proof file')
+    if (sizeMsg) {
+      setSubmitError(sizeMsg)
+      return
+    }
+    setSubmitError('')
+
+    setForm((prev) => ({ ...prev, proof: file }))
+
+    if (proofPreviewUrl) {
+      URL.revokeObjectURL(proofPreviewUrl)
+    }
+    if (file.type?.startsWith('image/')) {
+      setProofPreviewUrl(URL.createObjectURL(file))
+    } else {
+      setProofPreviewUrl(null)
+    }
+
+    setAiState('analyzing')
+    setAiResult(null)
+
+    try {
+      const methodLabel = selectedMethod ? (selectedMethod.name || selectedMethod.code) : form.paymentMethod
+      const res = await verifyPaymentProof(file, methodLabel)
+      if (res?.ok && res?.verification) {
+        const v = res.verification
+        setAiResult(v)
+        setTempProofToken(res.tempProofToken || '')
+        setAiState(v.status || 'needs_review')
+
+        if (v.extractedAmount !== null && v.extractedAmount !== undefined && Number(v.extractedAmount) > 0) {
+          setForm((prev) => ({
+            ...prev,
+            amount: String(v.extractedAmount),
+          }))
+          setIsAmountManuallyAdjusted(false)
+        }
+
+        if (v.referenceNumber && String(v.referenceNumber).trim() !== '') {
+          setForm((prev) => ({
+            ...prev,
+            paymentReference: String(v.referenceNumber).trim(),
+          }))
+        }
+      } else {
+        setAiState('needs_review')
+      }
+    } catch (err) {
+      console.warn('AI payment verification fallback:', err)
+      setAiState('needs_review')
+    }
+  }
+
+  const handleRemoveProof = () => {
+    if (proofPreviewUrl) {
+      URL.revokeObjectURL(proofPreviewUrl)
+    }
+    setProofPreviewUrl(null)
+    setForm((prev) => ({ ...prev, proof: null }))
+    setAiState('idle')
+    setAiResult(null)
+    setTempProofToken('')
+    setIsAmountManuallyAdjusted(false)
   }
 
   const isCompany = form.donorType === 'Company'
@@ -433,6 +517,21 @@ export default function DonatePage() {
       }
       if (form.message) fd.append('message', form.message)
       if (form.proof) fd.append('proof', form.proof)
+      if (tempProofToken) fd.append('tempProofToken', tempProofToken)
+      if (form.proof?.name) fd.append('proofFileName', form.proof.name)
+      if (aiResult) {
+        fd.append('aiVerificationStatus', aiResult.status || 'Unverified')
+        if (aiResult.extractedAmount !== null && aiResult.extractedAmount !== undefined) {
+          fd.append('aiExtractedAmount', String(aiResult.extractedAmount))
+        }
+        if (aiResult.referenceNumber) fd.append('aiExtractedReference', aiResult.referenceNumber)
+        if (aiResult.detectedMethod) fd.append('aiExtractedMethod', aiResult.detectedMethod)
+        if (aiResult.confidence) fd.append('aiConfidence', aiResult.confidence)
+        if (aiResult.verificationMessage) fd.append('aiVerificationNotes', aiResult.verificationMessage)
+      }
+      if (isAmountManuallyAdjusted) {
+        fd.append('isAmountManuallyAdjusted', '1')
+      }
       const res = await submitPublicDonation(fd)
       setTrackingCode(res.data.trackingCode)
       setSubmitted(true)
@@ -1144,18 +1243,264 @@ export default function DonatePage() {
                       })()}
                     </div>
 
+                    {/* 1. Upload Payment Proof (Primary Field) */}
+                    <div className="proof-upload-container">
+                      <div className="proof-upload-header">
+                        <label className="proof-upload-header__title">
+                          <Req required>Upload Payment Proof</Req>
+                        </label>
+                        <span className="proof-upload-header__hint">
+                          JPG, PNG, WEBP, or PDF (max 5MB)
+                        </span>
+                      </div>
+
+                      {!form.proof ? (
+                        <div
+                          className={`proof-upload-dropzone${isDragOver ? ' proof-upload-dropzone--active' : ''}`}
+                          onDragOver={(e) => {
+                            e.preventDefault()
+                            setIsDragOver(true)
+                          }}
+                          onDragLeave={() => setIsDragOver(false)}
+                          onDrop={(e) => {
+                            e.preventDefault()
+                            setIsDragOver(false)
+                            const droppedFile = e.dataTransfer.files?.[0]
+                            if (droppedFile) handleProcessProofFile(droppedFile)
+                          }}
+                          onClick={() => document.getElementById('proofFileInput')?.click()}
+                          role="button"
+                          tabIndex={0}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter' || e.key === ' ') {
+                              e.preventDefault()
+                              document.getElementById('proofFileInput')?.click()
+                            }
+                          }}
+                        >
+                          <input
+                            id="proofFileInput"
+                            type="file"
+                            accept="image/jpeg,image/png,image/webp,image/gif,application/pdf"
+                            style={{ display: 'none' }}
+                            onChange={(e) => {
+                              const file = e.target.files?.[0]
+                              if (file) handleProcessProofFile(file)
+                            }}
+                          />
+                          <div className="proof-upload-dropzone__icon-wrap">
+                            <UploadCloud size={24} />
+                          </div>
+                          <div className="proof-upload-dropzone__primary-text">
+                            Click to upload or drag & drop payment confirmation
+                          </div>
+                          <div className="proof-upload-dropzone__sub-text">
+                            Upload a screenshot or image of your payment confirmation (bank transfer, GCash, Maya, PayPal, or deposit slip)
+                          </div>
+                          <div className="proof-upload-dropzone__badge-row">
+                            <span className="proof-upload-dropzone__format-pill">JPG</span>
+                            <span className="proof-upload-dropzone__format-pill">PNG</span>
+                            <span className="proof-upload-dropzone__format-pill">WEBP</span>
+                            <span className="proof-upload-dropzone__format-pill">PDF</span>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="proof-upload-preview-card">
+                          <div className="proof-upload-preview-card__thumb-box">
+                            {proofPreviewUrl ? (
+                              <img src={proofPreviewUrl} alt="Payment Proof Preview" className="proof-upload-preview-card__img" />
+                            ) : (
+                              <FileText size={32} style={{ color: '#AF101A' }} />
+                            )}
+                          </div>
+
+                          <div className="proof-upload-preview-card__info">
+                            <div className="proof-upload-preview-card__name" title={form.proof.name}>
+                              {form.proof.name}
+                            </div>
+                            <div className="proof-upload-preview-card__meta">
+                              <span>{(form.proof.size / 1024).toFixed(1)} KB</span>
+                              <span>•</span>
+                              <span>{form.proof.type || 'Document'}</span>
+                            </div>
+                          </div>
+
+                          <div className="proof-upload-preview-card__actions">
+                            <input
+                              id="proofReplaceInput"
+                              type="file"
+                              accept="image/jpeg,image/png,image/webp,image/gif,application/pdf"
+                              style={{ display: 'none' }}
+                              onChange={(e) => {
+                                const file = e.target.files?.[0]
+                                if (file) handleProcessProofFile(file)
+                              }}
+                            />
+                            <button
+                              type="button"
+                              className="btn btn--outline btn--sm"
+                              onClick={() => document.getElementById('proofReplaceInput')?.click()}
+                              title="Replace with another file"
+                            >
+                              Replace
+                            </button>
+                            <button
+                              type="button"
+                              className="btn btn--ghost btn--sm"
+                              onClick={handleRemoveProof}
+                              title="Remove uploaded file"
+                              style={{ color: '#dc2626' }}
+                              aria-label="Remove uploaded proof"
+                            >
+                              <Trash2 size={16} />
+                            </button>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* 2. AI Verification Status Card */}
+                      {aiState === 'analyzing' && (
+                        <div className="ai-verification-box ai-verification-box--analyzing">
+                          <div className="spinner" style={{ width: 20, height: 20, borderColor: '#0284c7', borderTopColor: 'transparent', flexShrink: 0 }} />
+                          <div>
+                            <strong style={{ display: 'block', fontSize: '0.88rem' }}>Verifying Payment Proof…</strong>
+                            <span style={{ fontSize: '0.8rem', opacity: 0.9 }}>
+                              Please wait while we securely analyze your payment confirmation and extract transaction details.
+                            </span>
+                          </div>
+                        </div>
+                      )}
+
+                      {aiState === 'verified' && aiResult && (
+                        <div className="ai-verification-box ai-verification-box--verified">
+                          <div className="ai-verification-box__header">
+                            <div className="ai-verification-box__title">
+                              <CheckCircle2 size={18} color="#15803d" />
+                              <span>Payment Proof Verified</span>
+                            </div>
+                            <span className="ai-verification-box__badge ai-verification-box__badge--verified">
+                              ✓ Verified
+                            </span>
+                          </div>
+                          <p style={{ margin: '0 0 0.35rem', fontSize: '0.82rem', color: '#14532d' }}>
+                            {aiResult.verificationMessage || 'Amount and transaction details were successfully extracted.'}
+                          </p>
+
+                          <div className="ai-verification-grid">
+                            {aiResult.detectedMethod && (
+                              <div className="ai-verification-item">
+                                <span className="ai-verification-item__label">Payment Method</span>
+                                <span className="ai-verification-item__value">{aiResult.detectedMethod}</span>
+                              </div>
+                            )}
+                            {aiResult.referenceNumber && (
+                              <div className="ai-verification-item">
+                                <span className="ai-verification-item__label">Reference Number</span>
+                                <span className="ai-verification-item__value" style={{ fontFamily: 'monospace' }}>
+                                  {aiResult.referenceNumber}
+                                </span>
+                              </div>
+                            )}
+                            {aiResult.transactionDate && (
+                              <div className="ai-verification-item">
+                                <span className="ai-verification-item__label">Transaction Date</span>
+                                <span className="ai-verification-item__value">{aiResult.transactionDate}</span>
+                              </div>
+                            )}
+                            {aiResult.recipientInfo && (
+                              <div className="ai-verification-item">
+                                <span className="ai-verification-item__label">Recipient</span>
+                                <span className="ai-verification-item__value">{aiResult.recipientInfo}</span>
+                              </div>
+                            )}
+                          </div>
+
+                          {!aiResult.methodMatchesSelected && aiResult.detectedMethod && (
+                            <div style={{ marginTop: '0.65rem', padding: '0.45rem 0.65rem', background: '#fef3c7', borderRadius: '6px', border: '1px solid #fde68a', fontSize: '0.78rem', color: '#92400e', display: 'flex', gap: '0.35rem', alignItems: 'center' }}>
+                              <AlertTriangle size={14} style={{ flexShrink: 0 }} />
+                              <span>
+                                Note: Detected provider is <strong>{aiResult.detectedMethod}</strong> while <strong>{selectedMethod?.name || form.paymentMethod}</strong> is selected above.
+                              </span>
+                            </div>
+                          )}
+                        </div>
+                      )}
+
+                      {aiState === 'needs_review' && (
+                        <div className="ai-verification-box ai-verification-box--needs_review">
+                          <div className="ai-verification-box__header">
+                            <div className="ai-verification-box__title">
+                              <AlertTriangle size={18} color="#b45309" />
+                              <span>Verification Needs Attention</span>
+                            </div>
+                            <span className="ai-verification-box__badge ai-verification-box__badge--needs_review">
+                              ⚠ Needs Review
+                            </span>
+                          </div>
+                          <p style={{ margin: 0, fontSize: '0.82rem' }}>
+                            {aiResult?.verificationMessage || "We couldn't confidently verify this payment proof. Please review and confirm your donation amount and reference number below."}
+                          </p>
+                        </div>
+                      )}
+
+                      {aiState === 'invalid' && (
+                        <div className="ai-verification-box ai-verification-box--invalid">
+                          <div className="ai-verification-box__header">
+                            <div className="ai-verification-box__title">
+                              <XCircle size={18} color="#b91c1c" />
+                              <span>Invalid Payment Confirmation</span>
+                            </div>
+                            <span className="ai-verification-box__badge ai-verification-box__badge--invalid">
+                              ✕ Invalid
+                            </span>
+                          </div>
+                          <p style={{ margin: 0, fontSize: '0.82rem' }}>
+                            {aiResult?.verificationMessage || "This file does not appear to be a valid payment confirmation. Please upload a clearer payment confirmation."}
+                          </p>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* 3. Donation Amount (PHP) */}
                     <label>
                       <Req required>Donation Amount (PHP)</Req>
-                      <input
-                        type="number"
-                        min="1"
-                        required
-                        placeholder="500"
-                        value={form.amount}
-                        onChange={(e) => setForm({ ...form, amount: e.target.value })}
-                      />
+                      <div style={{ position: 'relative' }}>
+                        <input
+                          type="number"
+                          step="0.01"
+                          min="1"
+                          required
+                          placeholder="e.g. 1500.00"
+                          value={form.amount}
+                          onChange={(e) => {
+                            setForm({ ...form, amount: e.target.value })
+                            if (aiResult?.extractedAmount !== null && aiResult?.extractedAmount !== undefined) {
+                              setIsAmountManuallyAdjusted(true)
+                            }
+                          }}
+                          style={{
+                            borderColor: (aiState === 'verified' && !isAmountManuallyAdjusted) ? '#16a34a' : undefined,
+                          }}
+                        />
+                      </div>
+
+                      {/* Badges indicating extraction state */}
+                      {aiState === 'verified' && !isAmountManuallyAdjusted && Boolean(aiResult?.extractedAmount) && (
+                        <div className="field-ai-badge field-ai-badge--extracted">
+                          <CheckCircle2 size={13} />
+                          <span>Amount extracted from payment proof</span>
+                        </div>
+                      )}
+
+                      {isAmountManuallyAdjusted && Boolean(aiResult?.extractedAmount) && (
+                        <div className="field-ai-badge field-ai-badge--adjusted">
+                          <Edit2 size={12} />
+                          <span>Amount manually adjusted (AI extracted ₱{Number(aiResult.extractedAmount).toLocaleString('en-PH', { minimumFractionDigits: 2 })})</span>
+                        </div>
+                      )}
                     </label>
 
+                    {/* 4. Payment Reference / Transaction No. */}
                     <label>
                       <span>
                         Payment Reference / Transaction No.{' '}
@@ -1172,9 +1517,16 @@ export default function DonatePage() {
                         onChange={(e) => setForm({ ...form, paymentReference: e.target.value })}
                         required={Boolean(selectedMethod?.requiresReference)}
                       />
-                      <span className="field-hint" style={{ fontSize: '0.8rem', color: '#64748b', marginTop: '0.25rem' }}>
-                        Provide the reference or transaction number from your transfer confirmation to help verify your donation faster.
-                      </span>
+                      {aiResult?.referenceNumber && form.paymentReference === aiResult.referenceNumber ? (
+                        <div className="field-ai-badge field-ai-badge--extracted">
+                          <CheckCircle2 size={13} />
+                          <span>Reference extracted from payment proof</span>
+                        </div>
+                      ) : (
+                        <span className="field-hint" style={{ fontSize: '0.8rem', color: '#64748b', marginTop: '0.25rem' }}>
+                          Provide the reference or transaction number from your transfer confirmation to help verify your donation faster.
+                        </span>
+                      )}
                     </label>
                   </>
                 ) : (
@@ -1210,23 +1562,21 @@ export default function DonatePage() {
                         ))}
                       </div>
                     )}
+
+                    <label style={{ marginTop: '1rem' }}>
+                      <Req required>Upload Proof / Packing List</Req>
+                      <input
+                        type="file"
+                        required
+                        accept="image/*,.pdf"
+                        onChange={(e) => setForm({ ...form, proof: e.target.files?.[0] ?? null })}
+                      />
+                      <span className="field-hint">
+                        Receipt, packing list, or item photos — JPG, PNG, or PDF
+                      </span>
+                    </label>
                   </div>
                 )}
-
-                <label>
-                  <Req required>Upload Proof of Donation</Req>
-                  <input
-                    type="file"
-                    required
-                    accept="image/*,.pdf"
-                    onChange={(e) => setForm({ ...form, proof: e.target.files?.[0] ?? null })}
-                  />
-                  <span className="field-hint">
-                    {form.type === 'monetary'
-                      ? 'Upload bank transfer receipt, deposit slip, GCash screenshot, or check photo — JPG, PNG, or PDF'
-                      : 'Receipt, packing list, or item photos — JPG, PNG, or PDF'}
-                  </span>
-                </label>
 
                 <label>
                   Message (optional)

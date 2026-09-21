@@ -293,6 +293,23 @@ export function submitPublicDonation(bodyOrFormData) {
   })
 }
 
+export function verifyPaymentProof(file, selectedMethod = '') {
+  const fd = new FormData()
+  fd.append('proof', file)
+  if (selectedMethod) {
+    fd.append('selectedMethod', selectedMethod)
+  }
+  return fetch(apiUrl('/api/verify_payment_proof.php'), {
+    method: 'POST',
+    credentials: 'include',
+    body: fd,
+  }).then(async (res) => {
+    const data = await res.json().catch(() => null)
+    if (!res.ok) throw new Error(data?.error || `Verification failed (${res.status})`)
+    return data
+  })
+}
+
 export function submitPublicAssistance(body) {
   return apiFetch('/api/assistance_requests.php', {
     method: 'POST',

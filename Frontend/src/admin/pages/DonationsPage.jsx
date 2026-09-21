@@ -4,7 +4,7 @@ import {
   Eye, CheckCircle2, Download, FileText, Check, Clock, Package, 
   TrendingUp, Users, MapPin, FileCheck, Send, Printer, Heart,
   Calendar, Mail, Phone, Award, BarChart3, Coins, CreditCard,
-  Banknote, Gift, ShieldAlert, Sparkles, Filter, Layers, DollarSign,
+  Banknote, Gift, ShieldAlert, ShieldCheck, Sparkles, Filter, Layers, DollarSign,
   Trash2, Settings2, ExternalLink, ShoppingCart
 } from 'lucide-react'
 import { donationsApi, beneficiariesApi, assistanceRequestsApi, paymentMethodsApi } from '../../api/resources'
@@ -1463,6 +1463,125 @@ export default function DonationsPage() {
                   </button>
                 </div>
 
+                {/* AI Payment Proof Verification & Extraction Audit Card */}
+                {selected.type === 'Monetary' && (
+                  <div style={{
+                    background: selected.aiVerificationStatus === 'verified' ? '#f0fdf4' : (selected.aiVerificationStatus === 'invalid' ? '#fef2f2' : '#f8fafc'),
+                    border: `1px solid ${selected.aiVerificationStatus === 'verified' ? '#bbf7d0' : (selected.aiVerificationStatus === 'invalid' ? '#fecaca' : '#e2e8f0')}`,
+                    borderRadius: '12px',
+                    padding: '1.15rem 1.25rem',
+                    marginTop: '1.25rem',
+                  }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.75rem', marginBottom: '0.75rem' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                        <div style={{
+                          width: '32px',
+                          height: '32px',
+                          borderRadius: '8px',
+                          background: selected.aiVerificationStatus === 'verified' ? '#dcfce7' : '#fee2e2',
+                          color: selected.aiVerificationStatus === 'verified' ? '#15803d' : '#AF101A',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                        }}>
+                          <ShieldCheck size={18} />
+                        </div>
+                        <div>
+                          <h4 style={{ margin: 0, fontSize: '0.95rem', fontWeight: 700, color: '#1e293b' }}>
+                            AI Proof Verification & Audit Trail
+                          </h4>
+                          <span style={{ fontSize: '0.78rem', color: '#64748b' }}>
+                            Automated image analysis, extracted amounts, and donor adjustment tracking
+                          </span>
+                        </div>
+                      </div>
+
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                        <span style={{
+                          fontSize: '0.75rem',
+                          fontWeight: 700,
+                          padding: '3px 10px',
+                          borderRadius: '9999px',
+                          background: selected.aiVerificationStatus === 'verified' ? '#dcfce7' : (selected.aiVerificationStatus === 'needs_review' ? '#fef3c7' : '#f1f5f9'),
+                          color: selected.aiVerificationStatus === 'verified' ? '#15803d' : (selected.aiVerificationStatus === 'needs_review' ? '#b45309' : '#64748b'),
+                          border: `1px solid ${selected.aiVerificationStatus === 'verified' ? '#86efac' : (selected.aiVerificationStatus === 'needs_review' ? '#fcd34d' : '#cbd5e1')}`,
+                        }}>
+                          {selected.aiVerificationStatus === 'verified' ? '✓ AI Verified' : (selected.aiVerificationStatus === 'needs_review' ? '⚠ Needs Review' : (selected.aiVerificationStatus === 'invalid' ? '✕ Invalid Proof' : 'Unverified / Manual'))}
+                        </span>
+                        {selected.hasProof && (
+                          <button
+                            type="button"
+                            className="btn btn--outline btn--sm"
+                            onClick={() => setModalTab('proof')}
+                            style={{ fontSize: '0.78rem', padding: '0.25rem 0.65rem' }}
+                          >
+                            <FileText size={13} /> View Proof
+                          </button>
+                        )}
+                      </div>
+                    </div>
+
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: '0.75rem', marginTop: '0.75rem' }}>
+                      <div style={{ background: '#fff', padding: '0.75rem', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
+                        <span style={{ fontSize: '0.74rem', color: '#64748b', display: 'block', textTransform: 'uppercase', letterSpacing: '0.03em' }}>
+                          AI Extracted Amount
+                        </span>
+                        <strong style={{ fontSize: '1.05rem', color: '#0f172a' }}>
+                          {selected.aiExtractedAmount !== null && selected.aiExtractedAmount !== undefined
+                            ? `₱${Number(selected.aiExtractedAmount).toLocaleString('en-PH', { minimumFractionDigits: 2 })}`
+                            : '—'}
+                        </strong>
+                      </div>
+
+                      <div style={{ background: '#fff', padding: '0.75rem', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
+                        <span style={{ fontSize: '0.74rem', color: '#64748b', display: 'block', textTransform: 'uppercase', letterSpacing: '0.03em' }}>
+                          Final Confirmed Amount
+                        </span>
+                        <strong style={{ fontSize: '1.05rem', color: selected.isAmountManuallyAdjusted ? '#d97706' : '#047857' }}>
+                          ₱{Number(selected.amountRaw || 0).toLocaleString('en-PH', { minimumFractionDigits: 2 })}
+                        </strong>
+                        {selected.isAmountManuallyAdjusted && (
+                          <div style={{ fontSize: '0.72rem', color: '#b45309', fontWeight: 600, marginTop: '2px' }}>
+                            ✎ Manually adjusted by donor
+                          </div>
+                        )}
+                      </div>
+
+                      <div style={{ background: '#fff', padding: '0.75rem', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
+                        <span style={{ fontSize: '0.74rem', color: '#64748b', display: 'block', textTransform: 'uppercase', letterSpacing: '0.03em' }}>
+                          Detected Channel / Ref
+                        </span>
+                        <strong style={{ fontSize: '0.9rem', color: '#1e293b', display: 'block', textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap' }}>
+                          {selected.aiExtractedMethod || selected.paymentMethod || '—'}
+                        </strong>
+                        <span style={{ fontSize: '0.75rem', fontFamily: 'monospace', color: '#64748b' }}>
+                          {selected.aiExtractedReference || selected.paymentReference || 'No reference'}
+                        </span>
+                      </div>
+
+                      <div style={{ background: '#fff', padding: '0.75rem', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
+                        <span style={{ fontSize: '0.74rem', color: '#64748b', display: 'block', textTransform: 'uppercase', letterSpacing: '0.03em' }}>
+                          Verification Status
+                        </span>
+                        <span style={{ fontSize: '0.85rem', fontWeight: 600, color: '#334155' }}>
+                          {selected.aiConfidence ? `Confidence: ${selected.aiConfidence.toUpperCase()}` : 'Standard Processing'}
+                        </span>
+                        {selected.aiVerifiedAt && (
+                          <div style={{ fontSize: '0.72rem', color: '#94a3b8', marginTop: '2px' }}>
+                            {new Date(selected.aiVerifiedAt).toLocaleString()}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    {selected.aiVerificationNotes && (
+                      <div style={{ marginTop: '0.65rem', fontSize: '0.8rem', color: '#64748b', fontStyle: 'italic' }}>
+                        Note: {selected.aiVerificationNotes}
+                      </div>
+                    )}
+                  </div>
+                )}
+
                 {/* In-Kind Classified Items Breakdown */}
                 {selected.type === 'In-Kind' && selected.classifiedItems && selected.classifiedItems.length > 0 && (
                   <div className="donation-classified-card" style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '12px', padding: '1.25rem', marginTop: '1.25rem' }}>
@@ -1759,10 +1878,25 @@ export default function DonationsPage() {
             {/* Tab Content: Proof of Donation */}
             {modalTab === 'proof' && selected.hasProof && (
               <div className="donation-proof-gallery">
-                <h3 className="donation-proof-gallery__title">
-                  <FileText size={20} />
-                  Uploaded Proof of Donation
-                </h3>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.5rem', marginBottom: '1rem' }}>
+                  <h3 className="donation-proof-gallery__title" style={{ margin: 0 }}>
+                    <FileText size={20} />
+                    Uploaded Proof of Donation
+                  </h3>
+                  {selected.aiVerificationStatus && selected.aiVerificationStatus !== 'Unverified' && (
+                    <span style={{
+                      fontSize: '0.75rem',
+                      fontWeight: 700,
+                      padding: '3px 10px',
+                      borderRadius: '9999px',
+                      background: selected.aiVerificationStatus === 'verified' ? '#dcfce7' : (selected.aiVerificationStatus === 'needs_review' ? '#fef3c7' : '#fee2e2'),
+                      color: selected.aiVerificationStatus === 'verified' ? '#15803d' : (selected.aiVerificationStatus === 'needs_review' ? '#b45309' : '#b91c1c'),
+                      border: `1px solid ${selected.aiVerificationStatus === 'verified' ? '#86efac' : (selected.aiVerificationStatus === 'needs_review' ? '#fcd34d' : '#fca5a5')}`,
+                    }}>
+                      {selected.aiVerificationStatus === 'verified' ? '✓ AI Verified' : (selected.aiVerificationStatus === 'needs_review' ? '⚠ Needs Review' : '✕ Invalid')}
+                    </span>
+                  )}
+                </div>
                 <div className="donation-proof-gallery__grid">
                   {selected.proofIsImage ? (
                     <a
@@ -1799,7 +1933,7 @@ export default function DonationsPage() {
                     </a>
                   )}
                 </div>
-                <div style={{ marginTop: '1rem' }}>
+                <div style={{ marginTop: '1rem', display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
                   <a
                     href={selected.proofUrl}
                     target="_blank"
@@ -1810,6 +1944,37 @@ export default function DonationsPage() {
                     <Download size={16} /> Download Proof File
                   </a>
                 </div>
+
+                {selected.aiExtractedAmount !== null && selected.aiExtractedAmount !== undefined && (
+                  <div style={{
+                    marginTop: '1.25rem',
+                    padding: '0.85rem 1.15rem',
+                    background: '#f8fafc',
+                    borderRadius: '8px',
+                    border: '1px solid #e2e8f0',
+                    fontSize: '0.84rem',
+                    display: 'flex',
+                    flexWrap: 'wrap',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                    gap: '0.75rem',
+                  }}>
+                    <div>
+                      <strong>AI Extracted:</strong> ₱{Number(selected.aiExtractedAmount).toLocaleString('en-PH', { minimumFractionDigits: 2 })}
+                      {selected.aiExtractedReference && (
+                        <span> • Ref: <code>{selected.aiExtractedReference}</code></span>
+                      )}
+                      {selected.aiExtractedMethod && (
+                        <span> • Provider: <strong>{selected.aiExtractedMethod}</strong></span>
+                      )}
+                    </div>
+                    {selected.isAmountManuallyAdjusted && (
+                      <span style={{ color: '#b45309', fontWeight: 600 }}>
+                        ✎ Donor adjusted to ₱{Number(selected.amountRaw || 0).toLocaleString('en-PH', { minimumFractionDigits: 2 })}
+                      </span>
+                    )}
+                  </div>
+                )}
               </div>
             )}
 

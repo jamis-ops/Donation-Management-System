@@ -8298,6 +8298,307 @@ button:disabled,
   }
 }
 
+/* =========================================================
+   AI Payment Proof Verification & Upload Component Styles
+   ========================================================= */
+
+.proof-upload-container {
+  margin-bottom: 1.25rem;
+}
+
+.proof-upload-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  margin-bottom: 0.5rem;
+}
+
+.proof-upload-header__title {
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: #1e293b;
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.proof-upload-header__hint {
+  font-size: 0.8rem;
+  color: #64748b;
+}
+
+.proof-upload-dropzone {
+  border: 2px dashed #cbd5e1;
+  border-radius: 12px;
+  background: #f8fafc;
+  padding: 1.5rem 1.25rem;
+  text-align: center;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  position: relative;
+  outline: none;
+}
+
+.proof-upload-dropzone:hover {
+  border-color: #af101a;
+  background: #fffafa;
+}
+
+.proof-upload-dropzone--active,
+.proof-upload-dropzone:focus-visible {
+  border-color: #af101a;
+  background: #fff5f5;
+  box-shadow: 0 0 0 4px rgba(175, 16, 26, 0.12);
+}
+
+.proof-upload-dropzone__icon-wrap {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0 auto 0.75rem;
+  color: #af101a;
+  box-shadow: 0 2px 6px rgba(15, 23, 42, 0.05);
+  transition: transform 0.2s ease;
+}
+
+.proof-upload-dropzone:hover .proof-upload-dropzone__icon-wrap {
+  transform: scale(1.08);
+}
+
+.proof-upload-dropzone__primary-text {
+  font-size: 0.92rem;
+  font-weight: 700;
+  color: #0f172a;
+  margin-bottom: 0.25rem;
+}
+
+.proof-upload-dropzone__sub-text {
+  font-size: 0.8rem;
+  color: #64748b;
+  margin-bottom: 0.5rem;
+}
+
+.proof-upload-dropzone__badge-row {
+  display: flex;
+  justify-content: center;
+  gap: 0.4rem;
+  flex-wrap: wrap;
+  margin-top: 0.5rem;
+}
+
+.proof-upload-dropzone__format-pill {
+  font-size: 0.72rem;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 9999px;
+  background: #f1f5f9;
+  color: #475569;
+  border: 1px solid #e2e8f0;
+}
+
+/* File selected state inside dropzone */
+.proof-upload-preview-card {
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  background: #ffffff;
+  padding: 1rem;
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  position: relative;
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.04);
+}
+
+.proof-upload-preview-card__thumb-box {
+  width: 72px;
+  height: 72px;
+  border-radius: 8px;
+  overflow: hidden;
+  border: 1px solid #e2e8f0;
+  background: #f8fafc;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.proof-upload-preview-card__img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.proof-upload-preview-card__info {
+  flex: 1;
+  min-width: 0;
+}
+
+.proof-upload-preview-card__name {
+  font-size: 0.88rem;
+  font-weight: 700;
+  color: #1e293b;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  margin-bottom: 2px;
+}
+
+.proof-upload-preview-card__meta {
+  font-size: 0.76rem;
+  color: #64748b;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.proof-upload-preview-card__actions {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-shrink: 0;
+}
+
+/* =========================================================
+   AI Verification Cards & Feedback
+   ========================================================= */
+
+.ai-verification-box {
+  margin-top: 0.75rem;
+  border-radius: 10px;
+  padding: 0.85rem 1rem;
+  font-size: 0.85rem;
+  transition: all 0.25s ease;
+  animation: fadeIn 0.25s ease;
+}
+
+.ai-verification-box--analyzing {
+  background: #f0f9ff;
+  border: 1px solid #bae6fd;
+  color: #0369a1;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.ai-verification-box--verified {
+  background: #f0fdf4;
+  border: 1px solid #bbf7d0;
+  color: #166534;
+}
+
+.ai-verification-box--needs_review {
+  background: #fffbeb;
+  border: 1px solid #fde68a;
+  color: #92400e;
+}
+
+.ai-verification-box--invalid {
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  color: #991b1b;
+}
+
+.ai-verification-box__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin-bottom: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.ai-verification-box__title {
+  font-weight: 700;
+  font-size: 0.9rem;
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.ai-verification-box__badge {
+  font-size: 0.72rem;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 9999px;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.ai-verification-box__badge--verified {
+  background: #dcfce7;
+  color: #15803d;
+  border: 1px solid #86efac;
+}
+
+.ai-verification-box__badge--needs_review {
+  background: #fef3c7;
+  color: #b45309;
+  border: 1px solid #fcd34d;
+}
+
+.ai-verification-box__badge--invalid {
+  background: #fee2e2;
+  color: #b91c1c;
+  border: 1px solid #fca5a5;
+}
+
+.ai-verification-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+  gap: 0.5rem 1rem;
+  margin-top: 0.5rem;
+  padding-top: 0.5rem;
+  border-top: 1px dashed rgba(0, 0, 0, 0.08);
+}
+
+.ai-verification-item {
+  display: flex;
+  flex-direction: column;
+}
+
+.ai-verification-item__label {
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  opacity: 0.8;
+  margin-bottom: 1px;
+}
+
+.ai-verification-item__value {
+  font-weight: 700;
+  font-size: 0.84rem;
+}
+
+.field-ai-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.76rem;
+  font-weight: 600;
+  margin-top: 0.35rem;
+  padding: 2px 8px;
+  border-radius: 6px;
+  width: fit-content;
+}
+
+.field-ai-badge--extracted {
+  background: #f0fdf4;
+  color: #15803d;
+  border: 1px solid #bbf7d0;
+}
+
+.field-ai-badge--adjusted {
+  background: #fffbeb;
+  color: #b45309;
+  border: 1px solid #fde68a;
+}
+
 
 
 
