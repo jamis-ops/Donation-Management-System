@@ -510,35 +510,15 @@ export default function DonationsPage() {
       key: 'actions',
       label: 'Actions',
       render: (row) => (
-        <div className="table-actions">
+        <div className="table-actions" style={{ display: 'flex', gap: '0.4rem', alignItems: 'center', flexWrap: 'nowrap' }}>
           <button
             type="button"
             className="icon-btn"
-            title="View Details & Actions"
-            aria-label="View Details & Actions"
+            title="View Details"
+            aria-label="View Details"
             onClick={(e) => { e.stopPropagation(); handleSelectDonation(row) }}
           >
             <Eye size={15} />
-          </button>
-          {row.status === 'Pending Verification' && (
-            <button
-              type="button"
-              className="icon-btn icon-btn--success"
-              title="Verify Donation & Post to Inventory"
-              aria-label="Verify Donation"
-              onClick={(e) => { e.stopPropagation(); handleVerify(row) }}
-            >
-              <CheckCircle2 size={15} />
-            </button>
-          )}
-          <button
-            type="button"
-            className="icon-btn"
-            title="Print Official Receipt"
-            aria-label="Print Official Receipt"
-            onClick={(e) => { e.stopPropagation(); printDonationReceipt(row) }}
-          >
-            <Printer size={15} />
           </button>
           <button
             type="button"
@@ -618,47 +598,15 @@ export default function DonationsPage() {
       key: 'actions',
       label: 'Actions',
       render: (row) => (
-        <div className="table-actions">
+        <div className="table-actions" style={{ display: 'flex', gap: '0.4rem', alignItems: 'center', flexWrap: 'nowrap' }}>
           <button
             type="button"
             className="icon-btn"
-            title="View Details & Actions"
-            aria-label="View Details & Actions"
+            title="View Details"
+            aria-label="View Details"
             onClick={(e) => { e.stopPropagation(); handleSelectDonation(row) }}
           >
             <Eye size={15} />
-          </button>
-          {row.status === 'Pending Verification' && (
-            <button
-              type="button"
-              className="icon-btn icon-btn--success"
-              title="Verify Donation & Clear Funds"
-              aria-label="Verify Donation"
-              onClick={(e) => { e.stopPropagation(); handleVerify(row) }}
-            >
-              <CheckCircle2 size={15} />
-            </button>
-          )}
-          {['Verified', 'Allocated'].includes(row.status) && (
-            <button
-              type="button"
-              className="icon-btn"
-              style={{ color: '#AF101A' }}
-              title="Allocate / Procure Goods"
-              aria-label="Allocate / Procure Goods"
-              onClick={(e) => { e.stopPropagation(); setProcuringDonation(row) }}
-            >
-              <ShoppingCart size={15} />
-            </button>
-          )}
-          <button
-            type="button"
-            className="icon-btn"
-            title="Print Official Receipt"
-            aria-label="Print Official Receipt"
-            onClick={(e) => { e.stopPropagation(); printDonationReceipt(row) }}
-          >
-            <Printer size={15} />
           </button>
           <button
             type="button"
