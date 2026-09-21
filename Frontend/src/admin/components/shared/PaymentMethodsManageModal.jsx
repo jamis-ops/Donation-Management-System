@@ -267,53 +267,47 @@ export default function PaymentMethodsManageModal({ open, onClose }) {
 
         <div className="master-catalog-modal__body" style={{ padding: '1.25rem 1.5rem' }}>
           {/* Top Bar: Search, Filter, Add */}
-          <div
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              gap: '1rem',
-              flexWrap: 'wrap',
-              marginBottom: '1.25rem',
-            }}
-          >
-            <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center', flexWrap: 'wrap', flex: 1 }}>
-              <div className="search-bar" style={{ minWidth: '220px', flex: 1, maxWidth: '340px' }}>
-                <Search size={16} />
+          <div className="pm-cms-toolbar">
+            <div className="pm-cms-toolbar__left">
+              <div className="pm-cms-search-wrap">
+                <Search size={16} className="pm-cms-search-icon" />
                 <input
                   type="text"
-                  placeholder="Search methods, banks, accounts…"
+                  className="pm-cms-search-input"
+                  placeholder="Search payment methods, banks, accounts…"
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
                 />
               </div>
 
               <select
+                className="pm-cms-select"
                 value={filterStatus}
                 onChange={(e) => setFilterStatus(e.target.value)}
-                style={{ width: 'auto', padding: '0.45rem 0.85rem', fontSize: '0.85rem' }}
+                aria-label="Filter by status"
               >
                 <option value="all">All Statuses</option>
-                <option value="active">Active Only</option>
-                <option value="inactive">Inactive Only</option>
+                <option value="active">Active</option>
+                <option value="inactive">Inactive</option>
               </select>
             </div>
 
             <button
               type="button"
-              className="btn btn--primary btn--sm"
+              className="pm-cms-add-btn"
               onClick={handleOpenAdd}
-              style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem' }}
+              aria-label="Add Payment Method"
             >
-              <Plus size={15} /> Add Payment Method
+              <Plus size={16} strokeWidth={2.2} />
+              <span>Add Payment Method</span>
             </button>
           </div>
 
           {/* Payment Methods Table */}
           {loading ? (
-            <div style={{ padding: '3rem 1rem', textAlign: 'center', color: '#64748b' }}>
-              <div className="spinner" style={{ width: 24, height: 24, margin: '0 auto 0.75rem' }} />
-              <span>Loading payment methods…</span>
+            <div style={{ padding: '3.5rem 1rem', textAlign: 'center', color: '#64748b' }}>
+              <div className="spinner" style={{ width: 28, height: 28, margin: '0 auto 0.85rem' }} />
+              <span style={{ fontSize: '0.9rem', fontWeight: 500 }}>Loading payment methods…</span>
             </div>
           ) : filteredItems.length === 0 ? (
             <div
@@ -326,29 +320,44 @@ export default function PaymentMethodsManageModal({ open, onClose }) {
                 color: '#64748b',
               }}
             >
-              <CreditCard size={36} style={{ color: '#94a3b8', margin: '0 auto 0.75rem', display: 'block' }} />
-              <p style={{ margin: '0 0 0.5rem', fontWeight: 600, color: '#334155' }}>
-                {search ? 'No payment methods match your filter.' : 'No payment methods configured yet.'}
+              <CreditCard size={40} style={{ color: '#94a3b8', margin: '0 auto 0.75rem', display: 'block' }} />
+              <p style={{ margin: '0 0 0.5rem', fontWeight: 700, color: '#334155', fontSize: '1rem' }}>
+                {search || filterStatus !== 'all' ? 'No payment methods match your filters.' : 'No payment methods configured yet.'}
               </p>
-              <p style={{ margin: '0 0 1rem', fontSize: '0.875rem' }}>
-                Click "+ Add Payment Method" above to add GCash, Maya, Bank Transfer, or custom accounts.
+              <p style={{ margin: '0 0 1.25rem', fontSize: '0.875rem' }}>
+                {search || filterStatus !== 'all'
+                  ? 'Try clearing the search or status filter to see all records.'
+                  : 'Add your first payment channel (GCash, Maya, Bank Transfer, PayPal, or Check) below.'}
               </p>
-              <button type="button" className="btn btn--primary btn--sm" onClick={handleOpenAdd}>
-                <Plus size={14} /> Add First Payment Method
-              </button>
+              {search || filterStatus !== 'all' ? (
+                <button
+                  type="button"
+                  className="btn btn--outline btn--sm"
+                  onClick={() => {
+                    setSearch('')
+                    setFilterStatus('all')
+                  }}
+                >
+                  Clear Filters
+                </button>
+              ) : (
+                <button type="button" className="btn btn--primary btn--sm" onClick={handleOpenAdd}>
+                  <Plus size={15} /> Add First Payment Method
+                </button>
+              )}
             </div>
           ) : (
-            <div className="table-responsive" style={{ border: '1px solid #e2e8f0', borderRadius: '10px', overflow: 'hidden' }}>
-              <table className="data-table" style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.875rem' }}>
+            <div className="pm-cms-table-wrap">
+              <table className="pm-cms-table">
                 <thead>
-                  <tr style={{ background: '#f8fafc', textAlign: 'left', borderBottom: '1px solid #e2e8f0' }}>
-                    <th style={{ padding: '0.75rem 1rem', width: '60px', color: '#64748b', fontWeight: 700 }}>Order</th>
-                    <th style={{ padding: '0.75rem 1rem', color: '#64748b', fontWeight: 700 }}>Payment Method</th>
-                    <th style={{ padding: '0.75rem 1rem', color: '#64748b', fontWeight: 700 }}>Account Details</th>
-                    <th style={{ padding: '0.75rem 1rem', width: '100px', color: '#64748b', fontWeight: 700 }}>QR Code</th>
-                    <th style={{ padding: '0.75rem 1rem', width: '110px', color: '#64748b', fontWeight: 700 }}>Status</th>
-                    <th style={{ padding: '0.75rem 1rem', width: '100px', color: '#64748b', fontWeight: 700 }}>Donations</th>
-                    <th style={{ padding: '0.75rem 1rem', width: '140px', textAlign: 'right', color: '#64748b', fontWeight: 700 }}>Actions</th>
+                  <tr>
+                    <th style={{ width: '70px', textAlign: 'center' }}>Order</th>
+                    <th style={{ minWidth: '220px' }}>Payment Method</th>
+                    <th style={{ minWidth: '240px' }}>Account Details</th>
+                    <th style={{ width: '100px', textAlign: 'center' }}>QR Code</th>
+                    <th style={{ width: '110px', textAlign: 'center' }}>Status</th>
+                    <th style={{ width: '110px', textAlign: 'center' }}>Donations</th>
+                    <th style={{ width: '130px', textAlign: 'right' }}>Actions</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -356,22 +365,21 @@ export default function PaymentMethodsManageModal({ open, onClose }) {
                     <tr
                       key={item.id}
                       style={{
-                        borderBottom: '1px solid #f1f5f9',
                         background: item.isActive ? '#ffffff' : '#fafafa',
-                        opacity: item.isActive ? 1 : 0.75,
+                        opacity: item.isActive ? 1 : 0.8,
                       }}
                     >
-                      <td style={{ padding: '0.75rem 1rem', fontWeight: 600, color: '#64748b' }}>
-                        #{item.sortOrder}
+                      <td style={{ textAlign: 'center' }}>
+                        <span className="pm-cms-order-badge">#{item.sortOrder}</span>
                       </td>
 
-                      <td style={{ padding: '0.75rem 1rem' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+                      <td>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
                           <div
                             style={{
-                              width: 32,
-                              height: 32,
-                              borderRadius: '8px',
+                              width: 36,
+                              height: 36,
+                              borderRadius: '9px',
                               background: item.isActive ? 'rgba(175, 16, 26, 0.08)' : '#f1f5f9',
                               color: item.isActive ? 'var(--color-brand, #AF101A)' : '#94a3b8',
                               display: 'flex',
@@ -381,138 +389,152 @@ export default function PaymentMethodsManageModal({ open, onClose }) {
                             }}
                           >
                             {item.type === 'gcash' || item.type === 'maya' ? (
-                              <QrCode size={16} />
+                              <QrCode size={18} />
                             ) : item.type === 'paypal' ? (
-                              <Globe size={16} />
+                              <Globe size={18} />
+                            ) : item.type === 'check' ? (
+                              <FileText size={18} />
                             ) : (
-                              <CreditCard size={16} />
+                              <CreditCard size={18} />
                             )}
                           </div>
                           <div>
-                            <div style={{ fontWeight: 700, color: '#1e293b' }}>{item.name}</div>
-                            {item.description && (
-                              <div style={{ fontSize: '0.75rem', color: '#64748b', lineHeight: 1.3 }}>
+                            <div style={{ fontWeight: 700, color: '#1e293b', fontSize: '0.92rem' }}>{item.name}</div>
+                            {item.description ? (
+                              <div style={{ fontSize: '0.75rem', color: '#64748b', lineHeight: 1.35, marginTop: '2px' }}>
                                 {item.description}
                               </div>
-                            )}
+                            ) : item.code ? (
+                              <code style={{ fontSize: '0.72rem', color: '#94a3b8' }}>{item.code}</code>
+                            ) : null}
                           </div>
                         </div>
                       </td>
 
-                      <td style={{ padding: '0.75rem 1rem' }}>
+                      <td>
                         {item.accountName && (
-                          <div style={{ fontWeight: 600, color: '#334155', fontSize: '0.8rem' }}>
+                          <div style={{ fontWeight: 600, color: '#334155', fontSize: '0.82rem' }}>
                             {item.accountName}
                           </div>
                         )}
                         {item.accountNumber && (
-                          <div style={{ fontFamily: 'monospace', color: '#0f172a', fontWeight: 700, fontSize: '0.82rem' }}>
-                            {item.accountNumber}
+                          <div style={{ marginTop: '2px' }}>
+                            <span
+                              style={{
+                                fontFamily: 'monospace',
+                                color: '#0f172a',
+                                fontWeight: 700,
+                                fontSize: '0.82rem',
+                                background: '#f1f5f9',
+                                padding: '1px 6px',
+                                borderRadius: '4px',
+                                letterSpacing: '0.03em',
+                              }}
+                            >
+                              {item.accountNumber}
+                            </span>
                           </div>
                         )}
                         {item.bankName && item.bankName !== item.name && (
-                          <div style={{ fontSize: '0.72rem', color: '#64748b' }}>
+                          <div style={{ fontSize: '0.74rem', color: '#64748b', marginTop: '2px' }}>
                             Bank: {item.bankName}
                           </div>
                         )}
                         {!item.accountName && !item.accountNumber && (
-                          <span style={{ color: '#94a3b8', fontStyle: 'italic' }}>—</span>
+                          <span style={{ color: '#94a3b8', fontStyle: 'italic', fontSize: '0.8rem' }}>None specified</span>
                         )}
                       </td>
 
-                      <td style={{ padding: '0.75rem 1rem' }}>
+                      <td style={{ textAlign: 'center' }}>
                         {item.qrUrl ? (
                           <a
                             href={item.qrUrl}
                             target="_blank"
                             rel="noreferrer"
-                            title="View QR Code"
+                            title="View full QR code"
                             style={{ display: 'inline-block' }}
                           >
                             <img
                               src={item.qrUrl}
-                              alt={item.name}
+                              alt={`${item.name} QR Code`}
                               style={{
-                                width: 36,
-                                height: 36,
+                                width: 38,
+                                height: 38,
                                 objectFit: 'contain',
-                                borderRadius: '4px',
+                                borderRadius: '6px',
                                 border: '1px solid #e2e8f0',
                                 background: '#fff',
+                                boxShadow: '0 1px 2px rgba(0,0,0,0.05)',
                               }}
                             />
                           </a>
                         ) : (
-                          <span style={{ fontSize: '0.72rem', color: '#94a3b8' }}>None</span>
+                          <span style={{ fontSize: '0.74rem', color: '#94a3b8', fontStyle: 'italic' }}>No QR</span>
                         )}
                       </td>
 
-                      <td style={{ padding: '0.75rem 1rem' }}>
+                      <td style={{ textAlign: 'center' }}>
                         <span
-                          style={{
-                            display: 'inline-flex',
-                            alignItems: 'center',
-                            gap: '0.3rem',
-                            fontSize: '0.75rem',
-                            fontWeight: 700,
-                            padding: '0.2rem 0.55rem',
-                            borderRadius: '999px',
-                            background: item.isActive ? 'rgba(22, 163, 74, 0.1)' : '#f1f5f9',
-                            color: item.isActive ? '#15803d' : '#64748b',
-                          }}
+                          className={`pm-cms-status ${
+                            item.isActive ? 'pm-cms-status--active' : 'pm-cms-status--inactive'
+                          }`}
                         >
-                          {item.isActive ? <CheckCircle2 size={12} /> : <XCircle size={12} />}
-                          {item.isActive ? 'Active' : 'Inactive'}
+                          {item.isActive ? <CheckCircle2 size={12} strokeWidth={2.5} /> : <XCircle size={12} strokeWidth={2.5} />}
+                          <span>{item.isActive ? 'Active' : 'Inactive'}</span>
                         </span>
                       </td>
 
-                      <td style={{ padding: '0.75rem 1rem' }}>
+                      <td style={{ textAlign: 'center' }}>
                         <span
                           style={{
                             fontSize: '0.78rem',
                             fontWeight: 600,
-                            color: item.donationsCount > 0 ? '#1e293b' : '#94a3b8',
+                            padding: '0.2rem 0.55rem',
+                            borderRadius: '6px',
+                            background: item.donationsCount > 0 ? '#eff6ff' : '#f8fafc',
+                            color: item.donationsCount > 0 ? '#1d4ed8' : '#94a3b8',
+                            border: `1px solid ${item.donationsCount > 0 ? '#dbeafe' : '#f1f5f9'}`,
                           }}
                         >
-                          {item.donationsCount} donation{item.donationsCount === 1 ? '' : 's'}
+                          {item.donationsCount} record{item.donationsCount === 1 ? '' : 's'}
                         </span>
                       </td>
 
-                      <td style={{ padding: '0.75rem 1rem', textAlign: 'right' }}>
+                      <td style={{ textAlign: 'right' }}>
                         <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}>
                           <button
                             type="button"
-                            className="btn btn--sm btn--ghost"
+                            className={`pm-cms-action-btn ${
+                              item.isActive ? 'pm-cms-action-btn--toggle-off' : 'pm-cms-action-btn--toggle-on'
+                            }`}
                             onClick={() => handleToggleActive(item)}
-                            title={item.isActive ? 'Deactivate (hide from public)' : 'Activate (display on public)'}
-                            style={{
-                              padding: '0.3rem 0.5rem',
-                              color: item.isActive ? '#d97706' : '#16a34a',
-                            }}
+                            title={item.isActive ? 'Deactivate (hide from public donate page)' : 'Activate (display on public donate page)'}
+                            aria-label={item.isActive ? 'Deactivate' : 'Activate'}
                           >
                             <Power size={14} />
                           </button>
 
                           <button
                             type="button"
-                            className="btn btn--sm btn--ghost"
+                            className="pm-cms-action-btn"
                             onClick={() => handleOpenEdit(item)}
                             title="Edit details"
-                            style={{ padding: '0.3rem 0.5rem' }}
+                            aria-label="Edit details"
                           >
                             <Pencil size={14} />
                           </button>
 
                           <button
                             type="button"
-                            className="btn btn--sm btn--ghost"
+                            className="pm-cms-action-btn pm-cms-action-btn--delete"
                             onClick={() => handleDelete(item)}
-                            title={item.donationsCount > 0 ? 'Cannot delete: used in donations (deactivate instead)' : 'Delete method'}
-                            style={{
-                              padding: '0.3rem 0.5rem',
-                              color: item.donationsCount > 0 ? '#cbd5e1' : '#dc2626',
-                              cursor: item.donationsCount > 0 ? 'not-allowed' : 'pointer',
-                            }}
+                            disabled={item.donationsCount > 0}
+                            title={
+                              item.donationsCount > 0
+                                ? `Cannot delete: used in ${item.donationsCount} donation(s). Deactivate instead.`
+                                : 'Delete payment method'
+                            }
+                            aria-label="Delete"
                           >
                             <Trash2 size={14} />
                           </button>
