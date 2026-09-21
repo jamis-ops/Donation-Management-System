@@ -276,20 +276,6 @@ if ($method === 'POST') {
       json_response(['ok' => false, 'error' => 'Total amount utilized must be greater than 0'], 400);
     }
 
-    // Budget Balance Guard: Ensure total allocation does not exceed remaining donation balance
-    $allocStmt = $pdo->prepare('SELECT COALESCE(SUM(total_amount), 0) FROM donation_procurements WHERE donation_id = ?');
-    $allocStmt->execute([$donationId]);
-    $alreadyAllocated = (float) $allocStmt->fetchColumn();
-    $donationTotal = (float) ($donation['amount'] ?? 0);
-    $availableDonationBalance = max(0.0, $donationTotal - $alreadyAllocated);
-
-    if ($totalAmount > ($availableDonationBalance + 0.01)) {
-      json_response([
-        'ok' => false,
-        'error' => "Allocation amount (₱" . number_format($totalAmount, 2) . ") exceeds the available donation balance (₱" . number_format($availableDonationBalance, 2) . ")."
-      ], 400);
-    }
-
     $beneficiaryId = !empty($body['beneficiaryId']) ? (int) $body['beneficiaryId'] : (!empty($body['beneficiary_id']) ? (int) $body['beneficiary_id'] : null);
     $assistanceRequestId = !empty($body['assistanceRequestId']) ? (int) $body['assistanceRequestId'] : (!empty($body['assistance_request_id']) ? (int) $body['assistance_request_id'] : null);
     $items = is_array($body['items'] ?? null) ? $body['items'] : [];
@@ -308,35 +294,8 @@ if ($method === 'POST') {
       $beneficiary = $bStmt->fetch() ?: null;
       if ($beneficiary) {
         $benName = $beneficiary['full_name'] ?: ($beneficiary['barangay'] ?? 'Partner Community');
-
-        // Duplicate Allocation Guard: Prevent duplicate allocation for this donation & barangay
-        $dupCheck = $pdo->prepare('SELECT id FROM donation_procurements WHERE donation_id = ? AND beneficiary_id = ? LIMIT 1');
-        $dupCheck->execute([$donationId, $beneficiaryId]);
-        if ($dupCheck->fetchColumn()) {
-          json_response([
-            'ok' => false,
-            'error' => "Barangay {$benName} has already received an allocation from this donation. Duplicate allocation is not allowed."
-          ], 409);
-        }
-
-        // Unfulfilled Need Guard: Check if barangay has already received full allocation for its affected families
-        $famStmt = $pdo->prepare('SELECT COALESCE(SUM(families_supported), 0) FROM donation_procurements WHERE beneficiary_id = ?');
-        $famStmt->execute([$beneficiaryId]);
-        $alreadySupported = (int) $famStmt->fetchColumn();
-        $affectedFamilies = (int) ($beneficiary['affected_families'] ?? 0);
-
-        if ($affectedFamilies > 0 && $alreadySupported >= $affectedFamilies) {
-          json_response([
-            'ok' => false,
-            'error' => "Barangay {$benName} has already reached its full target allocation ({$alreadySupported}/{$affectedFamilies} families supported)."
-          ], 409);
-        }
-
-        $remainingUnassisted = $affectedFamilies > 0 ? max(0, $affectedFamilies - $alreadySupported) : 0;
         if ($familiesSupported <= 0) {
-          $familiesSupported = $remainingUnassisted > 0 ? $remainingUnassisted : 1;
-        } elseif ($remainingUnassisted > 0 && $familiesSupported > $remainingUnassisted) {
-          $familiesSupported = $remainingUnassisted;
+          $familiesSupported = (int) ($beneficiary['affected_families'] ?? 1);
         }
       }
     }

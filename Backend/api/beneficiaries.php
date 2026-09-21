@@ -312,24 +312,6 @@ function map_beneficiary(PDO $pdo, array $row): array
     }
   }
 
-  // Dynamic calculation of completed allocations & supported families from donation_procurements
-  $familiesFulfilled = 0;
-  $totalFundsReceived = 0.0;
-  try {
-    $procStmt = $pdo->prepare('SELECT COALESCE(SUM(families_supported), 0), COALESCE(SUM(total_amount), 0) FROM donation_procurements WHERE beneficiary_id = ?');
-    $procStmt->execute([$row['id']]);
-    $procRow = $procStmt->fetch(PDO::FETCH_NUM);
-    if ($procRow) {
-      $familiesFulfilled = (int) $procRow[0];
-      $totalFundsReceived = (float) $procRow[1];
-    }
-  } catch (Throwable $e) {
-    // donation_procurements may not exist in some environments
-  }
-
-  $unfulfilledFamilies = $affectedFamilies > 0 ? max(0, $affectedFamilies - $familiesFulfilled) : 0;
-  $isFullyFulfilled = $affectedFamilies > 0 && $familiesFulfilled >= $affectedFamilies;
-
   return [
     'id' => $row['code'],
     'dbId' => (int) $row['id'],
@@ -339,10 +321,6 @@ function map_beneficiary(PDO $pdo, array $row): array
     'municipality' => $row['municipality'] ?? '',
     'address' => $row['address'] ?? '',
     'affectedFamilies' => $affectedFamilies,
-    'familiesFulfilled' => $familiesFulfilled,
-    'unfulfilledFamilies' => $unfulfilledFamilies,
-    'isFullyFulfilled' => $isFullyFulfilled,
-    'totalFundsReceived' => $totalFundsReceived,
     'representativeName' => $row['representative_name'] ?? '',
     'representativeFirstName' => $row['representative_first_name'] ?? '',
     'representativeLastName' => $row['representative_last_name'] ?? '',
