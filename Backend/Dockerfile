@@ -11,6 +11,8 @@ RUN apt-get update && apt-get install -y \
     libxml2-dev \
     zip \
     unzip \
+    tesseract-ocr \
+    tesseract-ocr-eng \
     && docker-php-ext-configure gd --with-freetype --with-jpeg \
     && docker-php-ext-install pdo pdo_mysql mbstring gd \
     && a2enmod rewrite headers \

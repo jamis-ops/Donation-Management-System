@@ -293,11 +293,14 @@ export function submitPublicDonation(bodyOrFormData) {
   })
 }
 
-export function verifyPaymentProof(file, selectedMethod = '') {
+export function verifyPaymentProof(file, selectedMethod = '', paymentMethodId = '') {
   const fd = new FormData()
   fd.append('proof', file)
   if (selectedMethod) {
     fd.append('selectedMethod', selectedMethod)
+  }
+  if (paymentMethodId) {
+    fd.append('payment_method_id', String(paymentMethodId))
   }
   return fetch(apiUrl('/api/verify_payment_proof.php'), {
     method: 'POST',

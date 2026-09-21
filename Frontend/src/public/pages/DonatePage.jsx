@@ -363,25 +363,28 @@ export default function DonatePage() {
 
     try {
       const methodLabel = selectedMethod ? (selectedMethod.name || selectedMethod.code) : form.paymentMethod
-      const res = await verifyPaymentProof(file, methodLabel)
-      if (res?.ok && res?.verification) {
-        const v = res.verification
+      const methodId = selectedMethod?.id || ''
+      const res = await verifyPaymentProof(file, methodLabel, methodId)
+      if (res?.ok) {
+        const v = res.verification || res
         setAiResult(v)
         setTempProofToken(res.tempProofToken || '')
-        setAiState(v.status || 'needs_review')
+        setAiState(v.status || res.status || 'needs_review')
 
-        if (v.extractedAmount !== null && v.extractedAmount !== undefined && Number(v.extractedAmount) > 0) {
+        const extractedAmt = v.amount ?? v.extractedAmount
+        if (extractedAmt !== null && extractedAmt !== undefined && Number(extractedAmt) > 0) {
           setForm((prev) => ({
             ...prev,
-            amount: String(v.extractedAmount),
+            amount: String(extractedAmt),
           }))
           setIsAmountManuallyAdjusted(false)
         }
 
-        if (v.referenceNumber && String(v.referenceNumber).trim() !== '') {
+        const refNum = v.referenceNumber ?? v.reference_number
+        if (refNum && String(refNum).trim() !== '') {
           setForm((prev) => ({
             ...prev,
-            paymentReference: String(v.referenceNumber).trim(),
+            paymentReference: String(refNum).trim(),
           }))
         }
       } else {
@@ -521,11 +524,14 @@ export default function DonatePage() {
       if (form.proof?.name) fd.append('proofFileName', form.proof.name)
       if (aiResult) {
         fd.append('aiVerificationStatus', aiResult.status || 'Unverified')
-        if (aiResult.extractedAmount !== null && aiResult.extractedAmount !== undefined) {
-          fd.append('aiExtractedAmount', String(aiResult.extractedAmount))
+        const finalAmt = aiResult.amount ?? aiResult.extractedAmount
+        if (finalAmt !== null && finalAmt !== undefined) {
+          fd.append('aiExtractedAmount', String(finalAmt))
         }
-        if (aiResult.referenceNumber) fd.append('aiExtractedReference', aiResult.referenceNumber)
-        if (aiResult.detectedMethod) fd.append('aiExtractedMethod', aiResult.detectedMethod)
+        const finalRef = aiResult.referenceNumber ?? aiResult.reference_number
+        if (finalRef) fd.append('aiExtractedReference', String(finalRef).trim())
+        const finalMethod = aiResult.paymentMethod ?? aiResult.detectedMethod
+        if (finalMethod) fd.append('aiExtractedMethod', finalMethod)
         if (aiResult.confidence) fd.append('aiConfidence', aiResult.confidence)
         if (aiResult.verificationMessage) fd.append('aiVerificationNotes', aiResult.verificationMessage)
       }
@@ -1382,45 +1388,113 @@ export default function DonatePage() {
                               ✓ Verified
                             </span>
                           </div>
-                          <p style={{ margin: '0 0 0.35rem', fontSize: '0.82rem', color: '#14532d' }}>
-                            {aiResult.verificationMessage || 'Amount and transaction details were successfully extracted.'}
+                          <p style={{ margin: '0 0 0.5rem', fontSize: '0.82rem', color: '#14532d' }}>
+                            {aiResult.verificationMessage || 'Recipient account and payment details verified successfully.'}
                           </p>
 
                           <div className="ai-verification-grid">
-                            {aiResult.detectedMethod && (
+                            {(aiResult.recipient || aiResult.recipientInfo) && (
                               <div className="ai-verification-item">
-                                <span className="ai-verification-item__label">Payment Method</span>
-                                <span className="ai-verification-item__value">{aiResult.detectedMethod}</span>
-                              </div>
-                            )}
-                            {aiResult.referenceNumber && (
-                              <div className="ai-verification-item">
-                                <span className="ai-verification-item__label">Reference Number</span>
-                                <span className="ai-verification-item__value" style={{ fontFamily: 'monospace' }}>
-                                  {aiResult.referenceNumber}
+                                <span className="ai-verification-item__label">Recipient</span>
+                                <span className="ai-verification-item__value">
+                                  {aiResult.recipient || aiResult.recipientInfo}
                                 </span>
                               </div>
                             )}
-                            {aiResult.transactionDate && (
+                            {(aiResult.paymentMethod || aiResult.detectedMethod) && (
                               <div className="ai-verification-item">
-                                <span className="ai-verification-item__label">Transaction Date</span>
-                                <span className="ai-verification-item__value">{aiResult.transactionDate}</span>
+                                <span className="ai-verification-item__label">Payment Method</span>
+                                <span className="ai-verification-item__value">
+                                  {aiResult.paymentMethod || aiResult.detectedMethod}
+                                </span>
                               </div>
                             )}
-                            {aiResult.recipientInfo && (
+                            {(aiResult.amount !== null && aiResult.amount !== undefined) || (aiResult.extractedAmount !== null && aiResult.extractedAmount !== undefined) ? (
                               <div className="ai-verification-item">
-                                <span className="ai-verification-item__label">Recipient</span>
-                                <span className="ai-verification-item__value">{aiResult.recipientInfo}</span>
+                                <span className="ai-verification-item__label">Amount</span>
+                                <span className="ai-verification-item__value" style={{ color: '#15803d', fontWeight: 800 }}>
+                                  ₱{Number(aiResult.amount ?? aiResult.extractedAmount).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                </span>
+                              </div>
+                            ) : null}
+                            {(aiResult.referenceNumber || aiResult.reference_number) && (
+                              <div className="ai-verification-item">
+                                <span className="ai-verification-item__label">Reference No.</span>
+                                <span className="ai-verification-item__value" style={{ fontFamily: 'monospace' }}>
+                                  {aiResult.referenceNumber || aiResult.reference_number}
+                                </span>
+                              </div>
+                            )}
+                            {(aiResult.transactionDate || aiResult.transaction_date) && (
+                              <div className="ai-verification-item">
+                                <span className="ai-verification-item__label">Transaction Date</span>
+                                <span className="ai-verification-item__value">
+                                  {aiResult.transactionDate || aiResult.transaction_date}
+                                </span>
                               </div>
                             )}
                           </div>
 
-                          {!aiResult.methodMatchesSelected && aiResult.detectedMethod && (
+                          {aiResult.paymentMethodMatch === false && (aiResult.paymentMethod || aiResult.detectedMethod) && (
                             <div style={{ marginTop: '0.65rem', padding: '0.45rem 0.65rem', background: '#fef3c7', borderRadius: '6px', border: '1px solid #fde68a', fontSize: '0.78rem', color: '#92400e', display: 'flex', gap: '0.35rem', alignItems: 'center' }}>
                               <AlertTriangle size={14} style={{ flexShrink: 0 }} />
                               <span>
-                                Note: Detected provider is <strong>{aiResult.detectedMethod}</strong> while <strong>{selectedMethod?.name || form.paymentMethod}</strong> is selected above.
+                                Note: Detected provider is <strong>{aiResult.paymentMethod || aiResult.detectedMethod}</strong> while <strong>{selectedMethod?.name || form.paymentMethod}</strong> is selected above.
                               </span>
+                            </div>
+                          )}
+                        </div>
+                      )}
+
+                      {aiState === 'mismatch' && (
+                        <div className="ai-verification-box ai-verification-box--mismatch">
+                          <div className="ai-verification-box__header">
+                            <div className="ai-verification-box__title">
+                              <AlertTriangle size={18} color="#b45309" />
+                              <span>Payment Method or Recipient Mismatch</span>
+                            </div>
+                            <span className="ai-verification-box__badge ai-verification-box__badge--mismatch">
+                              ⚠ Mismatch
+                            </span>
+                          </div>
+                          <p style={{ margin: '0 0 0.5rem', fontSize: '0.82rem', color: '#92400e' }}>
+                            {aiResult?.verificationMessage || 'The uploaded receipt appears to be for a different payment method or recipient.'}
+                          </p>
+
+                          {aiResult && (
+                            <div className="ai-verification-grid">
+                              {(aiResult.paymentMethod || aiResult.detectedMethod) && (
+                                <div className="ai-verification-item">
+                                  <span className="ai-verification-item__label">Detected Provider</span>
+                                  <span className="ai-verification-item__value">
+                                    {aiResult.paymentMethod || aiResult.detectedMethod}
+                                  </span>
+                                </div>
+                              )}
+                              {(aiResult.amount !== null && aiResult.amount !== undefined) || (aiResult.extractedAmount !== null && aiResult.extractedAmount !== undefined) ? (
+                                <div className="ai-verification-item">
+                                  <span className="ai-verification-item__label">Extracted Amount</span>
+                                  <span className="ai-verification-item__value">
+                                    ₱{Number(aiResult.amount ?? aiResult.extractedAmount).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                  </span>
+                                </div>
+                              ) : null}
+                              {(aiResult.referenceNumber || aiResult.reference_number) && (
+                                <div className="ai-verification-item">
+                                  <span className="ai-verification-item__label">Reference No.</span>
+                                  <span className="ai-verification-item__value" style={{ fontFamily: 'monospace' }}>
+                                    {aiResult.referenceNumber || aiResult.reference_number}
+                                  </span>
+                                </div>
+                              )}
+                              {(aiResult.recipient || aiResult.recipientInfo) && (
+                                <div className="ai-verification-item">
+                                  <span className="ai-verification-item__label">Detected Recipient</span>
+                                  <span className="ai-verification-item__value">
+                                    {aiResult.recipient || aiResult.recipientInfo}
+                                  </span>
+                                </div>
+                              )}
                             </div>
                           )}
                         </div>
