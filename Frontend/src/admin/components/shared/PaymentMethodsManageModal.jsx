@@ -247,11 +247,17 @@ export default function PaymentMethodsManageModal({ open, onClose }) {
   if (!open) return null
 
   return createPortal(
-    <div className="modal-backdrop" onClick={onClose} role="dialog" aria-modal="true">
+    <div
+      className="admin-modal-overlay catalog-manage-overlay"
+      onClick={onClose}
+      role="dialog"
+      aria-modal="true"
+      style={{ zIndex: 1100 }}
+    >
       <div
-        className="modal-content modal-content--wide master-catalog-modal"
+        className="admin-modal admin-modal--extra-wide master-catalog-modal"
         onClick={(e) => e.stopPropagation()}
-        style={{ maxWidth: '980px', width: '94vw' }}
+        style={{ maxWidth: '1020px', width: '95vw', maxHeight: '92vh', overflowY: 'auto' }}
       >
         <ModalHeader
           title="Payment Methods CMS"
@@ -551,14 +557,14 @@ export default function PaymentMethodsManageModal({ open, onClose }) {
       {/* Sub-Modal: Add / Edit Form */}
       {showFormModal && (
         <div
-          className="modal-backdrop"
+          className="admin-modal-overlay"
           onClick={() => setShowFormModal(false)}
-          style={{ zIndex: 1200 }}
+          style={{ zIndex: 1250 }}
         >
           <div
-            className="modal-content"
+            className="admin-modal admin-modal--wide"
             onClick={(e) => e.stopPropagation()}
-            style={{ maxWidth: '640px', width: '92vw', maxHeight: '90vh', overflowY: 'auto' }}
+            style={{ maxWidth: '680px', width: '92vw', maxHeight: '90vh', overflowY: 'auto' }}
           >
             <ModalHeader
               title={editingItem ? `Edit Payment Method: ${editingItem.name}` : 'Add New Payment Method'}

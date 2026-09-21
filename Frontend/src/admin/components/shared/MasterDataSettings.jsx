@@ -1,4 +1,5 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { Building2, ClipboardList, HeartHandshake, ListTodo, Package, Sparkles, Layers, Wallet } from 'lucide-react'
 import CatalogManageModal from './CatalogManageModal'
 import TaskTitlesManageModal from './TaskTitlesManageModal'
@@ -72,7 +73,30 @@ const SECTIONS = [
  * Each card opens a CRUD modal.
  */
 export default function MasterDataSettings() {
-  const [active, setActive] = useState(null)
+  const [searchParams, setSearchParams] = useSearchParams()
+  const [active, setActive] = useState(() => searchParams.get('section') || searchParams.get('catalog') || null)
+
+  useEffect(() => {
+    const q = searchParams.get('section') || searchParams.get('catalog')
+    if (q) {
+      setActive(q)
+    }
+  }, [searchParams])
+
+  const handleOpen = (key) => {
+    setActive(key)
+    const next = new URLSearchParams(searchParams)
+    next.set('section', key)
+    setSearchParams(next, { replace: true })
+  }
+
+  const handleClose = () => {
+    setActive(null)
+    const next = new URLSearchParams(searchParams)
+    next.delete('section')
+    next.delete('catalog')
+    setSearchParams(next, { replace: true })
+  }
 
   const current = SECTIONS.find((s) => s.key === active) || null
 
@@ -93,7 +117,8 @@ export default function MasterDataSettings() {
               key={section.key}
               type="button"
               className="master-data-card"
-              onClick={() => setActive(section.key)}
+              onClick={() => handleOpen(section.key)}
+              aria-label={`Manage ${section.title}`}
             >
               <span className="master-data-card__icon" aria-hidden="true">
                 <Icon size={22} />
@@ -102,7 +127,7 @@ export default function MasterDataSettings() {
                 <strong>{section.title}</strong>
                 <span>{section.short}</span>
               </span>
-              <span className="master-data-card__cta">Manage</span>
+              <span className="master-data-card__cta">Manage &rarr;</span>
             </button>
           )
         })}
@@ -110,7 +135,7 @@ export default function MasterDataSettings() {
 
       <CatalogManageModal
         open={Boolean(current && !current.isTaskTitles && !current.isInventoryCms && !current.isPaymentMethods)}
-        onClose={() => setActive(null)}
+        onClose={handleClose}
         catalog={current?.key}
         title={current ? `Manage ${current.title}` : ''}
         description={current?.description}
@@ -118,17 +143,17 @@ export default function MasterDataSettings() {
 
       <TaskTitlesManageModal
         open={Boolean(current && current.isTaskTitles)}
-        onClose={() => setActive(null)}
+        onClose={handleClose}
       />
 
       <InventoryCmsModal
         open={Boolean(current && current.isInventoryCms)}
-        onClose={() => setActive(null)}
+        onClose={handleClose}
       />
 
       <PaymentMethodsManageModal
         open={Boolean(current && current.isPaymentMethods)}
-        onClose={() => setActive(null)}
+        onClose={handleClose}
       />
     </section>
   )
