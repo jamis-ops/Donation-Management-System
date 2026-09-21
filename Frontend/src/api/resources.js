@@ -116,6 +116,20 @@ export function getDonorProfile() {
 export function updateDonorProfile(body) {
   return apiFetch('/api/donors.php?me=1', { method: 'PUT', body: JSON.stringify(body) })
 }
+
+export const paymentMethodsApi = {
+  ...resourceApi('/api/payment_methods.php'),
+  listPublic: () => apiFetch('/api/payment_methods.php'),
+  listAll: () => apiFetch('/api/payment_methods.php?all=1'),
+  toggleActive: (id) => apiFetch(`/api/payment_methods.php?id=${id}&action=toggle_active`, { method: 'POST', body: '{}' }),
+  saveMultipart: (formData, id = null) => {
+    const url = id ? `/api/payment_methods.php?id=${id}` : '/api/payment_methods.php'
+    return apiFetch(url, {
+      method: 'POST',
+      body: formData,
+    })
+  },
+}
 export const beneficiariesApi = {
   ...resourceApi('/api/beneficiaries.php'),
   invite: (body) => apiFetch('/api/beneficiaries.php?action=invite', {

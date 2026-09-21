@@ -1,10 +1,19 @@
 import { useState } from 'react'
-import { Building2, ClipboardList, HeartHandshake, ListTodo, Package, Sparkles, Layers } from 'lucide-react'
+import { Building2, ClipboardList, HeartHandshake, ListTodo, Package, Sparkles, Layers, Wallet } from 'lucide-react'
 import CatalogManageModal from './CatalogManageModal'
 import TaskTitlesManageModal from './TaskTitlesManageModal'
 import InventoryCmsModal from './InventoryCmsModal'
+import PaymentMethodsManageModal from './PaymentMethodsManageModal'
 
 const SECTIONS = [
+  {
+    key: 'payment_methods',
+    title: 'Payment Methods CMS',
+    short: 'Manage GCash, Maya, Bank Transfer, PayPal, QR codes & donation payment instructions.',
+    description: 'Configure monetary donation payment methods, QR code images, account details, and public visibility.',
+    icon: Wallet,
+    isPaymentMethods: true,
+  },
   {
     key: 'inventory_cms',
     title: 'Inventory Catalog CMS',
@@ -100,7 +109,7 @@ export default function MasterDataSettings() {
       </div>
 
       <CatalogManageModal
-        open={Boolean(current && !current.isTaskTitles && !current.isInventoryCms)}
+        open={Boolean(current && !current.isTaskTitles && !current.isInventoryCms && !current.isPaymentMethods)}
         onClose={() => setActive(null)}
         catalog={current?.key}
         title={current ? `Manage ${current.title}` : ''}
@@ -114,6 +123,11 @@ export default function MasterDataSettings() {
 
       <InventoryCmsModal
         open={Boolean(current && current.isInventoryCms)}
+        onClose={() => setActive(null)}
+      />
+
+      <PaymentMethodsManageModal
+        open={Boolean(current && current.isPaymentMethods)}
         onClose={() => setActive(null)}
       />
     </section>

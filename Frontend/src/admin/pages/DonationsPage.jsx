@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { 
   Eye, CheckCircle2, Download, FileText, Check, Clock, Package, 
@@ -7,7 +7,7 @@ import {
   Banknote, Gift, ShieldAlert, Sparkles, Filter, Layers, DollarSign,
   Trash2, Settings2, ExternalLink, ShoppingCart
 } from 'lucide-react'
-import { donationsApi, beneficiariesApi, assistanceRequestsApi } from '../../api/resources'
+import { donationsApi, beneficiariesApi, assistanceRequestsApi, paymentMethodsApi } from '../../api/resources'
 import ProcurementModal from '../components/donations/ProcurementModal'
 import InKindIntakeModal from '../components/shared/InKindIntakeModal'
 import { useApiList } from '../../hooks/useApiList'
@@ -77,6 +77,7 @@ const emptyForm = {
   amount: '',
   items: '',
   paymentMethod: 'GCash',
+  paymentReference: '',
   status: 'Pending Verification',
   notes: '',
 }
@@ -91,7 +92,7 @@ const inKindFilterConfig = {
 }
 
 const monetaryFilterConfig = {
-  searchKeys: ['trackingCode', 'donor', 'donorEmail', 'paymentMethod', 'category', 'notes'],
+  searchKeys: ['trackingCode', 'donor', 'donorEmail', 'paymentMethod', 'paymentReference', 'category', 'notes'],
   filters: [
     { key: 'status', label: 'Status' },
     { key: 'paymentMethod', label: 'Payment Method' },
@@ -127,7 +128,20 @@ export default function DonationsPage() {
   const [form, setForm] = useState(emptyForm)
   const [saving, setSaving] = useState(false)
   const [modalTab, setModalTab] = useState('overview')
+  const [actionLoading, setActionLoading] = useState(false)
   const [actionStatus, setActionStatus] = useState('')
+  const [paymentMethodOptions, setPaymentMethodOptions] = useState(PAYMENT_METHODS)
+
+  useEffect(() => {
+    paymentMethodsApi.listPublic()
+      .then((res) => {
+        if (Array.isArray(res?.data) && res.data.length > 0) {
+          const names = res.data.map((m) => m.name).filter(Boolean)
+          setPaymentMethodOptions(names)
+        }
+      })
+      .catch(() => {})
+  }, [])
 
   // Split donations by type
   const inKindDonations = useMemo(() => (donations || []).filter(d => d.type === 'In-Kind'), [donations])
@@ -165,7 +179,8 @@ export default function DonationsPage() {
       ...emptyForm,
       type: activeSection === 'monetary' ? 'Monetary' : 'In-Kind',
       category: activeSection === 'monetary' ? (MONETARY_CATEGORIES[0] || '') : (IN_KIND_CATEGORIES[0] || ''),
-      paymentMethod: activeSection === 'monetary' ? 'GCash' : '',
+      paymentMethod: activeSection === 'monetary' ? (paymentMethodOptions[0] || 'GCash') : '',
+      paymentReference: '',
     })
     setShowForm(true)
   }
@@ -356,6 +371,7 @@ export default function DonationsPage() {
         amount: form.type === 'Monetary' ? Number(form.amount) : undefined,
         items: form.type === 'In-Kind' ? form.items : undefined,
         paymentMethod: form.type === 'Monetary' ? form.paymentMethod : undefined,
+        paymentReference: form.type === 'Monetary' ? (form.paymentReference?.trim() || undefined) : undefined,
         notes: form.notes,
         status: form.status,
       })
@@ -915,7 +931,7 @@ export default function DonationsPage() {
                       ...form, 
                       type: 'Monetary', 
                       category: MONETARY_CATEGORIES[0] || '',
-                      paymentMethod: form.paymentMethod || 'GCash',
+                      paymentMethod: paymentMethodOptions[0] || 'GCash',
                     })}
                   >
                     <Coins size={16} />
@@ -1002,7 +1018,7 @@ export default function DonationsPage() {
                         value={form.paymentMethod} 
                         onChange={(e) => setForm({ ...form, paymentMethod: e.target.value })}
                       >
-                        {PAYMENT_METHODS.map((m) => (
+                        {paymentMethodOptions.map((m) => (
                           <option key={m} value={m}>{m}</option>
                         ))}
                       </select>
@@ -1023,13 +1039,26 @@ export default function DonationsPage() {
                       />
                     </label>
                     <label>
+                      Payment Reference / Transaction No.
+                      <input 
+                        type="text"
+                        placeholder="e.g. GCash Ref, Bank Trace No."
+                        value={form.paymentReference || ''} 
+                        onChange={(e) => setForm({ ...form, paymentReference: e.target.value })} 
+                      />
+                    </label>
+                  </div>
+
+                  <div className="form-row">
+                    <label>
                       Initial Status
                       <select 
                         value={form.status} 
                         onChange={(e) => setForm({ ...form, status: e.target.value })}
                       >
-                        <option value="Pending Verification">Pending Verification</option>
-                        <option value="Verified">Verified</option>
+                        {DONATION_STATUSES.map((s) => (
+                          <option key={s} value={s}>{s}</option>
+                        ))}
                       </select>
                     </label>
                   </div>
@@ -1644,6 +1673,8 @@ export default function DonationsPage() {
                     <>
                       <dt>Payment Method</dt>
                       <dd>{selected.paymentMethod || '—'}</dd>
+                      <dt>Payment Reference</dt>
+                      <dd>{selected.paymentReference ? <code style={{ fontFamily: 'monospace', fontWeight: 600 }}>{selected.paymentReference}</code> : '—'}</dd>
                     </>
                   )}
                   {selected.type === 'In-Kind' && (

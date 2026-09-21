@@ -10,6 +10,7 @@ import {
   Plus,
   RotateCcw,
   Trash2,
+  Wallet,
 } from 'lucide-react'
 import { contentApi } from '../../api/resources'
 import PageHeader from '../components/shared/PageHeader'
@@ -22,6 +23,7 @@ import { useSeeMore } from '../../hooks/useSeeMore'
 import { SeeMoreToggle } from '../components/shared/SeeMoreList'
 import { notify, confirmAction, showSuccessModal } from '../../utils/confirm'
 import { useLoading } from '../../context/LoadingContext'
+import PaymentMethodsManageModal from '../components/shared/PaymentMethodsManageModal'
 
 const TYPES = [
   { key: 'programs', label: 'Programs' },
@@ -95,6 +97,7 @@ export default function ContentPage() {
   const [editRow, setEditRow] = useState(null)
   const [form, setForm] = useState(emptyForm)
   const [saving, setSaving] = useState(false)
+  const [showPaymentMethodsModal, setShowPaymentMethodsModal] = useState(false)
 
   const load = async () => {
     setLoading(true)
@@ -234,9 +237,18 @@ export default function ContentPage() {
         description="Manage public website content — programs, stories, partners, announcements, FAQs, and more."
         actions={
           canEdit ? (
-            <button type="button" className="btn btn--primary" onClick={openCreate}>
-              <Plus size={15} /> Add Item
-            </button>
+            <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+              <button
+                type="button"
+                className="btn btn--outline"
+                onClick={() => setShowPaymentMethodsModal(true)}
+              >
+                <Wallet size={15} /> Payment Methods
+              </button>
+              <button type="button" className="btn btn--primary" onClick={openCreate}>
+                <Plus size={15} /> Add Item
+              </button>
+            </div>
           ) : null
         }
       />
@@ -563,6 +575,11 @@ export default function ContentPage() {
           </div>
         </div>
       )}
+
+      <PaymentMethodsManageModal
+        open={showPaymentMethodsModal}
+        onClose={() => setShowPaymentMethodsModal(false)}
+      />
     </>
   )
 }

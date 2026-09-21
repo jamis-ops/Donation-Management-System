@@ -11,6 +11,26 @@ require_once __DIR__ . '/bootstrap.php';
 $kind = preg_replace('/[^a-z_]/', '', strtolower((string) ($_GET['kind'] ?? ''))) ?: '';
 $name = basename((string) ($_GET['name'] ?? ''));
 
+// Public assets (profiles and payment_methods QR/logos) — serve them without requiring auth
+if ($kind === 'payment_methods') {
+  if ($name === '') {
+    json_response(['ok' => false, 'error' => 'Invalid payment method image request'], 400);
+  }
+  $dir = __DIR__ . '/uploads/payment_methods';
+  $path = $dir . '/' . $name;
+  if (is_file($path)) {
+    $mime = mime_content_type($path) ?: 'image/png';
+    header('Content-Type: ' . $mime);
+    header('Content-Length: ' . (string) filesize($path));
+    header('Content-Disposition: inline; filename="' . rawurlencode($name) . '"');
+    header('X-Content-Type-Options: nosniff');
+    header('Cache-Control: public, max-age=86400');
+    readfile($path);
+    exit;
+  }
+  json_response(['ok' => false, 'error' => 'Payment method image not found'], 404);
+}
+
 // Profile photos are public assets — serve them without requiring auth
 if ($kind === 'profiles') {
   if ($name === '') {

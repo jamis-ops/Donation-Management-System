@@ -302,6 +302,7 @@ export function printDonationReceipt(donation, options = {}) {
         <td>
           <div>${category}</div>
           ${isMonetary ? `<div style="font-size: 11px; color: #64748b;">Method: ${paymentMethod}</div>` : ''}
+          ${isMonetary && donation.paymentReference ? `<div style="font-size: 11px; color: #64748b; font-family: monospace;">Ref: ${donation.paymentReference}</div>` : ''}
         </td>
         <td>
           <span class="status-tag">${status}</span>

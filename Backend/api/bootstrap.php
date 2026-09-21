@@ -2051,3 +2051,18 @@ function donation_belongs_to_donor_user(PDO $pdo, array $donation, array $user):
   }
 }
 
+function ensure_column(PDO $pdo, string $table, string $column, string $typeDef): void
+{
+  try {
+    $cleanTable = str_replace('`', '', $table);
+    $cleanColumn = str_replace('`', '', $column);
+    $stmt = $pdo->prepare("SHOW COLUMNS FROM `{$cleanTable}` LIKE ?");
+    $stmt->execute([$cleanColumn]);
+    if (!$stmt->fetch()) {
+      $pdo->exec("ALTER TABLE `{$cleanTable}` ADD COLUMN `{$cleanColumn}` {$typeDef}");
+    }
+  } catch (Throwable $e) {
+    // Ignore if column already exists or table not ready
+  }
+}
+

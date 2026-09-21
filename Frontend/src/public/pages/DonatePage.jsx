@@ -6,7 +6,7 @@ import {
   Edit3, HeartHandshake, AlertCircle, RefreshCw, CheckCircle2,
   Package, LogIn
 } from 'lucide-react'
-import { submitPublicDonation, getDonorProfile } from '../../api/resources'
+import { submitPublicDonation, getDonorProfile, paymentMethodsApi } from '../../api/resources'
 import { useAuth } from '../../context/AuthContext'
 import { DONOR_TYPES } from '../../constants/options'
 import { COUNTRIES, getRegionsForCountry } from '../../constants/locations'
@@ -38,14 +38,97 @@ const donationTypes = [
   { id: 'in-kind', label: 'In-Kind Donation' },
 ]
 
-const PAYMENT_METHODS = [
-  { id: 'paypal', label: 'Paypal', dbValue: 'PayPal' },
-  { id: 'bank-transfer', label: 'Bank Transfer', dbValue: 'Bank Transfer' },
-  { id: 'gcash', label: 'Gcash Philippines', dbValue: 'GCash' },
-  { id: 'crypto', label: 'Cryptocurrency', dbValue: 'Cryptocurrency' },
-  { id: 'check', label: 'Check Donation', dbValue: 'Check Donation' },
-  { id: 'usa', label: 'USA', dbValue: 'USA Donation' },
-  { id: 'canada', label: 'CANADA', dbValue: 'Canada Donation' },
+function getMethodIcon(code, category) {
+  const c = String(code || '').toLowerCase()
+  const cat = String(category || '').toLowerCase()
+  if (c.includes('bank') || cat.includes('bank')) return Landmark
+  if (c.includes('gcash') || c.includes('maya') || cat.includes('wallet')) return QrCode
+  if (c.includes('paypal') || cat.includes('online')) return Globe
+  if (c.includes('crypto')) return Wallet
+  if (c.includes('check')) return FileText
+  return CreditCard
+}
+
+function parseInstructions(instructionsStr) {
+  if (!instructionsStr) return []
+  return instructionsStr
+    .split('\n')
+    .map((line) => line.trim())
+    .filter(Boolean)
+}
+
+function parseExtraDetails(extraDetailsStr) {
+  if (!extraDetailsStr) return []
+  return extraDetailsStr
+    .split('\n')
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .map((line) => {
+      const colonIdx = line.indexOf(':')
+      if (colonIdx > 0 && colonIdx < 35) {
+        const label = line.slice(0, colonIdx).trim()
+        const value = line.slice(colonIdx + 1).trim()
+        const isCode = label.toLowerCase().includes('swift') || label.toLowerCase().includes('iban') || label.toLowerCase().includes('code')
+        const fullWidth = value.length > 35 || label.toLowerCase().includes('address')
+        return { label, value, isCode, fullWidth }
+      }
+      return { label: 'Details', value: line, isCode: false, fullWidth: line.length > 35 }
+    })
+}
+
+const FALLBACK_PAYMENT_METHODS = [
+  {
+    id: 1,
+    code: 'gcash',
+    name: 'GCash Philippines',
+    category: 'E-Wallet',
+    instructions: '1. Open your GCash App\n2. Choose Pay QR (or Scan QR)\n3. Select Scan QR using the code below\n4. Scan the code and input the desired amount to donate\n5. Click Next and Select Pay\n6. Take a screenshot of the completed transaction receipt',
+    accountName: 'Rise Above Foundation Cebu Inc',
+    accountNumber: '',
+    notes: 'After sending via GCash, please upload your transaction screenshot below as proof of donation.',
+    qrUrl: gcashQrImg,
+  },
+  {
+    id: 2,
+    code: 'bank-transfer',
+    name: 'Bank Transfer (BPI)',
+    category: 'Bank Transfer',
+    instructions: '1. Open your banking app, online banking, or visit any BPI branch.\n2. Transfer or deposit your donation using the account details below.\n3. Take a screenshot or photo of your transfer confirmation or deposit slip.\n4. Enter your donation amount below and upload the proof file.',
+    bankName: 'Bank of The Philippine Islands',
+    accountName: 'Rise Above Foundation Cebu, Inc.',
+    accountNumber: '9131005064',
+    notes: 'We accept transfers from BPI Online, InstaPay, PESONet, or local & international bank wire.',
+    extraDetails: 'SWIFT Code: BOPIPHMM\nBank Address: BPI Cebu North Reclamation, BPI Building, Juan Luna Ave. corner J. De Veyra St., North Reclamation Area, Cebu City 6000',
+  },
+  {
+    id: 3,
+    code: 'maya',
+    name: 'Maya',
+    category: 'E-Wallet',
+    instructions: '1. Open your Maya app\n2. Tap Scan to Pay\n3. Scan our official Maya QR code or enter account details\n4. Confirm amount and complete the transaction\n5. Save transaction receipt and upload below',
+    accountName: 'Rise Above Foundation Cebu Inc',
+    notes: 'Maya transfers are promptly verified once transaction proof is uploaded.',
+  },
+  {
+    id: 4,
+    code: 'paypal',
+    name: 'PayPal',
+    category: 'Online Payment',
+    instructions: '1. Log in to your PayPal account.\n2. Send your donation to our official recipient address below.\n3. Save or screenshot your PayPal confirmation receipt.\n4. Enter the amount in PHP and attach your proof below.',
+    accountName: 'Rise Above Foundation Cebu, Inc.',
+    accountNumber: 'info@riseabove-cebu.org',
+    notes: 'PayPal donations from all countries and currencies are converted and supported.',
+  },
+  {
+    id: 5,
+    code: 'check',
+    name: 'Check Donation',
+    category: 'Check',
+    instructions: '1. Make checks payable to: Rise Above Foundation Cebu, Inc.\n2. Deposit the check at any BPI branch to account 9131005064 or mail to our Cebu office.\n3. Take a clear photo or scan of the deposited check / deposit machine receipt.\n4. Upload the photo as proof below for verification and official receipting.',
+    accountName: 'Rise Above Foundation Cebu, Inc.',
+    accountNumber: '9131005064',
+    extraDetails: 'Mailing Address: BPI Building, Juan Luna Ave. corner J. De Veyra St., North Reclamation Area, Cebu City 6000',
+  },
 ]
 
 const lifecycle = [
@@ -76,7 +159,8 @@ const emptyForm = {
   items: '',
   selectedNeeds: [],
   needDescriptions: {},
-  paymentMethod: 'bank-transfer',
+  paymentMethod: 'gcash',
+  paymentReference: '',
   proof: null,
   message: '',
   acceptedPolicies: false,
@@ -93,6 +177,8 @@ export default function DonatePage() {
   const [submitting, setSubmitting] = useState(false)
   const [form, setForm] = useState(emptyForm)
   const [copiedKey, setCopiedKey] = useState('')
+  const [paymentMethods, setPaymentMethods] = useState(FALLBACK_PAYMENT_METHODS)
+  const [methodsLoading, setMethodsLoading] = useState(true)
 
   const [donorProfile, setDonorProfile] = useState(null)
   const [profileLoading, setProfileLoading] = useState(false)
@@ -136,6 +222,43 @@ export default function DonatePage() {
       loadProfile()
     }
   }, [isLoggedInDonor, loadProfile])
+
+  useEffect(() => {
+    let active = true
+    const loadPaymentMethods = async () => {
+      try {
+        const res = await paymentMethodsApi.listPublic()
+        if (active && Array.isArray(res?.data) && res.data.length > 0) {
+          setPaymentMethods(res.data)
+          setForm((prev) => {
+            const exists = res.data.some(
+              (m) => (m.code || String(m.id)) === prev.paymentMethod || m.name === prev.paymentMethod
+            )
+            return {
+              ...prev,
+              paymentMethod: exists ? prev.paymentMethod : (res.data[0].code || String(res.data[0].id)),
+            }
+          })
+        }
+      } catch (err) {
+        console.warn('Could not load dynamic payment methods from CMS, falling back:', err)
+      } finally {
+        if (active) setMethodsLoading(false)
+      }
+    }
+    loadPaymentMethods()
+    return () => {
+      active = false
+    }
+  }, [])
+
+  const selectedMethod = useMemo(() => {
+    if (!paymentMethods.length) return null
+    return (
+      paymentMethods.find((m) => (m.code || String(m.id)) === form.paymentMethod || m.name === form.paymentMethod) ||
+      paymentMethods[0]
+    )
+  }, [paymentMethods, form.paymentMethod])
 
   const resetForm = () => {
     if (isLoggedInDonor && donorProfile) {
@@ -197,9 +320,15 @@ export default function DonatePage() {
       setSubmitError(phoneMsg)
       return
     }
-    if (form.type === 'monetary' && !(Number(form.amount) > 0)) {
-      setSubmitError('Monetary amount must be greater than 0.')
-      return
+    if (form.type === 'monetary') {
+      if (!(Number(form.amount) > 0)) {
+        setSubmitError('Monetary amount must be greater than 0.')
+        return
+      }
+      if (selectedMethod?.requiresReference && !form.paymentReference?.trim()) {
+        setSubmitError(`Payment reference number is required for ${selectedMethod.name}.`)
+        return
+      }
     }
     if (form.type === 'in-kind') {
       if (!form.selectedNeeds || form.selectedNeeds.length === 0) {
@@ -253,8 +382,10 @@ export default function DonatePage() {
       fd.append('type', form.type === 'in-kind' ? 'In-Kind' : 'Monetary')
       if (form.type === 'monetary') {
         fd.append('amount', String(form.amount))
-        const matchedMethod = PAYMENT_METHODS.find((m) => m.id === form.paymentMethod)
-        fd.append('paymentMethod', matchedMethod ? matchedMethod.dbValue : form.paymentMethod)
+        fd.append('paymentMethod', selectedMethod ? selectedMethod.name : form.paymentMethod)
+        if (form.paymentReference?.trim()) {
+          fd.append('paymentReference', form.paymentReference.trim())
+        }
       } else {
         const itemsStr = form.selectedNeeds
           .map((need) => `[${need}] ${form.needDescriptions[need]}`)
@@ -797,7 +928,7 @@ export default function DonatePage() {
 
                 {form.type === 'monetary' ? (
                   <>
-                    {/* Payment Method Selector & Information */}
+                    {/* Payment Method Selector & Dynamic Information */}
                     <div className="payment-methods-container">
                       <div className="payment-methods-title">
                         Please Choose your Preferred Payment Method :
@@ -805,353 +936,173 @@ export default function DonatePage() {
 
                       {/* Payment Method Tabs */}
                       <div className="payment-methods-tabs" role="tablist">
-                        {PAYMENT_METHODS.map((method) => {
-                          const isActive = form.paymentMethod === method.id
+                        {paymentMethods.map((method) => {
+                          const methodKey = method.code || String(method.id)
+                          const isActive = form.paymentMethod === methodKey || form.paymentMethod === method.name
+                          const MethodTabIcon = getMethodIcon(method.code, method.category)
                           return (
                             <button
-                              key={method.id}
+                              key={method.id || method.code}
                               type="button"
                               role="tab"
                               aria-selected={isActive}
                               className={`payment-method-tab ${isActive ? 'payment-method-tab--active' : ''}`}
-                              onClick={() => setForm({ ...form, paymentMethod: method.id })}
+                              onClick={() => setForm({ ...form, paymentMethod: methodKey })}
                             >
-                              {method.label}
+                              <MethodTabIcon size={15} style={{ marginRight: '0.35rem', verticalAlign: 'text-bottom' }} />
+                              {method.name}
                             </button>
                           )
                         })}
                       </div>
 
-                      {/* Payment Instructions & Details */}
-                      {form.paymentMethod === 'bank-transfer' && (
-                        <div className="payment-info-box">
-                          <div className="payment-info-box__header">
-                            <div className="payment-info-box__title">
-                              <Landmark size={18} style={{ color: '#AF101A' }} />
-                              Bank of The Philippine Islands (BPI)
-                            </div>
-                          </div>
+                      {/* Dynamic Payment Instructions & Account Details */}
+                      {selectedMethod && (() => {
+                        const MethodHeaderIcon = getMethodIcon(selectedMethod.code, selectedMethod.category)
+                        const steps = parseInstructions(selectedMethod.instructions)
+                        const extraFields = parseExtraDetails(selectedMethod.extraDetails)
+                        const qrSrc = selectedMethod.qrUrl || (selectedMethod.code === 'gcash' ? gcashQrImg : '')
 
-                          <ol className="payment-step-list">
-                            <li>Open your banking app, online banking, or visit any BPI branch.</li>
-                            <li>Transfer or deposit your donation using the account details below.</li>
-                            <li>Take a screenshot or photo of your transfer confirmation or deposit slip.</li>
-                            <li>Enter your donation amount below and upload the proof file.</li>
-                          </ol>
-
-                          <div className="payment-bank-details">
-                            <div className="payment-detail-item">
-                              <span className="payment-detail-label">Bank</span>
-                              <div className="payment-detail-value-wrap">
-                                <span className="payment-detail-value">Bank of The Philippine Islands</span>
+                        return (
+                          <div className="payment-info-box">
+                            <div className="payment-info-box__header">
+                              <div className="payment-info-box__title">
+                                <MethodHeaderIcon size={18} style={{ color: '#AF101A' }} />
+                                {selectedMethod.name}
                               </div>
-                            </div>
-
-                            <div className="payment-detail-item">
-                              <span className="payment-detail-label">Account Name</span>
-                              <div className="payment-detail-value-wrap">
-                                <span className="payment-detail-value">Rise Above Foundation Cebu, Inc.</span>
-                                <button
-                                  type="button"
-                                  className={`copy-button ${copiedKey === 'bank-name' ? 'copy-button--copied' : ''}`}
-                                  onClick={() => handleCopy('Rise Above Foundation Cebu, Inc.', 'bank-name')}
+                              {selectedMethod.category && (
+                                <span
+                                  className="payment-category-badge"
+                                  style={{
+                                    fontSize: '0.78rem',
+                                    padding: '0.2rem 0.6rem',
+                                    background: '#fef2f2',
+                                    border: '1px solid #fecaca',
+                                    borderRadius: '4px',
+                                    color: '#991b1b',
+                                    fontWeight: 600,
+                                  }}
                                 >
-                                  {copiedKey === 'bank-name' ? <Check size={12} /> : <Copy size={12} />}
-                                  {copiedKey === 'bank-name' ? 'Copied' : 'Copy'}
-                                </button>
-                              </div>
-                            </div>
-
-                            <div className="payment-detail-item">
-                              <span className="payment-detail-label">Account Number</span>
-                              <div className="payment-detail-value-wrap">
-                                <span className="payment-detail-value" style={{ fontFamily: 'monospace', letterSpacing: '0.04em' }}>9131005064</span>
-                                <button
-                                  type="button"
-                                  className={`copy-button ${copiedKey === 'bank-acc' ? 'copy-button--copied' : ''}`}
-                                  onClick={() => handleCopy('9131005064', 'bank-acc')}
-                                >
-                                  {copiedKey === 'bank-acc' ? <Check size={12} /> : <Copy size={12} />}
-                                  {copiedKey === 'bank-acc' ? 'Copied' : 'Copy'}
-                                </button>
-                              </div>
-                            </div>
-
-                            <div className="payment-detail-item">
-                              <span className="payment-detail-label">SWIFT Code</span>
-                              <div className="payment-detail-value-wrap">
-                                <span className="payment-detail-value" style={{ fontFamily: 'monospace' }}>BOPIPHMM</span>
-                                <button
-                                  type="button"
-                                  className={`copy-button ${copiedKey === 'bank-swift' ? 'copy-button--copied' : ''}`}
-                                  onClick={() => handleCopy('BOPIPHMM', 'bank-swift')}
-                                >
-                                  {copiedKey === 'bank-swift' ? <Check size={12} /> : <Copy size={12} />}
-                                  {copiedKey === 'bank-swift' ? 'Copied' : 'Copy'}
-                                </button>
-                              </div>
-                            </div>
-
-                            <div className="payment-detail-item payment-bank-details--full">
-                              <span className="payment-detail-label">Bank Address</span>
-                              <div className="payment-detail-value-wrap">
-                                <span className="payment-detail-value" style={{ fontSize: '0.86rem', fontWeight: 500 }}>
-                                  <strong>BPI Cebu North Reclamation</strong> — BPI Building, Juan Luna Ave. corner J. De Veyra St., North Reclamation Area, Cebu City 6000
+                                  {selectedMethod.category}
                                 </span>
-                                <button
-                                  type="button"
-                                  className={`copy-button ${copiedKey === 'bank-addr' ? 'copy-button--copied' : ''}`}
-                                  onClick={() => handleCopy('BPI Cebu North Reclamation, BPI Building, Juan Luna Ave. corner J. De Veyra St., North Reclamation Area, Cebu City 6000', 'bank-addr')}
-                                >
-                                  {copiedKey === 'bank-addr' ? <Check size={12} /> : <Copy size={12} />}
-                                  {copiedKey === 'bank-addr' ? 'Copied' : 'Copy'}
-                                </button>
+                              )}
+                            </div>
+
+                            {/* Step-by-Step Instructions */}
+                            {steps.length > 0 && (
+                              <ol className="payment-step-list">
+                                {steps.map((step, idx) => (
+                                  <li key={idx}>{step}</li>
+                                ))}
+                              </ol>
+                            )}
+
+                            {/* Account & Details Box */}
+                            {(selectedMethod.bankName || selectedMethod.accountName || selectedMethod.accountNumber || extraFields.length > 0) && (
+                              <div className="payment-bank-details">
+                                {selectedMethod.bankName && (
+                                  <div className="payment-detail-item">
+                                    <span className="payment-detail-label">Bank</span>
+                                    <div className="payment-detail-value-wrap">
+                                      <span className="payment-detail-value">{selectedMethod.bankName}</span>
+                                      <button
+                                        type="button"
+                                        className={`copy-button ${copiedKey === 'bank-name' ? 'copy-button--copied' : ''}`}
+                                        onClick={() => handleCopy(selectedMethod.bankName, 'bank-name')}
+                                      >
+                                        {copiedKey === 'bank-name' ? <Check size={12} /> : <Copy size={12} />}
+                                        {copiedKey === 'bank-name' ? 'Copied' : 'Copy'}
+                                      </button>
+                                    </div>
+                                  </div>
+                                )}
+
+                                {selectedMethod.accountName && (
+                                  <div className="payment-detail-item">
+                                    <span className="payment-detail-label">Account / Beneficiary</span>
+                                    <div className="payment-detail-value-wrap">
+                                      <span className="payment-detail-value">{selectedMethod.accountName}</span>
+                                      <button
+                                        type="button"
+                                        className={`copy-button ${copiedKey === 'acc-name' ? 'copy-button--copied' : ''}`}
+                                        onClick={() => handleCopy(selectedMethod.accountName, 'acc-name')}
+                                      >
+                                        {copiedKey === 'acc-name' ? <Check size={12} /> : <Copy size={12} />}
+                                        {copiedKey === 'acc-name' ? 'Copied' : 'Copy'}
+                                      </button>
+                                    </div>
+                                  </div>
+                                )}
+
+                                {selectedMethod.accountNumber && (
+                                  <div className="payment-detail-item">
+                                    <span className="payment-detail-label">Account / Mobile / Email</span>
+                                    <div className="payment-detail-value-wrap">
+                                      <span className="payment-detail-value" style={{ fontFamily: 'monospace', letterSpacing: '0.04em' }}>
+                                        {selectedMethod.accountNumber}
+                                      </span>
+                                      <button
+                                        type="button"
+                                        className={`copy-button ${copiedKey === 'acc-num' ? 'copy-button--copied' : ''}`}
+                                        onClick={() => handleCopy(selectedMethod.accountNumber, 'acc-num')}
+                                      >
+                                        {copiedKey === 'acc-num' ? <Check size={12} /> : <Copy size={12} />}
+                                        {copiedKey === 'acc-num' ? 'Copied' : 'Copy'}
+                                      </button>
+                                    </div>
+                                  </div>
+                                )}
+
+                                {extraFields.map((field, fIdx) => (
+                                  <div
+                                    key={fIdx}
+                                    className={`payment-detail-item ${field.fullWidth ? 'payment-bank-details--full' : ''}`}
+                                  >
+                                    <span className="payment-detail-label">{field.label}</span>
+                                    <div className="payment-detail-value-wrap">
+                                      <span
+                                        className="payment-detail-value"
+                                        style={field.isCode ? { fontFamily: 'monospace' } : { fontSize: '0.86rem' }}
+                                      >
+                                        {field.value}
+                                      </span>
+                                      <button
+                                        type="button"
+                                        className={`copy-button ${copiedKey === `extra-${fIdx}` ? 'copy-button--copied' : ''}`}
+                                        onClick={() => handleCopy(field.value, `extra-${fIdx}`)}
+                                      >
+                                        {copiedKey === `extra-${fIdx}` ? <Check size={12} /> : <Copy size={12} />}
+                                        {copiedKey === `extra-${fIdx}` ? 'Copied' : 'Copy'}
+                                      </button>
+                                    </div>
+                                  </div>
+                                ))}
                               </div>
-                            </div>
-                          </div>
+                            )}
 
-                          <div className="payment-note-banner">
-                            <Info size={15} style={{ flexShrink: 0, marginTop: 1 }} />
-                            <span>We accept transfers from BPI Online, InstaPay, PESONet, or local &amp; international bank wire.</span>
-                          </div>
-                        </div>
-                      )}
-
-                      {form.paymentMethod === 'gcash' && (
-                        <div className="payment-info-box">
-                          <div className="payment-info-box__header">
-                            <div className="payment-info-box__title">
-                              <QrCode size={18} style={{ color: '#007DFE' }} />
-                              GCash Philippines (Scan to Pay)
-                            </div>
-                          </div>
-
-                          <ol className="payment-step-list">
-                            <li>1. Open your GCash App</li>
-                            <li>2. Choose <strong>Pay QR</strong> (or Scan QR)</li>
-                            <li>3. Select <strong>Scan QR</strong> using the code below</li>
-                            <li>4. Scan the code and input the desired amount to donate</li>
-                            <li>5. Click <strong>Next</strong> and Select <strong>Pay</strong></li>
-                            <li>6. Take a screenshot of the completed transaction receipt</li>
-                          </ol>
-
-                          <div className="payment-qr-card">
-                            <div className="payment-qr-card__title">Rise Above Foundation Cebu Inc</div>
-                            <img
-                              src={gcashQrImg}
-                              alt="GCash QR Code - Rise Above Foundation Cebu Inc"
-                              className="payment-qr-card__img"
-                            />
-                            <div className="payment-qr-card__footer">Scan to Pay</div>
-                          </div>
-
-                          <div className="payment-note-banner">
-                            <Info size={15} style={{ flexShrink: 0, marginTop: 1 }} />
-                            <span>After sending via GCash, please upload your transaction screenshot below as proof of donation.</span>
-                          </div>
-                        </div>
-                      )}
-
-                      {form.paymentMethod === 'paypal' && (
-                        <div className="payment-info-box">
-                          <div className="payment-info-box__header">
-                            <div className="payment-info-box__title">
-                              <Globe size={18} style={{ color: '#003087' }} />
-                              PayPal International Donation
-                            </div>
-                          </div>
-
-                          <ol className="payment-step-list">
-                            <li>Log in to your PayPal account.</li>
-                            <li>Send your donation to our official recipient address below.</li>
-                            <li>Save or screenshot your PayPal confirmation receipt.</li>
-                            <li>Enter the amount in PHP and attach your proof below.</li>
-                          </ol>
-
-                          <div className="payment-bank-details">
-                            <div className="payment-detail-item">
-                              <span className="payment-detail-label">Beneficiary</span>
-                              <div className="payment-detail-value-wrap">
-                                <span className="payment-detail-value">Rise Above Foundation Cebu, Inc.</span>
+                            {/* QR Code Card if available */}
+                            {qrSrc && (
+                              <div className="payment-qr-card">
+                                <div className="payment-qr-card__title">{selectedMethod.accountName || selectedMethod.name}</div>
+                                <img
+                                  src={qrSrc}
+                                  alt={`${selectedMethod.name} QR Code`}
+                                  className="payment-qr-card__img"
+                                />
+                                <div className="payment-qr-card__footer">Scan to Pay via {selectedMethod.name}</div>
                               </div>
-                            </div>
+                            )}
 
-                            <div className="payment-detail-item">
-                              <span className="payment-detail-label">PayPal Email</span>
-                              <div className="payment-detail-value-wrap">
-                                <span className="payment-detail-value">info@riseabove-cebu.org</span>
-                                <button
-                                  type="button"
-                                  className={`copy-button ${copiedKey === 'paypal-email' ? 'copy-button--copied' : ''}`}
-                                  onClick={() => handleCopy('info@riseabove-cebu.org', 'paypal-email')}
-                                >
-                                  {copiedKey === 'paypal-email' ? <Check size={12} /> : <Copy size={12} />}
-                                  {copiedKey === 'paypal-email' ? 'Copied' : 'Copy'}
-                                </button>
+                            {/* Informational Notes */}
+                            {selectedMethod.notes && (
+                              <div className="payment-note-banner">
+                                <Info size={15} style={{ flexShrink: 0, marginTop: 1 }} />
+                                <span>{selectedMethod.notes}</span>
                               </div>
-                            </div>
+                            )}
                           </div>
-
-                          <div className="payment-note-banner">
-                            <Info size={15} style={{ flexShrink: 0, marginTop: 1 }} />
-                            <span>PayPal donations from all countries and currencies are converted and supported.</span>
-                          </div>
-                        </div>
-                      )}
-
-                      {form.paymentMethod === 'crypto' && (
-                        <div className="payment-info-box">
-                          <div className="payment-info-box__header">
-                            <div className="payment-info-box__title">
-                              <Wallet size={18} style={{ color: '#f59e0b' }} />
-                              Cryptocurrency Donation
-                            </div>
-                          </div>
-
-                          <ol className="payment-step-list">
-                            <li>We accept donations in <strong>Bitcoin (BTC)</strong>, <strong>Ethereum (ETH)</strong>, and <strong>USDT</strong>.</li>
-                            <li>Send your donation to the official foundation wallet or email us for transfer confirmation.</li>
-                            <li>Copy your transaction ID (TxHash) or take a screenshot of the completed transfer.</li>
-                            <li>Enter the estimated PHP value and upload the screenshot proof below.</li>
-                          </ol>
-
-                          <div className="payment-bank-details">
-                            <div className="payment-detail-item payment-bank-details--full">
-                              <span className="payment-detail-label">Crypto Support Contact</span>
-                              <div className="payment-detail-value-wrap">
-                                <span className="payment-detail-value">info@riseabove-cebu.org</span>
-                                <button
-                                  type="button"
-                                  className={`copy-button ${copiedKey === 'crypto-email' ? 'copy-button--copied' : ''}`}
-                                  onClick={() => handleCopy('info@riseabove-cebu.org', 'crypto-email')}
-                                >
-                                  {copiedKey === 'crypto-email' ? <Check size={12} /> : <Copy size={12} />}
-                                  {copiedKey === 'crypto-email' ? 'Copied' : 'Copy'}
-                                </button>
-                              </div>
-                            </div>
-                          </div>
-
-                          <div className="payment-note-banner">
-                            <Info size={15} style={{ flexShrink: 0, marginTop: 1 }} />
-                            <span>Please double-check the network and address before confirming your cryptocurrency transaction.</span>
-                          </div>
-                        </div>
-                      )}
-
-                      {form.paymentMethod === 'check' && (
-                        <div className="payment-info-box">
-                          <div className="payment-info-box__header">
-                            <div className="payment-info-box__title">
-                              <FileText size={18} style={{ color: '#0f766e' }} />
-                              Check Donation
-                            </div>
-                          </div>
-
-                          <ol className="payment-step-list">
-                            <li>Make checks payable to: <strong>Rise Above Foundation Cebu, Inc.</strong></li>
-                            <li>Deposit the check at any BPI branch to account <code>9131005064</code> or mail to our Cebu office.</li>
-                            <li>Take a clear photo or scan of the deposited check / deposit machine receipt.</li>
-                            <li>Upload the photo as proof below for verification and official receipting.</li>
-                          </ol>
-
-                          <div className="payment-bank-details">
-                            <div className="payment-detail-item">
-                              <span className="payment-detail-label">Payee Name</span>
-                              <div className="payment-detail-value-wrap">
-                                <span className="payment-detail-value">Rise Above Foundation Cebu, Inc.</span>
-                                <button
-                                  type="button"
-                                  className={`copy-button ${copiedKey === 'check-payee' ? 'copy-button--copied' : ''}`}
-                                  onClick={() => handleCopy('Rise Above Foundation Cebu, Inc.', 'check-payee')}
-                                >
-                                  {copiedKey === 'check-payee' ? <Check size={12} /> : <Copy size={12} />}
-                                  {copiedKey === 'check-payee' ? 'Copied' : 'Copy'}
-                                </button>
-                              </div>
-                            </div>
-
-                            <div className="payment-detail-item">
-                              <span className="payment-detail-label">Mailing Address</span>
-                              <div className="payment-detail-value-wrap">
-                                <span className="payment-detail-value" style={{ fontSize: '0.85rem' }}>
-                                  BPI Building, Juan Luna Ave. cor. J. De Veyra St., NRA, Cebu City 6000
-                                </span>
-                              </div>
-                            </div>
-                          </div>
-                        </div>
-                      )}
-
-                      {form.paymentMethod === 'usa' && (
-                        <div className="payment-info-box">
-                          <div className="payment-info-box__header">
-                            <div className="payment-info-box__title">
-                              <ShieldCheck size={18} style={{ color: '#0284c7' }} />
-                              United States (501(c)(3) Tax-Deductible)
-                            </div>
-                          </div>
-
-                          <ol className="payment-step-list">
-                            <li>Donors from the United States can give through our US 501(c)(3) partner organization.</li>
-                            <li>Transfer funds via US wire, check, or partner online channel.</li>
-                            <li>Save your US donation confirmation receipt.</li>
-                            <li>Upload the receipt proof below to receive your tracking code and Philippine foundation certificate.</li>
-                          </ol>
-
-                          <div className="payment-bank-details">
-                            <div className="payment-detail-item payment-bank-details--full">
-                              <span className="payment-detail-label">US Inquiries &amp; Partner Details</span>
-                              <div className="payment-detail-value-wrap">
-                                <span className="payment-detail-value">info@riseabove-cebu.org</span>
-                                <button
-                                  type="button"
-                                  className={`copy-button ${copiedKey === 'usa-email' ? 'copy-button--copied' : ''}`}
-                                  onClick={() => handleCopy('info@riseabove-cebu.org', 'usa-email')}
-                                >
-                                  {copiedKey === 'usa-email' ? <Check size={12} /> : <Copy size={12} />}
-                                  {copiedKey === 'usa-email' ? 'Copied' : 'Copy'}
-                                </button>
-                              </div>
-                            </div>
-                          </div>
-                        </div>
-                      )}
-
-                      {form.paymentMethod === 'canada' && (
-                        <div className="payment-info-box">
-                          <div className="payment-info-box__header">
-                            <div className="payment-info-box__title">
-                              <ShieldCheck size={18} style={{ color: '#dc2626' }} />
-                              Canada (Tax-Deductible Charitable Giving)
-                            </div>
-                          </div>
-
-                          <ol className="payment-step-list">
-                            <li>Canadian donors can give via our Canadian partner charity (e.g. Developing World Connections).</li>
-                            <li>Complete your transfer or check through the Canadian registered partner.</li>
-                            <li>Save the Canadian contribution receipt.</li>
-                            <li>Upload your receipt below for tracking, inventory, and official acknowledgment.</li>
-                          </ol>
-
-                          <div className="payment-bank-details">
-                            <div className="payment-detail-item payment-bank-details--full">
-                              <span className="payment-detail-label">Canada Partner Inquiries</span>
-                              <div className="payment-detail-value-wrap">
-                                <span className="payment-detail-value">info@riseabove-cebu.org</span>
-                                <button
-                                  type="button"
-                                  className={`copy-button ${copiedKey === 'canada-email' ? 'copy-button--copied' : ''}`}
-                                  onClick={() => handleCopy('info@riseabove-cebu.org', 'canada-email')}
-                                >
-                                  {copiedKey === 'canada-email' ? <Check size={12} /> : <Copy size={12} />}
-                                  {copiedKey === 'canada-email' ? 'Copied' : 'Copy'}
-                                </button>
-                              </div>
-                            </div>
-                          </div>
-                        </div>
-                      )}
+                        )
+                      })()}
                     </div>
 
                     <label>
@@ -1164,6 +1115,27 @@ export default function DonatePage() {
                         value={form.amount}
                         onChange={(e) => setForm({ ...form, amount: e.target.value })}
                       />
+                    </label>
+
+                    <label>
+                      <span>
+                        Payment Reference / Transaction No.{' '}
+                        {selectedMethod?.requiresReference ? (
+                          <Req required />
+                        ) : (
+                          <span style={{ fontWeight: 'normal', color: '#64748b' }}>(Optional)</span>
+                        )}
+                      </span>
+                      <input
+                        type="text"
+                        placeholder="e.g. GCash Ref No., Bank Ref / Trace No., or Check No."
+                        value={form.paymentReference}
+                        onChange={(e) => setForm({ ...form, paymentReference: e.target.value })}
+                        required={Boolean(selectedMethod?.requiresReference)}
+                      />
+                      <span className="field-hint" style={{ fontSize: '0.8rem', color: '#64748b', marginTop: '0.25rem' }}>
+                        Provide the reference or transaction number from your transfer confirmation to help verify your donation faster.
+                      </span>
                     </label>
                   </>
                 ) : (

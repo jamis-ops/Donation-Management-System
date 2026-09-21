@@ -197,6 +197,11 @@ export default function StaffDonationsPage() {
               <dt>Category</dt><dd>{selected.category || '—'}</dd>
               <dt>Amount</dt><dd>{selected.amount}</dd>
               <dt>Payment Method</dt><dd>{selected.paymentMethod || '—'}</dd>
+              {selected.paymentReference && (
+                <>
+                  <dt>Payment Reference</dt><dd><code style={{ fontFamily: 'monospace', fontWeight: 600 }}>{selected.paymentReference}</code></dd>
+                </>
+              )}
               <dt>Status</dt><dd><StatusBadge status={selected.status} /></dd>
               <dt>Date</dt><dd>{selected.date}</dd>
               <dt>Notes</dt><dd>{selected.notes || '—'}</dd>

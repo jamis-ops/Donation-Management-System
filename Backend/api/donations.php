@@ -14,6 +14,8 @@ function ensure_donation_classified_columns(PDO $pdo): void
   }
   try {
     ensure_column($pdo, 'donations', 'classified_items_json', 'TEXT NULL');
+    ensure_column($pdo, 'donations', 'payment_reference', 'VARCHAR(100) NULL AFTER payment_method');
+    ensure_column($pdo, 'donations', 'payment_method', 'VARCHAR(120) NULL');
   } catch (Throwable $e) {}
   $done = true;
 }
@@ -130,6 +132,7 @@ function map_donation(array $row, ?PDO $pdo = null): array
     'donationDate' => $row['donation_date'],
     'notes' => $row['notes'],
     'paymentMethod' => $row['payment_method'] ?? '',
+    'paymentReference' => $row['payment_reference'] ?? '',
     'classifiedItems' => !empty($row['classified_items_json']) ? (json_decode((string) $row['classified_items_json'], true) ?: []) : [],
     'hasProof' => $hasProof,
     'proofFileName' => $proofName,
@@ -457,6 +460,7 @@ if ($method === 'POST') {
   $status = trim((string) ($body['status'] ?? 'Pending Verification'));
   $notes = trim((string) ($body['notes'] ?? $body['message'] ?? ''));
   $paymentMethod = trim((string) ($body['paymentMethod'] ?? $body['payment_method'] ?? '')) ?: null;
+  $paymentReference = trim((string) ($body['paymentReference'] ?? $body['payment_reference'] ?? '')) ?: null;
   $category = trim((string) ($body['category'] ?? '')) ?: null;
 
   $proof = $isMultipart ? save_donation_proof_upload() : null;
@@ -565,8 +569,8 @@ if ($method === 'POST') {
 
   $stmt = $pdo->prepare('
     INSERT INTO donations
-      (tracking_code, donor_id, donor_name, donor_email, type, category, amount, items_description, status, donation_date, notes, payment_method, proof_path, proof_file_name, proof_file_type)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      (tracking_code, donor_id, donor_name, donor_email, type, category, amount, items_description, status, donation_date, notes, payment_method, payment_reference, proof_path, proof_file_name, proof_file_type)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   ');
   $stmt->execute([
     $tracking,
@@ -581,6 +585,7 @@ if ($method === 'POST') {
     $donationDate,
     $notes ?: null,
     $paymentMethod,
+    $paymentReference,
     $proof['path'] ?? null,
     $proof['name'] ?? null,
     $proof['type'] ?? null,
@@ -812,8 +817,15 @@ if ($method === 'PUT') {
   }
 
   $category = array_key_exists('category', $body) ? (trim((string) $body['category']) ?: null) : ($existing['category'] ?? null);
-  $update = $pdo->prepare('UPDATE donations SET donor_name = ?, type = ?, category = ?, amount = ?, items_description = ?, status = ?, donation_date = ? WHERE id = ?');
-  $update->execute([$donorName, $type, $category, $amount, $items, $status, $donationDate, $id]);
+  $paymentMethod = array_key_exists('paymentMethod', $body)
+    ? (trim((string) $body['paymentMethod']) ?: null)
+    : (array_key_exists('payment_method', $body) ? (trim((string) $body['payment_method']) ?: null) : ($existing['payment_method'] ?? null));
+  $paymentReference = array_key_exists('paymentReference', $body)
+    ? (trim((string) $body['paymentReference']) ?: null)
+    : (array_key_exists('payment_reference', $body) ? (trim((string) $body['payment_reference']) ?: null) : ($existing['payment_reference'] ?? null));
+
+  $update = $pdo->prepare('UPDATE donations SET donor_name = ?, type = ?, category = ?, amount = ?, items_description = ?, payment_method = ?, payment_reference = ?, status = ?, donation_date = ? WHERE id = ?');
+  $update->execute([$donorName, $type, $category, $amount, $items, $paymentMethod, $paymentReference, $status, $donationDate, $id]);
 
   $accountProvision = null;
   $inventoryPosted = false;
