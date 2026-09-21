@@ -382,6 +382,9 @@ export default function DonatePage() {
       const res = await verifyPaymentProof(file, methodLabel, methodId, clientText)
       if (res?.ok) {
         const v = res.verification || res
+        if (res?.debug) {
+          console.debug('[Payment Verification Telemetry]', res.debug)
+        }
         setAiResult(v)
         setTempProofToken(res.tempProofToken || '')
         setAiState(v.status || res.status || 'needs_review')
