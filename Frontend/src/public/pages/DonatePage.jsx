@@ -49,21 +49,32 @@ function getMethodIcon(code, category) {
   return CreditCard
 }
 
-function parseInstructions(instructionsStr) {
-  if (!instructionsStr) return []
-  return instructionsStr
-    .split('\n')
-    .map((line) => line.trim())
-    .filter(Boolean)
+function parseInstructions(val) {
+  if (!val) return []
+  if (Array.isArray(val)) {
+    return val.map((line) => String(line).trim()).filter(Boolean)
+  }
+  if (typeof val === 'string') {
+    return val
+      .split('\n')
+      .map((line) => line.trim())
+      .filter(Boolean)
+  }
+  return []
 }
 
-function parseExtraDetails(extraDetailsStr) {
-  if (!extraDetailsStr) return []
-  return extraDetailsStr
-    .split('\n')
-    .map((line) => line.trim())
-    .filter(Boolean)
-    .map((line) => {
+function parseExtraDetails(val) {
+  if (!val) return []
+  if (Array.isArray(val)) {
+    return val.map((item, idx) => {
+      if (typeof item === 'object' && item !== null) {
+        const label = item.label || item.key || `Detail ${idx + 1}`
+        const value = item.value ?? item.val ?? ''
+        const isCode = String(label).toLowerCase().includes('swift') || String(label).toLowerCase().includes('iban') || String(label).toLowerCase().includes('code')
+        const fullWidth = String(value).length > 35 || String(label).toLowerCase().includes('address')
+        return { label: String(label), value: String(value), isCode, fullWidth }
+      }
+      const line = String(item).trim()
       const colonIdx = line.indexOf(':')
       if (colonIdx > 0 && colonIdx < 35) {
         const label = line.slice(0, colonIdx).trim()
@@ -74,6 +85,34 @@ function parseExtraDetails(extraDetailsStr) {
       }
       return { label: 'Details', value: line, isCode: false, fullWidth: line.length > 35 }
     })
+  }
+  if (typeof val === 'object' && val !== null) {
+    return Object.entries(val).map(([k, v]) => {
+      const label = k.replace(/_/g, ' ')
+      const value = typeof v === 'object' && v !== null ? JSON.stringify(v) : String(v ?? '')
+      const isCode = k.toLowerCase().includes('swift') || k.toLowerCase().includes('iban') || k.toLowerCase().includes('code')
+      const fullWidth = value.length > 35 || k.toLowerCase().includes('address')
+      return { label, value, isCode, fullWidth }
+    })
+  }
+  if (typeof val === 'string') {
+    return val
+      .split('\n')
+      .map((line) => line.trim())
+      .filter(Boolean)
+      .map((line) => {
+        const colonIdx = line.indexOf(':')
+        if (colonIdx > 0 && colonIdx < 35) {
+          const label = line.slice(0, colonIdx).trim()
+          const value = line.slice(colonIdx + 1).trim()
+          const isCode = label.toLowerCase().includes('swift') || label.toLowerCase().includes('iban') || label.toLowerCase().includes('code')
+          const fullWidth = value.length > 35 || label.toLowerCase().includes('address')
+          return { label, value, isCode, fullWidth }
+        }
+        return { label: 'Details', value: line, isCode: false, fullWidth: line.length > 35 }
+      })
+  }
+  return []
 }
 
 const FALLBACK_PAYMENT_METHODS = [
