@@ -293,7 +293,7 @@ export function submitPublicDonation(bodyOrFormData) {
   })
 }
 
-export function verifyPaymentProof(file, selectedMethod = '', paymentMethodId = '') {
+export function verifyPaymentProof(file, selectedMethod = '', paymentMethodId = '', clientExtractedText = '') {
   const fd = new FormData()
   fd.append('proof', file)
   if (selectedMethod) {
@@ -301,6 +301,9 @@ export function verifyPaymentProof(file, selectedMethod = '', paymentMethodId = 
   }
   if (paymentMethodId) {
     fd.append('payment_method_id', String(paymentMethodId))
+  }
+  if (clientExtractedText && clientExtractedText.trim()) {
+    fd.append('client_extracted_text', clientExtractedText.trim())
   }
   return fetch(apiUrl('/api/verify_payment_proof.php'), {
     method: 'POST',

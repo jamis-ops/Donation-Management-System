@@ -61,7 +61,7 @@ if (!move_uploaded_file($file['tmp_name'], $savedFilePath)) {
   }
 }
 
-// 3. Load active payment methods from database CMS
+// 3. Load active payment methods dynamically from CMS database
 $activeMethods = [];
 try {
   $pmStmt = $pdo->query('
@@ -72,34 +72,377 @@ try {
   ');
   $activeMethods = $pmStmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
 } catch (Throwable $e) {
-  $activeMethods = [
-    ['id' => 1, 'name' => 'GCash', 'code' => 'gcash', 'type' => 'gcash', 'account_name' => 'Rise Above Foundation Cebu Inc', 'account_number' => '0917-000-0000'],
-    ['id' => 2, 'name' => 'Bank Transfer (BPI)', 'code' => 'bank-transfer', 'type' => 'bank_transfer', 'account_name' => 'Rise Above Foundation Cebu, Inc.', 'account_number' => '9131005064'],
-    ['id' => 3, 'name' => 'Maya', 'code' => 'maya', 'type' => 'maya', 'account_name' => 'Rise Above Foundation Cebu Inc', 'account_number' => '0917-000-0000'],
-    ['id' => 4, 'name' => 'PayPal', 'code' => 'paypal', 'type' => 'paypal', 'account_name' => 'Rise Above Foundation Cebu, Inc.', 'account_number' => 'info@riseabove-cebu.org'],
-  ];
+  $activeMethods = [];
 }
 
 // Match the selected payment method configured in CMS
 $selectedMethodInput = trim((string) ($_POST['selectedMethod'] ?? ''));
+$paymentMethodId = (int) ($_POST['payment_method_id'] ?? 0);
+$clientExtractedText = trim((string) ($_POST['client_extracted_text'] ?? ''));
+
 $selectedMethod = null;
-foreach ($activeMethods as $m) {
-  if (
-    strcasecmp((string) $m['code'], $selectedMethodInput) === 0 ||
-    strcasecmp((string) $m['name'], $selectedMethodInput) === 0 ||
-    strcasecmp((string) ($m['id'] ?? ''), $selectedMethodInput) === 0
-  ) {
-    $selectedMethod = $m;
-    break;
+if ($paymentMethodId > 0) {
+  foreach ($activeMethods as $m) {
+    if ((int)$m['id'] === $paymentMethodId) {
+      $selectedMethod = $m;
+      break;
+    }
   }
 }
+
+if (!$selectedMethod && $selectedMethodInput !== '') {
+  foreach ($activeMethods as $m) {
+    if (
+      strcasecmp((string) $m['code'], $selectedMethodInput) === 0 ||
+      strcasecmp((string) $m['name'], $selectedMethodInput) === 0 ||
+      strcasecmp((string) ($m['id'] ?? ''), $selectedMethodInput) === 0 ||
+      strcasecmp((string) ($m['type'] ?? ''), $selectedMethodInput) === 0
+    ) {
+      $selectedMethod = $m;
+      break;
+    }
+  }
+}
+
 if (!$selectedMethod && !empty($activeMethods)) {
   $selectedMethod = $activeMethods[0];
 }
 
-$expectedRecipientName = trim((string) ($selectedMethod['account_name'] ?? 'Rise Above Foundation Cebu Inc'));
+$expectedRecipientName = trim((string) ($selectedMethod['account_name'] ?? ''));
 $expectedAccountNumber = trim((string) ($selectedMethod['account_number'] ?? ''));
-$expectedMethodName = trim((string) ($selectedMethod['name'] ?? 'GCash'));
+$expectedMethodName = trim((string) ($selectedMethod['name'] ?? 'Payment Method'));
+$expectedMethodType = trim((string) ($selectedMethod['type'] ?? ''));
+
+// ==========================================
+// DYNAMIC NORMALIZATION & PARSING FUNCTIONS
+// ==========================================
+
+function normalize_clean_string(string $str): string {
+  $str = mb_strtolower($str, 'UTF-8');
+  // Strip punctuation and special symbols
+  $str = preg_replace('/[.,\-_#\/\(\)\[\]\'\"@:;!\\\]/u', ' ', $str) ?? $str;
+  // Strip legal and corporate entity suffixes
+  $str = preg_replace('/\b(inc|incorporated|corp|corporation|llc|ltd|limited|co|company|foundation|philippines|phils|ph)\b/u', '', $str) ?? $str;
+  return trim((string) preg_replace('/\s+/u', ' ', $str));
+}
+
+function evaluate_recipient_match(string $receiptText, string $expectedName, string $expectedAccount = ''): array {
+  if ($expectedName === '') {
+    return ['matched' => true, 'reason' => 'No specific recipient configured in CMS'];
+  }
+
+  $normReceipt = normalize_clean_string($receiptText);
+  $normExpected = normalize_clean_string($expectedName);
+
+  // 1. Direct normalized substring match
+  if ($normExpected !== '' && str_contains($normReceipt, $normExpected)) {
+    return ['matched' => true, 'reason' => 'Recipient name matched'];
+  }
+
+  // 2. Token overlap of meaningful tokens (> 2 characters)
+  $expectedTokens = array_filter(explode(' ', $normExpected), fn($t) => strlen($t) > 2);
+  if (!empty($expectedTokens)) {
+    $hits = 0;
+    foreach ($expectedTokens as $tok) {
+      if (str_contains($normReceipt, $tok)) {
+        $hits++;
+      }
+    }
+    $ratio = $hits / count($expectedTokens);
+    if ($ratio >= 0.75) {
+      return ['matched' => true, 'reason' => 'Recipient confirmed via name token overlap'];
+    }
+  }
+
+  // 3. Match against configured account number if present in CMS
+  if ($expectedAccount !== '') {
+    $cleanExpected = preg_replace('/[^0-9]/', '', $expectedAccount) ?? '';
+    if (strlen($cleanExpected) >= 5) {
+      $cleanReceiptDigits = preg_replace('/[^0-9]/', '', $receiptText) ?? '';
+      if (str_contains($cleanReceiptDigits, $cleanExpected)) {
+        return ['matched' => true, 'reason' => 'Account number matched'];
+      }
+      // Check masked mobile e.g. 0917 *** 4567
+      if (strlen($cleanExpected) === 11) {
+        $p = substr($cleanExpected, 0, 4);
+        $s = substr($cleanExpected, -4);
+        if (preg_match('/' . preg_quote($p, '/') . '[\s\*#\-]*' . preg_quote($s, '/') . '/', $receiptText)) {
+          return ['matched' => true, 'reason' => 'Masked mobile number matched'];
+        }
+      }
+    }
+  }
+
+  return ['matched' => false, 'reason' => "Recipient does not match organization account ({$expectedName})"];
+}
+
+function evaluate_payment_provider_match(string $receiptText, ?array $selectedMethod): array {
+  if (!$selectedMethod) {
+    return ['matched' => true, 'detected' => null, 'reason' => 'No payment method configured'];
+  }
+
+  $expectedName = strtolower((string) ($selectedMethod['name'] ?? ''));
+  $expectedCode = strtolower((string) ($selectedMethod['code'] ?? ''));
+  $expectedType = strtolower((string) ($selectedMethod['type'] ?? ''));
+  $expectedBank = strtolower((string) ($selectedMethod['bank_name'] ?? ''));
+
+  $knownProviders = [
+    'gcash' => 'GCash',
+    'maya' => 'Maya',
+    'paymaya' => 'Maya',
+    'bpi' => 'BPI',
+    'bdo' => 'BDO',
+    'metrobank' => 'Metrobank',
+    'unionbank' => 'UnionBank',
+    'landbank' => 'Landbank',
+    'security bank' => 'Security Bank',
+    'rcbc' => 'RCBC',
+    'pnb' => 'PNB',
+    'chinabank' => 'China Bank',
+    'seabank' => 'SeaBank',
+    'gotyme' => 'GoTyme',
+    'paypal' => 'PayPal',
+    'bank transfer' => 'Bank Transfer',
+    'instapay' => 'InstaPay',
+    'pesonet' => 'PESONet',
+  ];
+
+  $detected = null;
+  foreach ($knownProviders as $needle => $label) {
+    if (stripos($receiptText, $needle) !== false) {
+      $detected = $label;
+      break;
+    }
+  }
+
+  if (!$detected) {
+    return [
+      'matched' => true,
+      'detected' => $selectedMethod['name'] ?? 'Custom',
+      'reason' => 'Provider channel matches selected',
+    ];
+  }
+
+  $detLower = strtolower($detected);
+  $matched = false;
+
+  if (
+    str_contains($expectedName, $detLower) ||
+    str_contains($expectedCode, $detLower) ||
+    str_contains($expectedType, $detLower) ||
+    ($expectedBank !== '' && str_contains($expectedBank, $detLower))
+  ) {
+    $matched = true;
+  } elseif (
+    str_contains($expectedType, 'bank') &&
+    in_array($detected, ['BPI', 'BDO', 'Metrobank', 'UnionBank', 'Landbank', 'Security Bank', 'RCBC', 'PNB', 'China Bank', 'SeaBank', 'GoTyme', 'Bank Transfer', 'InstaPay', 'PESONet'], true)
+  ) {
+    $matched = true;
+  }
+
+  return [
+    'matched' => $matched,
+    'detected' => $detected,
+    'reason' => $matched ? "Provider matches {$selectedMethod['name']}" : "Payment method mismatch: detected {$detected}, but {$selectedMethod['name']} was selected",
+  ];
+}
+
+function extract_amount_dynamically(string $text): ?float {
+  $patterns = [
+    // e.g. "Total PHP 280.00", "Amount: ₱1,500.00", "Amount Sent: ₱ 50.00", "Total Amount 280.00"
+    '/(?:total(?:\s*amount)?|amount(?:\s*paid|\s*sent|\s*transferred)?|payment\s*amount|grand\s*total)\s*[:\s]*[₱P]?(?:hp)?\s*([0-9]{1,3}(?:,[0-9]{3})*(?:\.[0-9]{1,2})?|[0-9]+(?:\.[0-9]{1,2})?)/i',
+    // e.g. "₱ 280.00", "PHP 1,500.00", "Php 50.00"
+    '/(?:₱|PHP|Php|php)\s*([0-9]{1,3}(?:,[0-9]{3})*(?:\.[0-9]{2})|[0-9]+(?:\.[0-9]{2}))/i',
+    // e.g. "Paid 280.00", "Sent 1,500.00"
+    '/(?:paid|sent|transfer(?:red)?)\s*[₱P]?(?:hp)?\s*([0-9]{1,3}(?:,[0-9]{3})*(?:\.[0-9]{2})|[0-9]+(?:\.[0-9]{2}))/i',
+    // Standalone monetary number with 2 decimals
+    '/\b([0-9]{1,3}(?:,[0-9]{3})*\.[0-9]{2})\b/',
+  ];
+
+  foreach ($patterns as $pat) {
+    if (preg_match($pat, $text, $m)) {
+      $raw = str_replace(',', '', $m[1]);
+      $val = (float) $raw;
+      if ($val > 0 && $val < 100000000) {
+        return round($val, 2);
+      }
+    }
+  }
+  return null;
+}
+
+function extract_reference_dynamically(string $text): ?string {
+  $patterns = [
+    // Label followed by reference string (allows spaces within the reference, e.g. 5044 8382 2843 6)
+    '/(?:ref(?:erence)?\s*(?:no\.?|number|id|#)?|transaction\s*(?:no\.?|id|#)?|trace\s*no\.?|txn\s*id|confirmation\s*(?:no\.?|id|#)?)\s*[:\-#]?\s*([A-Za-z0-9\s]{6,35})/i',
+    // 10-16 continuous digits (standard GCash / mobile bank format)
+    '/\b(\d{10,16})\b/',
+    // 4-block spaced digits (e.g. 5044 8382 2843 6 or 1001 234 567)
+    '/\b(\d{4}\s+\d{3,4}\s+\d{3,4}(?:\s+\d{1,4})?)\b/',
+  ];
+
+  foreach ($patterns as $pat) {
+    if (preg_match($pat, $text, $m)) {
+      $cand = trim($m[1]);
+      $firstLine = trim((string) explode("\n", $cand)[0]);
+      $cleaned = preg_replace('/\s+(?:amount|total|date|fee|status).*$/i', '', $firstLine);
+      $alphanumeric = preg_replace('/[^A-Za-z0-9]/', '', $cleaned);
+      if (strlen($alphanumeric) >= 6 && strlen($alphanumeric) <= 32) {
+        if (ctype_digit($alphanumeric)) {
+          return $alphanumeric;
+        }
+        return trim($cleaned);
+      }
+    }
+  }
+  return null;
+}
+
+function extract_date_dynamically(string $text): ?string {
+  $patterns = [
+    // e.g. "Sep 8, 2026", "September 8, 2026 3:45 PM"
+    '/\b([A-Za-z]{3,9}\s+\d{1,2},?\s+\d{4}(?:\s+\d{1,2}:\d{2}(?::\d{2})?(?:\s*[AaPp][Mm])?)?)\b/',
+    // e.g. "2026-09-08 15:30:00"
+    '/\b(\d{4}[-\/.]\d{2}[-\/.]\d{2}(?:\s+\d{1,2}:\d{2}(?::\d{2})?(?:\s*[AaPp][Mm])?)?)\b/',
+    // e.g. "08/09/2026 3:45 PM"
+    '/\b(\d{1,2}[-\/.]\d{1,2}[-\/.]\d{4}(?:\s+\d{1,2}:\d{2}(?::\d{2})?(?:\s*[AaPp][Mm])?)?)\b/',
+  ];
+
+  foreach ($patterns as $pat) {
+    if (preg_match($pat, $text, $m)) {
+      return trim($m[1]);
+    }
+  }
+  return null;
+}
+
+function detect_payment_success(string $text): bool {
+  return (bool) preg_match('/(?:successfully\s+processed|payment\s+successful|transaction\s+successful|transfer\s+successful|paid\s+successfully|sent\s+successfully|payment\s+completed|transaction\s+completed|completed|paid|sent)/i', $text);
+}
+
+function analyze_receipt_text_against_cms(string $text, ?array $selectedMethod, array $activeMethods): array {
+  $expectedRecipient = trim((string) ($selectedMethod['account_name'] ?? ''));
+  $expectedAccountNo = trim((string) ($selectedMethod['account_number'] ?? ''));
+  $expectedMethodName = trim((string) ($selectedMethod['name'] ?? 'Payment Method'));
+
+  // 1. Recipient check
+  $recipientCheck = evaluate_recipient_match($text, $expectedRecipient, $expectedAccountNo);
+  $recipientMatch = $recipientCheck['matched'];
+  $detectedRecipient = $recipientMatch ? $expectedRecipient : null;
+  if (!$recipientMatch) {
+    if (preg_match('/(?:Paid to|Recipient|To|Merchant)\s*[:\-]?\s*([A-Za-z0-9\s.,]+)/i', $text, $m)) {
+      $detectedRecipient = trim(explode("\n", $m[1])[0]);
+    }
+  }
+
+  // 2. Payment Method provider match
+  $providerCheck = evaluate_payment_provider_match($text, $selectedMethod);
+  $methodMatch = $providerCheck['matched'];
+  $detectedMethod = $providerCheck['detected'] ?: $expectedMethodName;
+
+  // 3. Amount extraction
+  $amount = extract_amount_dynamically($text);
+
+  // 4. Reference Number extraction
+  $reference = extract_reference_dynamically($text);
+
+  // 5. Transaction Date extraction
+  $transactionDate = extract_date_dynamically($text);
+
+  // 6. Payment Success check
+  $isSuccess = detect_payment_success($text);
+
+  // 7. Decision Matrix
+  $status = 'needs_review';
+  $message = 'Payment information requires manual review.';
+  $needsManualReview = true;
+  $reasons = [];
+
+  if (!$recipientMatch) {
+    $status = 'invalid';
+    $message = $recipientCheck['reason'] ?: "Recipient does not match {$expectedRecipient}.";
+    $reasons[] = $message;
+  } elseif (!$methodMatch) {
+    $status = 'mismatch';
+    $message = $providerCheck['reason'] ?: "Payment method mismatch: detected {$detectedMethod}.";
+    $reasons[] = $message;
+  } elseif ($recipientMatch && $methodMatch && $amount !== null && $amount > 0 && ($isSuccess || $reference !== null)) {
+    $status = 'verified';
+    $message = 'Payment proof verified successfully.';
+    $needsManualReview = false;
+    $reasons[] = 'Recipient matches organization account';
+    $reasons[] = "Payment channel confirmed ({$detectedMethod})";
+    $reasons[] = "Transaction amount verified (₱" . number_format($amount, 2) . ")";
+    if ($reference) {
+      $reasons[] = "Reference number: {$reference}";
+    }
+  } elseif ($amount !== null && $amount > 0) {
+    $status = 'needs_review';
+    $message = 'Amount extracted. Please review and confirm reference number before submitting.';
+    $reasons[] = 'Transaction details need manual confirmation';
+  } else {
+    $status = 'needs_review';
+    $message = 'Could not extract all transaction details. Please enter amount and reference manually.';
+    $reasons[] = 'Amount or reference not clearly detected in proof';
+  }
+
+  return [
+    'isLegitimateReceipt' => true,
+    'status' => $status,
+    'confidence' => $status === 'verified' ? 'high' : ($status === 'needs_review' ? 'medium' : 'low'),
+    'recipient' => $recipientMatch ? $expectedRecipient : ($detectedRecipient ?: $expectedRecipient),
+    'recipientMatch' => $recipientMatch,
+    'accountMatch' => $recipientMatch,
+    'paymentMethod' => $detectedMethod,
+    'paymentMethodMatch' => $methodMatch,
+    'amount' => $amount,
+    'extractedAmount' => $amount,
+    'formattedAmount' => $amount !== null ? number_format($amount, 2) : null,
+    'currency' => 'PHP',
+    'referenceNumber' => $reference,
+    'transactionDate' => $transactionDate,
+    'paymentSuccessful' => $isSuccess,
+    'needsManualReview' => $needsManualReview,
+    'verificationMessage' => $message,
+    'reasons' => $reasons,
+    'source' => 'dynamic_cms_engine',
+  ];
+}
+
+// Helper: Run server-side Tesseract OCR
+function run_tesseract_ocr(string $filePath): string {
+  if (!function_exists('exec')) {
+    return '';
+  }
+
+  $candidates = [
+    '/usr/bin/tesseract',
+    '/usr/local/bin/tesseract',
+    'tesseract',
+    'C:\\Program Files\\Tesseract-OCR\\tesseract.exe',
+  ];
+
+  $binary = null;
+  foreach ($candidates as $cand) {
+    if (@is_executable($cand) || (str_contains($cand, '\\') && file_exists($cand))) {
+      $binary = $cand;
+      break;
+    }
+  }
+  if (!$binary) {
+    $binary = 'tesseract';
+  }
+
+  $output = [];
+  $retCode = -1;
+  $cmd = escapeshellcmd($binary) . ' ' . escapeshellarg($filePath) . ' stdout -l eng';
+  @exec($cmd, $output, $retCode);
+  if ($retCode === 0 && !empty($output)) {
+    return trim(implode("\n", $output));
+  }
+
+  return '';
+}
 
 // Helper: Enhanced Gemini API key discovery
 function resolve_gemini_api_key(): string {
@@ -118,258 +461,34 @@ function resolve_gemini_api_key(): string {
   return '';
 }
 
-// Helper: Flexible text normalization for robust name and phrase matching
-function normalize_text_for_match(string $str): string {
-  $str = strtolower($str);
-  $str = preg_replace('/[.,\-_#\/\(\)\[\]]/', ' ', $str) ?? $str;
-  $str = preg_replace('/\b(inc|incorporated|corp|corporation|foundation|philippines)\b/', '', $str) ?? $str;
-  return trim((string) preg_replace('/\s+/', ' ', $str));
-}
+// ==========================================
+// 4. VISION / OCR PIPELINE EXECUTION
+// ==========================================
 
-// Helper: Check recipient match flexibly
-function evaluate_recipient_match(string $text, string $expectedName, string $expectedAccount): bool {
-  $normText = normalize_text_for_match($text);
-  $normExpected = normalize_text_for_match($expectedName);
-
-  if ($normExpected !== '' && str_contains($normText, $normExpected)) {
-    return true;
-  }
-
-  // Common keywords for Rise Above Foundation Cebu
-  if (
-    str_contains($normText, 'rise above') ||
-    str_contains($normText, 'riseabove') ||
-    str_contains($normText, 'flemming') ||
-    str_contains($normText, 'elisabet')
-  ) {
-    return true;
-  }
-
-  // Check account number if non-empty
-  if ($expectedAccount !== '') {
-    $cleanAccount = preg_replace('/[^0-9]/', '', $expectedAccount) ?? '';
-    if (strlen($cleanAccount) >= 6 && str_contains(preg_replace('/[^0-9]/', '', $text) ?? '', $cleanAccount)) {
-      return true;
-    }
-  }
-
-  return false;
-}
-
-// Helper: Extract text from file using multi-tier OCR fallback (PDF stream, local tesseract, OCR.space REST API)
-function extract_file_text_fallback(string $filePath, string $mime): string {
-  $extracted = '';
-
-  // 1. If PDF, extract text streams
-  if ($mime === 'application/pdf') {
-    $fileBytes = @file_get_contents($filePath) ?: '';
-    if (preg_match_all('/(?:BT[\r\n\s]+)(.*?)(?:[\r\n\s]+ET)/s', $fileBytes, $matches)) {
-      foreach ($matches[1] as $block) {
-        if (preg_match_all('/\((.*?)\)\s*T[jJ]/s', $block, $tMatches)) {
-          $extracted .= ' ' . implode(' ', $tMatches[1]);
-        }
-      }
-    }
-    if (strlen(trim($extracted)) > 15) {
-      return $extracted;
-    }
-  }
-
-  // 2. Try local Tesseract binary if installed
-  if (function_exists('exec')) {
-    $tesseractCmd = "tesseract " . escapeshellarg($filePath) . " stdout --oem 1 -l eng 2>/dev/null";
-    $output = [];
-    $retCode = -1;
-    @exec($tesseractCmd, $output, $retCode);
-    if ($retCode === 0 && !empty($output)) {
-      $tessText = trim(implode("\n", $output));
-      if (strlen($tessText) > 10) {
-        return $tessText;
-      }
-    }
-  }
-
-  // 3. Try OCR.space free REST API
-  $ch = curl_init('https://api.ocr.space/parse/image');
-  $cfile = new CURLFile($filePath, $mime, basename($filePath));
-  $postData = [
-    'apikey' => 'K87899142388957', // Free public OCR tier key
-    'isOverlayRequired' => 'false',
-    'file' => $cfile,
-    'language' => 'eng',
-    'detectOrientation' => 'true',
-    'scale' => 'true',
-    'isTable' => 'true',
-  ];
-  curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-  curl_setopt($ch, CURLOPT_POST, true);
-  curl_setopt($ch, CURLOPT_POSTFIELDS, $postData);
-  curl_setopt($ch, CURLOPT_TIMEOUT, 15);
-  curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
-  $ocrResponse = curl_exec($ch);
-  $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-  curl_close($ch);
-
-  if ($httpCode === 200 && $ocrResponse) {
-    $ocrData = json_decode($ocrResponse, true);
-    if (!empty($ocrData['ParsedResults'][0]['ParsedText'])) {
-      return (string) $ocrData['ParsedResults'][0]['ParsedText'];
-    }
-  }
-
-  return $extracted;
-}
-
-// Helper: Deterministic Financial Receipt & CMS Rule Parser
-function analyze_receipt_text_against_cms(string $text, ?array $selectedMethod, array $activeMethods): array {
-  $expectedRecipient = trim((string) ($selectedMethod['account_name'] ?? 'Rise Above Foundation Cebu Inc'));
-  $expectedAccountNo = trim((string) ($selectedMethod['account_number'] ?? ''));
-  $expectedMethodName = trim((string) ($selectedMethod['name'] ?? 'GCash'));
-
-  // 1. Recipient check
-  $recipientMatch = evaluate_recipient_match($text, $expectedRecipient, $expectedAccountNo);
-  $detectedRecipient = $recipientMatch ? $expectedRecipient : null;
-  if (!$recipientMatch) {
-    // Check if another person or merchant is explicitly named
-    if (preg_match('/(?:Paid to|Recipient|To|Merchant)\s*[:\-]?\s*([A-Za-z0-9\s.,]+)/i', $text, $m)) {
-      $detectedRecipient = trim($m[1]);
-    }
-  }
-
-  // 2. Payment Method Detection & Match
-  $detectedMethod = null;
-  foreach (['GCash', 'Maya', 'BPI', 'BDO', 'Metrobank', 'PayPal', 'UnionBank', 'Landbank', 'SeaBank', 'GoTyme'] as $prov) {
-    if (stripos($text, $prov) !== false) {
-      $detectedMethod = $prov;
-      break;
-    }
-  }
-  if (!$detectedMethod && stripos($text, 'Bank') !== false) {
-    $detectedMethod = 'Bank Transfer';
-  }
-
-  $methodMatch = true;
-  if ($detectedMethod) {
-    $expLower = strtolower($expectedMethodName);
-    $detLower = strtolower($detectedMethod);
-    if (str_contains($expLower, 'gcash') && !str_contains($detLower, 'gcash')) {
-      $methodMatch = false;
-    } elseif (str_contains($expLower, 'maya') && !str_contains($detLower, 'maya')) {
-      $methodMatch = false;
-    } elseif (str_contains($expLower, 'paypal') && !str_contains($detLower, 'paypal')) {
-      $methodMatch = false;
-    } elseif (str_contains($expLower, 'bpi') && !str_contains($detLower, 'bpi')) {
-      $methodMatch = false;
-    }
-  }
-
-  // 3. Amount Extraction (Preserves exact decimals, e.g. 5.00)
-  $amount = null;
-  // Match patterns like "Total ₱5.00", "Total: PHP 5.00", "Amount ₱5.00", "₱ 5.00"
-  if (preg_match('/(?:Total(?:\s*Amount)?|Amount(?:\s*Paid)?|Payment\s*Amount)\s*[:\s]*[₱P]?\s*([0-9,]+(?:\.\d{1,2})?)/i', $text, $am)) {
-    $amount = (float) str_replace(',', '', $am[1]);
-  } elseif (preg_match('/(?:₱|PHP)\s*([0-9,]+(?:\.\d{2}))/i', $text, $am)) {
-    $amount = (float) str_replace(',', '', $am[1]);
-  } elseif (preg_match('/(?:Total)\s*([0-9,]+(?:\.\d{2}))/i', $text, $am)) {
-    $amount = (float) str_replace(',', '', $am[1]);
-  }
-
-  // 4. Reference Number Extraction (e.g. Reference No. 507176039)
-  $reference = null;
-  if (preg_match('/(?:Ref(?:erence)?\s*No\.?|Transaction\s*(?:No\.?|ID|#)|Trace\s*No\.?|Txn\s*ID)\s*[:\-]?\s*([0-9A-Za-z]+)/i', $text, $rm)) {
-    $reference = trim($rm[1]);
-  } elseif (preg_match('/\b(?:Ref|Reference)\s*[:\-]?\s*([0-9A-Za-z]{6,30})\b/i', $text, $rm)) {
-    $reference = trim($rm[1]);
-  }
-
-  // 5. Transaction Date & Time Extraction (e.g. Sep 21, 2026 5:11 PM)
-  $transactionDate = null;
-  if (preg_match('/([A-Za-z]{3,9}\s+\d{1,2},?\s+\d{4}(?:\s+\d{1,2}:\d{2}(?:\s*[AP]M)?)?)/i', $text, $dm)) {
-    $transactionDate = trim($dm[1]);
-  }
-
-  // 6. Payment Success Indicator (e.g. "Your payment was successfully processed")
-  $isSuccess = (bool) preg_match('/(?:successfully\s+processed|payment\s+successful|payment\s+completed|transaction\s+successful|completed|paid)/i', $text);
-
-  // 7. Decision Matrix
-  $status = 'needs_review';
-  $message = 'We could not confidently verify all fields. Please review and confirm your details below.';
-  $needsManualReview = true;
-
-  if (!$recipientMatch && $detectedRecipient && strcasecmp($detectedRecipient, $expectedRecipient) !== 0) {
-    $status = 'invalid';
-    $message = "Recipient ({$detectedRecipient}) does not match Rise Above Foundation Cebu's registered account details.";
-  } elseif (!$methodMatch && $detectedMethod) {
-    $status = 'mismatch';
-    $message = "Payment method mismatch: detected {$detectedMethod} while {$expectedMethodName} is selected.";
-  } elseif ($recipientMatch && $methodMatch && $amount !== null && $amount > 0 && ($isSuccess || $reference !== null)) {
-    $status = 'verified';
-    $message = 'Payment proof verified. Recipient, payment channel, and transaction details successfully confirmed.';
-    $needsManualReview = false;
-  } elseif ($amount !== null && $amount > 0) {
-    $status = 'needs_review';
-    $message = 'Payment amount detected. Please confirm your details before completing submission.';
-  }
-
-  return [
-    'isLegitimateReceipt' => true,
-    'status' => $status,
-    'confidence' => $status === 'verified' ? 'high' : ($status === 'needs_review' ? 'medium' : 'low'),
-    'recipient' => $recipientMatch ? $expectedRecipient : $detectedRecipient,
-    'recipientMatch' => $recipientMatch,
-    'paymentMethod' => $detectedMethod ?: $expectedMethodName,
-    'paymentMethodMatch' => $methodMatch,
-    'amount' => $amount,
-    'extractedAmount' => $amount,
-    'formattedAmount' => $amount !== null ? number_format($amount, 2) : null,
-    'currency' => 'PHP',
-    'referenceNumber' => $reference,
-    'transactionDate' => $transactionDate,
-    'paymentSuccessful' => $isSuccess,
-    'needsManualReview' => $needsManualReview,
-    'verificationMessage' => $message,
-    'reasons' => [
-      $recipientMatch ? 'Recipient matches organization' : 'Recipient verification pending',
-      $methodMatch ? 'Payment method matches selected channel' : 'Payment method discrepancy flagged',
-      $amount !== null ? "Amount extracted: ₱" . number_format($amount, 2) : 'Amount requires manual review',
-      $isSuccess ? 'Payment success confirmed from proof' : 'Payment status verified from receipt record',
-    ],
-    'source' => 'deterministic_cms_engine',
-  ];
-}
-
-// 4. Multi-Tier AI Vision & OCR Execution
 $apiKey = resolve_gemini_api_key();
 $fileBytes = (string) file_get_contents($savedFilePath);
 $fileBase64 = base64_encode($fileBytes);
 $aiResult = null;
 
+// Tier 1: Gemini Vision API (if key available)
 if ($apiKey !== '' && strlen($fileBytes) > 0) {
   $prompt = <<<PROMPT
-You are a strict financial auditor for Rise Above Foundation Cebu.
-Verify this uploaded payment confirmation against the following expected organization details:
-- Expected Recipient: "{$expectedRecipientName}"
-- Expected Account No: "{$expectedAccountNumber}"
-- Expected Payment Method: "{$expectedMethodName}"
+You are an objective financial receipt analyzer.
+Analyze this payment receipt image strictly and accurately from the visible image content.
+Expected Organization Recipient: "{$expectedRecipientName}"
+Expected Organization Account/Mobile: "{$expectedAccountNumber}"
+Expected Payment Method: "{$expectedMethodName}"
 
-INSTRUCTIONS:
-1. RECIPIENT VERIFICATION:
-   - Check if the recipient/account shown in the proof matches "{$expectedRecipientName}" or Rise Above Foundation Cebu.
-   - Use flexible matching (e.g. upper/lowercase, "Inc." vs "Inc", spacing).
-   - If recipient is a completely different person or company, mark recipientMatch: false, status: "invalid".
-2. PAYMENT METHOD MATCH:
-   - Check if the payment was made via {$expectedMethodName} (e.g. GCash, Maya, BPI).
-   - Mark paymentMethodMatch: true or false.
-3. EXACT AMOUNT:
-   - Extract the exact monetary transaction amount.
-   - In PHP (Philippine Peso). Preserve decimals (e.g. 5.00, 1500.00). Do not round.
-4. REFERENCE NUMBER:
-   - Extract the transaction/reference number (e.g. "Reference No. 507176039").
-5. TRANSACTION DATE & TIME:
-   - Extract the visible transaction date/time string (e.g. "Sep 21, 2026 5:11 PM").
-6. SUCCESS STATE:
-   - Check if transaction says "successfully processed", "Payment successful", "Paid", or "Completed".
-7. RETURN ONLY STRICT JSON:
+TASK:
+1. Recipient: Extract the exact recipient/merchant name printed on the receipt.
+2. Recipient Match: Return true if the receipt recipient refers to the Expected Organization Recipient (allowing casing, spacing, and legal suffixes like Inc/Foundation), false if sent to a completely different person or merchant.
+3. Amount: Extract the exact numeric transaction amount as a float (Philippine Peso PHP). Do not round.
+4. Reference Number: Extract the exact transaction/reference/confirmation number.
+5. Transaction Date: Extract the visible transaction date and time string.
+6. Payment Method: Extract the payment channel or bank (e.g. GCash, Maya, BPI, BDO).
+7. Payment Successful: Return true if status indicates success, completed, paid, or processed.
+
+Return ONLY valid JSON:
 {
   "status": "verified" | "needs_review" | "invalid" | "mismatch",
   "recipient": string or null,
@@ -378,7 +497,6 @@ INSTRUCTIONS:
   "paymentMethodMatch": boolean,
   "amount": number or null,
   "extractedAmount": number or null,
-  "formattedAmount": string or null,
   "currency": "PHP",
   "referenceNumber": string or null,
   "transactionDate": string or null,
@@ -388,7 +506,7 @@ INSTRUCTIONS:
 }
 PROMPT;
 
-  $modelsToTry = ['gemini-2.0-flash', 'gemini-1.5-flash', 'gemini-2.5-flash', 'gemini-1.5-flash-latest'];
+  $modelsToTry = ['gemini-2.0-flash', 'gemini-1.5-flash', 'gemini-1.5-flash-latest'];
   foreach ($modelsToTry as $modelName) {
     $url = "https://generativelanguage.googleapis.com/v1beta/models/{$modelName}:generateContent?key=" . urlencode($apiKey);
     $payload = [
@@ -408,7 +526,7 @@ PROMPT;
         ],
       ],
       'generationConfig' => [
-        'temperature' => 0.05,
+        'temperature' => 0.0,
         'responseMimeType' => 'application/json',
       ],
     ];
@@ -440,13 +558,35 @@ PROMPT;
   }
 }
 
-// If Gemini is unconfigured or failed, execute Tier 2 OCR + Tier 3 Deterministic Rule Engine
+// Tier 2 & 3: If Gemini Vision did not produce a result, use Client-Extracted OCR or Server Tesseract
 if (!$aiResult) {
-  $extractedOcrText = extract_file_text_fallback($savedFilePath, $fileMime);
-  $aiResult = analyze_receipt_text_against_cms($extractedOcrText, $selectedMethod, $activeMethods);
+  $extractedText = '';
+
+  // Use client-side OCR text if passed by browser worker
+  if ($clientExtractedText !== '' && strlen($clientExtractedText) > 10) {
+    $extractedText = $clientExtractedText;
+  }
+
+  // If still empty and file is PDF, parse text streams
+  if ($extractedText === '' && $fileMime === 'application/pdf') {
+    if (preg_match_all('/(?:BT[\r\n\s]+)(.*?)(?:[\r\n\s]+ET)/s', $fileBytes, $matches)) {
+      foreach ($matches[1] as $block) {
+        if (preg_match_all('/\((.*?)\)\s*T[jJ]/s', $block, $tMatches)) {
+          $extractedText .= ' ' . implode(' ', $tMatches[1]);
+        }
+      }
+    }
+  }
+
+  // If still empty, try server-side Tesseract
+  if ($extractedText === '') {
+    $extractedText = run_tesseract_ocr($savedFilePath);
+  }
+
+  $aiResult = analyze_receipt_text_against_cms($extractedText, $selectedMethod, $activeMethods);
 }
 
-// Normalize amounts & formatting
+// Normalize amounts and formatting
 $finalAmount = null;
 if (isset($aiResult['amount']) && is_numeric($aiResult['amount'])) {
   $finalAmount = round((float) $aiResult['amount'], 2);
@@ -461,12 +601,13 @@ $aiResult['methodMatchesSelected'] = !empty($aiResult['paymentMethodMatch']);
 $aiResult['detectedMethod'] = $aiResult['paymentMethod'] ?? $expectedMethodName;
 $aiResult['recipientInfo'] = $aiResult['recipient'] ?? $expectedRecipientName;
 
-// Return unified JSON with all standard fields at top-level AND in verification object
+// Return uniform JSON response with both flat fields and nested verification object
 json_response([
   'ok' => true,
   'status' => $aiResult['status'],
   'recipient' => $aiResult['recipient'],
   'recipientMatch' => !empty($aiResult['recipientMatch']),
+  'accountMatch' => !empty($aiResult['accountMatch'] ?? $aiResult['recipientMatch']),
   'paymentMethod' => $aiResult['paymentMethod'],
   'paymentMethodMatch' => !empty($aiResult['paymentMethodMatch']),
   'amount' => $finalAmount,
@@ -478,6 +619,7 @@ json_response([
   'paymentSuccessful' => !empty($aiResult['paymentSuccessful']),
   'needsManualReview' => !empty($aiResult['needsManualReview']),
   'verificationMessage' => $aiResult['verificationMessage'] ?? 'Payment proof verified successfully.',
+  'reasons' => $aiResult['reasons'] ?? [],
   'fileName' => $file['name'],
   'tempProofToken' => $tempBaseName,
   'proofPath' => $tempBaseName,

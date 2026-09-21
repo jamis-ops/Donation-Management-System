@@ -364,28 +364,45 @@ export default function DonatePage() {
     try {
       const methodLabel = selectedMethod ? (selectedMethod.name || selectedMethod.code) : form.paymentMethod
       const methodId = selectedMethod?.id || ''
-      const res = await verifyPaymentProof(file, methodLabel, methodId)
+
+      // Attempt lightweight client-side OCR in browser worker
+      let clientText = ''
+      if (file.type?.startsWith('image/')) {
+        try {
+          const { createWorker } = await import('tesseract.js')
+          const worker = await createWorker('eng')
+          const ret = await worker.recognize(file)
+          clientText = ret?.data?.text || ''
+          await worker.terminate()
+        } catch (ocrErr) {
+          console.warn('Client-side OCR notice:', ocrErr)
+        }
+      }
+
+      const res = await verifyPaymentProof(file, methodLabel, methodId, clientText)
       if (res?.ok) {
         const v = res.verification || res
         setAiResult(v)
         setTempProofToken(res.tempProofToken || '')
         setAiState(v.status || res.status || 'needs_review')
 
-        const extractedAmt = v.amount ?? v.extractedAmount
-        if (extractedAmt !== null && extractedAmt !== undefined && Number(extractedAmt) > 0) {
-          setForm((prev) => ({
-            ...prev,
-            amount: String(extractedAmt),
-          }))
-          setIsAmountManuallyAdjusted(false)
-        }
+        if (v.status === 'verified') {
+          const extractedAmt = v.amount ?? v.extractedAmount
+          if (extractedAmt !== null && extractedAmt !== undefined && Number(extractedAmt) > 0) {
+            setForm((prev) => ({
+              ...prev,
+              amount: String(extractedAmt),
+            }))
+            setIsAmountManuallyAdjusted(false)
+          }
 
-        const refNum = v.referenceNumber ?? v.reference_number
-        if (refNum && String(refNum).trim() !== '') {
-          setForm((prev) => ({
-            ...prev,
-            paymentReference: String(refNum).trim(),
-          }))
+          const refNum = v.referenceNumber ?? v.reference_number
+          if (refNum && String(refNum).trim() !== '') {
+            setForm((prev) => ({
+              ...prev,
+              paymentReference: String(refNum).trim(),
+            }))
+          }
         }
       } else {
         setAiState('needs_review')
@@ -479,6 +496,10 @@ export default function DonatePage() {
     }
     if (!form.acceptedPolicies) {
       setSubmitError('Please accept the Data Privacy Policy and Terms & Conditions.')
+      return
+    }
+    if (aiState === 'invalid') {
+      setSubmitError('The uploaded payment proof is invalid: ' + (aiResult?.verificationMessage || 'please upload a valid payment proof.'))
       return
     }
 
@@ -1528,9 +1549,16 @@ export default function DonatePage() {
                               ✕ Invalid
                             </span>
                           </div>
-                          <p style={{ margin: 0, fontSize: '0.82rem' }}>
+                          <p style={{ margin: '0 0 0.35rem', fontSize: '0.82rem', fontWeight: 600 }}>
                             {aiResult?.verificationMessage || "This file does not appear to be a valid payment confirmation. Please upload a clearer payment confirmation."}
                           </p>
+                          {aiResult?.reasons && Array.isArray(aiResult.reasons) && aiResult.reasons.length > 0 && (
+                            <ul style={{ margin: '0.35rem 0 0', paddingLeft: '1.2rem', fontSize: '0.78rem', color: '#991b1b' }}>
+                              {aiResult.reasons.map((r, idx) => (
+                                <li key={idx}>{r}</li>
+                              ))}
+                            </ul>
+                          )}
                         </div>
                       )}
                     </div>
