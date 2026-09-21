@@ -3,7 +3,8 @@ import { Link } from 'react-router-dom'
 import { 
   Building2, User, MapPin, CreditCard, Copy, Check, QrCode, 
   Landmark, Wallet, Globe, ShieldCheck, Info, FileText,
-  Edit3, HeartHandshake, AlertCircle, RefreshCw, CheckCircle2
+  Edit3, HeartHandshake, AlertCircle, RefreshCw, CheckCircle2,
+  Package, LogIn
 } from 'lucide-react'
 import { submitPublicDonation, getDonorProfile } from '../../api/resources'
 import { useAuth } from '../../context/AuthContext'
@@ -299,9 +300,21 @@ export default function DonatePage() {
             </p>
           </div>
 
-          <div className="card">
-            <h2>Donation Details</h2>
-            {submitError && <div className="error-banner">{submitError}</div>}
+          <div className="form-card donation-details-card">
+            <div className="donation-details-header">
+              <div className="donation-details-header__eyebrow">
+                <HeartHandshake size={13} />
+                <span>Donation Process · Step 1</span>
+              </div>
+              <h2 className="donation-details-header__title">Donation Details</h2>
+              <p className="donation-details-header__subtitle">
+                {isLoggedInDonor
+                  ? 'Your verified donor profile is securely linked. Choose your donation type to continue.'
+                  : 'Complete your donor details and select how you wish to make an impact today.'}
+              </p>
+            </div>
+
+            {submitError && <div className="error-banner" style={{ marginBottom: '1.5rem' }}>{submitError}</div>}
             {submitted ? (
               <div className="form-success">
                 <h2>Thank You for Your Donation!</h2>
@@ -370,7 +383,7 @@ export default function DonatePage() {
                         fontSize: '0.9rem',
                       }}>
                         <div className="spinner" style={{ width: 18, height: 18 }} />
-                        <span>Loading your saved donor profile…</span>
+                        <span>Loading your verified donor profile…</span>
                       </div>
                     ) : profileError ? (
                       <div className="error-banner" style={{
@@ -392,131 +405,141 @@ export default function DonatePage() {
                         </button>
                       </div>
                     ) : (
-                      <div className="donor-profile-summary-card" style={{
-                        background: '#ffffff',
-                        border: '1px solid #e2e8f0',
-                        borderRadius: '12px',
-                        padding: '1.25rem 1.4rem',
-                        boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
-                      }}>
-                        <div style={{
-                          display: 'flex',
-                          justifyContent: 'space-between',
-                          alignItems: 'flex-start',
-                          flexWrap: 'wrap',
-                          gap: '0.75rem',
-                          marginBottom: '0.75rem',
-                          paddingBottom: '0.75rem',
-                          borderBottom: '1px solid #f1f5f9',
-                        }}>
-                          <div>
-                            <span style={{
-                              display: 'inline-flex',
-                              alignItems: 'center',
-                              gap: '0.35rem',
-                              fontSize: '0.75rem',
-                              textTransform: 'uppercase',
-                              letterSpacing: '0.05em',
-                              color: 'var(--color-brand, #AF101A)',
-                              fontWeight: 700,
-                            }}>
-                              <HeartHandshake size={13} />
-                              {form.donorType === 'Company' ? 'Company Donor Profile' : 'Verified Donor Profile'}
+                      <div className="donor-profile-summary-card">
+                        <div className="donor-profile-summary-card__header">
+                          <div className="donor-profile-summary-card__badge">
+                            <CheckCircle2 className="donor-profile-summary-card__badge-icon" />
+                            <span>
+                              {form.donorType === 'Company' ? 'VERIFIED COMPANY PROFILE' : 'VERIFIED DONOR PROFILE'}
                             </span>
-                            <h3 style={{
-                              margin: '0.2rem 0 0',
-                              fontSize: '1.15rem',
-                              color: '#1e293b',
-                              fontWeight: 700,
-                              display: 'flex',
-                              alignItems: 'center',
-                              gap: '0.45rem',
-                            }}>
-                              {form.donorType === 'Company' ? (
-                                <>
-                                  <Building2 size={18} color="var(--color-brand, #AF101A)" />
-                                  {form.organization || formatFullName(form.nameParts)}
-                                </>
-                              ) : (
-                                <>
-                                  <User size={18} color="var(--color-brand, #AF101A)" />
-                                  {formatFullName(form.nameParts) || user?.name || 'Registered Donor'}
-                                </>
-                              )}
-                            </h3>
                           </div>
 
                           <Link
                             to="/donor/settings"
-                            className="btn btn--sm btn--ghost"
-                            style={{
-                              display: 'inline-flex',
-                              alignItems: 'center',
-                              gap: '0.35rem',
-                              color: 'var(--color-brand, #AF101A)',
-                              fontWeight: 600,
-                              border: '1px solid #e2e8f0',
-                              padding: '0.35rem 0.75rem',
-                              borderRadius: '8px',
-                            }}
+                            className="donor-profile-summary-card__edit-btn"
                             title="Update your donor details in settings"
                           >
-                            <Edit3 size={14} /> Edit Profile
+                            <Edit3 size={13} /> Edit Profile
                           </Link>
                         </div>
 
-                        <div style={{
-                          display: 'grid',
-                          gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
-                          gap: '0.75rem',
-                          fontSize: '0.85rem',
-                          color: '#475569',
-                        }}>
+                        <div className="donor-profile-summary-card__identity">
+                          <h3 className="donor-profile-summary-card__name">
+                            {form.donorType === 'Company' ? (
+                              <>
+                                <Building2 size={20} style={{ color: 'var(--color-brand, #AF101A)', flexShrink: 0 }} />
+                                <span>{form.organization || formatFullName(form.nameParts)}</span>
+                                <span className="donor-profile-summary-card__company-badge">Organization</span>
+                              </>
+                            ) : (
+                              <>
+                                <User size={20} style={{ color: 'var(--color-brand, #AF101A)', flexShrink: 0 }} />
+                                <span>{formatFullName(form.nameParts) || user?.name || 'Registered Donor'}</span>
+                              </>
+                            )}
+                          </h3>
+                        </div>
+
+                        <div className="donor-profile-summary-card__grid">
                           {form.donorType === 'Company' && (
-                            <div>
-                              <span style={{ display: 'block', fontSize: '0.72rem', color: '#64748b' }}>Contact Person</span>
-                              <strong style={{ color: '#1e293b' }}>{formatFullName(form.nameParts) || '—'}</strong>
+                            <div className="donor-profile-summary-card__field">
+                              <span className="donor-profile-summary-card__label">Contact Person</span>
+                              <span className="donor-profile-summary-card__value">{formatFullName(form.nameParts) || '—'}</span>
                             </div>
                           )}
-                          <div>
-                            <span style={{ display: 'block', fontSize: '0.72rem', color: '#64748b' }}>Email</span>
-                            <strong style={{ color: '#1e293b' }}>{form.email || '—'}</strong>
+                          <div className="donor-profile-summary-card__field">
+                            <span className="donor-profile-summary-card__label">Email</span>
+                            <span className="donor-profile-summary-card__value">{form.email || '—'}</span>
                           </div>
-                          <div>
-                            <span style={{ display: 'block', fontSize: '0.72rem', color: '#64748b' }}>Phone</span>
-                            <strong style={{ color: '#1e293b' }}>{form.phone || '—'}</strong>
+                          <div className="donor-profile-summary-card__field">
+                            <span className="donor-profile-summary-card__label">Phone</span>
+                            <span className="donor-profile-summary-card__value">{form.phone || '—'}</span>
                           </div>
-                          <div>
-                            <span style={{ display: 'block', fontSize: '0.72rem', color: '#64748b' }}>Address</span>
-                            <strong style={{ color: '#1e293b' }}>
+                          <div className="donor-profile-summary-card__field">
+                            <span className="donor-profile-summary-card__label">Address</span>
+                            <span className="donor-profile-summary-card__value">
                               {[form.streetAddress || form.address, form.country].filter(Boolean).join(', ') || '—'}
-                            </strong>
+                            </span>
                           </div>
+                        </div>
+
+                        <div className="donor-profile-summary-card__notice">
+                          <ShieldCheck size={14} style={{ color: '#16a34a', flexShrink: 0 }} />
+                          <span>This verified profile information is automatically used. Click Edit Profile to update in settings.</span>
                         </div>
                       </div>
                     )}
                   </div>
-                ) : null}
-
-                <fieldset className="form-group" style={{ border: 'none', padding: 0, margin: '0 0 1.25rem' }}>
-                  <legend className="form-label" style={{ fontWeight: 600, marginBottom: '0.5rem', display: 'block' }}>
-                    <Req required>Donation Type</Req>
-                  </legend>
-                  <div className="form-row" style={{ display: 'flex', gap: '1.5rem' }}>
-                    {donationTypes.map((dt) => (
-                      <label key={dt.id} className="radio-label" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer' }}>
-                        <input
-                          type="radio"
-                          name="donationType"
-                          value={dt.id}
-                          checked={form.type === dt.id}
-                          onChange={() => setForm({ ...form, type: dt.id })}
-                        />
-                        <span>{dt.label}</span>
-                      </label>
-                    ))}
+                ) : (
+                  <div style={{
+                    marginBottom: '1.5rem',
+                    padding: '0.85rem 1.15rem',
+                    background: '#f8fafc',
+                    border: '1px solid #e2e8f0',
+                    borderRadius: '10px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    flexWrap: 'wrap',
+                    gap: '0.75rem',
+                    fontSize: '0.875rem',
+                  }}>
+                    <span style={{ color: '#475569' }}>
+                      Already have an account? Log in to use your saved verified profile.
+                    </span>
+                    <Link to="/login" className="btn btn--sm btn--outline" style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}>
+                      <LogIn size={13} /> Log In
+                    </Link>
                   </div>
-                </fieldset>
+                )}
+
+                {/* Section Separator */}
+                <div className="donation-section-divider">
+                  <div className="donation-section-divider__line" />
+                  <span className="donation-section-divider__text">Donation Type</span>
+                  <div className="donation-section-divider__line" />
+                </div>
+
+                {/* Donation Type Selectable Cards */}
+                <div className="donation-type-section">
+                  <label className="donation-type-section__legend">
+                    <Req required>Donation Type</Req>
+                  </label>
+                  <div className="donation-type-grid" role="radiogroup" aria-label="Donation Type">
+                    {donationTypes.map((dt) => {
+                      const isSelected = form.type === dt.id
+                      const isMonetary = dt.id === 'monetary'
+                      return (
+                        <label
+                          key={dt.id}
+                          className={`donation-type-card ${isSelected ? 'donation-type-card--selected' : ''}`}
+                        >
+                          <input
+                            type="radio"
+                            name="donationType"
+                            value={dt.id}
+                            checked={isSelected}
+                            onChange={() => setForm({ ...form, type: dt.id })}
+                          />
+                          <div className="donation-type-card__radio-circle" aria-hidden="true">
+                            <div className="donation-type-card__radio-dot" />
+                          </div>
+                          <div className="donation-type-card__icon-wrap" aria-hidden="true">
+                            {isMonetary ? <Wallet size={20} /> : <Package size={20} />}
+                          </div>
+                          <div className="donation-type-card__content">
+                            <span className="donation-type-card__title">{dt.label}</span>
+                            <span className="donation-type-card__desc">
+                              {isMonetary
+                                ? 'Monetary support via Bank Transfer, GCash, PayPal, Crypto, or Check.'
+                                : 'Material goods, food packs, medicine, clothing, or relief supplies.'}
+                            </span>
+                          </div>
+                        </label>
+                      )
+                    })}
+                  </div>
+                </div>
 
                 {!isLoggedInDonor && (
                   <>
