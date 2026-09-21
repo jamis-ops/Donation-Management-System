@@ -8477,7 +8477,8 @@ button:disabled,
   animation: fadeIn 0.25s ease;
 }
 
-.ai-verification-box--analyzing {
+.ai-verification-box--analyzing,
+.ai-verification-box--reading {
   background: #f0f9ff;
   border: 1px solid #bae6fd;
   color: #0369a1;
@@ -8486,20 +8487,23 @@ button:disabled,
   gap: 0.75rem;
 }
 
-.ai-verification-box--verified {
+.ai-verification-box--verified,
+.ai-verification-box--success {
   background: #f0fdf4;
   border: 1px solid #bbf7d0;
   color: #166534;
 }
 
 .ai-verification-box--needs_review,
-.ai-verification-box--mismatch {
+.ai-verification-box--mismatch,
+.ai-verification-box--partial {
   background: #fffbeb;
   border: 1px solid #fde68a;
   color: #92400e;
 }
 
-.ai-verification-box--invalid {
+.ai-verification-box--invalid,
+.ai-verification-box--failed {
   background: #fef2f2;
   border: 1px solid #fecaca;
   color: #991b1b;
@@ -8531,20 +8535,23 @@ button:disabled,
   letter-spacing: 0.03em;
 }
 
-.ai-verification-box__badge--verified {
+.ai-verification-box__badge--verified,
+.ai-verification-box__badge--success {
   background: #dcfce7;
   color: #15803d;
   border: 1px solid #86efac;
 }
 
 .ai-verification-box__badge--needs_review,
-.ai-verification-box__badge--mismatch {
+.ai-verification-box__badge--mismatch,
+.ai-verification-box__badge--partial {
   background: #fef3c7;
   color: #b45309;
   border: 1px solid #fcd34d;
 }
 
-.ai-verification-box__badge--invalid {
+.ai-verification-box__badge--invalid,
+.ai-verification-box__badge--failed {
   background: #fee2e2;
   color: #b91c1c;
   border: 1px solid #fca5a5;

@@ -358,7 +358,7 @@ export default function DonatePage() {
       setProofPreviewUrl(null)
     }
 
-    setAiState('analyzing')
+    setAiState('reading')
     setAiResult(null)
 
     try {
@@ -380,39 +380,42 @@ export default function DonatePage() {
       }
 
       const res = await verifyPaymentProof(file, methodLabel, methodId, clientText)
-      if (res?.ok) {
-        const v = res.verification || res
-        if (res?.debug) {
-          console.debug('[Payment Verification Telemetry]', res.debug)
-        }
-        setAiResult(v)
+      if (res?.ok || res?.success) {
+        const extracted = res.extracted || res
+        const rawOcr = res.rawText || res.debug?.rawOcr || ''
+        console.log('RAW OCR:\n', rawOcr)
+        console.log('PARSED:\n', extracted)
+
+        setAiResult(extracted)
         setTempProofToken(res.tempProofToken || '')
-        setAiState(v.status || res.status || 'needs_review')
 
-        if (v.status === 'verified') {
-          const extractedAmt = v.amount ?? v.extractedAmount
-          if (extractedAmt !== null && extractedAmt !== undefined && Number(extractedAmt) > 0) {
-            setForm((prev) => ({
-              ...prev,
-              amount: String(extractedAmt),
-            }))
-            setIsAmountManuallyAdjusted(false)
-          }
+        const status = res.extractionStatus || res.status || (extracted?.amount ? 'success' : 'failed')
+        setAiState(status)
 
-          const refNum = v.referenceNumber ?? v.reference_number
-          if (refNum && String(refNum).trim() !== '') {
-            setForm((prev) => ({
-              ...prev,
-              paymentReference: String(refNum).trim(),
-            }))
-          }
+        // Always auto-fill amount if read (in both success and partial states)
+        const extractedAmt = extracted?.amount ?? res.amount
+        if (extractedAmt !== null && extractedAmt !== undefined && Number(extractedAmt) > 0) {
+          setForm((prev) => ({
+            ...prev,
+            amount: String(extractedAmt),
+          }))
+          setIsAmountManuallyAdjusted(false)
+        }
+
+        // Always auto-fill reference if read (in both success and partial states)
+        const refNum = extracted?.referenceNumber ?? res.referenceNumber
+        if (refNum && String(refNum).trim() !== '') {
+          setForm((prev) => ({
+            ...prev,
+            paymentReference: String(refNum).trim(),
+          }))
         }
       } else {
-        setAiState('needs_review')
+        setAiState('failed')
       }
     } catch (err) {
-      console.warn('AI payment verification fallback:', err)
-      setAiState('needs_review')
+      console.warn('Payment proof reading notice:', err)
+      setAiState('failed')
     }
   }
 
@@ -499,10 +502,6 @@ export default function DonatePage() {
     }
     if (!form.acceptedPolicies) {
       setSubmitError('Please accept the Data Privacy Policy and Terms & Conditions.')
-      return
-    }
-    if (aiState === 'invalid') {
-      setSubmitError('The uploaded payment proof is invalid: ' + (aiResult?.verificationMessage || 'please upload a valid payment proof.'))
       return
     }
 
@@ -1388,48 +1387,45 @@ export default function DonatePage() {
                         </div>
                       )}
 
-                      {/* 2. AI Verification Status Card */}
-                      {aiState === 'analyzing' && (
-                        <div className="ai-verification-box ai-verification-box--analyzing">
+                      {/* 2. Extraction Status Card */}
+                      {(aiState === 'reading' || aiState === 'analyzing') && (
+                        <div className="ai-verification-box ai-verification-box--reading">
                           <div className="spinner" style={{ width: 20, height: 20, borderColor: '#0284c7', borderTopColor: 'transparent', flexShrink: 0 }} />
                           <div>
-                            <strong style={{ display: 'block', fontSize: '0.88rem' }}>Verifying Payment Proof…</strong>
+                            <strong style={{ display: 'block', fontSize: '0.88rem' }}>Reading payment proof…</strong>
                             <span style={{ fontSize: '0.8rem', opacity: 0.9 }}>
-                              Please wait while we securely analyze your payment confirmation and extract transaction details.
+                              Please wait while we read and extract payment details from your uploaded document.
                             </span>
                           </div>
                         </div>
                       )}
 
-                      {aiState === 'verified' && aiResult && (
-                        <div className="ai-verification-box ai-verification-box--verified">
+                      {(aiState === 'success' || aiState === 'verified') && aiResult && (
+                        <div className="ai-verification-box ai-verification-box--success">
                           <div className="ai-verification-box__header">
                             <div className="ai-verification-box__title">
                               <CheckCircle2 size={18} color="#15803d" />
-                              <span>Payment Proof Verified</span>
+                              <span>Payment Details Extracted</span>
                             </div>
-                            <span className="ai-verification-box__badge ai-verification-box__badge--verified">
-                              ✓ Verified
+                            <span className="ai-verification-box__badge ai-verification-box__badge--success">
+                              ✓ Details Extracted
                             </span>
                           </div>
-                          <p style={{ margin: '0 0 0.5rem', fontSize: '0.82rem', color: '#14532d' }}>
-                            {aiResult.verificationMessage || 'Recipient account and payment details verified successfully.'}
-                          </p>
 
                           <div className="ai-verification-grid">
-                            {(aiResult.recipient || aiResult.recipientInfo) && (
-                              <div className="ai-verification-item">
-                                <span className="ai-verification-item__label">Recipient</span>
-                                <span className="ai-verification-item__value">
-                                  {aiResult.recipient || aiResult.recipientInfo}
-                                </span>
-                              </div>
-                            )}
-                            {(aiResult.paymentMethod || aiResult.detectedMethod) && (
+                            {aiResult.paymentMethod && (
                               <div className="ai-verification-item">
                                 <span className="ai-verification-item__label">Payment Method</span>
                                 <span className="ai-verification-item__value">
-                                  {aiResult.paymentMethod || aiResult.detectedMethod}
+                                  {aiResult.paymentMethod}
+                                </span>
+                              </div>
+                            )}
+                            {aiResult.recipient && (
+                              <div className="ai-verification-item">
+                                <span className="ai-verification-item__label">Recipient</span>
+                                <span className="ai-verification-item__value">
+                                  {aiResult.recipient}
                                 </span>
                               </div>
                             )}
@@ -1449,56 +1445,63 @@ export default function DonatePage() {
                                 </span>
                               </div>
                             )}
-                            {(aiResult.transactionDate || aiResult.transaction_date) && (
+                            {aiResult.transactionDate && (
                               <div className="ai-verification-item">
-                                <span className="ai-verification-item__label">Transaction Date</span>
+                                <span className="ai-verification-item__label">Date</span>
                                 <span className="ai-verification-item__value">
-                                  {aiResult.transactionDate || aiResult.transaction_date}
+                                  {aiResult.transactionDate}{aiResult.transactionTime ? ` ${aiResult.transactionTime}` : ''}
+                                </span>
+                              </div>
+                            )}
+                            {aiResult.paymentStatus && (
+                              <div className="ai-verification-item">
+                                <span className="ai-verification-item__label">Status</span>
+                                <span className="ai-verification-item__value" style={{ textTransform: 'capitalize' }}>
+                                  {aiResult.paymentStatus}
                                 </span>
                               </div>
                             )}
                           </div>
-
-                          {aiResult.paymentMethodMatch === false && (aiResult.paymentMethod || aiResult.detectedMethod) && (
-                            <div style={{ marginTop: '0.65rem', padding: '0.45rem 0.65rem', background: '#fef3c7', borderRadius: '6px', border: '1px solid #fde68a', fontSize: '0.78rem', color: '#92400e', display: 'flex', gap: '0.35rem', alignItems: 'center' }}>
-                              <AlertTriangle size={14} style={{ flexShrink: 0 }} />
-                              <span>
-                                Note: Detected provider is <strong>{aiResult.paymentMethod || aiResult.detectedMethod}</strong> while <strong>{selectedMethod?.name || form.paymentMethod}</strong> is selected above.
-                              </span>
-                            </div>
-                          )}
                         </div>
                       )}
 
-                      {aiState === 'mismatch' && (
-                        <div className="ai-verification-box ai-verification-box--mismatch">
+                      {(aiState === 'partial' || aiState === 'needs_review') && (
+                        <div className="ai-verification-box ai-verification-box--partial">
                           <div className="ai-verification-box__header">
                             <div className="ai-verification-box__title">
                               <AlertTriangle size={18} color="#b45309" />
-                              <span>Payment Method or Recipient Mismatch</span>
+                              <span>Payment Details Partially Extracted</span>
                             </div>
-                            <span className="ai-verification-box__badge ai-verification-box__badge--mismatch">
-                              ⚠ Mismatch
+                            <span className="ai-verification-box__badge ai-verification-box__badge--partial">
+                              ⚠ Review Details
                             </span>
                           </div>
                           <p style={{ margin: '0 0 0.5rem', fontSize: '0.82rem', color: '#92400e' }}>
-                            {aiResult?.verificationMessage || 'The uploaded receipt appears to be for a different payment method or recipient.'}
+                            Payment details partially extracted. Please review the information before submitting.
                           </p>
 
                           {aiResult && (
                             <div className="ai-verification-grid">
-                              {(aiResult.paymentMethod || aiResult.detectedMethod) && (
+                              {aiResult.paymentMethod && (
                                 <div className="ai-verification-item">
-                                  <span className="ai-verification-item__label">Detected Provider</span>
+                                  <span className="ai-verification-item__label">Payment Method</span>
                                   <span className="ai-verification-item__value">
-                                    {aiResult.paymentMethod || aiResult.detectedMethod}
+                                    {aiResult.paymentMethod}
+                                  </span>
+                                </div>
+                              )}
+                              {aiResult.recipient && (
+                                <div className="ai-verification-item">
+                                  <span className="ai-verification-item__label">Recipient</span>
+                                  <span className="ai-verification-item__value">
+                                    {aiResult.recipient}
                                   </span>
                                 </div>
                               )}
                               {(aiResult.amount !== null && aiResult.amount !== undefined) || (aiResult.extractedAmount !== null && aiResult.extractedAmount !== undefined) ? (
                                 <div className="ai-verification-item">
-                                  <span className="ai-verification-item__label">Extracted Amount</span>
-                                  <span className="ai-verification-item__value">
+                                  <span className="ai-verification-item__label">Amount</span>
+                                  <span className="ai-verification-item__value" style={{ color: '#92400e', fontWeight: 800 }}>
                                     ₱{Number(aiResult.amount ?? aiResult.extractedAmount).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                                   </span>
                                 </div>
@@ -1511,11 +1514,19 @@ export default function DonatePage() {
                                   </span>
                                 </div>
                               )}
-                              {(aiResult.recipient || aiResult.recipientInfo) && (
+                              {aiResult.transactionDate && (
                                 <div className="ai-verification-item">
-                                  <span className="ai-verification-item__label">Detected Recipient</span>
+                                  <span className="ai-verification-item__label">Date</span>
                                   <span className="ai-verification-item__value">
-                                    {aiResult.recipient || aiResult.recipientInfo}
+                                    {aiResult.transactionDate}{aiResult.transactionTime ? ` ${aiResult.transactionTime}` : ''}
+                                  </span>
+                                </div>
+                              )}
+                              {aiResult.paymentStatus && (
+                                <div className="ai-verification-item">
+                                  <span className="ai-verification-item__label">Status</span>
+                                  <span className="ai-verification-item__value" style={{ textTransform: 'capitalize' }}>
+                                    {aiResult.paymentStatus}
                                   </span>
                                 </div>
                               )}
@@ -1524,44 +1535,17 @@ export default function DonatePage() {
                         </div>
                       )}
 
-                      {aiState === 'needs_review' && (
-                        <div className="ai-verification-box ai-verification-box--needs_review">
+                      {(aiState === 'failed' || aiState === 'invalid') && (
+                        <div className="ai-verification-box ai-verification-box--failed">
                           <div className="ai-verification-box__header">
                             <div className="ai-verification-box__title">
-                              <AlertTriangle size={18} color="#b45309" />
-                              <span>Verification Needs Attention</span>
+                              <AlertCircle size={18} color="#b91c1c" />
+                              <span>Unable to Read Payment Proof</span>
                             </div>
-                            <span className="ai-verification-box__badge ai-verification-box__badge--needs_review">
-                              ⚠ Needs Review
-                            </span>
                           </div>
-                          <p style={{ margin: 0, fontSize: '0.82rem' }}>
-                            {aiResult?.verificationMessage || "We couldn't confidently verify this payment proof. Please review and confirm your donation amount and reference number below."}
+                          <p style={{ margin: 0, fontSize: '0.82rem', color: '#991b1b' }}>
+                            We couldn't read this payment proof. Please upload a clearer image or PDF, or enter your donation details manually below.
                           </p>
-                        </div>
-                      )}
-
-                      {aiState === 'invalid' && (
-                        <div className="ai-verification-box ai-verification-box--invalid">
-                          <div className="ai-verification-box__header">
-                            <div className="ai-verification-box__title">
-                              <XCircle size={18} color="#b91c1c" />
-                              <span>Invalid Payment Confirmation</span>
-                            </div>
-                            <span className="ai-verification-box__badge ai-verification-box__badge--invalid">
-                              ✕ Invalid
-                            </span>
-                          </div>
-                          <p style={{ margin: '0 0 0.35rem', fontSize: '0.82rem', fontWeight: 600 }}>
-                            {aiResult?.verificationMessage || "This file does not appear to be a valid payment confirmation. Please upload a clearer payment confirmation."}
-                          </p>
-                          {aiResult?.reasons && Array.isArray(aiResult.reasons) && aiResult.reasons.length > 0 && (
-                            <ul style={{ margin: '0.35rem 0 0', paddingLeft: '1.2rem', fontSize: '0.78rem', color: '#991b1b' }}>
-                              {aiResult.reasons.map((r, idx) => (
-                                <li key={idx}>{r}</li>
-                              ))}
-                            </ul>
-                          )}
                         </div>
                       )}
                     </div>
