@@ -6,6 +6,13 @@ $pdo = db();
 $method = request_method();
 $id = get_id_param();
 
+if (!function_exists('get_json_input')) {
+  function get_json_input(): array
+  {
+    return read_json_body();
+  }
+}
+
 function ensure_payment_methods_table(PDO $pdo): void
 {
   static $ready = false;
@@ -289,7 +296,7 @@ if ($method === 'GET') {
 if ($method === 'POST') {
   require_auth(['Admin', 'SuperAdmin']);
 
-  $body = get_json_input();
+  $body = read_json_body();
   $isMultipart = !empty($_POST) || !empty($_FILES);
   if ($isMultipart) {
     $body = array_merge($body, $_POST);
@@ -481,7 +488,7 @@ if ($method === 'PUT') {
     json_response(['ok' => false, 'error' => 'Payment method not found'], 404);
   }
 
-  $body = get_json_input();
+  $body = read_json_body();
 
   // Quick toggle active
   if (isset($body['action']) && $body['action'] === 'toggle_active') {
