@@ -3,12 +3,23 @@ export const API_BASE_URL = (!RAW_URL || RAW_URL.includes('donation-system-api.o
   ? (typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') ? '' : 'https://donation-management-system-1.onrender.com')
   : RAW_URL
 
-function apiUrl(path) {
+export function apiUrl(path) {
   if (!path) return ''
   if (typeof path !== 'string') return ''
   if (/^(https?:|data:|blob:)/i.test(path)) return path
   const cleanPath = path.startsWith('/') ? path : `/${path}`
   return `${API_BASE_URL}${cleanPath}`
+}
+
+export function getAuthenticatedFileUrl(path) {
+  if (!path) return ''
+  if (/^(data:|blob:)/i.test(path)) return path
+  let url = apiUrl(path)
+  const token = getStoredToken()
+  if (token && !url.includes('auth_token=')) {
+    url += (url.includes('?') ? '&' : '?') + `auth_token=${encodeURIComponent(token)}`
+  }
+  return url
 }
 
 function getStoredToken() {

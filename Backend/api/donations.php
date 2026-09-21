@@ -150,9 +150,13 @@ function map_donation(array $row, ?PDO $pdo = null): array
     'proofFileName' => $proofName,
     'proofFileType' => $proofType,
     'proofIsImage' => $hasProof && donation_proof_is_image($proofType, $proofName),
-    'proofUrl' => $hasProof
-      ? ('/api/file.php?kind=donation_proofs&name=' . rawurlencode(basename((string) $proofPath)))
-      : null,
+    'proofUrl' => (function() use ($hasProof, $proofPath) {
+      if (!$hasProof || empty($proofPath)) return null;
+      if (preg_match('/^https?:\/\//i', (string) $proofPath) || str_starts_with((string) $proofPath, 'data:')) {
+        return (string) $proofPath;
+      }
+      return '/api/file.php?kind=donation_proofs&name=' . rawurlencode(basename((string) $proofPath));
+    })(),
     'aiExtractedAmount' => isset($row['ai_extracted_amount']) && $row['ai_extracted_amount'] !== null ? (float) $row['ai_extracted_amount'] : null,
     'aiExtractedReference' => $row['ai_extracted_reference'] ?? null,
     'aiExtractedMethod' => $row['ai_extracted_method'] ?? null,

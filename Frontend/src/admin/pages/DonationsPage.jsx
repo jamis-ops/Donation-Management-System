@@ -5,9 +5,11 @@ import {
   TrendingUp, Users, MapPin, FileCheck, Send, Printer, Heart,
   Calendar, Mail, Phone, Award, BarChart3, Coins, CreditCard,
   Banknote, Gift, ShieldAlert, ShieldCheck, Sparkles, Filter, Layers, DollarSign,
-  Trash2, Settings2, ExternalLink, ShoppingCart, XCircle, Copy
+  Trash2, Settings2, ExternalLink, ShoppingCart, XCircle, Copy,
+  ZoomIn, ZoomOut, RotateCcw, Maximize2, AlertCircle, X
 } from 'lucide-react'
 import { donationsApi, beneficiariesApi, assistanceRequestsApi, paymentMethodsApi } from '../../api/resources'
+import { getAuthenticatedFileUrl, apiUrl } from '../../api/auth'
 import ProcurementModal from '../components/donations/ProcurementModal'
 import InKindIntakeModal from '../components/shared/InKindIntakeModal'
 import { useApiList } from '../../hooks/useApiList'
@@ -132,6 +134,19 @@ export default function DonationsPage() {
   const [actionLoading, setActionLoading] = useState(false)
   const [actionStatus, setActionStatus] = useState('')
   const [paymentMethodOptions, setPaymentMethodOptions] = useState(PAYMENT_METHODS)
+  const [proofZoomModal, setProofZoomModal] = useState(false)
+  const [zoomLevel, setZoomLevel] = useState(1)
+  const [proofImgError, setProofImgError] = useState(false)
+
+  const handleSelectDonation = (donation) => {
+    setSelected(donation)
+    setModalTab('details')
+    setShowInlineTimeline(false)
+    setProofZoomModal(false)
+    setZoomLevel(1)
+    setProofImgError(false)
+    setActionStatus(donation?.status || '')
+  }
 
   useEffect(() => {
     paymentMethodsApi.listPublic()
@@ -501,7 +516,7 @@ export default function DonationsPage() {
             className="icon-btn"
             title="View Details & Actions"
             aria-label="View Details & Actions"
-            onClick={(e) => { e.stopPropagation(); setSelected(row); setModalTab('details'); setShowInlineTimeline(false) }}
+            onClick={(e) => { e.stopPropagation(); handleSelectDonation(row) }}
           >
             <Eye size={15} />
           </button>
@@ -609,7 +624,7 @@ export default function DonationsPage() {
             className="icon-btn"
             title="View Details & Actions"
             aria-label="View Details & Actions"
-            onClick={(e) => { e.stopPropagation(); setSelected(row); setModalTab('details'); setShowInlineTimeline(false) }}
+            onClick={(e) => { e.stopPropagation(); handleSelectDonation(row) }}
           >
             <Eye size={15} />
           </button>
@@ -884,7 +899,7 @@ export default function DonationsPage() {
         <DataTable
           columns={activeColumns}
           data={currentFilters.filtered}
-          onRowClick={(row) => { setSelected(row); setModalTab('overview') }}
+          onRowClick={(row) => handleSelectDonation(row)}
           pageSize={10}
           resetKey={`${activeSection}|${currentFilters.search}|${JSON.stringify(currentFilters.values)}`}
           selectable
@@ -1120,7 +1135,7 @@ export default function DonationsPage() {
               </div>
             </div>
 
-            {/* Tabs inside modal */}
+            {/* Tabs inside modal (Strictly Donation Details & Proof of Donation) */}
             <div className="donation-tabs">
               <button
                 className={`donation-tab${(modalTab === 'details' || modalTab === 'overview') ? ' donation-tab--active' : ''}`}
@@ -1128,13 +1143,6 @@ export default function DonationsPage() {
               >
                 <FileText size={16} />
                 Donation Details
-              </button>
-              <button
-                className={`donation-tab${modalTab === 'donor' ? ' donation-tab--active' : ''}`}
-                onClick={() => setModalTab('donor')}
-              >
-                <Heart size={16} />
-                Donor Info
               </button>
               {selected.hasProof && (
                 <button
@@ -1252,30 +1260,96 @@ export default function DonationsPage() {
 
                 <hr className="donation-section-divider" />
 
-                {/* 2. Donation Summary / Information (clean 2-column layout) */}
-                <div className="donation-info-section">
-                  <h4 className="donation-info-section__title">
-                    <FileText size={15} /> Donation Summary & Information
-                  </h4>
-                  <div className="donation-info-grid">
-                    <div className="donation-info-item">
-                      <span className="donation-info-item__label">Donor & Contact</span>
-                      <div className="donation-info-item__value" style={{ fontWeight: 600, color: '#0f172a' }}>
-                        {selected.donor}
-                        {selected.donorEmail && (
-                          <span style={{ display: 'block', fontSize: '0.78rem', color: '#64748b', fontWeight: 400 }}>
-                            {selected.donorEmail}
+                {/* 2. Compact Unified Information: Donor Profile & Transaction Information */}
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '0.85rem', marginBottom: '1rem' }}>
+                  {/* Left Column: Donor Information */}
+                  <div className="donation-info-section" style={{ margin: 0 }}>
+                    <h4 className="donation-info-section__title">
+                      <Users size={15} /> Donor Profile & Information
+                    </h4>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.65rem' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
+                        <div style={{
+                          width: '36px',
+                          height: '36px',
+                          borderRadius: '8px',
+                          background: 'linear-gradient(135deg, #AF101A 0%, #7f0d13 100%)',
+                          color: '#fff',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          fontWeight: 700,
+                          fontSize: '1rem',
+                          flexShrink: 0
+                        }}>
+                          {selected.donor?.charAt(0)?.toUpperCase() || 'D'}
+                        </div>
+                        <div style={{ minWidth: 0, flex: 1 }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', flexWrap: 'wrap' }}>
+                            <strong style={{ fontSize: '0.95rem', color: '#0f172a' }}>{selected.donor}</strong>
+                            {selected.donorType && (
+                              <span className="badge badge--info" style={{ fontSize: '0.68rem', padding: '1px 6px' }}>
+                                {selected.donorType}
+                              </span>
+                            )}
+                          </div>
+                          {selected.donorEmail ? (
+                            <a href={`mailto:${selected.donorEmail}`} style={{ fontSize: '0.8rem', color: '#475569', textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '0.3rem', marginTop: '2px' }}>
+                              <Mail size={12} /> {selected.donorEmail}
+                            </a>
+                          ) : (
+                            <span style={{ fontSize: '0.78rem', color: '#94a3b8' }}>No email provided</span>
+                          )}
+                        </div>
+                      </div>
+
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem', paddingTop: '0.5rem', borderTop: '1px solid #e2e8f0', fontSize: '0.82rem' }}>
+                        <div>
+                          <span style={{ fontSize: '0.68rem', color: '#64748b', textTransform: 'uppercase', fontWeight: 600, display: 'block' }}>
+                            Contact Number
                           </span>
-                        )}
+                          <span style={{ color: '#1e293b', fontWeight: 500 }}>
+                            {selected.donorPhone || 'Not provided'}
+                          </span>
+                        </div>
+                        <div>
+                          <span style={{ fontSize: '0.68rem', color: '#64748b', textTransform: 'uppercase', fontWeight: 600, display: 'block' }}>
+                            Organization
+                          </span>
+                          <span style={{ color: '#1e293b', fontWeight: 500 }}>
+                            {selected.donorOrganization || 'Individual'}
+                          </span>
+                        </div>
+                        <div style={{ gridColumn: '1 / -1' }}>
+                          <span style={{ fontSize: '0.68rem', color: '#64748b', textTransform: 'uppercase', fontWeight: 600, display: 'block' }}>
+                            Address / Location
+                          </span>
+                          <span style={{ color: '#1e293b', fontWeight: 500 }}>
+                            {selected.donorAddress || 'Not specified'}
+                          </span>
+                        </div>
+                      </div>
+
+                      <div style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: '6px', padding: '0.45rem 0.65rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.76rem', color: '#475569' }}>
+                        <span>Lifetime History:</span>
+                        <strong style={{ color: '#AF101A' }}>
+                          {getDonorStats(selected).totalDonations} donation(s) • ₱{getDonorStats(selected).totalAmount.toLocaleString()}
+                        </strong>
                       </div>
                     </div>
+                  </div>
 
-                    <div className="donation-info-item">
-                      <span className="donation-info-item__label">Payment Reference</span>
-                      <div className="donation-info-item__value">
+                  {/* Right Column: Transaction & Verification Details */}
+                  <div className="donation-info-section" style={{ margin: 0 }}>
+                    <h4 className="donation-info-section__title">
+                      <CreditCard size={15} /> Payment & Verification Details
+                    </h4>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.65rem', fontSize: '0.82rem' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <span style={{ color: '#64748b', textTransform: 'uppercase', fontSize: '0.68rem', fontWeight: 600 }}>Payment Reference</span>
                         {selected.paymentReference ? (
                           <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}>
-                            <code style={{ fontFamily: 'monospace', fontWeight: 600, background: '#f1f5f9', padding: '2px 6px', borderRadius: '4px', fontSize: '0.84rem' }}>
+                            <code style={{ fontFamily: 'monospace', fontWeight: 700, background: '#f1f5f9', padding: '2px 6px', borderRadius: '4px', fontSize: '0.82rem' }}>
                               {selected.paymentReference}
                             </code>
                             <button
@@ -1292,185 +1366,125 @@ export default function DonationsPage() {
                             </button>
                           </div>
                         ) : (
-                          <span style={{ color: '#94a3b8', fontStyle: 'italic' }}>No reference number provided</span>
+                          <span style={{ color: '#94a3b8', fontStyle: 'italic' }}>None</span>
                         )}
                       </div>
-                    </div>
 
-                    <div className="donation-info-item">
-                      <span className="donation-info-item__label">Category / Purpose</span>
-                      <div className="donation-info-item__value">
-                        {selected.category || 'Disaster Relief / General Foundation Support'}
-                      </div>
-                    </div>
-
-                    <div className="donation-info-item">
-                      <span className="donation-info-item__label">Payment Proof & Verification</span>
-                      <div className="donation-info-item__value" style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', flexWrap: 'wrap' }}>
-                        {selected.hasProof ? (
-                          <>
-                            <span style={{
-                              fontSize: '0.74rem',
-                              fontWeight: 700,
-                              padding: '2px 8px',
-                              borderRadius: '9999px',
-                              background: selected.aiVerificationStatus === 'verified' ? '#dcfce7' : (selected.aiVerificationStatus === 'needs_review' ? '#fef3c7' : (selected.aiVerificationStatus === 'invalid' ? '#fee2e2' : '#f1f5f9')),
-                              color: selected.aiVerificationStatus === 'verified' ? '#15803d' : (selected.aiVerificationStatus === 'needs_review' ? '#b45309' : (selected.aiVerificationStatus === 'invalid' ? '#b91c1c' : '#475569')),
-                              border: `1px solid ${selected.aiVerificationStatus === 'verified' ? '#86efac' : (selected.aiVerificationStatus === 'needs_review' ? '#fcd34d' : '#e2e8f0')}`,
-                            }}>
-                              {selected.aiVerificationStatus === 'verified' ? '✓ AI Verified' : (selected.aiVerificationStatus === 'needs_review' ? '⚠ Review Needed' : (selected.aiVerificationStatus === 'invalid' ? '✕ Invalid Proof' : 'Proof Uploaded'))}
-                            </span>
-                            <button
-                              type="button"
-                              className="btn btn--outline btn--sm"
-                              onClick={() => setModalTab('proof')}
-                              style={{ fontSize: '0.74rem', padding: '0.2rem 0.55rem' }}
-                            >
-                              <FileText size={12} /> View Proof
-                            </button>
-                          </>
-                        ) : (
-                          <span style={{ color: '#94a3b8', fontStyle: 'italic' }}>No proof uploaded</span>
-                        )}
-                      </div>
-                    </div>
-
-                    {selected.type === 'Monetary' && selected.status !== 'Pending Verification' && (
-                      <div className="donation-info-item" style={{ gridColumn: '1 / -1' }}>
-                        <span className="donation-info-item__label">Fund Utilization Summary</span>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '1.25rem', marginTop: '0.35rem', flexWrap: 'wrap' }}>
-                          <div>
-                            <span style={{ fontSize: '0.72rem', color: '#64748b' }}>Allocated: </span>
-                            <strong style={{ color: '#047857' }}>₱{(Number(selected.totalUtilized) || 0).toLocaleString('en-PH', { minimumFractionDigits: 2 })}</strong>
-                          </div>
-                          <div>
-                            <span style={{ fontSize: '0.72rem', color: '#64748b' }}>Remaining: </span>
-                            <strong style={{ color: Number(selected.remainingBalance ?? 0) <= 0 ? '#64748b' : '#d97706' }}>
-                              ₱{(Number(selected.remainingBalance ?? selected.amountRaw ?? 0)).toLocaleString('en-PH', { minimumFractionDigits: 2 })}
-                            </strong>
-                          </div>
-                          {selected.totalFamiliesSupported > 0 && (
-                            <div>
-                              <span style={{ fontSize: '0.72rem', color: '#64748b' }}>Families Supported: </span>
-                              <strong style={{ color: '#AF101A' }}>{selected.totalFamiliesSupported}</strong>
-                            </div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingTop: '0.4rem', borderTop: '1px solid #e2e8f0' }}>
+                        <span style={{ color: '#64748b', textTransform: 'uppercase', fontSize: '0.68rem', fontWeight: 600 }}>Proof Attachment</span>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                          {selected.hasProof ? (
+                            <>
+                              <span style={{
+                                fontSize: '0.72rem',
+                                fontWeight: 700,
+                                padding: '2px 7px',
+                                borderRadius: '9999px',
+                                background: selected.aiVerificationStatus === 'verified' ? '#dcfce7' : (selected.aiVerificationStatus === 'needs_review' ? '#fef3c7' : (selected.aiVerificationStatus === 'invalid' ? '#fee2e2' : '#f1f5f9')),
+                                color: selected.aiVerificationStatus === 'verified' ? '#15803d' : (selected.aiVerificationStatus === 'needs_review' ? '#b45309' : (selected.aiVerificationStatus === 'invalid' ? '#b91c1c' : '#475569')),
+                                border: `1px solid ${selected.aiVerificationStatus === 'verified' ? '#86efac' : (selected.aiVerificationStatus === 'needs_review' ? '#fcd34d' : '#e2e8f0')}`,
+                              }}>
+                                {selected.aiVerificationStatus === 'verified' ? '✓ AI Verified' : (selected.aiVerificationStatus === 'needs_review' ? '⚠ Review Needed' : (selected.aiVerificationStatus === 'invalid' ? '✕ Invalid' : 'Proof Attached'))}
+                              </span>
+                              <button
+                                type="button"
+                                className="btn btn--outline btn--sm"
+                                onClick={() => setModalTab('proof')}
+                                style={{ fontSize: '0.72rem', padding: '0.15rem 0.5rem' }}
+                              >
+                                View Proof
+                              </button>
+                            </>
+                          ) : (
+                            <span style={{ color: '#94a3b8', fontStyle: 'italic' }}>No proof attached</span>
                           )}
                         </div>
                       </div>
-                    )}
 
-                    {selected.notes && (
-                      <div className="donation-info-item" style={{ gridColumn: '1 / -1' }}>
-                        <span className="donation-info-item__label">Notes / Remarks</span>
-                        <div className="donation-info-item__value" style={{ fontStyle: 'italic', color: '#475569' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingTop: '0.4rem', borderTop: '1px solid #e2e8f0' }}>
+                        <span style={{ color: '#64748b', textTransform: 'uppercase', fontSize: '0.68rem', fontWeight: 600 }}>Category / Purpose</span>
+                        <span style={{ fontWeight: 600, color: '#1e293b' }}>{selected.category || 'General Support'}</span>
+                      </div>
+
+                      {selected.type === 'Monetary' && selected.status !== 'Pending Verification' && (
+                        <div style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: '6px', padding: '0.45rem 0.65rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                          <span style={{ color: '#64748b', fontSize: '0.74rem' }}>Funds Allocated:</span>
+                          <span style={{ fontWeight: 600, color: '#047857' }}>
+                            ₱{(Number(selected.totalUtilized) || 0).toLocaleString('en-PH')} / ₱{(Number(selected.amountRaw) || 0).toLocaleString('en-PH')}
+                          </span>
+                        </div>
+                      )}
+
+                      {selected.notes && (
+                        <div style={{ paddingTop: '0.3rem', borderTop: '1px solid #e2e8f0', color: '#475569', fontStyle: 'italic', fontSize: '0.78rem' }}>
                           "{selected.notes}"
                         </div>
-                      </div>
-                    )}
+                      )}
+                    </div>
                   </div>
                 </div>
 
-                {/* Monetary Procurement & Utilization Breakdown (if verified & has procurements or can allocate) */}
-                {selected.type === 'Monetary' && selected.status !== 'Pending Verification' && (
-                  <div className="donation-procurement-card" style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '10px', padding: '1rem 1.15rem', marginBottom: '1rem' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem', flexWrap: 'wrap', gap: '0.5rem' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                        <div style={{ width: '28px', height: '28px', borderRadius: '6px', background: '#fee2e2', color: '#AF101A', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                          <Coins size={16} />
-                        </div>
-                        <div>
-                          <h4 style={{ margin: 0, fontSize: '0.88rem', fontWeight: 600, color: '#1e293b' }}>Fund Allocation & Goods Procurement</h4>
-                          <span style={{ fontSize: '0.74rem', color: '#64748b' }}>Relief packages & store purchases sponsored by this donation</span>
-                        </div>
+                {/* Monetary Procurement Breakdown (if active and items recorded) */}
+                {selected.type === 'Monetary' && selected.status !== 'Pending Verification' && selected.procurements && selected.procurements.length > 0 && (
+                  <div className="donation-procurement-card" style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '8px', padding: '0.85rem 1rem', marginBottom: '1rem' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.82rem', fontWeight: 600, color: '#1e293b' }}>
+                        <Coins size={14} color="#AF101A" /> Recorded Allocations & Purchases ({selected.procurements.length})
                       </div>
                       <button
                         type="button"
-                        className="btn btn--primary btn--sm"
-                        style={{ padding: '0.35rem 0.75rem', fontSize: '0.78rem', gap: '0.35rem' }}
+                        className="btn btn--outline btn--sm"
+                        style={{ padding: '0.2rem 0.5rem', fontSize: '0.74rem' }}
                         onClick={() => setProcuringDonation(selected)}
                       >
-                        <ShoppingCart size={13} /> Allocate / Procure Goods
+                        <ShoppingCart size={12} /> New Allocation
                       </button>
                     </div>
-
-                    {selected.procurements && selected.procurements.length > 0 ? (
-                      <div style={{ background: '#fff', borderRadius: '8px', border: '1px solid #e2e8f0', padding: '0.65rem' }}>
-                        <div style={{ fontSize: '0.78rem', fontWeight: 600, color: '#334155', marginBottom: '0.4rem', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
-                          <CheckCircle2 size={13} color="#047857" /> Recorded Allocations ({selected.procurements.length})
-                        </div>
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                          {selected.procurements.map((proc, idx) => (
-                            <div key={proc.id || idx} style={{ padding: '0.55rem 0.7rem', background: '#f8fafc', borderRadius: '6px', border: '1px solid #edf2f7', fontSize: '0.8rem' }}>
-                              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '0.4rem' }}>
-                                <div>
-                                  <span style={{ fontWeight: 600, color: '#0f172a' }}>
-                                    {proc.procurement_type === 'pack_sponsorship' ? `📦 ${proc.pack_type || 'Relief Pack'} Sponsorship` : `🏬 Store Purchase: ${proc.store_name || 'Wholesale Supplier'}`}
-                                  </span>
-                                  <div style={{ color: '#64748b', fontSize: '0.74rem', marginTop: '2px' }}>
-                                    Target: {proc.beneficiary_name ? `${proc.beneficiary_name}${proc.municipality ? `, ${proc.municipality}` : ''}` : 'General Relief'}
-                                    {proc.receipt_number && ` • Receipt #${proc.receipt_number}`}
-                                    {proc.created_at && ` • ${new Date(proc.created_at).toLocaleDateString()}`}
-                                  </div>
-                                </div>
-                                <div style={{ textAlign: 'right' }}>
-                                  <span style={{ fontWeight: 600, color: '#047857' }}>
-                                    ₱{Number(proc.total_amount || 0).toLocaleString('en-PH', { minimumFractionDigits: 2 })}
-                                  </span>
-                                  {proc.pack_count > 0 && (
-                                    <div style={{ fontSize: '0.7rem', color: '#AF101A', fontWeight: 500 }}>
-                                      {proc.pack_count} packs sponsored
-                                    </div>
-                                  )}
-                                </div>
-                              </div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
+                      {selected.procurements.slice(0, 3).map((proc, idx) => (
+                        <div key={proc.id || idx} style={{ padding: '0.45rem 0.65rem', background: '#fff', borderRadius: '6px', border: '1px solid #e2e8f0', fontSize: '0.78rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                          <div>
+                            <span style={{ fontWeight: 600, color: '#0f172a' }}>
+                              {proc.procurement_type === 'pack_sponsorship' ? `📦 ${proc.pack_type || 'Relief Pack'} Sponsorship` : `🏬 Store Purchase: ${proc.store_name || 'Wholesale'}`}
+                            </span>
+                            <div style={{ color: '#64748b', fontSize: '0.72rem' }}>
+                              {proc.beneficiary_name ? `Target: ${proc.beneficiary_name}` : 'General Relief'}
+                              {proc.created_at && ` • ${new Date(proc.created_at).toLocaleDateString()}`}
                             </div>
-                          ))}
+                          </div>
+                          <strong style={{ color: '#047857' }}>
+                            ₱{Number(proc.total_amount || 0).toLocaleString('en-PH', { minimumFractionDigits: 2 })}
+                          </strong>
                         </div>
-                      </div>
-                    ) : (
-                      <div style={{ textAlign: 'center', padding: '0.75rem', background: '#fff', borderRadius: '6px', border: '1px dashed #cbd5e1', fontSize: '0.78rem', color: '#64748b' }}>
-                        No direct allocations recorded yet. Use <strong>"Allocate / Procure Goods"</strong> to assign these funds to relief packs or store purchases.
-                      </div>
-                    )}
+                      ))}
+                    </div>
                   </div>
                 )}
 
                 {/* In-Kind Classified Items Breakdown */}
                 {selected.type === 'In-Kind' && selected.classifiedItems && selected.classifiedItems.length > 0 && (
-                  <div className="donation-classified-card" style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '10px', padding: '1rem 1.15rem', marginBottom: '1rem' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem', flexWrap: 'wrap', gap: '0.5rem' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                        <div style={{ width: '28px', height: '28px', borderRadius: '6px', background: '#fee2e2', color: '#AF101A', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                          <Package size={16} />
-                        </div>
-                        <div>
-                          <h4 style={{ margin: 0, fontSize: '0.88rem', fontWeight: 600, color: '#1e293b' }}>Classified Warehouse Inventory Items</h4>
-                          <span style={{ fontSize: '0.74rem', color: '#64748b' }}>Stock received and cataloged into warehouse inventory</span>
-                        </div>
+                  <div className="donation-classified-card" style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '8px', padding: '0.85rem 1rem', marginBottom: '1rem' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.82rem', fontWeight: 600, color: '#1e293b' }}>
+                        <Package size={14} color="#AF101A" /> Classified Warehouse Items ({selected.classifiedItems.length})
                       </div>
-                      <span className="badge badge--success" style={{ fontSize: '0.74rem' }}>
-                        {selected.classifiedItems.length} {selected.classifiedItems.length === 1 ? 'item cataloged' : 'items cataloged'}
-                      </span>
                     </div>
-
-                    <div className="donation-classified-table-wrap" style={{ overflowX: 'auto' }}>
-                      <table className="donation-classified-table" style={{ width: '100%', fontSize: '0.82rem', borderCollapse: 'collapse' }}>
+                    <div style={{ overflowX: 'auto' }}>
+                      <table style={{ width: '100%', fontSize: '0.78rem', borderCollapse: 'collapse' }}>
                         <thead>
                           <tr style={{ borderBottom: '1px solid #cbd5e1', textAlign: 'left', color: '#64748b' }}>
-                            <th style={{ padding: '0.45rem' }}>Category</th>
-                            <th style={{ padding: '0.45rem' }}>Item Type</th>
-                            <th style={{ padding: '0.45rem' }}>Brand / Product</th>
-                            <th style={{ padding: '0.45rem', textAlign: 'right' }}>Quantity</th>
+                            <th style={{ padding: '0.35rem' }}>Category</th>
+                            <th style={{ padding: '0.35rem' }}>Item</th>
+                            <th style={{ padding: '0.35rem', textAlign: 'right' }}>Qty</th>
                           </tr>
                         </thead>
                         <tbody>
                           {selected.classifiedItems.map((item, idx) => (
                             <tr key={idx} style={{ borderBottom: '1px solid #f1f5f9' }}>
-                              <td style={{ padding: '0.5rem 0.45rem' }}><span className="inv-category">{item.category}</span></td>
-                              <td style={{ padding: '0.5rem 0.45rem', fontWeight: 600 }}>{item.itemType || item.item_type || '—'}</td>
-                              <td style={{ padding: '0.5rem 0.45rem' }}>{item.brand || <span style={{ color: '#94a3b8', fontStyle: 'italic', fontSize: '0.75rem' }}>Generic</span>}</td>
-                              <td style={{ padding: '0.5rem 0.45rem', textAlign: 'right', fontWeight: 700 }}>
-                                {item.quantity} <span style={{ fontWeight: 400, color: '#64748b' }}>{item.unit || 'pcs'}</span>
+                              <td style={{ padding: '0.4rem 0.35rem' }}><span className="inv-category">{item.category}</span></td>
+                              <td style={{ padding: '0.4rem 0.35rem', fontWeight: 600 }}>{item.itemType || item.item_type || '—'}</td>
+                              <td style={{ padding: '0.4rem 0.35rem', textAlign: 'right', fontWeight: 700 }}>
+                                {item.quantity} {item.unit || 'pcs'}
                               </td>
                             </tr>
                           ))}
@@ -1482,58 +1496,65 @@ export default function DonationsPage() {
 
                 <hr className="donation-section-divider" />
 
-                {/* 3. Actions Section (Clean & Status-Aware) */}
+                {/* 3. Available Actions & Operations (Clean Hierarchy) */}
                 <div className="donation-actions-section">
                   <h4 className="donation-actions-section__title">
                     <Settings2 size={15} /> Available Actions & Operations
                   </h4>
-                  <div className="donation-actions-toolbar">
-                    {/* Status-aware Verification */}
-                    {selected.status === 'Pending Verification' && (
-                      <button
-                        type="button"
-                        className="btn btn--primary"
-                        onClick={() => handleVerify(selected)}
-                        disabled={!selected.hasProof}
-                        title={!selected.hasProof ? 'Proof of donation is required before verification' : undefined}
-                      >
-                        <CheckCircle2 size={15} />
-                        {selected.type === 'In-Kind' ? 'Verify & Post to Inventory' : 'Verify & Confirm Funds'}
-                      </button>
-                    )}
 
-                    {/* Status-aware Rejection */}
-                    {selected.status === 'Pending Verification' && (
-                      <button
-                        type="button"
-                        className="btn btn--danger"
-                        style={{ background: '#fee2e2', color: '#b91c1c', borderColor: '#fca5a5' }}
-                        onClick={() => {
-                          if (window.confirm(`Are you sure you want to mark donation ${selected.trackingCode} as Rejected?`)) {
-                            handleUpdateStatus(selected, 'Rejected')
-                          }
-                        }}
-                      >
-                        <XCircle size={15} /> Reject Donation
-                      </button>
-                    )}
+                  {/* Primary Workflow Actions Row */}
+                  <div className="donation-actions-primary-row">
+                    <div className="donation-actions-primary-group">
+                      {selected.status === 'Pending Verification' ? (
+                        <>
+                          <button
+                            type="button"
+                            className="btn btn--primary"
+                            onClick={() => handleVerify(selected)}
+                            disabled={!selected.hasProof || actionLoading}
+                            title={!selected.hasProof ? 'Proof of donation is required before verification' : undefined}
+                          >
+                            <CheckCircle2 size={16} />
+                            {selected.type === 'In-Kind' ? 'Verify & Post to Inventory' : 'Verify & Confirm Funds'}
+                          </button>
 
-                    {/* Status-aware Fund Allocation */}
-                    {selected.type === 'Monetary' && !['Pending Verification', 'Rejected', 'Cancelled'].includes(selected.status) && (
-                      <button
-                        type="button"
-                        className="btn btn--primary"
-                        onClick={() => setProcuringDonation(selected)}
-                      >
-                        <ShoppingCart size={15} /> Allocate Funds / Procure Goods
-                      </button>
-                    )}
+                          <button
+                            type="button"
+                            className="btn btn--danger-outline"
+                            disabled={actionLoading}
+                            onClick={() => {
+                              if (window.confirm(`Are you sure you want to mark donation ${selected.trackingCode} as Rejected?`)) {
+                                handleUpdateStatus(selected, 'Rejected')
+                              }
+                            }}
+                          >
+                            <XCircle size={15} /> Reject Donation
+                          </button>
+                        </>
+                      ) : (
+                        selected.type === 'Monetary' && !['Rejected', 'Cancelled'].includes(selected.status) ? (
+                          <button
+                            type="button"
+                            className="btn btn--primary"
+                            onClick={() => setProcuringDonation(selected)}
+                          >
+                            <ShoppingCart size={16} /> Allocate Funds / Procure Goods
+                          </button>
+                        ) : (
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', color: '#047857', fontWeight: 600, fontSize: '0.84rem' }}>
+                            <CheckCircle2 size={16} /> Verification & Intake Completed
+                          </div>
+                        )
+                      )}
+                    </div>
 
-                    {/* Quick Status Transition Dropdown */}
+                    {/* Quick Status Selector */}
                     <div className="donation-status-quick-transition">
+                      <span style={{ fontSize: '0.72rem', color: '#64748b', fontWeight: 600, textTransform: 'uppercase' }}>Status:</span>
                       <select
                         value={actionStatus || selected.status}
                         onChange={(e) => setActionStatus(e.target.value)}
+                        disabled={actionLoading}
                         title="Change operational status"
                       >
                         {DONATION_STATUSES.map((st) => (
@@ -1546,39 +1567,52 @@ export default function DonationsPage() {
                         disabled={(actionStatus || selected.status) === selected.status || actionLoading}
                         onClick={() => handleUpdateStatus(selected, actionStatus || selected.status)}
                       >
-                        Update Status
+                        Update
                       </button>
                     </div>
+                  </div>
 
-                    {/* Official Receipt Printing */}
-                    {selected.status !== 'Rejected' && (
+                  {/* Secondary Actions Toolbar */}
+                  <div className="donation-actions-secondary-row">
+                    <div className="donation-actions-secondary-group">
                       <button
                         type="button"
                         className="btn btn--outline btn--sm"
                         onClick={() => printDonationReceipt(selected)}
+                        disabled={selected.status === 'Rejected' || selected.status === 'Cancelled'}
+                        title="Generate official acknowledgment receipt"
                       >
-                        <Printer size={15} /> Print Receipt
+                        <Printer size={14} /> Print Receipt
                       </button>
-                    )}
 
-                    {/* Inline Timeline Toggle */}
-                    <button
-                      type="button"
-                      className={`btn btn--sm ${showInlineTimeline ? 'btn--primary' : 'btn--ghost'}`}
-                      onClick={() => setShowInlineTimeline(!showInlineTimeline)}
-                    >
-                      <Clock size={15} /> {showInlineTimeline ? 'Hide Updates' : 'Timeline & Updates'}
-                    </button>
+                      <button
+                        type="button"
+                        className={`btn btn--sm ${showInlineTimeline ? 'btn--primary' : 'btn--outline'}`}
+                        onClick={() => setShowInlineTimeline(!showInlineTimeline)}
+                      >
+                        <Clock size={14} /> {showInlineTimeline ? 'Hide Updates' : 'Timeline & Updates'}
+                      </button>
 
-                    {/* Administrative Deletion */}
+                      {selected.hasProof && (
+                        <button
+                          type="button"
+                          className="btn btn--ghost btn--sm"
+                          onClick={() => setModalTab('proof')}
+                        >
+                          <FileCheck size={14} /> Inspect Proof File
+                        </button>
+                      )}
+                    </div>
+
+                    {/* Destructive Record Removal */}
                     <button
                       type="button"
                       className="btn btn--ghost btn--sm"
-                      style={{ color: '#b91c1c', marginLeft: 'auto' }}
+                      style={{ color: '#b91c1c' }}
                       onClick={() => handleDelete(selected)}
-                      title="Permanently remove this donation record"
+                      title="Permanently remove donation record"
                     >
-                      <Trash2 size={15} /> Delete Record
+                      <Trash2 size={14} /> Delete Record
                     </button>
                   </div>
 
@@ -1596,132 +1630,20 @@ export default function DonationsPage() {
               </div>
             )}
 
-            {/* Tab Content: Donor Info */}
-            {modalTab === 'donor' && (
-              <div className="donation-donor-page">
-                <div className="donor-info-card">
-                  <div className="donor-info-card__header">
-                    <div className="donor-info-card__avatar">
-                      {selected.donor?.charAt(0)?.toUpperCase() || 'D'}
-                    </div>
-                    <div className="donor-info-card__details">
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
-                        <h3 style={{ margin: 0 }}>{selected.donor}</h3>
-                        {selected.donorType && (
-                          <span className="badge badge--info" style={{ fontSize: '0.72rem' }}>
-                            {selected.donorType}
-                          </span>
-                        )}
-                      </div>
-                      <p style={{ marginTop: '0.25rem' }}>
-                        <Mail size={14} style={{ display: 'inline', marginRight: '0.25rem' }} />
-                        {selected.donorEmail ? (
-                          <a href={`mailto:${selected.donorEmail}`} style={{ color: 'inherit', textDecoration: 'none' }}>
-                            {selected.donorEmail}
-                          </a>
-                        ) : 'No email provided'}
-                      </p>
-                    </div>
-                  </div>
-
-                  {/* Donor Contact & Profile Grid */}
-                  <div style={{
-                    display: 'grid',
-                    gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
-                    gap: '0.75rem',
-                    padding: '0.85rem 1rem',
-                    background: '#f8fafc',
-                    borderRadius: '8px',
-                    margin: '1rem 0',
-                    border: '1px solid #e2e8f0'
-                  }}>
-                    <div>
-                      <span style={{ fontSize: '0.7rem', color: '#64748b', textTransform: 'uppercase', fontWeight: 600, display: 'block' }}>
-                        Contact Number
-                      </span>
-                      <strong style={{ fontSize: '0.88rem', color: '#1e293b' }}>
-                        {selected.donorPhone || 'Not provided'}
-                      </strong>
-                    </div>
-
-                    <div>
-                      <span style={{ fontSize: '0.7rem', color: '#64748b', textTransform: 'uppercase', fontWeight: 600, display: 'block' }}>
-                        Organization / Affiliation
-                      </span>
-                      <strong style={{ fontSize: '0.88rem', color: '#1e293b' }}>
-                        {selected.donorOrganization || 'Individual Donor'}
-                      </strong>
-                    </div>
-
-                    <div style={{ gridColumn: '1 / -1' }}>
-                      <span style={{ fontSize: '0.7rem', color: '#64748b', textTransform: 'uppercase', fontWeight: 600, display: 'block' }}>
-                        Registered Address
-                      </span>
-                      <strong style={{ fontSize: '0.88rem', color: '#1e293b' }}>
-                        {selected.donorAddress || 'Not specified'}
-                      </strong>
-                    </div>
-                  </div>
-
-                  <div className="donor-info-card__stats">
-                    <div className="donor-info-card__stat">
-                      <div className="donor-info-card__stat-value">
-                        {getDonorStats(selected).totalDonations}
-                      </div>
-                      <div className="donor-info-card__stat-label">Total Contributions</div>
-                    </div>
-                    <div className="donor-info-card__stat">
-                      <div className="donor-info-card__stat-value">
-                        ₱{getDonorStats(selected).totalAmount.toLocaleString()}
-                      </div>
-                      <div className="donor-info-card__stat-label">Total Monetary Contributed</div>
-                    </div>
-                    <div className="donor-info-card__stat">
-                      <div className="donor-info-card__stat-value" style={{ fontSize: '1rem' }}>
-                        {getDonorStats(selected).lastDonation}
-                      </div>
-                      <div className="donor-info-card__stat-label">Latest Contribution</div>
-                    </div>
-                  </div>
-                </div>
-
-                {getRelatedDonations(selected).length > 0 && (
-                  <div className="related-donations" style={{ marginTop: '1rem' }}>
-                    <h3 className="related-donations__title">Previous Donations by this Donor</h3>
-                    <div className="related-donations__list">
-                      {getRelatedDonations(selected).map((d) => (
-                        <div
-                          key={d.dbId}
-                          className="related-donation-item"
-                          onClick={() => setSelected(d)}
-                        >
-                          <div className="related-donation-item__info">
-                            <div className="related-donation-item__code">{d.trackingCode}</div>
-                            <div className="related-donation-item__meta">
-                              <span>{d.type}</span>
-                              <span>{d.date}</span>
-                              <StatusBadge status={d.status} />
-                            </div>
-                          </div>
-                          <div className="related-donation-item__amount">
-                            {d.type === 'In-Kind' ? (d.itemsDescription || d.amount) : d.amount}
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-              </div>
-            )}
-
-            {/* Tab Content: Proof of Donation */}
+            {/* Tab Content: Proof of Donation (Fully Functional with Zoom & Fallbacks) */}
             {modalTab === 'proof' && selected.hasProof && (
-              <div className="donation-proof-gallery">
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.5rem', marginBottom: '1rem' }}>
-                  <h3 className="donation-proof-gallery__title" style={{ margin: 0 }}>
-                    <FileText size={20} />
-                    Uploaded Proof of Donation
-                  </h3>
+              <div className="proof-viewer-card">
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.5rem', marginBottom: '0.85rem' }}>
+                  <div>
+                    <h3 style={{ margin: 0, fontSize: '0.98rem', fontWeight: 700, color: '#1e293b', display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
+                      <FileCheck size={18} color="#AF101A" />
+                      Uploaded Payment Proof
+                    </h3>
+                    <span style={{ fontSize: '0.74rem', color: '#64748b' }}>
+                      {selected.proofFileName || 'Proof Document'} • {selected.proofFileType || 'Image/Document'}
+                    </span>
+                  </div>
+
                   {selected.aiVerificationStatus && selected.aiVerificationStatus !== 'Unverified' && (
                     <span style={{
                       fontSize: '0.75rem',
@@ -1732,62 +1654,79 @@ export default function DonationsPage() {
                       color: selected.aiVerificationStatus === 'verified' ? '#15803d' : (selected.aiVerificationStatus === 'needs_review' ? '#b45309' : '#b91c1c'),
                       border: `1px solid ${selected.aiVerificationStatus === 'verified' ? '#86efac' : (selected.aiVerificationStatus === 'needs_review' ? '#fcd34d' : '#fca5a5')}`,
                     }}>
-                      {selected.aiVerificationStatus === 'verified' ? '✓ AI Verified' : (selected.aiVerificationStatus === 'needs_review' ? '⚠ Needs Review' : '✕ Invalid')}
+                      {selected.aiVerificationStatus === 'verified' ? '✓ AI Verified' : (selected.aiVerificationStatus === 'needs_review' ? '⚠ Needs Review' : '✕ Invalid Proof')}
                     </span>
                   )}
                 </div>
 
-                <div className="donation-proof-gallery__grid">
-                  {selected.proofIsImage ? (
-                    <a
-                      href={selected.proofUrl}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="donation-proof-item"
+                {/* Preview Frame: Image or PDF */}
+                {selected.proofIsImage || /\.(jpe?g|png|webp|gif)$/i.test(selected.proofFileName || '') ? (
+                  !proofImgError ? (
+                    <div
+                      className="proof-preview-frame"
+                      onClick={() => { setProofZoomModal(true); setZoomLevel(1) }}
+                      title="Click to Zoom & Inspect Proof"
                     >
                       <img
-                        src={selected.proofUrl}
-                        alt={selected.proofFileName || 'Donation proof'}
-                        className="donation-proof-item__image"
+                        src={getAuthenticatedFileUrl(selected.proofUrl)}
+                        alt={selected.proofFileName || 'Donation payment proof'}
+                        onError={() => setProofImgError(true)}
                       />
-                      <div className="donation-proof-item__overlay">
-                        <span className="donation-proof-item__name">
-                          {selected.proofFileName || 'Proof Image'}
-                        </span>
+                      <div className="proof-preview-hover-hint">
+                        <ZoomIn size={14} /> Click to Zoom / Inspect
                       </div>
-                    </a>
+                    </div>
                   ) : (
-                    <a
-                      href={selected.proofUrl}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="donation-proof-item donation-proof-item--document"
-                    >
-                      <FileText size={48} className="donation-proof-item__icon" />
-                      <span className="donation-proof-item__name">
-                        {selected.proofFileName || 'Document'}
-                      </span>
-                      <span className="donation-proof-item__type">
-                        {selected.proofFileType || 'PDF/Document'}
-                      </span>
-                    </a>
-                  )}
-                </div>
+                    <div className="proof-fallback-box">
+                      <AlertCircle size={36} color="#d97706" style={{ margin: '0 auto 0.5rem' }} />
+                      <h4 style={{ margin: '0 0 0.35rem', fontSize: '0.9rem', color: '#1e293b' }}>Preview Unavailable in Frame</h4>
+                      <p style={{ margin: '0 0 1rem', fontSize: '0.78rem', color: '#64748b' }}>
+                        The proof file cannot be rendered inside the frame directly (or authentication cookie is restricted).
+                      </p>
+                      <div style={{ display: 'flex', justifyContent: 'center', gap: '0.5rem' }}>
+                        <a
+                          href={getAuthenticatedFileUrl(selected.proofUrl)}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="btn btn--primary btn--sm"
+                        >
+                          <ExternalLink size={14} /> Open Direct File
+                        </a>
+                        <button
+                          type="button"
+                          className="btn btn--outline btn--sm"
+                          onClick={() => setProofImgError(false)}
+                        >
+                          <RotateCcw size={14} /> Retry
+                        </button>
+                      </div>
+                    </div>
+                  )
+                ) : (
+                  /* PDF or Document Viewer */
+                  <div style={{ background: '#f8fafc', border: '1px solid #cbd5e1', borderRadius: '8px', padding: '0.75rem', textAlign: 'center' }}>
+                    <iframe
+                      src={getAuthenticatedFileUrl(selected.proofUrl)}
+                      title="Proof PDF Viewer"
+                      style={{ width: '100%', height: '420px', border: 'none', borderRadius: '6px' }}
+                    />
+                  </div>
+                )}
 
-                {/* Proof Information & Extraction Details */}
+                {/* Proof Information & Extraction Details Card */}
                 {selected.aiExtractedAmount !== null && selected.aiExtractedAmount !== undefined && (
                   <div style={{
-                    marginTop: '1rem',
-                    padding: '0.85rem 1.15rem',
+                    marginTop: '0.85rem',
+                    padding: '0.75rem 1rem',
                     background: '#f8fafc',
                     borderRadius: '8px',
                     border: '1px solid #e2e8f0',
-                    fontSize: '0.84rem',
+                    fontSize: '0.82rem',
                     display: 'flex',
                     flexWrap: 'wrap',
                     justifyContent: 'space-between',
                     alignItems: 'center',
-                    gap: '0.75rem',
+                    gap: '0.65rem',
                   }}>
                     <div>
                       <strong>Extracted Amount:</strong> ₱{Number(selected.aiExtractedAmount).toLocaleString('en-PH', { minimumFractionDigits: 2 })}
@@ -1806,7 +1745,8 @@ export default function DonationsPage() {
                   </div>
                 )}
 
-                <div style={{ marginTop: '1rem', display: 'flex', alignItems: 'center', gap: '0.65rem', flexWrap: 'wrap' }}>
+                {/* Proof Actions Toolbar */}
+                <div style={{ marginTop: '0.85rem', display: 'flex', alignItems: 'center', gap: '0.65rem', flexWrap: 'wrap' }}>
                   {selected.status === 'Pending Verification' && (
                     <button
                       type="button"
@@ -1817,45 +1757,121 @@ export default function DonationsPage() {
                       {selected.type === 'In-Kind' ? 'Verify & Post to Inventory' : 'Verify & Confirm Funds'}
                     </button>
                   )}
-                  <a
-                    href={selected.proofUrl}
-                    target="_blank"
-                    rel="noreferrer"
+                  <button
+                    type="button"
                     className="btn btn--outline"
-                    download={selected.proofFileName}
+                    onClick={() => { setProofZoomModal(true); setZoomLevel(1) }}
                   >
-                    <Download size={16} /> Download Proof File
+                    <ZoomIn size={15} /> Zoom & Inspect
+                  </button>
+                  <a
+                    href={getAuthenticatedFileUrl(`${selected.proofUrl}&download=${encodeURIComponent(selected.proofFileName || 'proof')}`)}
+                    className="btn btn--outline"
+                    download={selected.proofFileName || 'donation_proof'}
+                  >
+                    <Download size={15} /> Download Proof
                   </a>
                   <a
-                    href={selected.proofUrl}
+                    href={getAuthenticatedFileUrl(selected.proofUrl)}
                     target="_blank"
                     rel="noreferrer"
                     className="btn btn--ghost"
                   >
-                    <ExternalLink size={16} /> Open in New Tab
+                    <ExternalLink size={15} /> Open in New Tab
                   </a>
                 </div>
               </div>
             )}
 
+            {/* Modal Footer: Clean & Non-Duplicative */}
             <div className="admin-modal__actions admin-modal__actions--split" style={{ marginTop: '1.25rem' }}>
               <button 
                 type="button" 
                 className="btn btn--ghost" 
                 onClick={() => setSelected(null)}
               >
-                Close
+                Close Window
               </button>
-              <div className="admin-modal__actions-group">
-                <button 
-                  type="button" 
-                  className="btn btn--outline" 
-                  onClick={() => printDonationReceipt(selected)}
-                >
-                  <Printer size={15} /> Print Receipt
-                </button>
+              <div style={{ fontSize: '0.82rem', color: '#64748b', display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
+                <span>Current Status:</span>
+                <StatusBadge status={selected.status} />
               </div>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Proof Zoom / Fullscreen Lightbox Modal */}
+      {proofZoomModal && selected && selected.hasProof && (
+        <div className="proof-zoom-overlay" onClick={() => setProofZoomModal(false)}>
+          <div className="proof-zoom-header" onClick={(e) => e.stopPropagation()}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
+              <FileCheck size={18} color="#fca5a5" />
+              <div>
+                <strong style={{ fontSize: '0.92rem' }}>Proof Inspection: {selected.trackingCode}</strong>
+                <span style={{ fontSize: '0.74rem', color: '#cbd5e1', marginLeft: '0.5rem' }}>
+                  Zoom: {Math.round(zoomLevel * 100)}%
+                </span>
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              <button
+                type="button"
+                className="btn btn--ghost btn--sm"
+                style={{ color: '#fff' }}
+                onClick={() => setZoomLevel((z) => Math.min(3, z + 0.25))}
+                title="Zoom In"
+              >
+                <ZoomIn size={15} />
+              </button>
+              <button
+                type="button"
+                className="btn btn--ghost btn--sm"
+                style={{ color: '#fff' }}
+                onClick={() => setZoomLevel((z) => Math.max(0.5, z - 0.25))}
+                title="Zoom Out"
+              >
+                <ZoomOut size={15} />
+              </button>
+              <button
+                type="button"
+                className="btn btn--ghost btn--sm"
+                style={{ color: '#fff' }}
+                onClick={() => setZoomLevel(1)}
+                title="Reset Zoom"
+              >
+                <RotateCcw size={15} />
+              </button>
+              <a
+                href={getAuthenticatedFileUrl(selected.proofUrl)}
+                target="_blank"
+                rel="noreferrer"
+                className="btn btn--ghost btn--sm"
+                style={{ color: '#fff' }}
+                title="Open in New Tab"
+              >
+                <ExternalLink size={15} />
+              </a>
+              <button
+                type="button"
+                className="btn btn--ghost btn--sm"
+                style={{ color: '#fff', marginLeft: '0.5rem' }}
+                onClick={() => setProofZoomModal(false)}
+                title="Close Lightbox"
+              >
+                <X size={18} />
+              </button>
+            </div>
+          </div>
+
+          <div className="proof-zoom-viewport" onClick={() => setProofZoomModal(false)}>
+            <img
+              src={getAuthenticatedFileUrl(selected.proofUrl)}
+              alt="Proof Fullscreen"
+              style={{ transform: `scale(${zoomLevel})` }}
+              onClick={(e) => e.stopPropagation()}
+            />
           </div>
         </div>
       )}
