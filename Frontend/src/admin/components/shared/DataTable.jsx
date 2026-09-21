@@ -126,7 +126,17 @@ export default function DataTable({
               </th>
             )}
             {columns.map((col) => (
-              <th key={col.key}>{col.label}</th>
+              <th
+                key={col.key}
+                style={{
+                  ...(col.width ? { width: col.width, minWidth: col.minWidth || col.width, maxWidth: col.maxWidth } : {}),
+                  ...(col.align ? { textAlign: col.align } : {}),
+                  ...(col.style || {}),
+                }}
+                className={col.className}
+              >
+                {col.label}
+              </th>
             ))}
           </tr>
         </thead>
@@ -170,7 +180,15 @@ export default function DataTable({
                     </td>
                   )}
                   {columns.map((col) => (
-                    <td key={col.key}>
+                    <td
+                      key={col.key}
+                      style={{
+                        ...(col.width ? { width: col.width, minWidth: col.minWidth || col.width, maxWidth: col.maxWidth } : {}),
+                        ...(col.align ? { textAlign: col.align } : {}),
+                        ...(col.style || {}),
+                      }}
+                      className={col.className}
+                    >
                       {col.render ? col.render(row) : row[col.key]}
                     </td>
                   ))}

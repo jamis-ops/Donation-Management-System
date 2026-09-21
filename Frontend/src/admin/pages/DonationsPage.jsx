@@ -479,6 +479,7 @@ export default function DonationsPage() {
     { 
       key: 'trackingCode', 
       label: 'Tracking Code',
+      width: '130px',
       render: (row) => (
         <span className="font-mono font-semibold" style={{ color: 'var(--admin-brand)' }}>
           {row.trackingCode}
@@ -498,22 +499,25 @@ export default function DonationsPage() {
     { 
       key: 'category', 
       label: 'Relief Category', 
+      width: '150px',
       render: (row) => (
         <span className="in-kind-category-pill">
           {row.category || 'Relief Goods'}
         </span>
       ),
     },
-    { key: 'date', label: 'Date Received' },
-    { key: 'status', label: 'Status', render: (row) => <StatusBadge status={row.status} /> },
+    { key: 'date', label: 'Date Received', width: '120px' },
+    { key: 'status', label: 'Status', width: '155px', render: (row) => <StatusBadge status={row.status} /> },
     {
       key: 'actions',
       label: 'Actions',
+      width: '90px',
+      align: 'center',
       render: (row) => (
-        <div className="table-actions" style={{ display: 'flex', gap: '0.4rem', alignItems: 'center', flexWrap: 'nowrap' }}>
+        <div className="table-actions--compact">
           <button
             type="button"
-            className="icon-btn"
+            className="icon-btn icon-btn--sm"
             title="View Details"
             aria-label="View Details"
             onClick={(e) => { e.stopPropagation(); handleSelectDonation(row) }}
@@ -522,7 +526,7 @@ export default function DonationsPage() {
           </button>
           <button
             type="button"
-            className="icon-btn icon-btn--danger"
+            className="icon-btn icon-btn--sm icon-btn--danger"
             title="Delete Donation"
             aria-label="Delete Donation"
             onClick={(e) => { e.stopPropagation(); handleDelete(row) }}
@@ -539,6 +543,7 @@ export default function DonationsPage() {
     { 
       key: 'trackingCode', 
       label: 'Tracking Code',
+      width: '130px',
       render: (row) => (
         <span className="font-mono font-semibold" style={{ color: 'var(--admin-brand)' }}>
           {row.trackingCode}
@@ -558,6 +563,7 @@ export default function DonationsPage() {
     { 
       key: 'category', 
       label: 'Fund / Program', 
+      width: '140px',
       render: (row) => (
         <span className="in-kind-category-pill">
           {row.category || 'General Fund'}
@@ -567,11 +573,13 @@ export default function DonationsPage() {
     { 
       key: 'paymentMethod', 
       label: 'Payment Method',
+      width: '140px',
       render: (row) => renderPaymentMethod(row.paymentMethod),
     },
     { 
       key: 'amount', 
       label: 'Amount (PHP)',
+      width: '150px',
       render: (row) => {
         const total = typeof row.amountRaw === 'number' ? row.amountRaw : (parseFloat(String(row.amount).replace(/[^0-9.]/g, '')) || 0)
         const utilized = Number(row.totalUtilized || 0)
@@ -592,16 +600,18 @@ export default function DonationsPage() {
         )
       },
     },
-    { key: 'date', label: 'Date Received' },
-    { key: 'status', label: 'Status', render: (row) => <StatusBadge status={row.status} /> },
+    { key: 'date', label: 'Date Received', width: '120px' },
+    { key: 'status', label: 'Status', width: '160px', render: (row) => <StatusBadge status={row.status} /> },
     {
       key: 'actions',
       label: 'Actions',
+      width: '90px',
+      align: 'center',
       render: (row) => (
-        <div className="table-actions" style={{ display: 'flex', gap: '0.4rem', alignItems: 'center', flexWrap: 'nowrap' }}>
+        <div className="table-actions--compact">
           <button
             type="button"
-            className="icon-btn"
+            className="icon-btn icon-btn--sm"
             title="View Details"
             aria-label="View Details"
             onClick={(e) => { e.stopPropagation(); handleSelectDonation(row) }}
@@ -610,7 +620,7 @@ export default function DonationsPage() {
           </button>
           <button
             type="button"
-            className="icon-btn icon-btn--danger"
+            className="icon-btn icon-btn--sm icon-btn--danger"
             title="Delete Donation"
             aria-label="Delete Donation"
             onClick={(e) => { e.stopPropagation(); handleDelete(row) }}

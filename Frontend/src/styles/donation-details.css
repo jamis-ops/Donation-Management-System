@@ -2311,5 +2311,28 @@
   line-height: 1.4;
 }
 
+/* =========================================================
+   COMPACT TABLE ACTIONS
+   ========================================================= */
+
+.table-actions--compact {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  flex-wrap: nowrap;
+}
+
+.icon-btn--sm {
+  width: 30px !important;
+  height: 30px !important;
+  min-width: 30px !important;
+  border-radius: 6px !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+}
+
+
 
 
