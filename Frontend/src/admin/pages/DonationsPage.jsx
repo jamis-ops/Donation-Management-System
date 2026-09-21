@@ -5,7 +5,7 @@ import {
   TrendingUp, Users, MapPin, FileCheck, Send, Printer, Heart,
   Calendar, Mail, Phone, Award, BarChart3, Coins, CreditCard,
   Banknote, Gift, ShieldAlert, ShieldCheck, Sparkles, Filter, Layers, DollarSign,
-  Trash2, Settings2, ExternalLink, ShoppingCart
+  Trash2, Settings2, ExternalLink, ShoppingCart, XCircle, Copy
 } from 'lucide-react'
 import { donationsApi, beneficiariesApi, assistanceRequestsApi, paymentMethodsApi } from '../../api/resources'
 import ProcurementModal from '../components/donations/ProcurementModal'
@@ -127,7 +127,8 @@ export default function DonationsPage() {
   const [showForm, setShowForm] = useState(false)
   const [form, setForm] = useState(emptyForm)
   const [saving, setSaving] = useState(false)
-  const [modalTab, setModalTab] = useState('overview')
+  const [modalTab, setModalTab] = useState('details')
+  const [showInlineTimeline, setShowInlineTimeline] = useState(false)
   const [actionLoading, setActionLoading] = useState(false)
   const [actionStatus, setActionStatus] = useState('')
   const [paymentMethodOptions, setPaymentMethodOptions] = useState(PAYMENT_METHODS)
@@ -500,7 +501,7 @@ export default function DonationsPage() {
             className="icon-btn"
             title="View Details & Actions"
             aria-label="View Details & Actions"
-            onClick={(e) => { e.stopPropagation(); setSelected(row); setModalTab('overview') }}
+            onClick={(e) => { e.stopPropagation(); setSelected(row); setModalTab('details'); setShowInlineTimeline(false) }}
           >
             <Eye size={15} />
           </button>
@@ -608,7 +609,7 @@ export default function DonationsPage() {
             className="icon-btn"
             title="View Details & Actions"
             aria-label="View Details & Actions"
-            onClick={(e) => { e.stopPropagation(); setSelected(row); setModalTab('overview') }}
+            onClick={(e) => { e.stopPropagation(); setSelected(row); setModalTab('details'); setShowInlineTimeline(false) }}
           >
             <Eye size={15} />
           </button>
@@ -1090,7 +1091,7 @@ export default function DonationsPage() {
       {/* Donation Details Modal */}
       {selected && (
         <div className="admin-modal-overlay" onClick={() => setSelected(null)}>
-          <div className="admin-modal admin-modal--wide" onClick={(e) => e.stopPropagation()}>
+          <div className="admin-modal donation-detail-modal" onClick={(e) => e.stopPropagation()}>
             <ModalHeader 
               title={`${selected.type} Donation: ${selected.trackingCode}`} 
               onClose={() => setSelected(null)} 
@@ -1122,18 +1123,11 @@ export default function DonationsPage() {
             {/* Tabs inside modal */}
             <div className="donation-tabs">
               <button
-                className={`donation-tab${modalTab === 'overview' ? ' donation-tab--active' : ''}`}
-                onClick={() => setModalTab('overview')}
+                className={`donation-tab${(modalTab === 'details' || modalTab === 'overview') ? ' donation-tab--active' : ''}`}
+                onClick={() => setModalTab('details')}
               >
-                <BarChart3 size={16} />
-                Overview
-              </button>
-              <button
-                className={`donation-tab${modalTab === 'actions' ? ' donation-tab--active' : ''}`}
-                onClick={() => { setModalTab('actions'); setActionStatus(selected.status) }}
-              >
-                <Settings2 size={16} />
-                Actions & Operations
+                <FileText size={16} />
+                Donation Details
               </button>
               <button
                 className={`donation-tab${modalTab === 'donor' ? ' donation-tab--active' : ''}`}
@@ -1147,569 +1141,272 @@ export default function DonationsPage() {
                   className={`donation-tab${modalTab === 'proof' ? ' donation-tab--active' : ''}`}
                   onClick={() => setModalTab('proof')}
                 >
-                  <FileText size={16} />
+                  <FileCheck size={16} />
                   Proof of Donation
                   <span className="donation-tab__badge">1</span>
                 </button>
               )}
-              <button
-                className={`donation-tab${modalTab === 'timeline' ? ' donation-tab--active' : ''}`}
-                onClick={() => setModalTab('timeline')}
-              >
-                <Clock size={16} />
-                Timeline & Updates
-              </button>
             </div>
 
-            {/* Tab Content: Actions View */}
-            {modalTab === 'actions' && (
-              <div className="donation-actions-view">
-                <div className="donation-actions-grid">
-                  {/* Verification & Intake Operations */}
-                  <div className={`donation-action-card${selected.status === 'Pending Verification' ? ' donation-action-card--highlight' : ''}`}>
-                    <div className="donation-action-card__header">
-                      <div className="donation-action-card__icon">
-                        <CheckCircle2 size={20} />
-                      </div>
-                      <div>
-                        <h4 className="donation-action-card__title">Verification & Intake</h4>
-                        <p className="donation-action-card__desc">
-                          {selected.type === 'In-Kind' 
-                            ? 'Inspect physical items, approve donation, and automatically post items to warehouse inventory.' 
-                            : 'Confirm receipt of monetary funds and provision donor portal account.'}
-                        </p>
-                      </div>
-                    </div>
-                    <div className="donation-action-card__controls">
-                      {selected.status === 'Pending Verification' ? (
-                        <button
-                          type="button"
-                          className="btn btn--primary"
-                          onClick={() => handleVerify(selected)}
-                          disabled={!selected.hasProof}
-                          title={!selected.hasProof ? 'Proof of donation is required before verification' : undefined}
-                        >
-                          <CheckCircle2 size={16} />
-                          {selected.type === 'In-Kind' ? 'Verify & Post to Inventory' : 'Verify & Confirm Funds'}
-                        </button>
-                      ) : (
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', width: '100%' }}>
-                          <span style={{ fontSize: '0.85rem', color: '#047857', fontWeight: 600 }}>
-                            ✓ Verified & Active
-                          </span>
-                          <span style={{ fontSize: '0.8rem', color: '#64748b' }}>
-                            (Intake processed)
-                          </span>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* Lifecycle Status Management */}
-                  <div className="donation-action-card">
-                    <div className="donation-action-card__header">
-                      <div className="donation-action-card__icon">
-                        <Layers size={20} />
-                      </div>
-                      <div>
-                        <h4 className="donation-action-card__title">Lifecycle Status Transition</h4>
-                        <p className="donation-action-card__desc">
-                          Update the current operational stage of this donation across the foundation workflow.
-                        </p>
-                      </div>
-                    </div>
-                    <div className="donation-action-card__controls">
-                      <div className="donation-status-selector">
-                        <select
-                          value={actionStatus || selected.status}
-                          onChange={(e) => setActionStatus(e.target.value)}
-                        >
-                          {DONATION_STATUSES.map((st) => (
-                            <option key={st} value={st}>{st}</option>
-                          ))}
-                        </select>
-                        <button
-                          type="button"
-                          className="btn btn--outline"
-                          disabled={(actionStatus || selected.status) === selected.status}
-                          onClick={() => handleUpdateStatus(selected, actionStatus || selected.status)}
-                        >
-                          Apply Status
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Official Receipts & Documentation */}
-                  <div className="donation-action-card">
-                    <div className="donation-action-card__header">
-                      <div className="donation-action-card__icon">
-                        <Printer size={20} />
-                      </div>
-                      <div>
-                        <h4 className="donation-action-card__title">Official Receipt & Printing</h4>
-                        <p className="donation-action-card__desc">
-                          Generate and print official RAFI donation acknowledgement receipt with tracking details.
-                        </p>
-                      </div>
-                    </div>
-                    <div className="donation-action-card__controls">
-                      <button
-                        type="button"
-                        className="btn btn--outline"
-                        onClick={() => printDonationReceipt(selected)}
-                      >
-                        <Printer size={16} /> Print Official Receipt
-                      </button>
-                      {selected.hasProof && (
-                        <button
-                          type="button"
-                          className="btn btn--ghost"
-                          onClick={() => setModalTab('proof')}
-                        >
-                          <FileText size={16} /> View Proof File
-                        </button>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* Monetary Allocation & Procurement */}
-                  {selected.type === 'Monetary' && selected.status !== 'Pending Verification' && (
-                    <div className="donation-action-card">
-                      <div className="donation-action-card__header">
-                        <div className="donation-action-card__icon" style={{ background: '#fee2e2', color: '#AF101A' }}>
-                          <ShoppingCart size={20} />
-                        </div>
-                        <div>
-                          <h4 className="donation-action-card__title">Fund Allocation & Goods Procurement</h4>
-                          <p className="donation-action-card__desc">
-                            Sponsor relief packs (Food, Hygiene, Medical) or itemize store wholesale purchases to directly allocate this donation to active barangay requests.
-                          </p>
-                        </div>
-                      </div>
-                      <div className="donation-action-card__controls">
-                        <button
-                          type="button"
-                          className="btn btn--primary"
-                          onClick={() => setProcuringDonation(selected)}
-                        >
-                          <ShoppingCart size={16} /> Allocate / Procure Goods
-                        </button>
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Timeline & Progress Updates */}
-                  <div className="donation-action-card">
-                    <div className="donation-action-card__header">
-                      <div className="donation-action-card__icon">
-                        <Clock size={20} />
-                      </div>
-                      <div>
-                        <h4 className="donation-action-card__title">Audit Trail & Updates</h4>
-                        <p className="donation-action-card__desc">
-                          Log distribution notes, warehouse milestones, or donor tracking updates.
-                        </p>
-                      </div>
-                    </div>
-                    <div className="donation-action-card__controls">
-                      <button
-                        type="button"
-                        className="btn btn--outline"
-                        onClick={() => setModalTab('timeline')}
-                      >
-                        <Clock size={16} /> Post Progress Update
-                      </button>
-                    </div>
-                  </div>
-
-                  {/* Administrative Actions */}
-                  <div className="donation-action-card donation-action-card--danger">
-                    <div className="donation-action-card__header">
-                      <div className="donation-action-card__icon">
-                        <Trash2 size={20} />
-                      </div>
-                      <div>
-                        <h4 className="donation-action-card__title" style={{ color: '#b91c1c' }}>Record Removal</h4>
-                        <p className="donation-action-card__desc">
-                          Permanently remove this donation record from the database. This action is irreversible.
-                        </p>
-                      </div>
-                    </div>
-                    <div className="donation-action-card__controls">
-                      <button
-                        type="button"
-                        className="btn btn--danger"
-                        onClick={() => handleDelete(selected)}
-                      >
-                        <Trash2 size={16} /> Delete Donation Record
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {/* Tab Content: Overview */}
-            {modalTab === 'overview' && (
-              <>
+            {/* Tab Content: Donation Details */}
+            {(modalTab === 'details' || modalTab === 'overview') && (
+              <div className="donation-details-page">
+                {/* 1. Summary Cards (Compact Balanced 3x2 Grid) */}
                 <div className="donation-overview">
+                  {/* Row 1: Tracking Code */}
                   <div className="donation-overview-card">
                     <div className="donation-overview-card__label">
-                      <FileCheck size={14} />
+                      <FileCheck size={13} />
                       Tracking Code
                     </div>
-                    <div className="donation-overview-card__value donation-overview-card__value--primary">
-                      {selected.trackingCode}
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.4rem' }}>
+                      <span className="donation-overview-card__value donation-overview-card__value--primary" style={{ fontSize: '1.15rem' }}>
+                        {selected.trackingCode}
+                      </span>
+                      <button
+                        type="button"
+                        className="btn btn--ghost btn--icon"
+                        style={{ padding: '3px', height: '24px', width: '24px', color: '#64748b' }}
+                        title="Copy tracking code"
+                        onClick={() => {
+                          navigator.clipboard?.writeText(selected.trackingCode)
+                          notify.success('Tracking code copied!')
+                        }}
+                      >
+                        <Copy size={13} />
+                      </button>
                     </div>
                     <div className="donation-overview-card__subtitle">{selected.type} Donation</div>
                   </div>
 
-                  {selected.type === 'In-Kind' ? (
-                    <div className="donation-overview-card">
-                      <div className="donation-overview-card__label">
-                        <Package size={14} />
-                        Items Description
-                      </div>
-                      <div className="donation-overview-card__value" style={{ fontSize: '1rem', whiteSpace: 'normal', lineHeight: 1.4 }}>
-                        {selected.itemsDescription || selected.amount || '—'}
-                      </div>
-                      <div className="donation-overview-card__subtitle">{selected.category || 'Relief Goods'}</div>
-                    </div>
-                  ) : (
-                    <div className="donation-overview-card">
-                      <div className="donation-overview-card__label">
-                        <TrendingUp size={14} />
-                        Monetary Amount
-                      </div>
-                      <div className="donation-overview-card__value" style={{ color: '#047857' }}>
-                        {typeof selected.amountRaw === 'number'
-                          ? `₱${selected.amountRaw.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
-                          : selected.amount}
-                      </div>
-                      <div className="donation-overview-card__subtitle">{selected.paymentMethod || 'Financial Transfer'}</div>
-                    </div>
-                  )}
-
+                  {/* Row 1: Amount */}
                   <div className="donation-overview-card">
                     <div className="donation-overview-card__label">
-                      <Calendar size={14} />
+                      <TrendingUp size={13} />
+                      {selected.type === 'In-Kind' ? 'Goods / Items' : 'Monetary Amount'}
+                    </div>
+                    <div className="donation-overview-card__value" style={{ color: selected.type === 'In-Kind' ? '#1e293b' : '#047857', fontSize: selected.type === 'In-Kind' ? '1rem' : '1.25rem' }}>
+                      {selected.type === 'In-Kind'
+                        ? (selected.itemsDescription || selected.amount || '—')
+                        : (typeof selected.amountRaw === 'number'
+                          ? `₱${selected.amountRaw.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+                          : selected.amount)}
+                    </div>
+                    <div className="donation-overview-card__subtitle">
+                      {selected.type === 'In-Kind' ? (selected.category || 'Relief Goods') : (selected.paymentMethod || 'Financial Transfer')}
+                    </div>
+                  </div>
+
+                  {/* Row 1: Payment Method */}
+                  <div className="donation-overview-card">
+                    <div className="donation-overview-card__label">
+                      <CreditCard size={13} />
+                      Payment Method
+                    </div>
+                    <div className="donation-overview-card__value" style={{ fontSize: '1.05rem' }}>
+                      {selected.paymentMethod || (selected.type === 'In-Kind' ? 'Physical Turnover' : 'Direct Transfer')}
+                    </div>
+                    <div className="donation-overview-card__subtitle">
+                      {selected.paymentReference ? `Ref: ${selected.paymentReference}` : 'Payment Channel'}
+                    </div>
+                  </div>
+
+                  {/* Row 2: Date Received */}
+                  <div className="donation-overview-card">
+                    <div className="donation-overview-card__label">
+                      <Calendar size={13} />
                       Date Received
                     </div>
-                    <div className="donation-overview-card__value" style={{ fontSize: '1.15rem' }}>
+                    <div className="donation-overview-card__value" style={{ fontSize: '1.05rem' }}>
                       {selected.date}
                     </div>
                     <div className="donation-overview-card__subtitle">{selected.donor}</div>
                   </div>
 
+                  {/* Row 2: Donation Type */}
                   <div className="donation-overview-card">
                     <div className="donation-overview-card__label">
-                      <Package size={14} />
+                      <Package size={13} />
+                      Donation Type
+                    </div>
+                    <div className="donation-overview-card__value" style={{ fontSize: '1.05rem' }}>
+                      {selected.type}
+                    </div>
+                    <div className="donation-overview-card__subtitle">{selected.category || 'Support'}</div>
+                  </div>
+
+                  {/* Row 2: Status */}
+                  <div className="donation-overview-card">
+                    <div className="donation-overview-card__label">
+                      <ShieldCheck size={13} />
                       Current Status
                     </div>
-                    <div style={{ marginTop: '0.5rem' }}>
+                    <div style={{ marginTop: '0.15rem' }}>
                       <StatusBadge status={selected.status} />
+                    </div>
+                    <div className="donation-overview-card__subtitle" style={{ marginTop: '0.2rem' }}>
+                      Workflow Phase
                     </div>
                   </div>
                 </div>
 
-                {/* Quick Actions */}
-                <div className="donation-quick-actions">
-                  {selected.status === 'Pending Verification' && (
-                    <button
-                      type="button"
-                      className="donation-quick-action"
-                      onClick={() => handleVerify(selected)}
-                      disabled={!selected.hasProof}
-                      title={!selected.hasProof ? 'Proof of donation is required before verification' : undefined}
-                    >
-                      <div className="donation-quick-action__icon">
-                        <CheckCircle2 size={20} />
-                      </div>
-                      <span className="donation-quick-action__label">
-                        {selected.type === 'In-Kind' ? 'Verify & Post to Inventory' : 'Verify & Clear Funds'}
-                      </span>
-                    </button>
-                  )}
-                  <button 
-                    type="button" 
-                    className="donation-quick-action"
-                    onClick={() => { setModalTab('actions'); setActionStatus(selected.status) }}
-                  >
-                    <div className="donation-quick-action__icon">
-                      <Settings2 size={20} />
-                    </div>
-                    <span className="donation-quick-action__label">Actions & Status</span>
-                  </button>
-                  <button 
-                    type="button" 
-                    className="donation-quick-action"
-                    onClick={() => printDonationReceipt(selected)}
-                  >
-                    <div className="donation-quick-action__icon">
-                      <Printer size={20} />
-                    </div>
-                    <span className="donation-quick-action__label">Print Receipt</span>
-                  </button>
-                  <button 
-                    type="button" 
-                    className="donation-quick-action"
-                    onClick={() => setModalTab('timeline')}
-                  >
-                    <div className="donation-quick-action__icon">
-                      <Clock size={20} />
-                    </div>
-                    <span className="donation-quick-action__label">Timeline Updates</span>
-                  </button>
-                </div>
+                <hr className="donation-section-divider" />
 
-                {/* AI Payment Proof Verification & Extraction Audit Card */}
-                {selected.type === 'Monetary' && (
-                  <div style={{
-                    background: selected.aiVerificationStatus === 'verified' ? '#f0fdf4' : (selected.aiVerificationStatus === 'invalid' ? '#fef2f2' : '#f8fafc'),
-                    border: `1px solid ${selected.aiVerificationStatus === 'verified' ? '#bbf7d0' : (selected.aiVerificationStatus === 'invalid' ? '#fecaca' : '#e2e8f0')}`,
-                    borderRadius: '12px',
-                    padding: '1.15rem 1.25rem',
-                    marginTop: '1.25rem',
-                  }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.75rem', marginBottom: '0.75rem' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                        <div style={{
-                          width: '32px',
-                          height: '32px',
-                          borderRadius: '8px',
-                          background: selected.aiVerificationStatus === 'verified' ? '#dcfce7' : '#fee2e2',
-                          color: selected.aiVerificationStatus === 'verified' ? '#15803d' : '#AF101A',
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                        }}>
-                          <ShieldCheck size={18} />
-                        </div>
-                        <div>
-                          <h4 style={{ margin: 0, fontSize: '0.95rem', fontWeight: 700, color: '#1e293b' }}>
-                            AI Proof Verification & Audit Trail
-                          </h4>
-                          <span style={{ fontSize: '0.78rem', color: '#64748b' }}>
-                            Automated image analysis, extracted amounts, and donor adjustment tracking
+                {/* 2. Donation Summary / Information (clean 2-column layout) */}
+                <div className="donation-info-section">
+                  <h4 className="donation-info-section__title">
+                    <FileText size={15} /> Donation Summary & Information
+                  </h4>
+                  <div className="donation-info-grid">
+                    <div className="donation-info-item">
+                      <span className="donation-info-item__label">Donor & Contact</span>
+                      <div className="donation-info-item__value" style={{ fontWeight: 600, color: '#0f172a' }}>
+                        {selected.donor}
+                        {selected.donorEmail && (
+                          <span style={{ display: 'block', fontSize: '0.78rem', color: '#64748b', fontWeight: 400 }}>
+                            {selected.donorEmail}
                           </span>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="donation-info-item">
+                      <span className="donation-info-item__label">Payment Reference</span>
+                      <div className="donation-info-item__value">
+                        {selected.paymentReference ? (
+                          <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}>
+                            <code style={{ fontFamily: 'monospace', fontWeight: 600, background: '#f1f5f9', padding: '2px 6px', borderRadius: '4px', fontSize: '0.84rem' }}>
+                              {selected.paymentReference}
+                            </code>
+                            <button
+                              type="button"
+                              className="btn btn--ghost btn--icon"
+                              style={{ padding: '2px', height: '22px', width: '22px' }}
+                              onClick={() => {
+                                navigator.clipboard?.writeText(selected.paymentReference)
+                                notify.success('Reference number copied!')
+                              }}
+                              title="Copy Reference"
+                            >
+                              <Copy size={12} />
+                            </button>
+                          </div>
+                        ) : (
+                          <span style={{ color: '#94a3b8', fontStyle: 'italic' }}>No reference number provided</span>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="donation-info-item">
+                      <span className="donation-info-item__label">Category / Purpose</span>
+                      <div className="donation-info-item__value">
+                        {selected.category || 'Disaster Relief / General Foundation Support'}
+                      </div>
+                    </div>
+
+                    <div className="donation-info-item">
+                      <span className="donation-info-item__label">Payment Proof & Verification</span>
+                      <div className="donation-info-item__value" style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', flexWrap: 'wrap' }}>
+                        {selected.hasProof ? (
+                          <>
+                            <span style={{
+                              fontSize: '0.74rem',
+                              fontWeight: 700,
+                              padding: '2px 8px',
+                              borderRadius: '9999px',
+                              background: selected.aiVerificationStatus === 'verified' ? '#dcfce7' : (selected.aiVerificationStatus === 'needs_review' ? '#fef3c7' : (selected.aiVerificationStatus === 'invalid' ? '#fee2e2' : '#f1f5f9')),
+                              color: selected.aiVerificationStatus === 'verified' ? '#15803d' : (selected.aiVerificationStatus === 'needs_review' ? '#b45309' : (selected.aiVerificationStatus === 'invalid' ? '#b91c1c' : '#475569')),
+                              border: `1px solid ${selected.aiVerificationStatus === 'verified' ? '#86efac' : (selected.aiVerificationStatus === 'needs_review' ? '#fcd34d' : '#e2e8f0')}`,
+                            }}>
+                              {selected.aiVerificationStatus === 'verified' ? '✓ AI Verified' : (selected.aiVerificationStatus === 'needs_review' ? '⚠ Review Needed' : (selected.aiVerificationStatus === 'invalid' ? '✕ Invalid Proof' : 'Proof Uploaded'))}
+                            </span>
+                            <button
+                              type="button"
+                              className="btn btn--outline btn--sm"
+                              onClick={() => setModalTab('proof')}
+                              style={{ fontSize: '0.74rem', padding: '0.2rem 0.55rem' }}
+                            >
+                              <FileText size={12} /> View Proof
+                            </button>
+                          </>
+                        ) : (
+                          <span style={{ color: '#94a3b8', fontStyle: 'italic' }}>No proof uploaded</span>
+                        )}
+                      </div>
+                    </div>
+
+                    {selected.type === 'Monetary' && selected.status !== 'Pending Verification' && (
+                      <div className="donation-info-item" style={{ gridColumn: '1 / -1' }}>
+                        <span className="donation-info-item__label">Fund Utilization Summary</span>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '1.25rem', marginTop: '0.35rem', flexWrap: 'wrap' }}>
+                          <div>
+                            <span style={{ fontSize: '0.72rem', color: '#64748b' }}>Allocated: </span>
+                            <strong style={{ color: '#047857' }}>₱{(Number(selected.totalUtilized) || 0).toLocaleString('en-PH', { minimumFractionDigits: 2 })}</strong>
+                          </div>
+                          <div>
+                            <span style={{ fontSize: '0.72rem', color: '#64748b' }}>Remaining: </span>
+                            <strong style={{ color: Number(selected.remainingBalance ?? 0) <= 0 ? '#64748b' : '#d97706' }}>
+                              ₱{(Number(selected.remainingBalance ?? selected.amountRaw ?? 0)).toLocaleString('en-PH', { minimumFractionDigits: 2 })}
+                            </strong>
+                          </div>
+                          {selected.totalFamiliesSupported > 0 && (
+                            <div>
+                              <span style={{ fontSize: '0.72rem', color: '#64748b' }}>Families Supported: </span>
+                              <strong style={{ color: '#AF101A' }}>{selected.totalFamiliesSupported}</strong>
+                            </div>
+                          )}
                         </div>
                       </div>
+                    )}
 
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                        <span style={{
-                          fontSize: '0.75rem',
-                          fontWeight: 700,
-                          padding: '3px 10px',
-                          borderRadius: '9999px',
-                          background: selected.aiVerificationStatus === 'verified' ? '#dcfce7' : (selected.aiVerificationStatus === 'needs_review' ? '#fef3c7' : '#f1f5f9'),
-                          color: selected.aiVerificationStatus === 'verified' ? '#15803d' : (selected.aiVerificationStatus === 'needs_review' ? '#b45309' : '#64748b'),
-                          border: `1px solid ${selected.aiVerificationStatus === 'verified' ? '#86efac' : (selected.aiVerificationStatus === 'needs_review' ? '#fcd34d' : '#cbd5e1')}`,
-                        }}>
-                          {selected.aiVerificationStatus === 'verified' ? '✓ AI Verified' : (selected.aiVerificationStatus === 'needs_review' ? '⚠ Needs Review' : (selected.aiVerificationStatus === 'invalid' ? '✕ Invalid Proof' : 'Unverified / Manual'))}
-                        </span>
-                        {selected.hasProof && (
-                          <button
-                            type="button"
-                            className="btn btn--outline btn--sm"
-                            onClick={() => setModalTab('proof')}
-                            style={{ fontSize: '0.78rem', padding: '0.25rem 0.65rem' }}
-                          >
-                            <FileText size={13} /> View Proof
-                          </button>
-                        )}
-                      </div>
-                    </div>
-
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: '0.75rem', marginTop: '0.75rem' }}>
-                      <div style={{ background: '#fff', padding: '0.75rem', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
-                        <span style={{ fontSize: '0.74rem', color: '#64748b', display: 'block', textTransform: 'uppercase', letterSpacing: '0.03em' }}>
-                          AI Extracted Amount
-                        </span>
-                        <strong style={{ fontSize: '1.05rem', color: '#0f172a' }}>
-                          {selected.aiExtractedAmount !== null && selected.aiExtractedAmount !== undefined
-                            ? `₱${Number(selected.aiExtractedAmount).toLocaleString('en-PH', { minimumFractionDigits: 2 })}`
-                            : '—'}
-                        </strong>
-                      </div>
-
-                      <div style={{ background: '#fff', padding: '0.75rem', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
-                        <span style={{ fontSize: '0.74rem', color: '#64748b', display: 'block', textTransform: 'uppercase', letterSpacing: '0.03em' }}>
-                          Final Confirmed Amount
-                        </span>
-                        <strong style={{ fontSize: '1.05rem', color: selected.isAmountManuallyAdjusted ? '#d97706' : '#047857' }}>
-                          ₱{Number(selected.amountRaw || 0).toLocaleString('en-PH', { minimumFractionDigits: 2 })}
-                        </strong>
-                        {selected.isAmountManuallyAdjusted && (
-                          <div style={{ fontSize: '0.72rem', color: '#b45309', fontWeight: 600, marginTop: '2px' }}>
-                            ✎ Manually adjusted by donor
-                          </div>
-                        )}
-                      </div>
-
-                      <div style={{ background: '#fff', padding: '0.75rem', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
-                        <span style={{ fontSize: '0.74rem', color: '#64748b', display: 'block', textTransform: 'uppercase', letterSpacing: '0.03em' }}>
-                          Detected Channel / Ref
-                        </span>
-                        <strong style={{ fontSize: '0.9rem', color: '#1e293b', display: 'block', textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap' }}>
-                          {selected.aiExtractedMethod || selected.paymentMethod || '—'}
-                        </strong>
-                        <span style={{ fontSize: '0.75rem', fontFamily: 'monospace', color: '#64748b' }}>
-                          {selected.aiExtractedReference || selected.paymentReference || 'No reference'}
-                        </span>
-                      </div>
-
-                      <div style={{ background: '#fff', padding: '0.75rem', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
-                        <span style={{ fontSize: '0.74rem', color: '#64748b', display: 'block', textTransform: 'uppercase', letterSpacing: '0.03em' }}>
-                          Verification Status
-                        </span>
-                        <span style={{ fontSize: '0.85rem', fontWeight: 600, color: '#334155' }}>
-                          {selected.aiConfidence ? `Confidence: ${selected.aiConfidence.toUpperCase()}` : 'Standard Processing'}
-                        </span>
-                        {selected.aiVerifiedAt && (
-                          <div style={{ fontSize: '0.72rem', color: '#94a3b8', marginTop: '2px' }}>
-                            {new Date(selected.aiVerifiedAt).toLocaleString()}
-                          </div>
-                        )}
-                      </div>
-                    </div>
-
-                    {selected.aiVerificationNotes && (
-                      <div style={{ marginTop: '0.65rem', fontSize: '0.8rem', color: '#64748b', fontStyle: 'italic' }}>
-                        Note: {selected.aiVerificationNotes}
+                    {selected.notes && (
+                      <div className="donation-info-item" style={{ gridColumn: '1 / -1' }}>
+                        <span className="donation-info-item__label">Notes / Remarks</span>
+                        <div className="donation-info-item__value" style={{ fontStyle: 'italic', color: '#475569' }}>
+                          "{selected.notes}"
+                        </div>
                       </div>
                     )}
                   </div>
-                )}
+                </div>
 
-                {/* In-Kind Classified Items Breakdown */}
-                {selected.type === 'In-Kind' && selected.classifiedItems && selected.classifiedItems.length > 0 && (
-                  <div className="donation-classified-card" style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '12px', padding: '1.25rem', marginTop: '1.25rem' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem', flexWrap: 'wrap', gap: '0.75rem' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                        <div style={{ width: '32px', height: '32px', borderRadius: '8px', background: '#fee2e2', color: '#AF101A', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                          <Package size={18} />
-                        </div>
-                        <div>
-                          <h4 style={{ margin: 0, fontSize: '0.95rem', fontWeight: 600, color: '#1e293b' }}>Classified Warehouse Inventory Items</h4>
-                          <span style={{ fontSize: '0.78rem', color: '#64748b' }}>Stock received and cataloged into warehouse inventory from this donation</span>
-                        </div>
-                      </div>
-                      <span className="badge badge--success" style={{ fontSize: '0.75rem' }}>
-                        {selected.classifiedItems.length} {selected.classifiedItems.length === 1 ? 'item intaked' : 'items intaked'}
-                      </span>
-                    </div>
-
-                    <div className="donation-classified-table-wrap" style={{ overflowX: 'auto' }}>
-                      <table className="donation-classified-table" style={{ width: '100%', fontSize: '0.85rem', borderCollapse: 'collapse' }}>
-                        <thead>
-                          <tr style={{ borderBottom: '1px solid #cbd5e1', textAlign: 'left', color: '#64748b' }}>
-                            <th style={{ padding: '0.5rem' }}>Category</th>
-                            <th style={{ padding: '0.5rem' }}>Item Type</th>
-                            <th style={{ padding: '0.5rem' }}>Brand / Product</th>
-                            <th style={{ padding: '0.5rem' }}>Variant / Size</th>
-                            <th style={{ padding: '0.5rem', textAlign: 'right' }}>Quantity</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {selected.classifiedItems.map((item, idx) => (
-                            <tr key={idx} style={{ borderBottom: '1px solid #f1f5f9' }}>
-                              <td style={{ padding: '0.6rem 0.5rem' }}>
-                                <span className="inv-category">{item.category}</span>
-                              </td>
-                              <td style={{ padding: '0.6rem 0.5rem', fontWeight: 600 }}>
-                                {item.itemType || item.item_type || '—'}
-                              </td>
-                              <td style={{ padding: '0.6rem 0.5rem' }}>
-                                {item.brand ? (
-                                  <span className="inv-brand-badge">{item.brand}</span>
-                                ) : (
-                                  <span style={{ color: '#94a3b8', fontStyle: 'italic', fontSize: '0.75rem' }}>Generic / Unbranded</span>
-                                )}
-                              </td>
-                              <td style={{ padding: '0.6rem 0.5rem' }}>
-                                {item.variant ? (
-                                  <span className="inv-variant-badge">{item.variant}</span>
-                                ) : (
-                                  <span style={{ color: '#94a3b8' }}>—</span>
-                                )}
-                              </td>
-                              <td style={{ padding: '0.6rem 0.5rem', textAlign: 'right', fontWeight: 700 }}>
-                                {item.quantity} <span style={{ fontWeight: 400, color: '#64748b' }}>{item.unit || 'pcs'}</span>
-                              </td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                  </div>
-                )}
-
-                {/* Monetary Procurement & Utilization Breakdown */}
+                {/* Monetary Procurement & Utilization Breakdown (if verified & has procurements or can allocate) */}
                 {selected.type === 'Monetary' && selected.status !== 'Pending Verification' && (
-                  <div className="donation-procurement-card" style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '12px', padding: '1.25rem', marginTop: '1.25rem' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem', flexWrap: 'wrap', gap: '0.75rem' }}>
+                  <div className="donation-procurement-card" style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '10px', padding: '1rem 1.15rem', marginBottom: '1rem' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem', flexWrap: 'wrap', gap: '0.5rem' }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                        <div style={{ width: '32px', height: '32px', borderRadius: '8px', background: '#fee2e2', color: '#AF101A', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                          <Coins size={18} />
+                        <div style={{ width: '28px', height: '28px', borderRadius: '6px', background: '#fee2e2', color: '#AF101A', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                          <Coins size={16} />
                         </div>
                         <div>
-                          <h4 style={{ margin: 0, fontSize: '0.95rem', fontWeight: 600, color: '#1e293b' }}>Fund Utilization & Allocation Status</h4>
-                          <span style={{ fontSize: '0.78rem', color: '#64748b' }}>Monetary balance allocation towards relief packages & supplier purchases</span>
+                          <h4 style={{ margin: 0, fontSize: '0.88rem', fontWeight: 600, color: '#1e293b' }}>Fund Allocation & Goods Procurement</h4>
+                          <span style={{ fontSize: '0.74rem', color: '#64748b' }}>Relief packages & store purchases sponsored by this donation</span>
                         </div>
                       </div>
                       <button
                         type="button"
-                        className="btn btn--primary"
-                        style={{ padding: '0.4rem 0.85rem', fontSize: '0.82rem', gap: '0.4rem' }}
+                        className="btn btn--primary btn--sm"
+                        style={{ padding: '0.35rem 0.75rem', fontSize: '0.78rem', gap: '0.35rem' }}
                         onClick={() => setProcuringDonation(selected)}
                       >
-                        <ShoppingCart size={14} /> Allocate / Procure Goods
+                        <ShoppingCart size={13} /> Allocate / Procure Goods
                       </button>
                     </div>
 
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: '0.75rem', marginBottom: '1rem' }}>
-                      <div style={{ background: '#fff', padding: '0.75rem', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
-                        <span style={{ fontSize: '0.75rem', color: '#64748b', display: 'block' }}>Total Donation</span>
-                        <strong style={{ fontSize: '1.1rem', color: '#0f172a' }}>
-                          ₱{((typeof selected.amountRaw === 'number' ? selected.amountRaw : (parseFloat(String(selected.amount).replace(/[^0-9.]/g, '')) || 0))).toLocaleString('en-PH', { minimumFractionDigits: 2 })}
-                        </strong>
-                      </div>
-                      <div style={{ background: '#fff', padding: '0.75rem', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
-                        <span style={{ fontSize: '0.75rem', color: '#64748b', display: 'block' }}>Allocated / Utilized</span>
-                        <strong style={{ fontSize: '1.1rem', color: '#047857' }}>
-                          ₱{(Number(selected.totalUtilized) || 0).toLocaleString('en-PH', { minimumFractionDigits: 2 })}
-                        </strong>
-                      </div>
-                      <div style={{ background: '#fff', padding: '0.75rem', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
-                        <span style={{ fontSize: '0.75rem', color: '#64748b', display: 'block' }}>Remaining Balance</span>
-                        <strong style={{ fontSize: '1.1rem', color: (Number(selected.remainingBalance ?? 0) <= 0 && Number(selected.totalUtilized) > 0) ? '#64748b' : '#d97706' }}>
-                          ₱{(Number(selected.remainingBalance ?? selected.amountRaw ?? 0)).toLocaleString('en-PH', { minimumFractionDigits: 2 })}
-                        </strong>
-                      </div>
-                      <div style={{ background: '#fff', padding: '0.75rem', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
-                        <span style={{ fontSize: '0.75rem', color: '#64748b', display: 'block' }}>Families Supported</span>
-                        <strong style={{ fontSize: '1.1rem', color: '#AF101A' }}>
-                          {selected.totalFamiliesSupported || (selected.procurements?.reduce((sum, p) => sum + (Number(p.families_supported) || Number(p.pack_count) || 0), 0)) || '—'}
-                        </strong>
-                      </div>
-                    </div>
-
-                    {/* Procurements List */}
                     {selected.procurements && selected.procurements.length > 0 ? (
-                      <div style={{ background: '#fff', borderRadius: '8px', border: '1px solid #e2e8f0', padding: '0.75rem' }}>
-                        <div style={{ fontSize: '0.82rem', fontWeight: 600, color: '#334155', marginBottom: '0.5rem', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-                          <CheckCircle2 size={14} color="#047857" /> Allocation & Procurement Log ({selected.procurements.length})
+                      <div style={{ background: '#fff', borderRadius: '8px', border: '1px solid #e2e8f0', padding: '0.65rem' }}>
+                        <div style={{ fontSize: '0.78rem', fontWeight: 600, color: '#334155', marginBottom: '0.4rem', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                          <CheckCircle2 size={13} color="#047857" /> Recorded Allocations ({selected.procurements.length})
                         </div>
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
                           {selected.procurements.map((proc, idx) => (
-                            <div key={proc.id || idx} style={{ padding: '0.65rem 0.8rem', background: '#f8fafc', borderRadius: '6px', border: '1px solid #edf2f7', fontSize: '0.82rem' }}>
-                              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '0.5rem' }}>
+                            <div key={proc.id || idx} style={{ padding: '0.55rem 0.7rem', background: '#f8fafc', borderRadius: '6px', border: '1px solid #edf2f7', fontSize: '0.8rem' }}>
+                              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '0.4rem' }}>
                                 <div>
                                   <span style={{ fontWeight: 600, color: '#0f172a' }}>
                                     {proc.procurement_type === 'pack_sponsorship' ? `📦 ${proc.pack_type || 'Relief Pack'} Sponsorship` : `🏬 Store Purchase: ${proc.store_name || 'Wholesale Supplier'}`}
                                   </span>
-                                  <div style={{ color: '#64748b', fontSize: '0.75rem', marginTop: '2px' }}>
+                                  <div style={{ color: '#64748b', fontSize: '0.74rem', marginTop: '2px' }}>
                                     Target: {proc.beneficiary_name ? `${proc.beneficiary_name}${proc.municipality ? `, ${proc.municipality}` : ''}` : 'General Relief'}
                                     {proc.receipt_number && ` • Receipt #${proc.receipt_number}`}
                                     {proc.created_at && ` • ${new Date(proc.created_at).toLocaleDateString()}`}
@@ -1720,110 +1417,252 @@ export default function DonationsPage() {
                                     ₱{Number(proc.total_amount || 0).toLocaleString('en-PH', { minimumFractionDigits: 2 })}
                                   </span>
                                   {proc.pack_count > 0 && (
-                                    <div style={{ fontSize: '0.72rem', color: '#AF101A', fontWeight: 500 }}>
+                                    <div style={{ fontSize: '0.7rem', color: '#AF101A', fontWeight: 500 }}>
                                       {proc.pack_count} packs sponsored
                                     </div>
                                   )}
                                 </div>
                               </div>
-                              {/* If itemized line items */}
-                              {Array.isArray(proc.items) && proc.items.length > 0 && (
-                                <div style={{ marginTop: '0.5rem', paddingTop: '0.5rem', borderTop: '1px dashed #cbd5e1' }}>
-                                  <div style={{ fontSize: '0.72rem', color: '#64748b', marginBottom: '0.25rem' }}>Itemized Breakdown:</div>
-                                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.4rem' }}>
-                                    {proc.items.map((it, i) => (
-                                      <span key={i} style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: '4px', padding: '2px 6px', fontSize: '0.72rem', color: '#334155' }}>
-                                        {it.item} × {it.quantity} {it.unit} (₱{(it.quantity * it.unitCost).toLocaleString('en-PH')})
-                                      </span>
-                                    ))}
-                                  </div>
-                                </div>
-                              )}
                             </div>
                           ))}
                         </div>
                       </div>
                     ) : (
-                      <div style={{ textAlign: 'center', padding: '1rem', background: '#fff', borderRadius: '8px', border: '1px dashed #cbd5e1', fontSize: '0.82rem', color: '#64748b' }}>
-                        No direct allocations recorded yet. Click <strong>"Allocate / Procure Goods"</strong> above to assign these funds to relief packs or record store purchases.
+                      <div style={{ textAlign: 'center', padding: '0.75rem', background: '#fff', borderRadius: '6px', border: '1px dashed #cbd5e1', fontSize: '0.78rem', color: '#64748b' }}>
+                        No direct allocations recorded yet. Use <strong>"Allocate / Procure Goods"</strong> to assign these funds to relief packs or store purchases.
                       </div>
                     )}
                   </div>
                 )}
 
-                {/* Impact Visualization */}
-                {selected.status !== 'Pending Verification' && selected.type === 'In-Kind' && (
-                  <div className="donation-impact">
-                    <h3 className="donation-impact__title">
-                      <Heart size={20} />
-                      In-Kind Community Impact
-                    </h3>
-                    <div className="donation-impact__stats">
-                      <div className="donation-impact-stat">
-                        <div className="donation-impact-stat__icon">
-                          <Users size={24} />
+                {/* In-Kind Classified Items Breakdown */}
+                {selected.type === 'In-Kind' && selected.classifiedItems && selected.classifiedItems.length > 0 && (
+                  <div className="donation-classified-card" style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '10px', padding: '1rem 1.15rem', marginBottom: '1rem' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem', flexWrap: 'wrap', gap: '0.5rem' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                        <div style={{ width: '28px', height: '28px', borderRadius: '6px', background: '#fee2e2', color: '#AF101A', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                          <Package size={16} />
                         </div>
-                        <div className="donation-impact-stat__value">40+</div>
-                        <div className="donation-impact-stat__label">Beneficiaries Reached</div>
-                      </div>
-                      <div className="donation-impact-stat">
-                        <div className="donation-impact-stat__icon">
-                          <Package size={24} />
+                        <div>
+                          <h4 style={{ margin: 0, fontSize: '0.88rem', fontWeight: 600, color: '#1e293b' }}>Classified Warehouse Inventory Items</h4>
+                          <span style={{ fontSize: '0.74rem', color: '#64748b' }}>Stock received and cataloged into warehouse inventory</span>
                         </div>
-                        <div className="donation-impact-stat__value">15+ Packs</div>
-                        <div className="donation-impact-stat__label">Relief Distributed</div>
                       </div>
-                      <div className="donation-impact-stat">
-                        <div className="donation-impact-stat__icon">
-                          <MapPin size={24} />
-                        </div>
-                        <div className="donation-impact-stat__value">Partner LGUs</div>
-                        <div className="donation-impact-stat__label">Cebu Province</div>
-                      </div>
+                      <span className="badge badge--success" style={{ fontSize: '0.74rem' }}>
+                        {selected.classifiedItems.length} {selected.classifiedItems.length === 1 ? 'item cataloged' : 'items cataloged'}
+                      </span>
+                    </div>
+
+                    <div className="donation-classified-table-wrap" style={{ overflowX: 'auto' }}>
+                      <table className="donation-classified-table" style={{ width: '100%', fontSize: '0.82rem', borderCollapse: 'collapse' }}>
+                        <thead>
+                          <tr style={{ borderBottom: '1px solid #cbd5e1', textAlign: 'left', color: '#64748b' }}>
+                            <th style={{ padding: '0.45rem' }}>Category</th>
+                            <th style={{ padding: '0.45rem' }}>Item Type</th>
+                            <th style={{ padding: '0.45rem' }}>Brand / Product</th>
+                            <th style={{ padding: '0.45rem', textAlign: 'right' }}>Quantity</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {selected.classifiedItems.map((item, idx) => (
+                            <tr key={idx} style={{ borderBottom: '1px solid #f1f5f9' }}>
+                              <td style={{ padding: '0.5rem 0.45rem' }}><span className="inv-category">{item.category}</span></td>
+                              <td style={{ padding: '0.5rem 0.45rem', fontWeight: 600 }}>{item.itemType || item.item_type || '—'}</td>
+                              <td style={{ padding: '0.5rem 0.45rem' }}>{item.brand || <span style={{ color: '#94a3b8', fontStyle: 'italic', fontSize: '0.75rem' }}>Generic</span>}</td>
+                              <td style={{ padding: '0.5rem 0.45rem', textAlign: 'right', fontWeight: 700 }}>
+                                {item.quantity} <span style={{ fontWeight: 400, color: '#64748b' }}>{item.unit || 'pcs'}</span>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
                     </div>
                   </div>
                 )}
 
-                {/* Details List */}
-                <dl className="detail-list" style={{ marginTop: '1rem' }}>
-                  <dt>Category</dt>
-                  <dd>{selected.category || '—'}</dd>
-                  {selected.type === 'Monetary' && (
-                    <>
-                      <dt>Payment Method</dt>
-                      <dd>{selected.paymentMethod || '—'}</dd>
-                      <dt>Payment Reference</dt>
-                      <dd>{selected.paymentReference ? <code style={{ fontFamily: 'monospace', fontWeight: 600 }}>{selected.paymentReference}</code> : '—'}</dd>
-                    </>
+                <hr className="donation-section-divider" />
+
+                {/* 3. Actions Section (Clean & Status-Aware) */}
+                <div className="donation-actions-section">
+                  <h4 className="donation-actions-section__title">
+                    <Settings2 size={15} /> Available Actions & Operations
+                  </h4>
+                  <div className="donation-actions-toolbar">
+                    {/* Status-aware Verification */}
+                    {selected.status === 'Pending Verification' && (
+                      <button
+                        type="button"
+                        className="btn btn--primary"
+                        onClick={() => handleVerify(selected)}
+                        disabled={!selected.hasProof}
+                        title={!selected.hasProof ? 'Proof of donation is required before verification' : undefined}
+                      >
+                        <CheckCircle2 size={15} />
+                        {selected.type === 'In-Kind' ? 'Verify & Post to Inventory' : 'Verify & Confirm Funds'}
+                      </button>
+                    )}
+
+                    {/* Status-aware Rejection */}
+                    {selected.status === 'Pending Verification' && (
+                      <button
+                        type="button"
+                        className="btn btn--danger"
+                        style={{ background: '#fee2e2', color: '#b91c1c', borderColor: '#fca5a5' }}
+                        onClick={() => {
+                          if (window.confirm(`Are you sure you want to mark donation ${selected.trackingCode} as Rejected?`)) {
+                            handleUpdateStatus(selected, 'Rejected')
+                          }
+                        }}
+                      >
+                        <XCircle size={15} /> Reject Donation
+                      </button>
+                    )}
+
+                    {/* Status-aware Fund Allocation */}
+                    {selected.type === 'Monetary' && !['Pending Verification', 'Rejected', 'Cancelled'].includes(selected.status) && (
+                      <button
+                        type="button"
+                        className="btn btn--primary"
+                        onClick={() => setProcuringDonation(selected)}
+                      >
+                        <ShoppingCart size={15} /> Allocate Funds / Procure Goods
+                      </button>
+                    )}
+
+                    {/* Quick Status Transition Dropdown */}
+                    <div className="donation-status-quick-transition">
+                      <select
+                        value={actionStatus || selected.status}
+                        onChange={(e) => setActionStatus(e.target.value)}
+                        title="Change operational status"
+                      >
+                        {DONATION_STATUSES.map((st) => (
+                          <option key={st} value={st}>{st}</option>
+                        ))}
+                      </select>
+                      <button
+                        type="button"
+                        className="btn btn--outline btn--sm"
+                        disabled={(actionStatus || selected.status) === selected.status || actionLoading}
+                        onClick={() => handleUpdateStatus(selected, actionStatus || selected.status)}
+                      >
+                        Update Status
+                      </button>
+                    </div>
+
+                    {/* Official Receipt Printing */}
+                    {selected.status !== 'Rejected' && (
+                      <button
+                        type="button"
+                        className="btn btn--outline btn--sm"
+                        onClick={() => printDonationReceipt(selected)}
+                      >
+                        <Printer size={15} /> Print Receipt
+                      </button>
+                    )}
+
+                    {/* Inline Timeline Toggle */}
+                    <button
+                      type="button"
+                      className={`btn btn--sm ${showInlineTimeline ? 'btn--primary' : 'btn--ghost'}`}
+                      onClick={() => setShowInlineTimeline(!showInlineTimeline)}
+                    >
+                      <Clock size={15} /> {showInlineTimeline ? 'Hide Updates' : 'Timeline & Updates'}
+                    </button>
+
+                    {/* Administrative Deletion */}
+                    <button
+                      type="button"
+                      className="btn btn--ghost btn--sm"
+                      style={{ color: '#b91c1c', marginLeft: 'auto' }}
+                      onClick={() => handleDelete(selected)}
+                      title="Permanently remove this donation record"
+                    >
+                      <Trash2 size={15} /> Delete Record
+                    </button>
+                  </div>
+
+                  {/* Inline Timeline & Progress Updates */}
+                  {showInlineTimeline && (
+                    <div style={{ marginTop: '1rem', borderTop: '1px solid #e2e8f0', paddingTop: '1rem' }}>
+                      <DonationUpdatesTimeline
+                        donationId={selected.dbId}
+                        canPost
+                        onPosted={reload}
+                      />
+                    </div>
                   )}
-                  {selected.type === 'In-Kind' && (
-                    <>
-                      <dt>Physical Goods</dt>
-                      <dd>{selected.itemsDescription || selected.amount || '—'}</dd>
-                    </>
-                  )}
-                  <dt>Notes / Remarks</dt>
-                  <dd>{selected.notes || '—'}</dd>
-                </dl>
-              </>
+                </div>
+              </div>
             )}
 
             {/* Tab Content: Donor Info */}
             {modalTab === 'donor' && (
-              <>
+              <div className="donation-donor-page">
                 <div className="donor-info-card">
                   <div className="donor-info-card__header">
                     <div className="donor-info-card__avatar">
                       {selected.donor?.charAt(0)?.toUpperCase() || 'D'}
                     </div>
                     <div className="donor-info-card__details">
-                      <h3>{selected.donor}</h3>
-                      <p>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+                        <h3 style={{ margin: 0 }}>{selected.donor}</h3>
+                        {selected.donorType && (
+                          <span className="badge badge--info" style={{ fontSize: '0.72rem' }}>
+                            {selected.donorType}
+                          </span>
+                        )}
+                      </div>
+                      <p style={{ marginTop: '0.25rem' }}>
                         <Mail size={14} style={{ display: 'inline', marginRight: '0.25rem' }} />
-                        {selected.donorEmail || 'No email provided'}
+                        {selected.donorEmail ? (
+                          <a href={`mailto:${selected.donorEmail}`} style={{ color: 'inherit', textDecoration: 'none' }}>
+                            {selected.donorEmail}
+                          </a>
+                        ) : 'No email provided'}
                       </p>
                     </div>
                   </div>
+
+                  {/* Donor Contact & Profile Grid */}
+                  <div style={{
+                    display: 'grid',
+                    gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
+                    gap: '0.75rem',
+                    padding: '0.85rem 1rem',
+                    background: '#f8fafc',
+                    borderRadius: '8px',
+                    margin: '1rem 0',
+                    border: '1px solid #e2e8f0'
+                  }}>
+                    <div>
+                      <span style={{ fontSize: '0.7rem', color: '#64748b', textTransform: 'uppercase', fontWeight: 600, display: 'block' }}>
+                        Contact Number
+                      </span>
+                      <strong style={{ fontSize: '0.88rem', color: '#1e293b' }}>
+                        {selected.donorPhone || 'Not provided'}
+                      </strong>
+                    </div>
+
+                    <div>
+                      <span style={{ fontSize: '0.7rem', color: '#64748b', textTransform: 'uppercase', fontWeight: 600, display: 'block' }}>
+                        Organization / Affiliation
+                      </span>
+                      <strong style={{ fontSize: '0.88rem', color: '#1e293b' }}>
+                        {selected.donorOrganization || 'Individual Donor'}
+                      </strong>
+                    </div>
+
+                    <div style={{ gridColumn: '1 / -1' }}>
+                      <span style={{ fontSize: '0.7rem', color: '#64748b', textTransform: 'uppercase', fontWeight: 600, display: 'block' }}>
+                        Registered Address
+                      </span>
+                      <strong style={{ fontSize: '0.88rem', color: '#1e293b' }}>
+                        {selected.donorAddress || 'Not specified'}
+                      </strong>
+                    </div>
+                  </div>
+
                   <div className="donor-info-card__stats">
                     <div className="donor-info-card__stat">
                       <div className="donor-info-card__stat-value">
@@ -1847,7 +1686,7 @@ export default function DonationsPage() {
                 </div>
 
                 {getRelatedDonations(selected).length > 0 && (
-                  <div className="related-donations">
+                  <div className="related-donations" style={{ marginTop: '1rem' }}>
                     <h3 className="related-donations__title">Previous Donations by this Donor</h3>
                     <div className="related-donations__list">
                       {getRelatedDonations(selected).map((d) => (
@@ -1872,7 +1711,7 @@ export default function DonationsPage() {
                     </div>
                   </div>
                 )}
-              </>
+              </div>
             )}
 
             {/* Tab Content: Proof of Donation */}
@@ -1897,6 +1736,7 @@ export default function DonationsPage() {
                     </span>
                   )}
                 </div>
+
                 <div className="donation-proof-gallery__grid">
                   {selected.proofIsImage ? (
                     <a
@@ -1933,21 +1773,11 @@ export default function DonationsPage() {
                     </a>
                   )}
                 </div>
-                <div style={{ marginTop: '1rem', display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
-                  <a
-                    href={selected.proofUrl}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="btn btn--outline"
-                    download={selected.proofFileName}
-                  >
-                    <Download size={16} /> Download Proof File
-                  </a>
-                </div>
 
+                {/* Proof Information & Extraction Details */}
                 {selected.aiExtractedAmount !== null && selected.aiExtractedAmount !== undefined && (
                   <div style={{
-                    marginTop: '1.25rem',
+                    marginTop: '1rem',
                     padding: '0.85rem 1.15rem',
                     background: '#f8fafc',
                     borderRadius: '8px',
@@ -1960,7 +1790,7 @@ export default function DonationsPage() {
                     gap: '0.75rem',
                   }}>
                     <div>
-                      <strong>AI Extracted:</strong> ₱{Number(selected.aiExtractedAmount).toLocaleString('en-PH', { minimumFractionDigits: 2 })}
+                      <strong>Extracted Amount:</strong> ₱{Number(selected.aiExtractedAmount).toLocaleString('en-PH', { minimumFractionDigits: 2 })}
                       {selected.aiExtractedReference && (
                         <span> • Ref: <code>{selected.aiExtractedReference}</code></span>
                       )}
@@ -1975,16 +1805,37 @@ export default function DonationsPage() {
                     )}
                   </div>
                 )}
-              </div>
-            )}
 
-            {/* Tab Content: Timeline */}
-            {modalTab === 'timeline' && (
-              <DonationUpdatesTimeline
-                donationId={selected.dbId}
-                canPost
-                onPosted={reload}
-              />
+                <div style={{ marginTop: '1rem', display: 'flex', alignItems: 'center', gap: '0.65rem', flexWrap: 'wrap' }}>
+                  {selected.status === 'Pending Verification' && (
+                    <button
+                      type="button"
+                      className="btn btn--primary"
+                      onClick={() => handleVerify(selected)}
+                    >
+                      <CheckCircle2 size={16} />
+                      {selected.type === 'In-Kind' ? 'Verify & Post to Inventory' : 'Verify & Confirm Funds'}
+                    </button>
+                  )}
+                  <a
+                    href={selected.proofUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="btn btn--outline"
+                    download={selected.proofFileName}
+                  >
+                    <Download size={16} /> Download Proof File
+                  </a>
+                  <a
+                    href={selected.proofUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="btn btn--ghost"
+                  >
+                    <ExternalLink size={16} /> Open in New Tab
+                  </a>
+                </div>
+              </div>
             )}
 
             <div className="admin-modal__actions admin-modal__actions--split" style={{ marginTop: '1.25rem' }}>
@@ -1996,13 +1847,6 @@ export default function DonationsPage() {
                 Close
               </button>
               <div className="admin-modal__actions-group">
-                <button 
-                  type="button" 
-                  className="btn btn--danger" 
-                  onClick={() => handleDelete(selected)}
-                >
-                  <Trash2 size={15} /> Delete Donation
-                </button>
                 <button 
                   type="button" 
                   className="btn btn--outline" 

@@ -141,6 +141,10 @@ function map_donation(array $row, ?PDO $pdo = null): array
     'notes' => $row['notes'],
     'paymentMethod' => $row['payment_method'] ?? '',
     'paymentReference' => $row['payment_reference'] ?? '',
+    'donorPhone' => $row['donor_phone'] ?? null,
+    'donorAddress' => $row['donor_address'] ?? null,
+    'donorType' => $row['donor_type'] ?? null,
+    'donorOrganization' => $row['donor_organization'] ?? null,
     'classifiedItems' => !empty($row['classified_items_json']) ? (json_decode((string) $row['classified_items_json'], true) ?: []) : [],
     'hasProof' => $hasProof,
     'proofFileName' => $proofName,
@@ -200,8 +204,18 @@ function save_donation_proof_upload(): ?array
 if ($method === 'GET') {
   $user = require_auth(['Admin', 'Staff', 'Donor']);
 
+  $baseSelect = "
+    SELECT d.*,
+           dn.phone AS donor_phone,
+           dn.address AS donor_address,
+           dn.donor_type,
+           dn.organization AS donor_organization
+    FROM donations d
+    LEFT JOIN donors dn ON dn.id = d.donor_id
+  ";
+
   if ($id) {
-    $stmt = $pdo->prepare('SELECT * FROM donations WHERE id = ? LIMIT 1');
+    $stmt = $pdo->prepare("{$baseSelect} WHERE d.id = ? LIMIT 1");
     $stmt->execute([$id]);
     $row = $stmt->fetch();
     if (!$row) {
@@ -216,7 +230,7 @@ if ($method === 'GET') {
   if ($user['role'] === 'Donor') {
     $rows = donations_for_donor_user($pdo, $user);
   } else {
-    $rows = $pdo->query('SELECT * FROM donations ORDER BY created_at DESC, donation_date DESC, id DESC')->fetchAll();
+    $rows = $pdo->query("{$baseSelect} ORDER BY d.created_at DESC, d.donation_date DESC, d.id DESC")->fetchAll();
   }
   json_response(['ok' => true, 'data' => array_map(fn($r) => map_donation($r, $pdo), $rows)]);
 }
