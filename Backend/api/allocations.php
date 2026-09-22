@@ -415,8 +415,7 @@ if ($method === 'POST') {
       $lowThreshold = (int) ($lockedInv['low_stock_threshold'] ?? 10);
       $newStockState = ($newStock <= 0) ? 'Out of Stock' : (($newStock <= $lowThreshold) ? 'Low Stock' : 'Available');
 
-      $updInv = $pdo->prepare('UPDATE inventory_items SET quantity = ?, allocated = ?, stock_state = ? WHERE id = ?');
-      $updInv->execute([$newStock, $newAllocated, $newStockState, $matchedInvId]);
+      update_inventory_stock_state($pdo, $matchedInvId, $newStock, $newAllocated, $newStockState);
 
       $code = generate_code('ALC');
 
@@ -557,8 +556,7 @@ if ($method === 'PUT') {
           $lowThreshold = (int) ($inv['low_stock_threshold'] ?? 10);
           $stockState = ($restoredStock <= 0) ? 'Out of Stock' : (($restoredStock <= $lowThreshold) ? 'Low Stock' : 'Available');
 
-          $pdo->prepare('UPDATE inventory_items SET quantity = ?, allocated = ?, stock_state = ? WHERE id = ?')
-            ->execute([$restoredStock, $restoredAlloc, $stockState, $targetInvId]);
+          update_inventory_stock_state($pdo, $targetInvId, $restoredStock, $restoredAlloc, $stockState);
 
           log_inventory_transaction(
             $pdo,
@@ -593,8 +591,7 @@ if ($method === 'PUT') {
           $lowThreshold = (int) ($inv['low_stock_threshold'] ?? 10);
           $stockState = ($newStock <= 0) ? 'Out of Stock' : (($newStock <= $lowThreshold) ? 'Low Stock' : 'Available');
 
-          $pdo->prepare('UPDATE inventory_items SET quantity = ?, allocated = ?, stock_state = ? WHERE id = ?')
-            ->execute([$newStock, $newAlloc, $stockState, $targetInvId]);
+          update_inventory_stock_state($pdo, $targetInvId, $newStock, $newAlloc, $stockState);
 
           log_inventory_transaction(
             $pdo,
@@ -654,8 +651,7 @@ if ($method === 'PUT') {
           $lowThreshold = (int) ($inv['low_stock_threshold'] ?? 10);
           $stockState = ($newStock <= 0) ? 'Out of Stock' : (($newStock <= $lowThreshold) ? 'Low Stock' : 'Available');
 
-          $pdo->prepare('UPDATE inventory_items SET quantity = ?, allocated = ?, stock_state = ? WHERE id = ?')
-            ->execute([$newStock, $newAlloc, $stockState, $targetInvId]);
+          update_inventory_stock_state($pdo, $targetInvId, $newStock, $newAlloc, $stockState);
 
           log_inventory_transaction(
             $pdo,
@@ -675,8 +671,7 @@ if ($method === 'PUT') {
           $lowThreshold = (int) ($inv['low_stock_threshold'] ?? 10);
           $stockState = ($newStock <= 0) ? 'Out of Stock' : (($newStock <= $lowThreshold) ? 'Low Stock' : 'Available');
 
-          $pdo->prepare('UPDATE inventory_items SET quantity = ?, allocated = ?, stock_state = ? WHERE id = ?')
-            ->execute([$newStock, $newAlloc, $stockState, $targetInvId]);
+          update_inventory_stock_state($pdo, $targetInvId, $newStock, $newAlloc, $stockState);
 
           log_inventory_transaction(
             $pdo,
@@ -788,8 +783,7 @@ if ($method === 'DELETE') {
           $lowThreshold = (int) ($inv['low_stock_threshold'] ?? 10);
           $stockState = ($newStock <= 0) ? 'Out of Stock' : (($newStock <= $lowThreshold) ? 'Low Stock' : 'Available');
 
-          $pdo->prepare('UPDATE inventory_items SET quantity = ?, allocated = ?, stock_state = ? WHERE id = ?')
-            ->execute([$newStock, $newAlloc, $stockState, $invId]);
+          update_inventory_stock_state($pdo, $invId, $newStock, $newAlloc, $stockState);
 
           log_inventory_transaction(
             $pdo,

@@ -782,31 +782,49 @@ if ($method === 'PUT') {
       $invRow = $findStmt->fetch();
 
       if ($invRow) {
-        $updateInv = $pdo->prepare('
-          UPDATE inventory_items 
-          SET quantity = quantity + ?, 
-              stock_state = \'Available\'
-          WHERE id = ?
-        ');
-        $updateInv->execute([$qty, (int) $invRow['id']]);
+        update_inventory_stock_state($pdo, (int) $invRow['id'], (int) $invRow['quantity'] + $qty, (int) ($invRow['allocated'] ?? 0), 'Available');
       } else {
-        $insertInv = $pdo->prepare('
-          INSERT INTO inventory_items (
-            code, item_name, category, item_type, brand, variant, 
-            quantity, unit, stock_state, low_stock_threshold
-          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, \'Available\', ?)
-        ');
-        $insertInv->execute([
-          generate_code('INV'),
-          $itemName,
-          $cat,
-          $itemType,
-          $brand,
-          $variant,
-          $qty,
-          $unit,
-          $lowStock
-        ]);
+        try {
+          $insertInv = $pdo->prepare('
+            INSERT INTO inventory_items (
+              code, item_name, category, item_type, brand, variant, 
+              quantity, unit, stock_state, low_stock_threshold
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, \'Available\', ?)
+          ');
+          $insertInv->execute([
+            generate_code('INV'),
+            $itemName,
+            $cat,
+            $itemType,
+            $brand,
+            $variant,
+            $qty,
+            $unit,
+            $lowStock
+          ]);
+        } catch (PDOException $e) {
+          if (str_contains($e->getMessage(), 'stock_state') || $e->getCode() === '42S22' || str_contains((string) $e->getCode(), '1054')) {
+            $insertInv = $pdo->prepare('
+              INSERT INTO inventory_items (
+                code, item_name, category, item_type, brand, variant, 
+                quantity, unit, low_stock_threshold
+              ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ');
+            $insertInv->execute([
+              generate_code('INV'),
+              $itemName,
+              $cat,
+              $itemType,
+              $brand,
+              $variant,
+              $qty,
+              $unit,
+              $lowStock
+            ]);
+          } else {
+            throw $e;
+          }
+        }
       }
       $inventoryAddedCount += $qty;
     }

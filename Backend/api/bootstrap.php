@@ -1047,16 +1047,39 @@ function post_donation_to_inventory_packs(PDO $pdo, array $donationRow): void
   $find->execute([$itemName]);
   $row = $find->fetch();
   if ($row) {
-    $pdo->prepare("UPDATE inventory_items SET quantity = quantity + ?, unit = 'packs', stock_state = 'Available' WHERE id = ?")
-      ->execute([$qty, (int) $row['id']]);
+    try {
+      $pdo->prepare("UPDATE inventory_items SET quantity = quantity + ?, unit = 'packs', stock_state = 'Available' WHERE id = ?")
+        ->execute([$qty, (int) $row['id']]);
+    } catch (PDOException $e) {
+      if (str_contains($e->getMessage(), 'stock_state') || $e->getCode() === '42S22' || str_contains((string) $e->getCode(), '1054')) {
+        $pdo->prepare("UPDATE inventory_items SET quantity = quantity + ?, unit = 'packs' WHERE id = ?")
+          ->execute([$qty, (int) $row['id']]);
+      } else {
+        throw $e;
+      }
+    }
   } else {
-    $pdo->prepare("INSERT INTO inventory_items (code, item_name, category, quantity, unit, stock_state, low_stock_threshold) VALUES (?, ?, ?, ?, 'packs', 'Available', 10)")
-      ->execute([
-        generate_code('INV'),
-        $itemName,
-        trim((string) ($donationRow['category'] ?? 'Donated Goods')) ?: 'Donated Goods',
-        $qty,
-      ]);
+    try {
+      $pdo->prepare("INSERT INTO inventory_items (code, item_name, category, quantity, unit, stock_state, low_stock_threshold) VALUES (?, ?, ?, ?, 'packs', 'Available', 10)")
+        ->execute([
+          generate_code('INV'),
+          $itemName,
+          trim((string) ($donationRow['category'] ?? 'Donated Goods')) ?: 'Donated Goods',
+          $qty,
+        ]);
+    } catch (PDOException $e) {
+      if (str_contains($e->getMessage(), 'stock_state') || $e->getCode() === '42S22' || str_contains((string) $e->getCode(), '1054')) {
+        $pdo->prepare("INSERT INTO inventory_items (code, item_name, category, quantity, unit, low_stock_threshold) VALUES (?, ?, ?, ?, 'packs', 10)")
+          ->execute([
+            generate_code('INV'),
+            $itemName,
+            trim((string) ($donationRow['category'] ?? 'Donated Goods')) ?: 'Donated Goods',
+            $qty,
+          ]);
+      } else {
+        throw $e;
+      }
+    }
   }
   if ($donationId > 0) {
     try {
@@ -1715,6 +1738,23 @@ function ensure_allocation_inventory_schema(PDO $pdo): void
   if ($ensured) return;
   $ensured = true;
 
+  // Ensure inventory_items columns exist
+  try {
+    $pdo->exec("ALTER TABLE inventory_items ADD COLUMN stock_state VARCHAR(40) NOT NULL DEFAULT 'Available' AFTER unit");
+  } catch (Throwable $e) {}
+  try {
+    $pdo->exec("ALTER TABLE inventory_items ADD COLUMN item_type VARCHAR(60) NULL AFTER category");
+  } catch (Throwable $e) {}
+  try {
+    $pdo->exec("ALTER TABLE inventory_items ADD COLUMN brand VARCHAR(80) NULL AFTER item_type");
+  } catch (Throwable $e) {}
+  try {
+    $pdo->exec("ALTER TABLE inventory_items ADD COLUMN variant VARCHAR(100) NULL AFTER brand");
+  } catch (Throwable $e) {}
+  try {
+    $pdo->exec("ALTER TABLE inventory_items ADD COLUMN moderate_stock_threshold INT UNSIGNED NULL AFTER low_stock_threshold");
+  } catch (Throwable $e) {}
+
   try {
     $pdo->exec("ALTER TABLE allocations ADD COLUMN inventory_item_id BIGINT UNSIGNED NULL AFTER beneficiary_id");
   } catch (Throwable $e) {}
@@ -1753,6 +1793,25 @@ function ensure_allocation_inventory_schema(PDO $pdo): void
   try {
     $pdo->exec("UPDATE inventory_items SET allocated = quantity WHERE allocated > quantity");
   } catch (Throwable $e) {}
+}
+
+/**
+ * Safely updates an inventory item's quantity, allocated count, and stock_state.
+ * Gracefully falls back to updating without stock_state if the column is absent.
+ */
+function update_inventory_stock_state(PDO $pdo, int $itemId, int $quantity, int $allocated, string $stockState): void
+{
+  try {
+    $stmt = $pdo->prepare('UPDATE inventory_items SET quantity = ?, allocated = ?, stock_state = ? WHERE id = ?');
+    $stmt->execute([$quantity, $allocated, $stockState, $itemId]);
+  } catch (PDOException $e) {
+    if (str_contains($e->getMessage(), 'stock_state') || $e->getCode() === '42S22' || str_contains((string) $e->getCode(), '1054')) {
+      $stmt = $pdo->prepare('UPDATE inventory_items SET quantity = ?, allocated = ? WHERE id = ?');
+      $stmt->execute([$quantity, $allocated, $itemId]);
+    } else {
+      throw $e;
+    }
+  }
 }
 
 
