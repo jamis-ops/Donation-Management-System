@@ -282,9 +282,45 @@ if ($method === 'POST') {
     );
   }
 
+  $accountCreated = false;
+  $credentialsSent = false;
+  $mailTransport = '';
+  $mailError = '';
+  $temporaryPassword = null;
+
+  if (!$public && $status === 'Approved') {
+    $stmt = $pdo->prepare('SELECT * FROM volunteers WHERE id = ?');
+    $stmt->execute([$newId]);
+    $fresh = $stmt->fetch();
+    if ($fresh) {
+      $provision = provision_volunteer_account($pdo, $fresh);
+      $accountCreated = !empty($provision['created']);
+      $mail = is_array($provision['mail'] ?? null) ? $provision['mail'] : null;
+      if ($mail) {
+        $mailTransport = (string) ($mail['transport'] ?? '');
+        $mailError = (string) ($mail['error'] ?? '');
+        $credentialsSent = !empty($mail['sent']) && in_array($mailTransport, ['nodemailer', 'smtp', 'outbox', 'mail'], true);
+      }
+      if (!empty($provision['error'])) {
+        $mailError = $mailError !== '' ? $mailError : (string) $provision['error'];
+      }
+      if (!empty($provision['temporaryPassword'])) {
+        $temporaryPassword = (string) $provision['temporaryPassword'];
+      }
+    }
+  }
+
   $stmt = $pdo->prepare('SELECT * FROM volunteers WHERE id = ?');
   $stmt->execute([$newId]);
-  json_response(['ok' => true, 'data' => map_volunteer($pdo, $stmt->fetch())], 201);
+  json_response([
+    'ok' => true,
+    'data' => map_volunteer($pdo, $stmt->fetch()),
+    'accountCreated' => $accountCreated,
+    'credentialsSent' => $credentialsSent,
+    'mailTransport' => $mailTransport,
+    'mailError' => $mailError,
+    'temporaryPassword' => $temporaryPassword,
+  ], 201);
 }
 
 if ($method === 'PUT') {

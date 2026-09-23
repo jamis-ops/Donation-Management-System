@@ -85,8 +85,16 @@ export function resourceApi(basePath) {
   return {
     list: (query = '') => apiFetch(`${basePath}${query}`),
     get: (id) => apiFetch(`${basePath}?id=${id}`),
-    create: (body) => apiFetch(basePath, { method: 'POST', body: JSON.stringify(body) }),
-    update: (id, body) => apiFetch(`${basePath}?id=${id}`, { method: 'PUT', body: JSON.stringify(body) }),
+    create: (body) =>
+      apiFetch(basePath, {
+        method: 'POST',
+        body: body instanceof FormData ? body : JSON.stringify(body),
+      }),
+    update: (id, body) =>
+      apiFetch(`${basePath}?id=${id}`, {
+        method: 'PUT',
+        body: body instanceof FormData ? body : JSON.stringify(body),
+      }),
     remove: (id) => apiFetch(`${basePath}?id=${id}`, { method: 'DELETE', body: '{}' }),
   }
 }
