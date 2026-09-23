@@ -1010,7 +1010,7 @@ switch ($user['role']) {
         'time' => $row['schedule_time'] ?: '09:00 AM',
         'location' => $row['location'] ?: '—',
         'program' => $row['program'] ?: 'General Relief',
-        'status' => $row['status'] ?: 'Planning',
+        'status' => normalize_distribution_status((string) ($row['status'] ?? 'Planning')),
         'beneficiaries' => (int) ($row['beneficiaries_count'] ?? 0),
         'items' => $row['items_summary'] ?: 'Relief goods packs',
         'notes' => $cleanNotes,

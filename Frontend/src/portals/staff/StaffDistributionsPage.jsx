@@ -11,7 +11,6 @@ import {
   Search,
   Filter,
   Eye,
-  PlayCircle,
   ArrowRight,
   ShieldCheck,
   FileCheck,
@@ -19,6 +18,7 @@ import {
   UserCheck,
   History,
   Info,
+  Navigation,
 } from 'lucide-react'
 import ApiState from '../../admin/components/shared/ApiState'
 import StatusBadge from '../../admin/components/shared/StatusBadge'
@@ -30,13 +30,17 @@ import Pagination from '../../admin/components/shared/Pagination'
 import { notify, confirmAction, showSuccessModal } from '../../utils/confirm'
 import { notifyBadgesChanged } from '../../utils/badgeSync'
 import { DISTRIBUTION_STATUSES } from '../../constants/options'
+import { DISTRIBUTION_WORKFLOW } from '../../utils/workflow'
 import { useLoading } from '../../context/LoadingContext'
 
 const STAFF_ADVANCE = {
-  Planning: { next: 'Preparing', label: 'Start Preparing Goods' },
-  Preparing: { next: 'In Transit', label: 'Dispatch / In Transit' },
-  'In Transit': { next: 'Delivered', label: 'Confirm Delivered to Site' },
+  Planning: { next: 'Preparing', label: 'Preparing' },
+  Preparing: { next: 'In Transit', label: 'In Transit' },
+  'In Transit': { next: 'Delivered', label: 'Delivered' },
 }
+
+// Canonical linear steps for the distribution tracker
+const TRACKER_STEPS = ['Planning', 'Preparing', 'In Transit', 'Delivered', 'Completed']
 
 // Helper to parse items summary into structured list
 function parseItemsList(distribution) {
@@ -56,7 +60,6 @@ function parseItemsList(distribution) {
   if (parts.length === 0) return [{ name: 'Relief Goods Packs', quantity: distribution?.beneficiaries || 1 }]
 
   return parts.map((part) => {
-    // Check if ends with × N
     const multMatch = part.match(/(.+?)\s*[×x]\s*(\d+)$/i)
     if (multMatch) {
       return { name: multMatch[1].trim(), quantity: parseInt(multMatch[2], 10) }
@@ -77,7 +80,6 @@ function extractTeamAndNotes(distribution) {
     const rawTeam = match[1].trim()
     teamMembers = rawTeam.split(',').map((t) => t.trim()).filter(Boolean)
     cleanNotes = rawNotes.replace(teamRegex, '').trim()
-    // Clean up empty allocation strings if leftover
     cleanNotes = cleanNotes.replace(/From allocation\(s\):\s*$/i, '').trim()
   }
 
@@ -150,8 +152,8 @@ export default function StaffDistributionsPage() {
 
     const ok = await confirmAction({
       title: 'Advance Distribution Status',
-      message: `Advance distribution "${dist.id || dist.location}" from ${dist.status} to ${stepInfo.next}? This will update the distribution timeline and backend operations.`,
-      confirmText: stepInfo.label,
+      message: `Advance distribution "${dist.id || dist.location}" from ${dist.status} to ${stepInfo.next}? This will update the distribution timeline and sync with Admin.`,
+      confirmText: `Advance to ${stepInfo.next}`,
       type: 'primary',
     })
     if (!ok) return
@@ -160,12 +162,12 @@ export default function StaffDistributionsPage() {
     showLoading('Updating distribution status…')
     try {
       const res = await distributionsApi.update(dist.dbId, { status: stepInfo.next })
-      const status = res?.data?.status || stepInfo.next
-      showSuccessModal(`Distribution status successfully advanced to: ${status}.`)
-      reload()
+      const newStatus = res?.data?.status || stepInfo.next
+      showSuccessModal(`Distribution status successfully advanced to: ${newStatus}.`)
+      await reload()
       notifyBadgesChanged()
       if (selectedDistribution && selectedDistribution.dbId === dist.dbId) {
-        setSelectedDistribution(res?.data || { ...selectedDistribution, status })
+        setSelectedDistribution((prev) => (res?.data ? { ...res.data, status: newStatus } : { ...prev, status: newStatus }))
       }
     } catch (err) {
       notify.error(err.message || 'Failed to update distribution status')
@@ -178,7 +180,7 @@ export default function StaffDistributionsPage() {
   return (
     <ApiState loading={loading} error={error} onRetry={reload}>
       <div className="staff-distributions-page">
-        {/* Status Count Pills */}
+        {/* Status Count Summary Strip */}
         <div className="staff-tasks-summary" style={{ marginBottom: '1.25rem' }}>
           <button
             type="button"
@@ -232,21 +234,21 @@ export default function StaffDistributionsPage() {
 
         {/* Main Panel */}
         <section className="portal-panel">
-          <div className="portal-panel__header" style={{ flexWrap: 'wrap', gap: '0.75rem', alignItems: 'center' }}>
+          <div className="portal-panel__header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem' }}>
             <div>
-              <h2>Scheduled Distributions</h2>
-              <span className="portal-panel__hint">
+              <h2 style={{ margin: 0, fontSize: '1.25rem', fontWeight: 700, color: '#0f172a' }}>Scheduled Distributions</h2>
+              <span className="portal-panel__hint" style={{ fontSize: '0.82rem', color: '#64748b' }}>
                 Showing {filteredDistributions.length} of {distributions.length} events
               </span>
             </div>
 
-            {/* Filter and Search Bar */}
-            <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', flexWrap: 'wrap' }}>
-              <div className="portal-filter-bar__search" style={{ width: '260px', position: 'relative' }}>
-                <Search size={16} style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)', color: '#64748b' }} />
+            {/* Filter and Search Bar: properly aligned, balanced, and responsive */}
+            <div style={{ display: 'flex', gap: '0.6rem', alignItems: 'center', flexWrap: 'wrap', flex: '1 1 auto', justifyContent: 'flex-end', maxWidth: '680px' }}>
+              <div style={{ position: 'relative', flex: '1 1 240px', minWidth: '200px' }}>
+                <Search size={16} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: '#64748b', pointerEvents: 'none' }} />
                 <input
                   className="portal-search-input"
-                  style={{ paddingLeft: '32px', width: '100%', height: '36px', borderRadius: '6px', border: '1px solid #cbd5e1' }}
+                  style={{ paddingLeft: '36px', width: '100%', height: '38px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '0.85rem' }}
                   placeholder="Search location, code, or program..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
@@ -255,7 +257,7 @@ export default function StaffDistributionsPage() {
 
               <select
                 className="portal-select"
-                style={{ height: '36px', borderRadius: '6px', border: '1px solid #cbd5e1', padding: '0 10px', background: '#fff' }}
+                style={{ height: '38px', borderRadius: '6px', border: '1px solid #cbd5e1', padding: '0 10px', background: '#fff', fontSize: '0.85rem', flex: '0 1 auto', minWidth: '150px' }}
                 value={filterProgram}
                 onChange={(e) => setFilterProgram(e.target.value)}
               >
@@ -267,11 +269,11 @@ export default function StaffDistributionsPage() {
 
               <select
                 className="portal-select"
-                style={{ height: '36px', borderRadius: '6px', border: '1px solid #cbd5e1', padding: '0 10px', background: '#fff' }}
+                style={{ height: '38px', borderRadius: '6px', border: '1px solid #cbd5e1', padding: '0 10px', background: '#fff', fontSize: '0.85rem', flex: '0 1 auto', minWidth: '130px' }}
                 value={filterStatus}
                 onChange={(e) => setFilterStatus(e.target.value)}
               >
-                <option value="all">All Status</option>
+                <option value="all">All Statuses</option>
                 {DISTRIBUTION_STATUSES.map((st) => (
                   <option key={st} value={st}>{st}</option>
                 ))}
@@ -280,8 +282,8 @@ export default function StaffDistributionsPage() {
           </div>
 
           {filteredDistributions.length === 0 ? (
-            <div className="portal-empty" style={{ padding: '3rem 1rem', textAlign: 'center' }}>
-              <Truck size={40} style={{ margin: '0 auto 0.75rem', color: '#94a3b8' }} />
+            <div className="portal-empty" style={{ padding: '3.5rem 1rem', textAlign: 'center' }}>
+              <Truck size={42} style={{ margin: '0 auto 0.75rem', color: '#94a3b8' }} />
               <p style={{ margin: 0, fontWeight: 600, color: '#334155' }}>No distribution events found</p>
               <span style={{ fontSize: '0.85rem', color: '#64748b' }}>Try changing the status or search filter.</span>
             </div>
@@ -306,6 +308,7 @@ export default function StaffDistributionsPage() {
                         flexDirection: 'column',
                         justifyContent: 'space-between',
                         boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
+                        transition: 'box-shadow 0.15s ease',
                       }}
                     >
                       <div>
@@ -345,7 +348,7 @@ export default function StaffDistributionsPage() {
                           </span>
                         </div>
 
-                        {/* Readable Items (Pills / List instead of crowded string) */}
+                        {/* Readable Allocated Goods */}
                         <div style={{ background: '#f8fafc', padding: '0.65rem 0.75rem', borderRadius: '6px', border: '1px solid #f1f5f9', marginBottom: '0.75rem' }}>
                           <span style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.72rem', fontWeight: 700, color: '#475569', textTransform: 'uppercase', marginBottom: '4px' }}>
                             <Package size={13} color="#AF101A" /> Allocated Goods ({itemsList.length} items):
@@ -375,7 +378,7 @@ export default function StaffDistributionsPage() {
                           </div>
                         </div>
 
-                        {/* Team Assignment (separate from notes) */}
+                        {/* Team Assignment */}
                         {(assignedStaff || teamMembers.length > 0) && (
                           <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.78rem', color: '#475569', marginBottom: '0.65rem' }}>
                             <UserCheck size={14} color="#0284c7" />
@@ -394,29 +397,37 @@ export default function StaffDistributionsPage() {
                         )}
                       </div>
 
-                      {/* Card Actions */}
+                      {/* Card Actions: Single arrow only */}
                       <div style={{ display: 'flex', gap: '0.5rem', borderTop: '1px solid #f1f5f9', paddingTop: '0.75rem', marginTop: '0.5rem' }}>
                         <button
                           type="button"
                           className="btn btn--sm btn--outline"
-                          style={{ flex: 1 }}
+                          style={{ flex: 1, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: '5px' }}
                           onClick={() => setSelectedDistribution(dist)}
                         >
                           <Eye size={14} /> Details
                         </button>
 
-                        {advanceStep && (
+                        {advanceStep ? (
                           <button
                             type="button"
                             className="btn btn--sm btn--primary"
-                            style={{ flex: 1.2 }}
+                            style={{ flex: 1.2, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: '5px' }}
                             disabled={saving}
                             onClick={() => handleAdvanceStatus(dist)}
-                            title={advanceStep.label}
+                            title={`Advance to ${advanceStep.next}`}
                           >
-                            <ArrowRight size={14} /> → {advanceStep.next}
+                            <ArrowRight size={14} /> {advanceStep.next}
                           </button>
-                        )}
+                        ) : dist.status === 'Delivered' ? (
+                          <span style={{ flex: 1.2, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: '4px', fontSize: '0.78rem', color: '#047857', fontWeight: 600, background: '#ecfdf5', borderRadius: '4px', border: '1px solid #a7f3d0', padding: '4px 8px' }}>
+                            <CheckCircle size={13} /> Delivered
+                          </span>
+                        ) : dist.status === 'Completed' ? (
+                          <span style={{ flex: 1.2, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: '4px', fontSize: '0.78rem', color: '#16a34a', fontWeight: 600, background: '#f0fdf4', borderRadius: '4px', border: '1px solid #bbf7d0', padding: '4px 8px' }}>
+                            <CheckCircle size={13} /> Completed
+                          </span>
+                        ) : null}
                       </div>
                     </div>
                   )
@@ -430,7 +441,6 @@ export default function StaffDistributionsPage() {
                 startIndex={paging.startIndex}
                 endIndex={paging.endIndex}
                 onPageChange={paging.setPage}
-                className="pagination--portal"
                 noun="distributions"
               />
             </>
@@ -451,8 +461,8 @@ export default function StaffDistributionsPage() {
                   onClose={() => setSelectedDistribution(null)}
                 />
 
-                {/* Top Badges */}
-                <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1rem', alignItems: 'center' }}>
+                {/* Top Badges & Ref Code */}
+                <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '0.75rem', alignItems: 'center' }}>
                   <span
                     style={{
                       fontSize: '0.75rem',
@@ -472,6 +482,62 @@ export default function StaffDistributionsPage() {
                       Ref Code: <strong>{selectedDistribution.id}</strong>
                     </span>
                   )}
+                </div>
+
+                {/* Mini Progress Stepper (Synchronized with Admin) */}
+                <div style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  background: '#f8fafc',
+                  border: '1px solid #e2e8f0',
+                  borderRadius: '8px',
+                  padding: '0.75rem 1rem',
+                  marginBottom: '1rem',
+                  overflowX: 'auto',
+                  gap: '0.5rem',
+                }}>
+                  {TRACKER_STEPS.map((step, idx) => {
+                    const normStatus = selectedDistribution.status === 'Awaiting Proof' ? 'Delivered' : selectedDistribution.status
+                    const currIdx = TRACKER_STEPS.indexOf(normStatus)
+                    const isDone = currIdx > idx
+                    const isActive = currIdx === idx
+
+                    return (
+                      <div key={step} style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', flexShrink: 0 }}>
+                        <div style={{
+                          width: '24px',
+                          height: '24px',
+                          borderRadius: '50%',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          fontSize: '0.72rem',
+                          fontWeight: 700,
+                          background: isDone ? '#16a34a' : (isActive ? '#AF101A' : '#e2e8f0'),
+                          color: isDone || isActive ? '#fff' : '#64748b',
+                          transition: 'all 0.2s',
+                        }}>
+                          {isDone ? '✓' : idx + 1}
+                        </div>
+                        <span style={{
+                          fontSize: '0.78rem',
+                          fontWeight: isActive ? 700 : (isDone ? 600 : 500),
+                          color: isActive ? '#AF101A' : (isDone ? '#1e293b' : '#94a3b8'),
+                        }}>
+                          {step}
+                        </span>
+                        {idx < TRACKER_STEPS.length - 1 && (
+                          <div style={{
+                            width: '24px',
+                            height: '2px',
+                            background: isDone ? '#16a34a' : '#cbd5e1',
+                            margin: '0 4px',
+                          }} />
+                        )}
+                      </div>
+                    )
+                  })}
                 </div>
 
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
@@ -614,8 +680,8 @@ export default function StaffDistributionsPage() {
                   )}
                 </div>
 
-                {/* Modal Footer Actions */}
-                <div className="admin-modal__actions" style={{ display: 'flex', justifyContent: 'space-between', borderTop: '1px solid #e2e8f0', paddingTop: '1rem', marginTop: '1.25rem' }}>
+                {/* Modal Footer Actions: Single arrow only */}
+                <div className="admin-modal__actions" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: '1px solid #e2e8f0', paddingTop: '1rem', marginTop: '1.25rem' }}>
                   <button type="button" className="btn btn--ghost" onClick={() => setSelectedDistribution(null)}>
                     Close
                   </button>
@@ -630,8 +696,8 @@ export default function StaffDistributionsPage() {
                       <ArrowRight size={16} /> Advance Status to "{advanceStep.next}"
                     </button>
                   ) : selectedDistribution.status === 'Delivered' ? (
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.82rem', color: '#047857' }}>
-                      <CheckCircle size={16} /> Delivered to site. Awaiting barangay proof of receipt before final completion.
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.82rem', color: '#047857', fontWeight: 600 }}>
+                      <CheckCircle size={16} /> Delivered to site. Awaiting barangay proof of receipt.
                     </div>
                   ) : selectedDistribution.status === 'Completed' ? (
                     <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.82rem', color: '#16a34a', fontWeight: 600 }}>
