@@ -288,12 +288,24 @@ export default function StaffDonationsPage() {
             </div>
 
             {/* Filter Bar */}
-            <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', flexWrap: 'wrap' }}>
-              <div className="portal-filter-bar__search" style={{ width: '280px', position: 'relative' }}>
-                <Search size={16} style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)', color: '#64748b' }} />
+            <div style={{ display: 'flex', gap: '0.6rem', alignItems: 'center', flexWrap: 'wrap' }}>
+              <div style={{ width: '280px', position: 'relative' }}>
+                <Search size={16} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: '#64748b', pointerEvents: 'none' }} />
                 <input
+                  type="text"
                   className="portal-search-input"
-                  style={{ paddingLeft: '32px', width: '100%', height: '36px', borderRadius: '6px', border: '1px solid #cbd5e1' }}
+                  style={{
+                    paddingLeft: '36px',
+                    paddingRight: '12px',
+                    width: '100%',
+                    height: '38px',
+                    borderRadius: '6px',
+                    border: '1px solid #cbd5e1',
+                    background: '#fff',
+                    fontSize: '0.85rem',
+                    boxSizing: 'border-box',
+                    outline: 'none',
+                  }}
                   placeholder="Search code, donor, program..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
@@ -302,7 +314,7 @@ export default function StaffDonationsPage() {
 
               <select
                 className="portal-select"
-                style={{ height: '36px', borderRadius: '6px', border: '1px solid #cbd5e1', padding: '0 10px', background: '#fff' }}
+                style={{ height: '38px', borderRadius: '6px', border: '1px solid #cbd5e1', padding: '0 10px', background: '#fff', fontSize: '0.85rem' }}
                 value={typeFilter}
                 onChange={(e) => setTypeFilter(e.target.value)}
               >
@@ -313,7 +325,7 @@ export default function StaffDonationsPage() {
 
               <select
                 className="portal-select"
-                style={{ height: '36px', borderRadius: '6px', border: '1px solid #cbd5e1', padding: '0 10px', background: '#fff' }}
+                style={{ height: '38px', borderRadius: '6px', border: '1px solid #cbd5e1', padding: '0 10px', background: '#fff', fontSize: '0.85rem' }}
                 value={statusFilter}
                 onChange={(e) => setStatusFilter(e.target.value)}
               >
