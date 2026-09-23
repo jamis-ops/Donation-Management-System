@@ -10,6 +10,7 @@ try { $pdo->exec("ALTER TABLE volunteers ADD COLUMN resume_path VARCHAR(255) NUL
 try { $pdo->exec("ALTER TABLE volunteers ADD COLUMN resume_file_name VARCHAR(255) NULL AFTER resume_path"); } catch (Throwable $e) {}
 try { $pdo->exec("ALTER TABLE volunteers ADD COLUMN resume_file_type VARCHAR(80) NULL AFTER resume_file_name"); } catch (Throwable $e) {}
 try { $pdo->exec("ALTER TABLE volunteers ADD COLUMN resume_file_size INT UNSIGNED NULL AFTER resume_file_type"); } catch (Throwable $e) {}
+try { $pdo->exec("ALTER TABLE volunteers MODIFY COLUMN availability TEXT NULL"); } catch (Throwable $e) {}
 
 function map_volunteer(PDO $pdo, array $row): array
 {
@@ -73,25 +74,25 @@ function map_volunteer(PDO $pdo, array $row): array
 
 function save_volunteer_resume_upload(): ?array
 {
-  $fileKey = isset($_FILES['resume']) ? 'resume' : (isset($_FILES['cv']) ? 'cv' : null);
+  $fileKey = isset($_FILES['resume']) ? 'resume' : (isset($_FILES['cv']) ? 'cv' : (isset($_FILES['cover_letter']) ? 'cover_letter' : null));
   if (!$fileKey || !isset($_FILES[$fileKey]) || $_FILES[$fileKey]['error'] === UPLOAD_ERR_NO_FILE) {
     return null;
   }
   if ($_FILES[$fileKey]['error'] !== UPLOAD_ERR_OK) {
-    json_response(['ok' => false, 'error' => 'CV/Resume upload failed. Please try again.'], 400);
+    json_response(['ok' => false, 'error' => 'Cover letter / Resume upload failed. Please try again.'], 400);
   }
 
   $file = $_FILES[$fileKey];
-  $origName = (string) ($file['name'] ?? 'resume.pdf');
+  $origName = (string) ($file['name'] ?? 'document.pdf');
   $ext = strtolower(pathinfo($origName, PATHINFO_EXTENSION) ?: '');
   $allowedExts = ['pdf', 'doc', 'docx'];
   if (!in_array($ext, $allowedExts, true)) {
-    json_response(['ok' => false, 'error' => 'CV/Resume must be a PDF or Word document (.pdf, .doc, .docx)'], 400);
+    json_response(['ok' => false, 'error' => 'File must be a PDF or Word document (.pdf, .doc, .docx)'], 400);
   }
 
   // 10 MB limit
   if ($file['size'] > 10 * 1024 * 1024) {
-    json_response(['ok' => false, 'error' => 'CV/Resume file size must be under 10MB'], 400);
+    json_response(['ok' => false, 'error' => 'File size must be under 10MB'], 400);
   }
 
   $dir = __DIR__ . '/uploads/volunteer_resumes';
@@ -236,9 +237,6 @@ if ($method === 'POST') {
 
   if ($applicantType === 'Intern') {
     $resume = save_volunteer_resume_upload();
-    if ($public && !$resume) {
-      json_response(['ok' => false, 'error' => 'CV / Resume document is required for Intern applications.'], 400);
-    }
   } else {
     // Volunteers do not upload CV
     $resume = null;

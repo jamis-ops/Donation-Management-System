@@ -8,6 +8,8 @@ import NameFields from '../../components/shared/NameFields'
 import SkillTagPicker from '../../components/shared/SkillTagPicker'
 import MultiSelectBox from '../../components/shared/MultiSelectBox'
 import PolicyConsentBox from '../../components/shared/PolicyConsentBox'
+import AvailabilitySchedulePicker from '../../components/shared/AvailabilitySchedulePicker'
+import { serializeAvailability } from '../../utils/availability'
 import { emptyNameParts, formatFullName } from '../../utils/personName'
 import { emailError, phoneError } from '../../utils/validation'
 import PhoneInput from '../../components/shared/PhoneInput'
@@ -134,10 +136,6 @@ export default function VolunteerPage() {
         setSubmitError('Please enter your School / University / Institution.')
         return
       }
-      if (!form.resume) {
-        setSubmitError('CV / Resume upload is required for internship applicants.')
-        return
-      }
     } else {
       // Volunteer validations
       const hasSelectedProgram = (form.programs && form.programs.length > 0) || !!form.program
@@ -179,8 +177,9 @@ export default function VolunteerPage() {
       if (extraSkills) {
         fd.append('skillsOther', extraSkills)
       }
-      if (form.availability) {
-        fd.append('availability', form.availability.trim())
+      const serializedAvail = serializeAvailability(form.availability)
+      if (serializedAvail) {
+        fd.append('availability', serializedAvail)
       }
       fd.append('acceptedPolicies', '1')
       fd.append('acceptedTerms', '1')
@@ -275,7 +274,7 @@ export default function VolunteerPage() {
                   <GraduationCap size={18} aria-hidden />
                   <div>
                     <strong>Internship Application</strong>
-                    <span>College & university students · CV required · Duty hours tracked</span>
+                    <span>College & university students · Cover letter or resume · Duty hours tracked</span>
                   </div>
                 </button>
               </div>
@@ -283,7 +282,7 @@ export default function VolunteerPage() {
               <h2>{applicantType === 'Intern' ? 'University / College Student Internship Application' : 'Be a Volunteer — Community Registration'}</h2>
               <p style={{ fontSize: '0.86rem', color: '#64748b', marginTop: '-0.35rem', marginBottom: '1.25rem' }}>
                 {applicantType === 'Intern'
-                  ? 'Apply for student internship placement with Rise Above Foundation Cebu. Upload your CV/Resume and provide your school details — our AI CV Matching will evaluate your background to recommend the best foundation program placement.'
+                  ? 'Apply for student internship placement with Rise Above Foundation Cebu. Submit your cover letter or resume and provide your school details — our AI matching will evaluate your background to recommend the best foundation program placement.'
                   : 'Register to be a community volunteer. Choose your preferred program and share your skills to support our community outreach initiatives.'}
               </p>
 
@@ -333,12 +332,12 @@ export default function VolunteerPage() {
                 />
               </label>
 
-              {/* CV / Resume Upload Field — INTERN ONLY (REQUIRED) */}
+              {/* Cover Letter or Resume Upload Field — INTERN ONLY (OPTIONAL) */}
               {applicantType === 'Intern' && (
                 <div className="cv-upload-wrapper">
                   <div className="cv-upload-header">
                     <label className="cv-upload-title" htmlFor="volunteer-cv-file">
-                      <Req required>Upload CV / Resume</Req>
+                      Submit your Cover Letter or Resume (Optional)
                     </label>
                     {form.resume && (
                       <span className="cv-upload-status cv-upload-status--ready">
@@ -353,7 +352,6 @@ export default function VolunteerPage() {
                         type="file"
                         id="volunteer-cv-file"
                         className="cv-upload-input"
-                        required
                         accept=".pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
                         onChange={handleFileChange}
                       />
@@ -363,10 +361,10 @@ export default function VolunteerPage() {
                         </div>
                         <div className="cv-upload-dropzone__text">
                           <span className="cv-upload-dropzone__main">
-                            <strong>Click to upload your CV / Resume</strong> or drag & drop here
+                            <strong>Click to upload your Cover Letter or Resume</strong> or drag & drop here
                           </span>
                           <span className="cv-upload-dropzone__hint">
-                            Required for Interns · PDF, DOC, DOCX (Max: 10 MB)
+                            Optional for applicants · PDF, DOC, DOCX (Max: 10 MB)
                           </span>
                         </div>
                       </label>
@@ -389,7 +387,7 @@ export default function VolunteerPage() {
                         className="cv-file-card__remove-btn"
                         onClick={handleRemoveFile}
                         title="Remove selected file"
-                        aria-label="Remove selected CV"
+                        aria-label="Remove selected file"
                       >
                         <X size={16} aria-hidden />
                       </button>
@@ -405,7 +403,7 @@ export default function VolunteerPage() {
                   <div style={{ marginTop: '0.65rem', padding: '0.6rem 0.85rem', background: '#eff6ff', borderRadius: '8px', border: '1px solid #bfdbfe', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                     <Sparkles size={16} style={{ color: '#2563eb', flexShrink: 0 }} />
                     <span style={{ fontSize: '0.78rem', color: '#1e40af', lineHeight: 1.4 }}>
-                      Our AI CV Matching system will analyze your education, experience, skills, and certifications from your uploaded document to recommend the best program.
+                      Our AI Matching system analyzes your education, experience, and skills from your uploaded document to recommend the best program placement.
                     </span>
                   </div>
                 </div>
@@ -453,15 +451,12 @@ export default function VolunteerPage() {
               )}
 
               {/* Availability & Schedule (Both Intern and Volunteer) */}
-              <label>
-                Availability & Schedule
-                <input
-                  type="text"
-                  placeholder="e.g. Weekdays, 20 hrs/week, Mon-Fri 8am-12pm…"
-                  value={form.availability}
-                  onChange={(e) => setForm({ ...form, availability: e.target.value })}
-                />
-              </label>
+              <AvailabilitySchedulePicker
+                label="Availability & Schedule"
+                value={form.availability}
+                onChange={(availability) => setForm({ ...form, availability })}
+                hint="Select your general availability and check the time slots you are available."
+              />
 
               <PolicyConsentBox
                 acceptedTerms={form.acceptedTerms}

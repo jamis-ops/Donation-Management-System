@@ -30,6 +30,8 @@ import LoadingSpinner from '../../components/shared/LoadingSpinner'
 import NameFields from '../../components/shared/NameFields'
 import PhoneInput from '../../components/shared/PhoneInput'
 import CheckboxMultiSelect from '../../components/shared/CheckboxMultiSelect'
+import AvailabilitySchedulePicker from '../../components/shared/AvailabilitySchedulePicker'
+import { serializeAvailability, formatAvailabilitySummary } from '../../utils/availability'
 import { emptyNameParts, formatFullName } from '../../utils/personName'
 import { emailError } from '../../utils/validation'
 
@@ -87,7 +89,7 @@ const emptyVolunteerForm = {
   skills: [],
   hasOtherSkill: false,
   otherSkill: '',
-  availability: 'Flexible / On-call',
+  availability: { type: 'Flexible / Any Day', slots: {} },
   status: 'Approved',
 }
 
@@ -101,7 +103,7 @@ const emptyInternForm = {
   programs: [],
   hasOtherProgram: false,
   otherProgram: '',
-  availability: 'Monday to Friday (8am - 5pm)',
+  availability: { type: 'Weekdays', slots: {} },
   status: 'Approved',
   resume: null,
 }
@@ -194,6 +196,44 @@ export default function VolunteersPage() {
   const [showAddInternModal, setShowAddInternModal] = useState(false)
   const [internForm, setInternForm] = useState(emptyInternForm)
   const [internSaving, setInternSaving] = useState(false)
+
+  // 4. Edit Availability Modal state
+  const [showEditAvailabilityModal, setShowEditAvailabilityModal] = useState(false)
+  const [editAvailabilityValue, setEditAvailabilityValue] = useState('')
+  const [editingAvailabilityTarget, setEditingAvailabilityTarget] = useState(null)
+
+  const openEditAvailability = (volunteerOrIntern) => {
+    setEditingAvailabilityTarget(volunteerOrIntern)
+    setEditAvailabilityValue(volunteerOrIntern?.availability || '')
+    setShowEditAvailabilityModal(true)
+  }
+
+  const handleSaveAvailability = async (e) => {
+    if (e?.preventDefault) e.preventDefault()
+    if (!editingAvailabilityTarget?.dbId) return
+
+    setSaving(true)
+    showLoading('Saving availability…')
+    try {
+      const serialized = serializeAvailability(editAvailabilityValue)
+      const res = await volunteersApi.update(editingAvailabilityTarget.dbId, {
+        availability: serialized,
+      })
+      if (res?.data) {
+        setSelected(res.data)
+      }
+      reload()
+      notify.success('Availability & schedule updated successfully.')
+      hideLoading()
+      setShowEditAvailabilityModal(false)
+    } catch (err) {
+      hideLoading()
+      showErrorModal(err.message || 'Failed to update availability')
+    } finally {
+      hideLoading()
+      setSaving(false)
+    }
+  }
 
   const linkableDistributions = useMemo(
     () => (distributions || []).filter((d) => ACTIVE_DIST_STATUSES.includes(d.status)),
@@ -590,8 +630,8 @@ export default function VolunteersPage() {
       fd.append('name', fullName)
       fd.append('email', volunteerForm.email.trim())
       if (volunteerForm.phone) fd.append('phone', volunteerForm.phone.trim())
-      fd.append('status', volunteerForm.status)
-      if (volunteerForm.availability) fd.append('availability', volunteerForm.availability.trim())
+      const serializedAvail = serializeAvailability(volunteerForm.availability)
+      if (serializedAvail) fd.append('availability', serializedAvail)
 
       // Combine selected programs + custom write-in program
       const programsToSave = [...volunteerForm.programs]
@@ -683,7 +723,8 @@ export default function VolunteersPage() {
       fd.append('email', internForm.email.trim())
       if (internForm.phone) fd.append('phone', internForm.phone.trim())
       fd.append('status', internForm.status)
-      if (internForm.availability) fd.append('availability', internForm.availability.trim())
+      const serializedAvail = serializeAvailability(internForm.availability)
+      if (serializedAvail) fd.append('availability', serializedAvail)
 
       fd.append('institution', internForm.institution.trim())
       fd.append('requiredHours', String(Number(internForm.requiredHours) || 0))
@@ -1247,11 +1288,11 @@ export default function VolunteersPage() {
                       <span><ListTodo size={14} aria-hidden /> {selected.assignedTasks || tasks.length} tasks</span>
                     )}
                     {selected.availability ? (
-                      <span><CalendarDays size={14} aria-hidden /> {selected.availability}</span>
+                      <span><CalendarDays size={14} aria-hidden /> {formatAvailabilitySummary(selected.availability)}</span>
                     ) : null}
                     {selected.hasResume && selected.applicantType === 'Intern' ? (
                       <span className="volunteer-detail__cv-tag">
-                        <FileText size={14} aria-hidden /> CV Attached
+                        <FileText size={14} aria-hidden /> Cover Letter / Resume Attached
                       </span>
                     ) : null}
                     {hasDistributionTasks ? (
@@ -1396,13 +1437,29 @@ export default function VolunteersPage() {
                             </div>
                             <div className="volunteer-detail__list-row">
                               <div>
-                                <dt>Availability & Schedule</dt>
-                                <dd>{selected.availability || '—'}</dd>
-                              </div>
-                              <div>
                                 <dt>Application Status</dt>
                                 <dd><StatusBadge status={selected.status} /></dd>
                               </div>
+                            </div>
+                            <div style={{ marginTop: '0.85rem' }}>
+                              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.35rem' }}>
+                                <dt style={{ margin: 0, fontWeight: 600 }}>Availability & Duty Schedule</dt>
+                                <button
+                                  type="button"
+                                  className="btn btn--sm btn--outline"
+                                  onClick={() => openEditAvailability(selected)}
+                                  style={{ padding: '0.2rem 0.6rem', fontSize: '0.76rem', gap: '0.35rem' }}
+                                >
+                                  <Pencil size={12} /> Edit Availability
+                                </button>
+                              </div>
+                              <dd style={{ margin: 0 }}>
+                                <AvailabilitySchedulePicker
+                                  value={selected.availability}
+                                  readOnly
+                                  label=""
+                                />
+                              </dd>
                             </div>
                           </dl>
                         </section>
@@ -1413,7 +1470,7 @@ export default function VolunteersPage() {
                         {/* Uploaded CV Document Card */}
                         <section className="volunteer-detail__card">
                           <h4>
-                            <FileText size={15} aria-hidden /> Uploaded CV / Resume
+                            <FileText size={15} aria-hidden /> Uploaded Cover Letter or Resume
                           </h4>
                           {selected.hasResume ? (
                             <div className="admin-resume-card">
@@ -1459,7 +1516,7 @@ export default function VolunteersPage() {
                           ) : (
                             <div className="admin-resume-empty">
                               <FileText size={20} className="admin-resume-empty__icon" aria-hidden />
-                              <span>No CV / Resume document attached.</span>
+                              <span>No Cover Letter or Resume document attached.</span>
                             </div>
                           )}
                         </section>
@@ -1515,7 +1572,7 @@ export default function VolunteersPage() {
                       {/* 1. Uploaded CV Document Card */}
                       <section className="volunteer-detail__card volunteer-detail__card--wide" style={{ marginBottom: '1.25rem' }}>
                         <h4>
-                          <FileText size={16} aria-hidden /> Uploaded CV / Resume Document
+                          <FileText size={16} aria-hidden /> Uploaded Cover Letter or Resume Document
                         </h4>
                         {selected.hasResume ? (
                           <div className="admin-resume-card">
@@ -1545,7 +1602,7 @@ export default function VolunteersPage() {
                                 rel="noreferrer"
                                 className="btn btn--sm btn--primary admin-resume-card__btn"
                               >
-                                <ExternalLink size={13} aria-hidden /> View CV / Resume
+                                <ExternalLink size={13} aria-hidden /> View Cover Letter or Resume
                               </a>
                               <a
                                 href={`${selected.resumeUrl}&download=${encodeURIComponent(selected.resumeFileName || 'intern-resume.pdf')}`}
@@ -1561,7 +1618,7 @@ export default function VolunteersPage() {
                         ) : (
                           <div className="admin-resume-empty">
                             <FileText size={20} className="admin-resume-empty__icon" aria-hidden />
-                            <span>No CV / Resume document was found for this intern record.</span>
+                            <span>No Cover Letter or Resume document was found for this intern record.</span>
                           </div>
                         )}
                       </section>
@@ -2167,13 +2224,29 @@ export default function VolunteersPage() {
                         </div>
                         <div className="volunteer-detail__list-row">
                           <div>
-                            <dt>Availability</dt>
-                            <dd>{selected.availability || '—'}</dd>
-                          </div>
-                          <div>
                             <dt>Status</dt>
                             <dd><StatusBadge status={selected.status} /></dd>
                           </div>
+                        </div>
+                        <div style={{ marginTop: '0.85rem' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.35rem' }}>
+                            <dt style={{ margin: 0, fontWeight: 600 }}>Availability & Schedule</dt>
+                            <button
+                              type="button"
+                              className="btn btn--sm btn--outline"
+                              onClick={() => openEditAvailability(selected)}
+                              style={{ padding: '0.2rem 0.6rem', fontSize: '0.76rem', gap: '0.35rem' }}
+                            >
+                              <Pencil size={12} /> Edit Availability
+                            </button>
+                          </div>
+                          <dd style={{ margin: 0 }}>
+                            <AvailabilitySchedulePicker
+                              value={selected.availability}
+                              readOnly
+                              label=""
+                            />
+                          </dd>
                         </div>
                         <div>
                           <dt>Skills & Expertise</dt>
@@ -2971,20 +3044,13 @@ export default function VolunteersPage() {
                 otherPlaceholder="Specify other skills or specialized expertise…"
               />
 
-              {/* Availability */}
-              <label style={{ marginBottom: '1rem' }}>
-                Availability
-                <select
-                  value={volunteerForm.availability}
-                  onChange={(e) => setVolunteerForm({ ...volunteerForm, availability: e.target.value })}
-                >
-                  <option value="Flexible / On-call">Flexible / On-call</option>
-                  <option value="Weekdays">Weekdays (Monday to Friday)</option>
-                  <option value="Weekends">Weekends (Saturday & Sunday)</option>
-                  <option value="Full-time Regular">Full-time Regular</option>
-                  <option value="Emergency Response Only">Emergency Response / Calamity Only</option>
-                </select>
-              </label>
+              {/* Availability & Schedule */}
+              <AvailabilitySchedulePicker
+                label="Availability & Schedule"
+                value={volunteerForm.availability}
+                onChange={(availability) => setVolunteerForm({ ...volunteerForm, availability })}
+                hint="Select general availability and choose time slots."
+              />
 
               {/* Status & Portal Account Provisioning Selection */}
               <div style={{ marginTop: '0.5rem' }}>
@@ -3140,21 +3206,18 @@ export default function VolunteersPage() {
                 otherPlaceholder="Specify custom department or project…"
               />
 
-              {/* Schedule / Availability */}
-              <label style={{ marginBottom: '1rem' }}>
-                Schedule / Duty Availability
-                <input
-                  type="text"
-                  value={internForm.availability}
-                  onChange={(e) => setInternForm({ ...internForm, availability: e.target.value })}
-                  placeholder="e.g. Monday to Friday (8am - 5pm)"
-                />
-              </label>
+              {/* Availability & Schedule */}
+              <AvailabilitySchedulePicker
+                label="Availability & Schedule"
+                value={internForm.availability}
+                onChange={(availability) => setInternForm({ ...internForm, availability })}
+                hint="Select general availability and choose duty time slots."
+              />
 
-              {/* Student CV / Resume Upload */}
+              {/* Submit your Cover Letter or Resume (Optional) */}
               <label style={{ marginBottom: '1rem' }}>
                 <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                  <span>Student CV / Resume (Optional)</span>
+                  <span>Submit your Cover Letter or Resume (Optional)</span>
                   <span style={{ fontSize: '0.74rem', color: '#64748b' }}>PDF, DOC, DOCX up to 10MB</span>
                 </span>
 
@@ -3167,7 +3230,7 @@ export default function VolunteersPage() {
                           {internForm.resume.name}
                         </strong>
                         <span style={{ fontSize: '0.74rem', color: '#15803d' }}>
-                          {(internForm.resume.size / 1024).toFixed(1)} KB · Ready for AI CV analysis
+                          {(internForm.resume.size / 1024).toFixed(1)} KB · Ready for AI analysis
                         </span>
                       </div>
                     </div>
@@ -3185,10 +3248,10 @@ export default function VolunteersPage() {
                   <label className="volunteer-cv-dropzone" style={{ marginTop: '0.35rem' }}>
                     <UploadCloud size={24} color="#94a3b8" />
                     <span style={{ fontSize: '0.84rem', fontWeight: 600, color: '#334155', marginTop: '0.35rem' }}>
-                      Click to upload Student CV / Resume
+                      Click to upload Cover Letter or Resume or drag & drop here
                     </span>
                     <span style={{ fontSize: '0.75rem', color: '#64748b' }}>
-                      Enables automatic AI skills matching and evidence scoring
+                      Optional for applicants · PDF, DOC, DOCX up to 10MB
                     </span>
                     <input
                       type="file"
@@ -3264,6 +3327,54 @@ export default function VolunteersPage() {
                   disabled={internSaving}
                 >
                   {internSaving ? 'Saving…' : '+ Add Intern'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* 4. Edit Availability & Schedule Modal */}
+      {showEditAvailabilityModal && editingAvailabilityTarget && (
+        <div className="admin-modal-overlay" onClick={() => setShowEditAvailabilityModal(false)}>
+          <div
+            className="admin-modal admin-modal--lg"
+            onClick={(e) => e.stopPropagation()}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="edit-avail-title"
+          >
+            <ModalHeader
+              title={`Edit Availability — ${editingAvailabilityTarget.name}`}
+              subtitle={`Configure general availability and days/time slots schedule for this ${editingAvailabilityTarget.applicantType === 'Intern' ? 'intern' : 'volunteer'}.`}
+              onClose={() => setShowEditAvailabilityModal(false)}
+            />
+
+            <form onSubmit={handleSaveAvailability}>
+              <div style={{ padding: '0.5rem 0' }}>
+                <AvailabilitySchedulePicker
+                  label="Availability & Schedule"
+                  value={editAvailabilityValue}
+                  onChange={(val) => setEditAvailabilityValue(val)}
+                  hint="Select general availability and choose applicable time slots."
+                />
+              </div>
+
+              <div className="admin-modal__actions" style={{ marginTop: '1.25rem' }}>
+                <button
+                  type="button"
+                  className="btn btn--outline"
+                  onClick={() => setShowEditAvailabilityModal(false)}
+                  disabled={saving}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="btn btn--primary"
+                  disabled={saving}
+                >
+                  {saving ? 'Saving…' : 'Save Availability'}
                 </button>
               </div>
             </form>
