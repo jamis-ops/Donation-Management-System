@@ -92,7 +92,7 @@ function CleanItemsSummary({ summary }) {
 
   return (
     <div 
-      style={{ display: 'flex', flexWrap: 'wrap', gap: '0.35rem', alignItems: 'center', maxWidth: '340px' }}
+      style={{ display: 'flex', flexWrap: 'wrap', gap: '0.25rem', alignItems: 'center', width: '100%', maxWidth: '240px' }}
       title={summary}
     >
       {visibleItems.map((item, idx) => (
@@ -104,19 +104,19 @@ function CleanItemsSummary({ summary }) {
             background: '#f8fafc',
             border: '1px solid #e2e8f0',
             color: '#334155',
-            borderRadius: '5px',
-            padding: '0.2rem 0.5rem',
-            fontSize: '0.76rem',
-            lineHeight: 1.25,
+            borderRadius: '4px',
+            padding: '0.15rem 0.4rem',
+            fontSize: '0.73rem',
+            lineHeight: 1.2,
             fontWeight: 500,
             whiteSpace: 'nowrap',
-            maxWidth: expanded ? '320px' : '180px',
+            maxWidth: expanded ? '240px' : '145px',
             overflow: 'hidden',
             textOverflow: 'ellipsis',
           }}
           title={item}
         >
-          <Package size={11} style={{ marginRight: '0.3rem', color: '#94a3b8', flexShrink: 0 }} />
+          <Package size={10} style={{ marginRight: '0.25rem', color: '#94a3b8', flexShrink: 0 }} />
           <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{item}</span>
         </span>
       ))}
@@ -133,9 +133,9 @@ function CleanItemsSummary({ summary }) {
             background: '#fef2f2',
             border: '1px solid #fee2e2',
             color: '#af101a',
-            borderRadius: '5px',
-            padding: '0.2rem 0.45rem',
-            fontSize: '0.73rem',
+            borderRadius: '4px',
+            padding: '0.15rem 0.38rem',
+            fontSize: '0.71rem',
             fontWeight: 650,
             cursor: 'pointer',
             lineHeight: 1.2,
@@ -157,9 +157,9 @@ function CleanItemsSummary({ summary }) {
             background: '#f1f5f9',
             border: '1px solid #e2e8f0',
             color: '#64748b',
-            borderRadius: '5px',
-            padding: '0.2rem 0.4rem',
-            fontSize: '0.72rem',
+            borderRadius: '4px',
+            padding: '0.15rem 0.35rem',
+            fontSize: '0.71rem',
             fontWeight: 600,
             cursor: 'pointer',
             lineHeight: 1.2,
@@ -742,17 +742,17 @@ export default function BarangayDetailsPage() {
             background: 'var(--admin-surface, #ffffff)',
             borderRadius: '12px',
             border: '1px solid var(--admin-border, #e2e8f0)',
-            padding: '1.35rem 1.5rem',
+            padding: '1.15rem 1.25rem',
             display: 'flex',
             flexDirection: 'column',
-            gap: '1rem',
+            gap: '0.85rem',
           }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '0.75rem' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '0.65rem' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
                 <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', color: 'var(--admin-brand, #af101a)', flexShrink: 0, lineHeight: 1 }}>
-                  <HeartHandshake size={20} />
+                  <HeartHandshake size={19} />
                 </span>
-                <h3 style={{ margin: 0, fontSize: '1.05rem', fontWeight: 700, color: '#0f172a', lineHeight: 1.2 }}>
+                <h3 style={{ margin: 0, fontSize: '1.02rem', fontWeight: 700, color: '#0f172a', lineHeight: 1.2 }}>
                   Relief Requests
                 </h3>
                 <span className="badge badge--neutral" style={{ fontWeight: 650, lineHeight: 1 }}>
@@ -790,17 +790,17 @@ export default function BarangayDetailsPage() {
                 </p>
               </div>
             ) : (
-              <div style={{ overflowX: 'auto' }}>
-                <table className="admin-table" style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.86rem' }}>
+              <div style={{ width: '100%', overflowX: 'auto' }}>
+                <table className="admin-table" style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.82rem', tableLayout: 'auto' }}>
                   <thead>
                     <tr style={{ background: '#f8fafc', textAlign: 'left', borderBottom: '1px solid #e2e8f0' }}>
-                      <th style={{ padding: '0.65rem 0.85rem', fontWeight: 650, color: '#475569', whiteSpace: 'nowrap' }}>Request ID</th>
-                      <th style={{ padding: '0.65rem 0.85rem', fontWeight: 650, color: '#475569', whiteSpace: 'nowrap' }}>Calamity</th>
-                      <th style={{ padding: '0.65rem 0.85rem', fontWeight: 650, color: '#475569', whiteSpace: 'nowrap', textAlign: 'center' }}>Affected Families</th>
-                      <th style={{ padding: '0.65rem 0.85rem', fontWeight: 650, color: '#475569', whiteSpace: 'nowrap' }}>Priority</th>
-                      <th style={{ padding: '0.65rem 0.85rem', fontWeight: 650, color: '#475569', whiteSpace: 'nowrap' }}>Status</th>
-                      <th style={{ padding: '0.65rem 0.85rem', fontWeight: 650, color: '#475569', whiteSpace: 'nowrap' }}>Date</th>
-                      <th style={{ padding: '0.65rem 0.85rem', textAlign: 'right', fontWeight: 650, color: '#475569', whiteSpace: 'nowrap' }}>Action</th>
+                      <th style={{ padding: '0.55rem 0.5rem', fontWeight: 650, color: '#475569', whiteSpace: 'nowrap', width: '14%' }}>Request ID</th>
+                      <th style={{ padding: '0.55rem 0.5rem', fontWeight: 650, color: '#475569', width: '13%' }}>Calamity</th>
+                      <th style={{ padding: '0.55rem 0.5rem', fontWeight: 650, color: '#475569', textAlign: 'center', whiteSpace: 'nowrap', width: '16%' }}>Affected Families</th>
+                      <th style={{ padding: '0.55rem 0.5rem', fontWeight: 650, color: '#475569', width: '12%' }}>Priority</th>
+                      <th style={{ padding: '0.55rem 0.5rem', fontWeight: 650, color: '#475569', width: '16%' }}>Status</th>
+                      <th style={{ padding: '0.55rem 0.5rem', fontWeight: 650, color: '#475569', whiteSpace: 'nowrap', width: '14%' }}>Date</th>
+                      <th style={{ padding: '0.55rem 0.5rem', textAlign: 'right', fontWeight: 650, color: '#475569', width: '15%' }}>Action</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -818,15 +818,15 @@ export default function BarangayDetailsPage() {
                           onClick={() => setSelectedRequestModal(req)}
                           className="table-row-hover"
                         >
-                          <td style={{ padding: '0.75rem 0.85rem', fontWeight: 650, color: '#0f172a', whiteSpace: 'nowrap' }}>
+                          <td style={{ padding: '0.65rem 0.5rem', fontWeight: 650, color: '#0f172a', whiteSpace: 'nowrap' }}>
                             {req.id}
                           </td>
-                          <td style={{ padding: '0.75rem 0.85rem', color: '#334155' }}>
+                          <td style={{ padding: '0.65rem 0.5rem', color: '#334155' }}>
                             <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.3rem', fontWeight: 600 }}>
                               {reqCalamity}
                             </span>
                           </td>
-                          <td style={{ padding: '0.75rem 0.85rem', whiteSpace: 'nowrap', textAlign: 'center' }}>
+                          <td style={{ padding: '0.65rem 0.5rem', whiteSpace: 'nowrap', textAlign: 'center' }}>
                             <span style={{
                               fontWeight: 700,
                               color: '#af101a',
@@ -837,20 +837,20 @@ export default function BarangayDetailsPage() {
                               lineHeight: 1,
                               verticalAlign: 'middle',
                             }}>
-                              <Users size={14} style={{ flexShrink: 0, display: 'block' }} />
+                              <Users size={13} style={{ flexShrink: 0, display: 'block' }} />
                               <span style={{ lineHeight: 1 }}>{reqFamilies.toLocaleString()}</span>
                             </span>
                           </td>
-                          <td style={{ padding: '0.75rem 0.85rem' }}>
+                          <td style={{ padding: '0.65rem 0.5rem' }}>
                             {req.priority && <StatusBadge status={req.priority} />}
                           </td>
-                          <td style={{ padding: '0.75rem 0.85rem' }}>
+                          <td style={{ padding: '0.65rem 0.5rem' }}>
                             <StatusBadge status={req.status} />
                           </td>
-                          <td style={{ padding: '0.75rem 0.85rem', color: '#64748b', fontSize: '0.82rem', whiteSpace: 'nowrap' }}>
+                          <td style={{ padding: '0.65rem 0.5rem', color: '#64748b', fontSize: '0.8rem', whiteSpace: 'nowrap' }}>
                             {formatDateClean(req.date || req.requestDate)}
                           </td>
-                          <td style={{ padding: '0.75rem 0.85rem', textAlign: 'right', whiteSpace: 'nowrap' }}>
+                          <td style={{ padding: '0.65rem 0.5rem', textAlign: 'right', whiteSpace: 'nowrap' }}>
                             <button
                               type="button"
                               className="btn btn--outline btn--xs"
@@ -858,7 +858,7 @@ export default function BarangayDetailsPage() {
                                 e.stopPropagation()
                                 setSelectedRequestModal(req)
                               }}
-                              style={{ fontSize: '0.75rem', display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}
+                              style={{ fontSize: '0.73rem', padding: '0.25rem 0.5rem', display: 'inline-flex', alignItems: 'center', gap: '0.3rem' }}
                             >
                               <Eye size={12} style={{ flexShrink: 0 }} /> View Details
                             </button>
@@ -892,17 +892,17 @@ export default function BarangayDetailsPage() {
             background: 'var(--admin-surface, #ffffff)',
             borderRadius: '12px',
             border: '1px solid var(--admin-border, #e2e8f0)',
-            padding: '1.35rem 1.5rem',
+            padding: '1.15rem 1.25rem',
             display: 'flex',
             flexDirection: 'column',
-            gap: '1rem',
+            gap: '0.85rem',
           }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '0.75rem' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '0.65rem' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
                 <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', color: 'var(--admin-brand, #af101a)', flexShrink: 0, lineHeight: 1 }}>
-                  <Truck size={20} />
+                  <Truck size={19} />
                 </span>
-                <h3 style={{ margin: 0, fontSize: '1.05rem', fontWeight: 700, color: '#0f172a', lineHeight: 1.2 }}>
+                <h3 style={{ margin: 0, fontSize: '1.02rem', fontWeight: 700, color: '#0f172a', lineHeight: 1.2 }}>
                   Distributions & Fulfillment
                 </h3>
                 <span className="badge badge--neutral" style={{ fontWeight: 650, lineHeight: 1 }}>
@@ -926,16 +926,16 @@ export default function BarangayDetailsPage() {
                 </p>
               </div>
             ) : (
-              <div style={{ overflowX: 'auto' }}>
-                <table className="admin-table" style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.86rem' }}>
+              <div style={{ width: '100%', overflowX: 'auto' }}>
+                <table className="admin-table" style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.82rem', tableLayout: 'auto' }}>
                   <thead>
                     <tr style={{ background: '#f8fafc', textAlign: 'left', borderBottom: '1px solid #e2e8f0' }}>
-                      <th style={{ padding: '0.65rem 0.85rem', fontWeight: 650, color: '#475569', whiteSpace: 'nowrap' }}>Event / Code</th>
-                      <th style={{ padding: '0.65rem 0.85rem', fontWeight: 650, color: '#475569', whiteSpace: 'nowrap' }}>Program</th>
-                      <th style={{ padding: '0.65rem 0.85rem', fontWeight: 650, color: '#475569' }}>Items Summary</th>
-                      <th style={{ padding: '0.65rem 0.85rem', fontWeight: 650, color: '#475569', whiteSpace: 'nowrap' }}>Date</th>
-                      <th style={{ padding: '0.65rem 0.85rem', fontWeight: 650, color: '#475569', whiteSpace: 'nowrap' }}>Status</th>
-                      <th style={{ padding: '0.65rem 0.85rem', textAlign: 'right', fontWeight: 650, color: '#475569', whiteSpace: 'nowrap' }}>Action</th>
+                      <th style={{ padding: '0.55rem 0.5rem', fontWeight: 650, color: '#475569', width: '18%' }}>Event / Code</th>
+                      <th style={{ padding: '0.55rem 0.5rem', fontWeight: 650, color: '#475569', width: '12%' }}>Program</th>
+                      <th style={{ padding: '0.55rem 0.5rem', fontWeight: 650, color: '#475569', width: '28%' }}>Items Summary</th>
+                      <th style={{ padding: '0.55rem 0.5rem', fontWeight: 650, color: '#475569', whiteSpace: 'nowrap', width: '13%' }}>Date</th>
+                      <th style={{ padding: '0.55rem 0.5rem', fontWeight: 650, color: '#475569', width: '14%' }}>Status</th>
+                      <th style={{ padding: '0.55rem 0.5rem', textAlign: 'right', fontWeight: 650, color: '#475569', width: '15%' }}>Action</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -944,30 +944,32 @@ export default function BarangayDetailsPage() {
                         key={dist.dbId || dist.id} 
                         style={{ borderBottom: '1px solid #f1f5f9' }}
                       >
-                        <td style={{ padding: '0.75rem 0.85rem', fontWeight: 650, color: '#0f172a', whiteSpace: 'nowrap' }}>
-                          {dist.eventName || dist.id}
+                        <td style={{ padding: '0.65rem 0.5rem', fontWeight: 650, color: '#0f172a' }}>
+                          <span style={{ display: 'inline-block', maxWidth: '140px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={dist.eventName || dist.id}>
+                            {dist.eventName || dist.id}
+                          </span>
                         </td>
-                        <td style={{ padding: '0.75rem 0.85rem', color: '#334155', whiteSpace: 'nowrap' }}>
+                        <td style={{ padding: '0.65rem 0.5rem', color: '#334155' }}>
                           {dist.program || 'General Relief'}
                         </td>
-                        <td style={{ padding: '0.75rem 0.85rem' }}>
+                        <td style={{ padding: '0.65rem 0.5rem' }}>
                           <CleanItemsSummary summary={dist.itemsSummary} />
                         </td>
-                        <td style={{ padding: '0.75rem 0.85rem', color: '#64748b', fontSize: '0.82rem', whiteSpace: 'nowrap' }}>
+                        <td style={{ padding: '0.65rem 0.5rem', color: '#64748b', fontSize: '0.8rem', whiteSpace: 'nowrap' }}>
                           {formatDateClean(dist.date || dist.distributionDate)}
                         </td>
-                        <td style={{ padding: '0.75rem 0.85rem', whiteSpace: 'nowrap' }}>
-                          <div style={{ display: 'inline-flex', gap: '0.35rem', flexWrap: 'wrap' }}>
+                        <td style={{ padding: '0.65rem 0.5rem' }}>
+                          <div style={{ display: 'inline-flex', flexDirection: 'column', gap: '0.2rem', alignItems: 'flex-start' }}>
                             <StatusBadge status={dist.status} />
                             {dist.proofStatus && <StatusBadge status={dist.proofStatus} />}
                           </div>
                         </td>
-                        <td style={{ padding: '0.75rem 0.85rem', textAlign: 'right', whiteSpace: 'nowrap' }}>
+                        <td style={{ padding: '0.65rem 0.5rem', textAlign: 'right', whiteSpace: 'nowrap' }}>
                           <button
                             type="button"
                             className="btn btn--outline btn--xs"
                             onClick={() => navigate('/admin/distributions')}
-                            style={{ fontSize: '0.75rem', display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}
+                            style={{ fontSize: '0.73rem', padding: '0.25rem 0.5rem', display: 'inline-flex', alignItems: 'center', gap: '0.3rem' }}
                           >
                             View in Logistics &rarr;
                           </button>

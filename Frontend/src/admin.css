@@ -3973,9 +3973,10 @@
 .barangay-details {
   display: flex;
   flex-direction: column;
-  gap: 0.65rem;
+  gap: 1rem;
   font-family: var(--font-sans);
-  max-width: 880px;
+  width: 100%;
+  max-width: 100%;
 }
 
 .barangay-metrics {
