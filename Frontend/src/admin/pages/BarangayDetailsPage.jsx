@@ -58,6 +58,120 @@ function derivePriority(requests) {
   return highest
 }
 
+function formatDateClean(raw) {
+  if (!raw) return '—'
+  try {
+    const d = new Date(raw)
+    if (isNaN(d.getTime())) return raw
+    return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+  } catch {
+    return raw
+  }
+}
+
+function CleanItemsSummary({ summary }) {
+  const [expanded, setExpanded] = useState(false)
+
+  if (!summary || !summary.trim()) {
+    return <span style={{ color: '#94a3b8', fontStyle: 'italic', fontSize: '0.8rem' }}>Relief goods package</span>
+  }
+
+  // Split items by semicolon (common delimiter in distribution packages)
+  const items = summary
+    .split(';')
+    .map((s) => s.trim())
+    .filter(Boolean)
+
+  if (items.length === 0) {
+    return <span style={{ color: '#475569', fontSize: '0.82rem' }}>{summary}</span>
+  }
+
+  const showAll = expanded || items.length <= 2
+  const visibleItems = showAll ? items : items.slice(0, 2)
+  const remainingCount = items.length - 2
+
+  return (
+    <div 
+      style={{ display: 'flex', flexWrap: 'wrap', gap: '0.35rem', alignItems: 'center', maxWidth: '340px' }}
+      title={summary}
+    >
+      {visibleItems.map((item, idx) => (
+        <span
+          key={idx}
+          style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            background: '#f8fafc',
+            border: '1px solid #e2e8f0',
+            color: '#334155',
+            borderRadius: '5px',
+            padding: '0.2rem 0.5rem',
+            fontSize: '0.76rem',
+            lineHeight: 1.25,
+            fontWeight: 500,
+            whiteSpace: 'nowrap',
+            maxWidth: expanded ? '320px' : '180px',
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+          }}
+          title={item}
+        >
+          <Package size={11} style={{ marginRight: '0.3rem', color: '#94a3b8', flexShrink: 0 }} />
+          <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{item}</span>
+        </span>
+      ))}
+      {!showAll && (
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation()
+            setExpanded(true)
+          }}
+          style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            background: '#fef2f2',
+            border: '1px solid #fee2e2',
+            color: '#af101a',
+            borderRadius: '5px',
+            padding: '0.2rem 0.45rem',
+            fontSize: '0.73rem',
+            fontWeight: 650,
+            cursor: 'pointer',
+            lineHeight: 1.2,
+          }}
+        >
+          +{remainingCount} more
+        </button>
+      )}
+      {expanded && items.length > 2 && (
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation()
+            setExpanded(false)
+          }}
+          style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            background: '#f1f5f9',
+            border: '1px solid #e2e8f0',
+            color: '#64748b',
+            borderRadius: '5px',
+            padding: '0.2rem 0.4rem',
+            fontSize: '0.72rem',
+            fontWeight: 600,
+            cursor: 'pointer',
+            lineHeight: 1.2,
+          }}
+        >
+          Show less
+        </button>
+      )}
+    </div>
+  )
+}
+
 export default function BarangayDetailsPage() {
   const { id } = useParams()
   const navigate = useNavigate()
@@ -634,12 +748,14 @@ export default function BarangayDetailsPage() {
             gap: '1rem',
           }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '0.75rem' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
-                <HeartHandshake size={20} style={{ color: 'var(--admin-brand, #af101a)' }} />
-                <h3 style={{ margin: 0, fontSize: '1.05rem', fontWeight: 700, color: '#0f172a' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+                <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', color: 'var(--admin-brand, #af101a)', flexShrink: 0, lineHeight: 1 }}>
+                  <HeartHandshake size={20} />
+                </span>
+                <h3 style={{ margin: 0, fontSize: '1.05rem', fontWeight: 700, color: '#0f172a', lineHeight: 1.2 }}>
                   Relief Requests
                 </h3>
-                <span className="badge badge--neutral" style={{ fontWeight: 650 }}>
+                <span className="badge badge--neutral" style={{ fontWeight: 650, lineHeight: 1 }}>
                   {requests.length}
                 </span>
               </div>
@@ -678,14 +794,13 @@ export default function BarangayDetailsPage() {
                 <table className="admin-table" style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.86rem' }}>
                   <thead>
                     <tr style={{ background: '#f8fafc', textAlign: 'left', borderBottom: '1px solid #e2e8f0' }}>
-                      <th style={{ padding: '0.65rem 0.85rem', fontWeight: 650, color: '#475569' }}>Request ID</th>
-                      <th style={{ padding: '0.65rem 0.85rem', fontWeight: 650, color: '#475569' }}>Calamity</th>
-                      <th style={{ padding: '0.65rem 0.85rem', fontWeight: 650, color: '#475569' }}>Needs</th>
-                      <th style={{ padding: '0.65rem 0.85rem', fontWeight: 650, color: '#475569' }}>Affected Families</th>
-                      <th style={{ padding: '0.65rem 0.85rem', fontWeight: 650, color: '#475569' }}>Priority</th>
-                      <th style={{ padding: '0.65rem 0.85rem', fontWeight: 650, color: '#475569' }}>Status</th>
-                      <th style={{ padding: '0.65rem 0.85rem', fontWeight: 650, color: '#475569' }}>Date</th>
-                      <th style={{ padding: '0.65rem 0.85rem', textAlign: 'right', fontWeight: 650, color: '#475569' }}>Action</th>
+                      <th style={{ padding: '0.65rem 0.85rem', fontWeight: 650, color: '#475569', whiteSpace: 'nowrap' }}>Request ID</th>
+                      <th style={{ padding: '0.65rem 0.85rem', fontWeight: 650, color: '#475569', whiteSpace: 'nowrap' }}>Calamity</th>
+                      <th style={{ padding: '0.65rem 0.85rem', fontWeight: 650, color: '#475569', whiteSpace: 'nowrap' }}>Affected Families</th>
+                      <th style={{ padding: '0.65rem 0.85rem', fontWeight: 650, color: '#475569', whiteSpace: 'nowrap' }}>Priority</th>
+                      <th style={{ padding: '0.65rem 0.85rem', fontWeight: 650, color: '#475569', whiteSpace: 'nowrap' }}>Status</th>
+                      <th style={{ padding: '0.65rem 0.85rem', fontWeight: 650, color: '#475569', whiteSpace: 'nowrap' }}>Date</th>
+                      <th style={{ padding: '0.65rem 0.85rem', textAlign: 'right', fontWeight: 650, color: '#475569', whiteSpace: 'nowrap' }}>Action</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -703,7 +818,7 @@ export default function BarangayDetailsPage() {
                           onClick={() => setSelectedRequestModal(req)}
                           className="table-row-hover"
                         >
-                          <td style={{ padding: '0.75rem 0.85rem', fontWeight: 650, color: '#0f172a' }}>
+                          <td style={{ padding: '0.75rem 0.85rem', fontWeight: 650, color: '#0f172a', whiteSpace: 'nowrap' }}>
                             {req.id}
                           </td>
                           <td style={{ padding: '0.75rem 0.85rem', color: '#334155' }}>
@@ -711,20 +826,9 @@ export default function BarangayDetailsPage() {
                               {reqCalamity}
                             </span>
                           </td>
-                          <td style={{ padding: '0.75rem 0.85rem', color: '#475569', maxWidth: '220px' }}>
-                            <span style={{ 
-                              display: '-webkit-box', 
-                              WebkitLineClamp: 1, 
-                              WebkitBoxOrient: 'vertical', 
-                              overflow: 'hidden',
-                              textOverflow: 'ellipsis' 
-                            }}>
-                              {Array.isArray(req.needs) && req.needs.length > 0 ? req.needs.join(', ') : (req.type || '—')}
-                            </span>
-                          </td>
-                          <td style={{ padding: '0.75rem 0.85rem' }}>
-                            <span style={{ fontWeight: 700, color: '#af101a', display: 'inline-flex', alignItems: 'center', gap: '0.3rem' }}>
-                              <Users size={13} /> {reqFamilies.toLocaleString()}
+                          <td style={{ padding: '0.75rem 0.85rem', whiteSpace: 'nowrap' }}>
+                            <span style={{ fontWeight: 700, color: '#af101a', display: 'inline-flex', alignItems: 'center', gap: '0.35rem', lineHeight: 1 }}>
+                              <Users size={13} style={{ flexShrink: 0 }} /> {reqFamilies.toLocaleString()}
                             </span>
                           </td>
                           <td style={{ padding: '0.75rem 0.85rem' }}>
@@ -733,10 +837,10 @@ export default function BarangayDetailsPage() {
                           <td style={{ padding: '0.75rem 0.85rem' }}>
                             <StatusBadge status={req.status} />
                           </td>
-                          <td style={{ padding: '0.75rem 0.85rem', color: '#64748b', fontSize: '0.82rem' }}>
-                            {req.date || req.requestDate || '—'}
+                          <td style={{ padding: '0.75rem 0.85rem', color: '#64748b', fontSize: '0.82rem', whiteSpace: 'nowrap' }}>
+                            {formatDateClean(req.date || req.requestDate)}
                           </td>
-                          <td style={{ padding: '0.75rem 0.85rem', textAlign: 'right' }}>
+                          <td style={{ padding: '0.75rem 0.85rem', textAlign: 'right', whiteSpace: 'nowrap' }}>
                             <button
                               type="button"
                               className="btn btn--outline btn--xs"
@@ -744,9 +848,9 @@ export default function BarangayDetailsPage() {
                                 e.stopPropagation()
                                 setSelectedRequestModal(req)
                               }}
-                              style={{ fontSize: '0.75rem' }}
+                              style={{ fontSize: '0.75rem', display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}
                             >
-                              <Eye size={12} /> View Details
+                              <Eye size={12} style={{ flexShrink: 0 }} /> View Details
                             </button>
                           </td>
                         </tr>
@@ -784,12 +888,14 @@ export default function BarangayDetailsPage() {
             gap: '1rem',
           }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '0.75rem' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
-                <Truck size={20} style={{ color: 'var(--admin-brand, #af101a)' }} />
-                <h3 style={{ margin: 0, fontSize: '1.05rem', fontWeight: 700, color: '#0f172a' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+                <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', color: 'var(--admin-brand, #af101a)', flexShrink: 0, lineHeight: 1 }}>
+                  <Truck size={20} />
+                </span>
+                <h3 style={{ margin: 0, fontSize: '1.05rem', fontWeight: 700, color: '#0f172a', lineHeight: 1.2 }}>
                   Distributions & Fulfillment
                 </h3>
-                <span className="badge badge--neutral" style={{ fontWeight: 650 }}>
+                <span className="badge badge--neutral" style={{ fontWeight: 650, lineHeight: 1 }}>
                   {bDistributions.length}
                 </span>
               </div>
@@ -814,12 +920,12 @@ export default function BarangayDetailsPage() {
                 <table className="admin-table" style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.86rem' }}>
                   <thead>
                     <tr style={{ background: '#f8fafc', textAlign: 'left', borderBottom: '1px solid #e2e8f0' }}>
-                      <th style={{ padding: '0.65rem 0.85rem', fontWeight: 650, color: '#475569' }}>Event / Code</th>
-                      <th style={{ padding: '0.65rem 0.85rem', fontWeight: 650, color: '#475569' }}>Program</th>
+                      <th style={{ padding: '0.65rem 0.85rem', fontWeight: 650, color: '#475569', whiteSpace: 'nowrap' }}>Event / Code</th>
+                      <th style={{ padding: '0.65rem 0.85rem', fontWeight: 650, color: '#475569', whiteSpace: 'nowrap' }}>Program</th>
                       <th style={{ padding: '0.65rem 0.85rem', fontWeight: 650, color: '#475569' }}>Items Summary</th>
-                      <th style={{ padding: '0.65rem 0.85rem', fontWeight: 650, color: '#475569' }}>Date</th>
-                      <th style={{ padding: '0.65rem 0.85rem', fontWeight: 650, color: '#475569' }}>Status</th>
-                      <th style={{ padding: '0.65rem 0.85rem', textAlign: 'right', fontWeight: 650, color: '#475569' }}>Action</th>
+                      <th style={{ padding: '0.65rem 0.85rem', fontWeight: 650, color: '#475569', whiteSpace: 'nowrap' }}>Date</th>
+                      <th style={{ padding: '0.65rem 0.85rem', fontWeight: 650, color: '#475569', whiteSpace: 'nowrap' }}>Status</th>
+                      <th style={{ padding: '0.65rem 0.85rem', textAlign: 'right', fontWeight: 650, color: '#475569', whiteSpace: 'nowrap' }}>Action</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -828,30 +934,30 @@ export default function BarangayDetailsPage() {
                         key={dist.dbId || dist.id} 
                         style={{ borderBottom: '1px solid #f1f5f9' }}
                       >
-                        <td style={{ padding: '0.75rem 0.85rem', fontWeight: 650, color: '#0f172a' }}>
+                        <td style={{ padding: '0.75rem 0.85rem', fontWeight: 650, color: '#0f172a', whiteSpace: 'nowrap' }}>
                           {dist.eventName || dist.id}
                         </td>
-                        <td style={{ padding: '0.75rem 0.85rem', color: '#334155' }}>
+                        <td style={{ padding: '0.75rem 0.85rem', color: '#334155', whiteSpace: 'nowrap' }}>
                           {dist.program || 'General Relief'}
                         </td>
-                        <td style={{ padding: '0.75rem 0.85rem', color: '#475569' }}>
-                          {dist.itemsSummary || 'Relief goods package'}
-                        </td>
-                        <td style={{ padding: '0.75rem 0.85rem', color: '#64748b', fontSize: '0.82rem' }}>
-                          {dist.date || dist.distributionDate || '—'}
-                        </td>
                         <td style={{ padding: '0.75rem 0.85rem' }}>
+                          <CleanItemsSummary summary={dist.itemsSummary} />
+                        </td>
+                        <td style={{ padding: '0.75rem 0.85rem', color: '#64748b', fontSize: '0.82rem', whiteSpace: 'nowrap' }}>
+                          {formatDateClean(dist.date || dist.distributionDate)}
+                        </td>
+                        <td style={{ padding: '0.75rem 0.85rem', whiteSpace: 'nowrap' }}>
                           <div style={{ display: 'inline-flex', gap: '0.35rem', flexWrap: 'wrap' }}>
                             <StatusBadge status={dist.status} />
                             {dist.proofStatus && <StatusBadge status={dist.proofStatus} />}
                           </div>
                         </td>
-                        <td style={{ padding: '0.75rem 0.85rem', textAlign: 'right' }}>
+                        <td style={{ padding: '0.75rem 0.85rem', textAlign: 'right', whiteSpace: 'nowrap' }}>
                           <button
                             type="button"
                             className="btn btn--outline btn--xs"
                             onClick={() => navigate('/admin/distributions')}
-                            style={{ fontSize: '0.75rem' }}
+                            style={{ fontSize: '0.75rem', display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}
                           >
                             View in Logistics &rarr;
                           </button>

@@ -2,7 +2,7 @@ import React, { useState, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { 
   Calendar, Users, MapPin, FileText, Check, X, Clock, 
-  AlertTriangle, CheckCircle2, XCircle, Package, Sparkles, Tag, ShieldAlert
+  Package, Tag
 } from 'lucide-react'
 import ModalHeader from '../shared/ModalHeader'
 import StatusBadge from '../shared/StatusBadge'
@@ -17,7 +17,23 @@ export default function ReliefRequestModal({
   availableMonetaryDonations = [],
 }) {
   const navigate = useNavigate()
-  const [notes, setNotes] = useState(request?.notes || '')
+
+  // Clean structured notes to avoid repeating Calamity and Needs
+  const cleanedInitialNotes = useMemo(() => {
+    const raw = request?.notes || ''
+    if (!raw) return ''
+    const addMatch = raw.match(/Additional Notes:\s*([\s\S]+)/i)
+    if (addMatch) return addMatch[1].trim()
+    const stripped = raw
+      .replace(/Calamity\/Program:\s*[^\n\r]+/gi, '')
+      .replace(/Type of Needs:\s*[^\n\r]+/gi, '')
+      .replace(/Goods Required:\s*[^\n\r]+/gi, '')
+      .replace(/Families\s*Affected\s*:\s*\d+/gi, '')
+      .trim()
+    return stripped
+  }, [request])
+
+  const [notes, setNotes] = useState(cleanedInitialNotes)
   const [isUpdating, setIsUpdating] = useState(false)
 
   if (!request) return null
@@ -126,7 +142,7 @@ export default function ReliefRequestModal({
       <div 
         className="admin-modal relief-modal-improved" 
         onClick={e => e.stopPropagation()}
-        style={{ maxWidth: '680px', width: '94%' }}
+        style={{ maxWidth: '640px', width: '92%', borderRadius: '14px', overflow: 'hidden' }}
       >
         <ModalHeader
           title={`Relief Request — ${request.id}`}
@@ -134,39 +150,145 @@ export default function ReliefRequestModal({
           onClose={onClose}
         />
 
-        <div className="relief-modal-body" style={{ padding: '1.25rem 1.5rem', display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+        {/* ── TOP ACTION & STATUS BAR (Approve & Reject moved to the top!) ── */}
+        <div style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          padding: '0.75rem 1.25rem',
+          background: '#f8fafc',
+          borderBottom: '1px solid #e2e8f0',
+          flexWrap: 'wrap',
+          gap: '0.65rem',
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
+            {request.priority && <StatusBadge status={request.priority} />}
+            <StatusBadge status={request.status} />
+          </div>
+
+          {/* Action Buttons at the top! */}
+          <div style={{ display: 'flex', gap: '0.45rem', alignItems: 'center' }}>
+            {request.status === 'Pending Review' && (
+              <button
+                type="button"
+                className="btn btn--outline btn--xs"
+                disabled={isUpdating}
+                onClick={() => handleStatusUpdate('Under Review')}
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '0.3rem',
+                  color: '#b45309',
+                  borderColor: '#fde68a',
+                  fontWeight: 650,
+                  fontSize: '0.78rem',
+                  padding: '0.35rem 0.65rem'
+                }}
+              >
+                <Clock size={12} style={{ flexShrink: 0 }} /> Mark Under Review
+              </button>
+            )}
+
+            {!isTerminal && request.status !== 'Approved' && (
+              <button
+                type="button"
+                className="btn btn--danger btn--xs"
+                disabled={isUpdating}
+                onClick={() => handleStatusUpdate('Rejected')}
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '0.3rem',
+                  fontWeight: 650,
+                  fontSize: '0.78rem',
+                  padding: '0.35rem 0.75rem'
+                }}
+              >
+                <X size={12} style={{ flexShrink: 0 }} /> Reject
+              </button>
+            )}
+
+            {!isTerminal && request.status !== 'Approved' && (
+              <button
+                type="button"
+                className="btn btn--success btn--xs"
+                disabled={isUpdating}
+                onClick={() => handleStatusUpdate('Approved')}
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '0.3rem',
+                  fontWeight: 650,
+                  fontSize: '0.78rem',
+                  padding: '0.35rem 0.85rem'
+                }}
+              >
+                <Check size={12} style={{ flexShrink: 0 }} /> Approve Request
+              </button>
+            )}
+
+            {request.status === 'Approved' && (
+              <button
+                type="button"
+                className="btn btn--primary btn--xs"
+                onClick={() => {
+                  onClose()
+                  navigate('/admin/allocation', {
+                    state: {
+                      prefillRequest: {
+                        requestId: request.dbId || request.id,
+                        beneficiaryId: request.beneficiaryId,
+                        type: request.type,
+                        notes: request.notes,
+                        beneficiaryName: request.beneficiary || request.barangay,
+                        affectedFamilies: affectedFamiliesCount,
+                      },
+                    },
+                  })
+                }}
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '0.3rem',
+                  fontWeight: 650,
+                  fontSize: '0.78rem',
+                  padding: '0.35rem 0.85rem'
+                }}
+              >
+                Allocate Warehouse Stock &rarr;
+              </button>
+            )}
+          </div>
+        </div>
+
+        {/* ── MODAL BODY ── */}
+        <div className="relief-modal-body" style={{ padding: '1.15rem 1.25rem', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
           
           {/* Main Request Information Card */}
           <div className="relief-modal-card" style={{
             background: 'var(--admin-surface, #ffffff)',
             border: '1px solid var(--admin-border, #e2e8f0)',
-            borderRadius: '12px',
-            padding: '1.15rem 1.35rem',
+            borderRadius: '10px',
+            padding: '1rem 1.15rem',
             display: 'flex',
             flexDirection: 'column',
-            gap: '1rem',
+            gap: '0.75rem',
           }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid #f1f5f9', paddingBottom: '0.65rem' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                <Tag size={15} style={{ color: 'var(--admin-brand, #af101a)' }} />
-                <span style={{ fontSize: '0.82rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em', color: '#64748b' }}>
-                  Request Information
-                </span>
-              </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
-                {request.priority && <StatusBadge status={request.priority} />}
-                <StatusBadge status={request.status} />
-              </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', borderBottom: '1px solid #f1f5f9', paddingBottom: '0.5rem' }}>
+              <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', color: 'var(--admin-brand, #af101a)' }}>
+                <Tag size={14} style={{ flexShrink: 0 }} />
+              </span>
+              <span style={{ fontSize: '0.8rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em', color: '#64748b' }}>
+                Request Details
+              </span>
             </div>
 
             {/* Aligned Key-Value Details */}
-            <div style={{ display: 'grid', gridTemplateColumns: '130px 1fr', rowGap: '0.75rem', columnGap: '1rem', alignItems: 'center', fontSize: '0.88rem' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: '125px 1fr', rowGap: '0.65rem', columnGap: '0.85rem', alignItems: 'center', fontSize: '0.86rem' }}>
               
               {/* Calamity / Disaster */}
               <span style={{ color: '#64748b', fontWeight: 600 }}>Calamity:</span>
-              <div>
-                <span style={{ fontWeight: 650, color: '#0f172a' }}>{calamity}</span>
-              </div>
+              <span style={{ fontWeight: 650, color: '#0f172a' }}>{calamity}</span>
 
               {/* Needs */}
               <span style={{ color: '#64748b', fontWeight: 600 }}>Needs:</span>
@@ -184,12 +306,12 @@ export default function ReliefRequestModal({
                         color: '#334155',
                         fontSize: '0.78rem',
                         fontWeight: 600,
-                        padding: '0.2rem 0.6rem',
+                        padding: '0.2rem 0.55rem',
                         borderRadius: '6px',
                       }}
                     >
-                      <Package size={12} style={{ color: '#af101a' }} />
-                      {need}
+                      <Package size={12} style={{ color: '#af101a', flexShrink: 0 }} />
+                      <span>{need}</span>
                     </span>
                   ))
                 ) : (
@@ -197,11 +319,11 @@ export default function ReliefRequestModal({
                 )}
               </div>
 
-              {/* Affected Families (Request-Specific!) */}
+              {/* Affected Families */}
               <span style={{ color: '#64748b', fontWeight: 600 }}>Affected Families:</span>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-                <Users size={14} style={{ color: '#af101a' }} />
-                <span style={{ fontWeight: 700, fontSize: '0.96rem', color: '#af101a' }}>
+              <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem' }}>
+                <Users size={14} style={{ color: '#af101a', flexShrink: 0 }} />
+                <span style={{ fontWeight: 700, fontSize: '0.94rem', color: '#af101a' }}>
                   {affectedFamiliesCount.toLocaleString()} {affectedFamiliesCount === 1 ? 'family' : 'families'}
                 </span>
                 <span style={{ fontSize: '0.75rem', color: '#94a3b8' }}>(for this request)</span>
@@ -209,15 +331,15 @@ export default function ReliefRequestModal({
 
               {/* Request Date */}
               <span style={{ color: '#64748b', fontWeight: 600 }}>Request Date:</span>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', color: '#334155' }}>
-                <Calendar size={13} style={{ color: '#64748b' }} />
+              <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem', color: '#334155' }}>
+                <Calendar size={13} style={{ color: '#64748b', flexShrink: 0 }} />
                 <span>{formattedDate}</span>
               </div>
 
               {/* Barangay Location */}
               <span style={{ color: '#64748b', fontWeight: 600 }}>Barangay:</span>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', color: '#334155' }}>
-                <MapPin size={13} style={{ color: '#64748b' }} />
+              <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem', color: '#334155' }}>
+                <MapPin size={13} style={{ color: '#64748b', flexShrink: 0 }} />
                 <span>
                   <strong>{request.beneficiary || request.barangay || '—'}</strong>
                   {request.municipality ? ` (${request.municipality})` : ''}
@@ -226,32 +348,34 @@ export default function ReliefRequestModal({
             </div>
 
             {/* Description & Notes */}
-            <div style={{ marginTop: '0.4rem', paddingTop: '0.75rem', borderTop: '1px solid #f1f5f9' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.4rem' }}>
-                <label style={{ fontSize: '0.8rem', fontWeight: 650, color: '#475569', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
-                  <FileText size={13} /> Description & Administrative Notes
+            <div style={{ marginTop: '0.35rem', paddingTop: '0.65rem', borderTop: '1px solid #f1f5f9' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.35rem' }}>
+                <label style={{ fontSize: '0.78rem', fontWeight: 650, color: '#475569', display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}>
+                  <FileText size={12} style={{ flexShrink: 0 }} /> Description & Administrative Notes
                 </label>
-                <button
-                  type="button"
-                  className="btn btn--ghost btn--xs"
-                  onClick={handleSaveNotesOnly}
-                  disabled={isUpdating || notes === (request.notes || '')}
-                  style={{ fontSize: '0.74rem' }}
-                >
-                  Save Notes
-                </button>
+                {notes !== cleanedInitialNotes && (
+                  <button
+                    type="button"
+                    className="btn btn--ghost btn--xs"
+                    onClick={handleSaveNotesOnly}
+                    disabled={isUpdating}
+                    style={{ fontSize: '0.72rem', padding: '0.15rem 0.45rem' }}
+                  >
+                    Save Notes
+                  </button>
+                )}
               </div>
               <textarea
                 value={notes}
                 onChange={(e) => setNotes(e.target.value)}
                 placeholder="Enter situation details, delivery instructions, or notes…"
-                rows={3}
+                rows={2}
                 style={{
                   width: '100%',
-                  padding: '0.65rem 0.8rem',
-                  fontSize: '0.84rem',
-                  lineHeight: '1.45',
-                  borderRadius: '8px',
+                  padding: '0.55rem 0.75rem',
+                  fontSize: '0.82rem',
+                  lineHeight: '1.4',
+                  borderRadius: '6px',
                   border: '1px solid #cbd5e1',
                   background: '#f8fafc',
                   resize: 'vertical',
@@ -263,84 +387,22 @@ export default function ReliefRequestModal({
 
         </div>
 
-        {/* Modal Actions Footer */}
-        <div className="admin-modal__actions" style={{
+        {/* Modal Close Button at bottom */}
+        <div style={{
           display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          padding: '1rem 1.5rem',
-          borderTop: '1px solid var(--admin-border, #e2e8f0)',
+          justifyContent: 'flex-end',
+          padding: '0.65rem 1.25rem',
           background: '#fafafa',
-          borderBottomLeftRadius: '14px',
-          borderBottomRightRadius: '14px',
+          borderTop: '1px solid var(--admin-border, #e2e8f0)',
         }}>
           <button 
             type="button" 
             className="btn btn--outline btn--sm" 
             onClick={onClose}
+            style={{ fontSize: '0.8rem', padding: '0.35rem 0.85rem' }}
           >
             Close
           </button>
-
-          <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
-            {request.status === 'Pending Review' && (
-              <button
-                type="button"
-                className="btn btn--outline btn--sm"
-                disabled={isUpdating}
-                onClick={() => handleStatusUpdate('Under Review')}
-                style={{ color: '#b45309', borderColor: '#fde68a' }}
-              >
-                <Clock size={13} /> Mark Under Review
-              </button>
-            )}
-
-            {!isTerminal && request.status !== 'Approved' && (
-              <button
-                type="button"
-                className="btn btn--danger btn--sm"
-                disabled={isUpdating}
-                onClick={() => handleStatusUpdate('Rejected')}
-              >
-                <X size={13} /> Reject
-              </button>
-            )}
-
-            {!isTerminal && request.status !== 'Approved' && (
-              <button
-                type="button"
-                className="btn btn--success btn--sm"
-                disabled={isUpdating}
-                onClick={() => handleStatusUpdate('Approved')}
-              >
-                <Check size={13} /> Approve Request
-              </button>
-            )}
-
-            {request.status === 'Approved' && (
-              <button
-                type="button"
-                className="btn btn--primary btn--sm"
-                onClick={() => {
-                  onClose()
-                  navigate('/admin/allocation', {
-                    state: {
-                      prefillRequest: {
-                        requestId: request.dbId || request.id,
-                        beneficiaryId: request.beneficiaryId,
-                        type: request.type,
-                        notes: request.notes,
-                        beneficiaryName: request.beneficiary || request.barangay,
-                        affectedFamilies: affectedFamiliesCount,
-                      },
-                    },
-                  })
-                }}
-              >
-                Allocate Warehouse Stock &rarr;
-              </button>
-            )}
-          </div>
         </div>
 
       </div>
