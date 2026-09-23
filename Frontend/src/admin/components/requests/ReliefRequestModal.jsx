@@ -321,9 +321,9 @@ export default function ReliefRequestModal({
 
               {/* Affected Families */}
               <span style={{ color: '#64748b', fontWeight: 600 }}>Affected Families:</span>
-              <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem' }}>
-                <Users size={14} style={{ color: '#af101a', flexShrink: 0 }} />
-                <span style={{ fontWeight: 700, fontSize: '0.94rem', color: '#af101a' }}>
+              <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem', lineHeight: 1 }}>
+                <Users size={14} style={{ color: '#af101a', flexShrink: 0, display: 'block' }} />
+                <span style={{ fontWeight: 700, fontSize: '0.94rem', color: '#af101a', lineHeight: 1 }}>
                   {affectedFamiliesCount.toLocaleString()} {affectedFamiliesCount === 1 ? 'family' : 'families'}
                 </span>
                 <span style={{ fontSize: '0.75rem', color: '#94a3b8' }}>(for this request)</span>

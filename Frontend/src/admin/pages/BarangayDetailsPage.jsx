@@ -796,7 +796,7 @@ export default function BarangayDetailsPage() {
                     <tr style={{ background: '#f8fafc', textAlign: 'left', borderBottom: '1px solid #e2e8f0' }}>
                       <th style={{ padding: '0.65rem 0.85rem', fontWeight: 650, color: '#475569', whiteSpace: 'nowrap' }}>Request ID</th>
                       <th style={{ padding: '0.65rem 0.85rem', fontWeight: 650, color: '#475569', whiteSpace: 'nowrap' }}>Calamity</th>
-                      <th style={{ padding: '0.65rem 0.85rem', fontWeight: 650, color: '#475569', whiteSpace: 'nowrap' }}>Affected Families</th>
+                      <th style={{ padding: '0.65rem 0.85rem', fontWeight: 650, color: '#475569', whiteSpace: 'nowrap', textAlign: 'center' }}>Affected Families</th>
                       <th style={{ padding: '0.65rem 0.85rem', fontWeight: 650, color: '#475569', whiteSpace: 'nowrap' }}>Priority</th>
                       <th style={{ padding: '0.65rem 0.85rem', fontWeight: 650, color: '#475569', whiteSpace: 'nowrap' }}>Status</th>
                       <th style={{ padding: '0.65rem 0.85rem', fontWeight: 650, color: '#475569', whiteSpace: 'nowrap' }}>Date</th>
@@ -826,9 +826,19 @@ export default function BarangayDetailsPage() {
                               {reqCalamity}
                             </span>
                           </td>
-                          <td style={{ padding: '0.75rem 0.85rem', whiteSpace: 'nowrap' }}>
-                            <span style={{ fontWeight: 700, color: '#af101a', display: 'inline-flex', alignItems: 'center', gap: '0.35rem', lineHeight: 1 }}>
-                              <Users size={13} style={{ flexShrink: 0 }} /> {reqFamilies.toLocaleString()}
+                          <td style={{ padding: '0.75rem 0.85rem', whiteSpace: 'nowrap', textAlign: 'center' }}>
+                            <span style={{
+                              fontWeight: 700,
+                              color: '#af101a',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              gap: '0.35rem',
+                              lineHeight: 1,
+                              verticalAlign: 'middle',
+                            }}>
+                              <Users size={14} style={{ flexShrink: 0, display: 'block' }} />
+                              <span style={{ lineHeight: 1 }}>{reqFamilies.toLocaleString()}</span>
                             </span>
                           </td>
                           <td style={{ padding: '0.75rem 0.85rem' }}>
