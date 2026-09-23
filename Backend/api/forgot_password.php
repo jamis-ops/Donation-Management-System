@@ -59,23 +59,7 @@ if ($action === 'send_code' || $action === 'request') {
     ], 403);
   }
 
-  // Check rate limit: if requested in the last 30 seconds
-  $rateStmt = $pdo->prepare('SELECT created_at FROM password_resets WHERE email = ? ORDER BY id DESC LIMIT 1');
-  $rateStmt->execute([$email]);
-  $lastReset = $rateStmt->fetch();
 
-  if ($lastReset && !empty($lastReset['created_at'])) {
-    $elapsed = time() - strtotime((string) $lastReset['created_at']);
-    if ($elapsed < 30) {
-      $waitSec = 30 - $elapsed;
-      json_response([
-        'ok' => false,
-        'error' => "Please wait {$waitSec} seconds before requesting another verification code.",
-        'rateLimited' => true,
-        'retryAfter' => $waitSec,
-      ], 429);
-    }
-  }
 
   // Generate 6-digit code
   $code = (string) random_int(100000, 999999);
@@ -148,23 +132,7 @@ if ($action === 'send_code' || $action === 'request') {
 // ACTION: RESEND CODE
 // ─────────────────────────────────────────────────────────────
 if ($action === 'resend_code') {
-  // Check rate limit: must wait at least 30 seconds
-  $rateStmt = $pdo->prepare('SELECT created_at FROM password_resets WHERE email = ? ORDER BY id DESC LIMIT 1');
-  $rateStmt->execute([$email]);
-  $lastReset = $rateStmt->fetch();
 
-  if ($lastReset && !empty($lastReset['created_at'])) {
-    $elapsed = time() - strtotime((string) $lastReset['created_at']);
-    if ($elapsed < 30) {
-      $waitSec = 30 - $elapsed;
-      json_response([
-        'ok' => false,
-        'error' => "Please wait {$waitSec} seconds before requesting a new code.",
-        'rateLimited' => true,
-        'retryAfter' => $waitSec,
-      ], 429);
-    }
-  }
 
   $userStmt = $pdo->prepare('SELECT id, full_name, email, status FROM users WHERE email = ? LIMIT 1');
   $userStmt->execute([$email]);
