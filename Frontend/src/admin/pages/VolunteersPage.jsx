@@ -29,6 +29,7 @@ import { useLoading } from '../../context/LoadingContext'
 import LoadingSpinner from '../../components/shared/LoadingSpinner'
 import NameFields from '../../components/shared/NameFields'
 import PhoneInput from '../../components/shared/PhoneInput'
+import CheckboxMultiSelect from '../../components/shared/CheckboxMultiSelect'
 import { emptyNameParts, formatFullName } from '../../utils/personName'
 import { emailError } from '../../utils/validation'
 
@@ -76,18 +77,31 @@ const emptyDirectTaskForm = {
   distributionId: '',
 }
 
-const emptyAddForm = {
-  applicantType: 'Volunteer', // 'Volunteer' | 'Intern'
+const emptyVolunteerForm = {
   ...emptyNameParts(),
   email: '',
   phone: '',
-  program: '',
+  programs: [],
+  hasOtherProgram: false,
+  otherProgram: '',
   skills: [],
-  skillsOther: '',
+  hasOtherSkill: false,
+  otherSkill: '',
+  availability: 'Flexible / On-call',
+  status: 'Approved',
+}
+
+const emptyInternForm = {
+  ...emptyNameParts(),
+  email: '',
+  phone: '',
   institution: '',
   requiredHours: 300,
   hours: 0,
-  availability: 'Flexible',
+  programs: [],
+  hasOtherProgram: false,
+  otherProgram: '',
+  availability: 'Monday to Friday (8am - 5pm)',
   status: 'Approved',
   resume: null,
 }
@@ -172,10 +186,14 @@ export default function VolunteersPage() {
   const [hoursForm, setHoursForm] = useState({ hours: 0, requiredHours: 0 })
   const [selectedProgramToEnroll, setSelectedProgramToEnroll] = useState('')
 
-  // 3. Manually Add Volunteer / Intern state
-  const [showAddModal, setShowAddModal] = useState(false)
-  const [addForm, setAddForm] = useState(emptyAddForm)
-  const [addSaving, setAddSaving] = useState(false)
+  // 3. Add Volunteer & Add Intern state (separate forms)
+  const [showAddVolunteerModal, setShowAddVolunteerModal] = useState(false)
+  const [volunteerForm, setVolunteerForm] = useState(emptyVolunteerForm)
+  const [volunteerSaving, setVolunteerSaving] = useState(false)
+
+  const [showAddInternModal, setShowAddInternModal] = useState(false)
+  const [internForm, setInternForm] = useState(emptyInternForm)
+  const [internSaving, setInternSaving] = useState(false)
 
   const linkableDistributions = useMemo(
     () => (distributions || []).filter((d) => ACTIVE_DIST_STATUSES.includes(d.status)),
@@ -539,86 +557,62 @@ export default function VolunteersPage() {
     }
   }
 
-  // 0. Open Manually Add Volunteer / Intern modal
-  const openAddModal = (defaultType) => {
-    const targetType = defaultType || activeTab || 'Volunteer'
-    setAddForm({
-      ...emptyAddForm,
-      applicantType: targetType,
-      program: targetType === 'Intern' ? 'Internship' : (programOptions[0] || ''),
-    })
-    setShowAddModal(true)
+  // 0. Open Add Volunteer modal
+  const openAddVolunteer = () => {
+    setVolunteerForm(emptyVolunteerForm)
+    setShowAddVolunteerModal(true)
   }
 
-  const handleAddSubmit = async (e) => {
+  const handleVolunteerSubmit = async (e) => {
     if (e?.preventDefault) e.preventDefault()
 
-    const fullName = formatFullName(addForm)
-    if (!addForm.firstName.trim() || !addForm.lastName.trim()) {
+    const fullName = formatFullName(volunteerForm)
+    if (!volunteerForm.firstName.trim() || !volunteerForm.lastName.trim()) {
       showErrorModal('First Name and Last Name are required.')
       return
     }
 
-    const emailErr = emailError(addForm.email)
+    const emailErr = emailError(volunteerForm.email)
     if (emailErr) {
       showErrorModal(emailErr)
       return
     }
 
-    const isIntern = addForm.applicantType === 'Intern'
-    if (isIntern) {
-      if (!addForm.institution.trim()) {
-        showErrorModal('School / University / Institution is required for interns.')
-        return
-      }
-      if (!addForm.requiredHours || Number(addForm.requiredHours) <= 0) {
-        showErrorModal('Please enter valid required duty hours (greater than 0).')
-        return
-      }
-    }
-
-    setAddSaving(true)
-    showLoading(`Registering ${addForm.applicantType.toLowerCase()}…`)
+    setVolunteerSaving(true)
+    showLoading('Registering volunteer…')
 
     try {
       const fd = new FormData()
-      fd.append('applicantType', addForm.applicantType)
-      fd.append('lastName', addForm.lastName.trim())
-      fd.append('firstName', addForm.firstName.trim())
-      fd.append('middleInitial', addForm.middleInitial.trim())
+      fd.append('applicantType', 'Volunteer')
+      fd.append('lastName', volunteerForm.lastName.trim())
+      fd.append('firstName', volunteerForm.firstName.trim())
+      fd.append('middleInitial', volunteerForm.middleInitial.trim())
       fd.append('name', fullName)
-      fd.append('email', addForm.email.trim())
-      if (addForm.phone) fd.append('phone', addForm.phone.trim())
-      fd.append('status', addForm.status)
-      if (addForm.availability) fd.append('availability', addForm.availability.trim())
+      fd.append('email', volunteerForm.email.trim())
+      if (volunteerForm.phone) fd.append('phone', volunteerForm.phone.trim())
+      fd.append('status', volunteerForm.status)
+      if (volunteerForm.availability) fd.append('availability', volunteerForm.availability.trim())
 
-      if (isIntern) {
-        fd.append('institution', addForm.institution.trim())
-        fd.append('requiredHours', String(Number(addForm.requiredHours) || 0))
-        fd.append('hours', String(Number(addForm.hours) || 0))
-        if (addForm.program) {
-          fd.append('programs', JSON.stringify([addForm.program]))
+      // Combine selected programs + custom write-in program
+      const programsToSave = [...volunteerForm.programs]
+      if (volunteerForm.hasOtherProgram && volunteerForm.otherProgram.trim()) {
+        const customProg = volunteerForm.otherProgram.trim()
+        if (!programsToSave.includes(customProg)) {
+          programsToSave.push(customProg)
         }
-        if (addForm.resume) {
-          fd.append('resume', addForm.resume)
-        }
-      } else {
-        if (addForm.program) {
-          fd.append('programs', JSON.stringify([addForm.program]))
-        } else {
-          fd.append('programs', JSON.stringify([]))
-        }
-        fd.append('skills', JSON.stringify(addForm.skills || []))
-        if (addForm.skillsOther) {
-          fd.append('skillsOther', addForm.skillsOther.trim())
-        }
+      }
+      fd.append('programs', JSON.stringify(programsToSave))
+
+      // Skills + Other skill
+      fd.append('skills', JSON.stringify(volunteerForm.skills || []))
+      if (volunteerForm.hasOtherSkill && volunteerForm.otherSkill.trim()) {
+        fd.append('skillsOther', volunteerForm.otherSkill.trim())
       }
 
       const res = await volunteersApi.create(fd)
       hideLoading()
-      setShowAddModal(false)
+      setShowAddVolunteerModal(false)
 
-      const entityLabel = isIntern ? 'Intern' : 'Volunteer'
       const credentialMsg = res?.credentialsSent
         ? ' Portal login credentials have been sent to their email.'
         : res?.temporaryPassword
@@ -626,22 +620,116 @@ export default function VolunteersPage() {
           : ''
 
       await showSuccessModal(
-        `“${fullName}” has been successfully registered as a ${entityLabel.toLowerCase()} (${res?.data?.id || 'Saved'}).${credentialMsg}`,
-        `${entityLabel} Added`
+        `“${fullName}” has been successfully registered as a volunteer (${res?.data?.id || 'Saved'}).${credentialMsg}`,
+        'Volunteer Added'
       )
 
-      if (activeTab !== addForm.applicantType) {
-        setActiveTab(addForm.applicantType)
+      if (activeTab !== 'Volunteer') {
+        setActiveTab('Volunteer')
       }
 
       reload()
       notifyBadgesChanged()
     } catch (err) {
       hideLoading()
-      showErrorModal(err.message || `Failed to add ${addForm.applicantType.toLowerCase()}`)
+      showErrorModal(err.message || 'Failed to add volunteer')
     } finally {
       hideLoading()
-      setAddSaving(false)
+      setVolunteerSaving(false)
+    }
+  }
+
+  // 0.1 Open Add Intern modal
+  const openAddIntern = () => {
+    setInternForm(emptyInternForm)
+    setShowAddInternModal(true)
+  }
+
+  const handleInternSubmit = async (e) => {
+    if (e?.preventDefault) e.preventDefault()
+
+    const fullName = formatFullName(internForm)
+    if (!internForm.firstName.trim() || !internForm.lastName.trim()) {
+      showErrorModal('First Name and Last Name are required.')
+      return
+    }
+
+    const emailErr = emailError(internForm.email)
+    if (emailErr) {
+      showErrorModal(emailErr)
+      return
+    }
+
+    if (!internForm.institution.trim()) {
+      showErrorModal('School / University / Institution is required for interns.')
+      return
+    }
+
+    if (!internForm.requiredHours || Number(internForm.requiredHours) <= 0) {
+      showErrorModal('Please enter valid required duty hours (greater than 0).')
+      return
+    }
+
+    setInternSaving(true)
+    showLoading('Registering intern…')
+
+    try {
+      const fd = new FormData()
+      fd.append('applicantType', 'Intern')
+      fd.append('lastName', internForm.lastName.trim())
+      fd.append('firstName', internForm.firstName.trim())
+      fd.append('middleInitial', internForm.middleInitial.trim())
+      fd.append('name', fullName)
+      fd.append('email', internForm.email.trim())
+      if (internForm.phone) fd.append('phone', internForm.phone.trim())
+      fd.append('status', internForm.status)
+      if (internForm.availability) fd.append('availability', internForm.availability.trim())
+
+      fd.append('institution', internForm.institution.trim())
+      fd.append('requiredHours', String(Number(internForm.requiredHours) || 0))
+      fd.append('hours', String(Number(internForm.hours) || 0))
+
+      // Programs + other
+      const programsToSave = [...internForm.programs]
+      if (internForm.hasOtherProgram && internForm.otherProgram.trim()) {
+        const customProg = internForm.otherProgram.trim()
+        if (!programsToSave.includes(customProg)) {
+          programsToSave.push(customProg)
+        }
+      }
+      fd.append('programs', JSON.stringify(programsToSave))
+
+      if (internForm.resume) {
+        fd.append('resume', internForm.resume)
+      }
+
+      const res = await volunteersApi.create(fd)
+      hideLoading()
+      setShowAddInternModal(false)
+
+      const credentialMsg = res?.credentialsSent
+        ? ' Portal login credentials have been sent to their email.'
+        : res?.temporaryPassword
+          ? ` Temporary password: ${res.temporaryPassword}`
+          : ''
+
+      await showSuccessModal(
+        `“${fullName}” has been successfully registered as an intern (${res?.data?.id || 'Saved'}).${credentialMsg}`,
+        'Intern Added'
+      )
+
+      if (activeTab !== 'Intern') {
+        setActiveTab('Intern')
+      }
+
+      reload()
+      notifyBadgesChanged()
+    } catch (err) {
+      hideLoading()
+      showErrorModal(err.message || 'Failed to add intern')
+    } finally {
+      hideLoading()
+      setInternSaving(false)
     }
   }
 
@@ -1004,14 +1092,25 @@ export default function VolunteersPage() {
             >
               + Assign Task
             </button>
-            <button
-              type="button"
-              className="btn btn--primary"
-              onClick={() => openAddModal(activeTab)}
-            >
-              <Plus size={16} />
-              <span>Add {activeTab === 'Intern' ? 'Intern' : 'Volunteer'}</span>
-            </button>
+            {activeTab === 'Intern' ? (
+              <button
+                type="button"
+                className="btn btn--primary"
+                onClick={openAddIntern}
+              >
+                <Plus size={16} />
+                <span>Add Intern</span>
+              </button>
+            ) : (
+              <button
+                type="button"
+                className="btn btn--primary"
+                onClick={openAddVolunteer}
+              >
+                <Plus size={16} />
+                <span>Add Volunteer</span>
+              </button>
+            )}
           </div>
         }
       />
@@ -2804,52 +2903,20 @@ export default function VolunteersPage() {
         </div>
       )}
 
-      {/* 3. MANUALLY ADD VOLUNTEER OR INTERN MODAL */}
-      {showAddModal && (
-        <div className="admin-modal-overlay" onClick={() => setShowAddModal(false)}>
+      {/* 3. ADD VOLUNTEER MODAL */}
+      {showAddVolunteerModal && (
+        <div className="admin-modal-overlay" onClick={() => setShowAddVolunteerModal(false)}>
           <div className="admin-modal admin-modal--wide" onClick={(e) => e.stopPropagation()}>
             <ModalHeader
-              title={`Manually Add ${addForm.applicantType}`}
-              onClose={() => setShowAddModal(false)}
+              title="Add Volunteer"
+              onClose={() => setShowAddVolunteerModal(false)}
             />
 
-            {/* Applicant Type Pill Selector */}
-            <div className="modal-applicant-type-bar" role="tablist">
-              <button
-                type="button"
-                className={`modal-applicant-type-btn ${addForm.applicantType === 'Volunteer' ? 'modal-applicant-type-btn--active' : ''}`}
-                onClick={() =>
-                  setAddForm((prev) => ({
-                    ...prev,
-                    applicantType: 'Volunteer',
-                    program: prev.program === 'Internship' ? (programOptions[0] || '') : prev.program,
-                  }))
-                }
-              >
-                <Users size={16} />
-                <span>Community Volunteer</span>
-              </button>
-              <button
-                type="button"
-                className={`modal-applicant-type-btn ${addForm.applicantType === 'Intern' ? 'modal-applicant-type-btn--active' : ''}`}
-                onClick={() =>
-                  setAddForm((prev) => ({
-                    ...prev,
-                    applicantType: 'Intern',
-                    program: prev.program || 'Internship',
-                  }))
-                }
-              >
-                <GraduationCap size={16} />
-                <span>Student Intern</span>
-              </button>
-            </div>
-
-            <form onSubmit={handleAddSubmit}>
+            <form onSubmit={handleVolunteerSubmit}>
               {/* Name Fields */}
               <NameFields
-                value={addForm}
-                onChange={(parts) => setAddForm((prev) => ({ ...prev, ...parts }))}
+                value={volunteerForm}
+                onChange={(parts) => setVolunteerForm((prev) => ({ ...prev, ...parts }))}
               />
 
               {/* Contact Info */}
@@ -2859,228 +2926,84 @@ export default function VolunteersPage() {
                   <input
                     type="email"
                     required
-                    value={addForm.email}
-                    onChange={(e) => setAddForm({ ...addForm, email: e.target.value })}
-                    placeholder={addForm.applicantType === 'Intern' ? 'student@university.edu.ph' : 'volunteer@email.com'}
+                    value={volunteerForm.email}
+                    onChange={(e) => setVolunteerForm({ ...volunteerForm, email: e.target.value })}
+                    placeholder="volunteer@email.com"
                   />
                 </label>
                 <label>
                   Phone Number
                   <PhoneInput
                     allowInternational
-                    value={addForm.phone}
-                    onChange={(phone) => setAddForm({ ...addForm, phone })}
+                    value={volunteerForm.phone}
+                    onChange={(phone) => setVolunteerForm({ ...volunteerForm, phone })}
                   />
                 </label>
               </div>
 
-              {/* Intern-specific fields */}
-              {addForm.applicantType === 'Intern' ? (
-                <>
-                  <label>
-                    <Req required>School / University / Institution</Req>
-                    <input
-                      type="text"
-                      required
-                      value={addForm.institution}
-                      onChange={(e) => setAddForm({ ...addForm, institution: e.target.value })}
-                      placeholder="e.g. University of San Carlos, CIT-U, Southwestern University"
-                    />
-                  </label>
+              {/* Programs Multi-select Checkbox Dropdown */}
+              <CheckboxMultiSelect
+                label="Enrolled Program Placement"
+                placeholder="Select programs from dropdown to add…"
+                options={programOptions}
+                value={volunteerForm.programs}
+                onChange={(programs) => setVolunteerForm({ ...volunteerForm, programs })}
+                showOther
+                hasOther={volunteerForm.hasOtherProgram}
+                onToggleOther={(checked) => setVolunteerForm({ ...volunteerForm, hasOtherProgram: checked })}
+                otherValue={volunteerForm.otherProgram}
+                onOtherChange={(text) => setVolunteerForm({ ...volunteerForm, otherProgram: text })}
+                otherPlaceholder="Specify other program (e.g. Environmental Greening, Relief Ops)…"
+                hint="Check all programs this volunteer will be enrolled in"
+              />
 
-                  <div className="form-row">
-                    <label>
-                      <Req required>Required Duty Hours (OJT)</Req>
-                      <input
-                        type="number"
-                        min="1"
-                        step="1"
-                        required
-                        value={addForm.requiredHours}
-                        onChange={(e) => setAddForm({ ...addForm, requiredHours: e.target.value })}
-                        placeholder="e.g. 300"
-                      />
-                    </label>
-                    <label>
-                      Starting Completed Hours
-                      <input
-                        type="number"
-                        min="0"
-                        step="0.5"
-                        value={addForm.hours}
-                        onChange={(e) => setAddForm({ ...addForm, hours: e.target.value })}
-                        placeholder="0"
-                      />
-                    </label>
-                  </div>
+              {/* Skills Multi-select Checkbox Dropdown */}
+              <CheckboxMultiSelect
+                label="Volunteer Skills & Capabilities"
+                placeholder="Select skills from dropdown to add…"
+                options={volunteerSkillOptions}
+                value={volunteerForm.skills}
+                onChange={(skills) => setVolunteerForm({ ...volunteerForm, skills })}
+                showOther
+                hasOther={volunteerForm.hasOtherSkill}
+                onToggleOther={(checked) => setVolunteerForm({ ...volunteerForm, hasOtherSkill: checked })}
+                otherValue={volunteerForm.otherSkill}
+                onOtherChange={(text) => setVolunteerForm({ ...volunteerForm, otherSkill: text })}
+                otherPlaceholder="Specify other skills or specialized expertise…"
+                hint="Select skills to match with volunteer tasks and distributions"
+              />
 
-                  <div className="form-row">
-                    <label>
-                      Assigned Program / Department
-                      <select
-                        value={addForm.program}
-                        onChange={(e) => setAddForm({ ...addForm, program: e.target.value })}
-                      >
-                        <option value="Internship">General Internship Placement</option>
-                        {programOptions.map((p) => (
-                          <option key={p} value={p}>{p}</option>
-                        ))}
-                      </select>
-                    </label>
-                    <label>
-                      Schedule / Availability
-                      <input
-                        type="text"
-                        value={addForm.availability}
-                        onChange={(e) => setAddForm({ ...addForm, availability: e.target.value })}
-                        placeholder="e.g. Monday to Friday (8am - 5pm)"
-                      />
-                    </label>
-                  </div>
-
-                  {/* CV / Resume Upload */}
-                  <label style={{ marginTop: '0.25rem' }}>
-                    <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                      <span>Student CV / Resume (Optional)</span>
-                      <span style={{ fontSize: '0.74rem', color: '#64748b' }}>PDF, DOC, DOCX up to 10MB</span>
-                    </span>
-
-                    {addForm.resume ? (
-                      <div className="volunteer-cv-attached-card" style={{ marginTop: '0.35rem' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', overflow: 'hidden' }}>
-                          <FileText size={20} color="#16a34a" style={{ flexShrink: 0 }} />
-                          <div style={{ overflow: 'hidden' }}>
-                            <strong style={{ fontSize: '0.85rem', color: '#14532d', display: 'block', textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap' }}>
-                              {addForm.resume.name}
-                            </strong>
-                            <span style={{ fontSize: '0.74rem', color: '#15803d' }}>
-                              {(addForm.resume.size / 1024).toFixed(1)} KB · Ready for AI CV analysis
-                            </span>
-                          </div>
-                        </div>
-                        <button
-                          type="button"
-                          className="btn btn--ghost btn--sm"
-                          onClick={() => setAddForm({ ...addForm, resume: null })}
-                          title="Remove attached file"
-                          style={{ padding: '0.2rem 0.5rem', color: '#dc2626' }}
-                        >
-                          <X size={14} /> Remove
-                        </button>
-                      </div>
-                    ) : (
-                      <label className="volunteer-cv-dropzone" style={{ marginTop: '0.35rem' }}>
-                        <UploadCloud size={24} color="#94a3b8" />
-                        <span style={{ fontSize: '0.84rem', fontWeight: 600, color: '#334155', marginTop: '0.35rem' }}>
-                          Click to upload CV / Resume
-                        </span>
-                        <span style={{ fontSize: '0.75rem', color: '#64748b' }}>
-                          Enables automatic AI skills matching and evidence scoring
-                        </span>
-                        <input
-                          type="file"
-                          accept=".pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-                          style={{ display: 'none' }}
-                          onChange={(e) => {
-                            const file = e.target.files?.[0]
-                            if (file) {
-                              if (file.size > 10 * 1024 * 1024) {
-                                showErrorModal('File size must be under 10MB.')
-                                return
-                              }
-                              setAddForm({ ...addForm, resume: file })
-                            }
-                          }}
-                        />
-                      </label>
-                    )}
-                  </label>
-                </>
-              ) : (
-                /* Volunteer-specific fields */
-                <>
-                  <div className="form-row">
-                    <label>
-                      Enrolled Program Placement
-                      <select
-                        value={addForm.program}
-                        onChange={(e) => setAddForm({ ...addForm, program: e.target.value })}
-                      >
-                        <option value="">-- No Enrolled Program (General Pool) --</option>
-                        {programOptions.map((p) => (
-                          <option key={p} value={p}>{p}</option>
-                        ))}
-                      </select>
-                    </label>
-                    <label>
-                      Availability
-                      <select
-                        value={addForm.availability}
-                        onChange={(e) => setAddForm({ ...addForm, availability: e.target.value })}
-                      >
-                        <option value="Flexible">Flexible / On-call</option>
-                        <option value="Weekdays">Weekdays (Mon - Fri)</option>
-                        <option value="Weekends">Weekends (Sat - Sun)</option>
-                        <option value="Full-time">Full-time Regular</option>
-                        <option value="Emergency Response">Disaster / Emergency Only</option>
-                      </select>
-                    </label>
-                  </div>
-
-                  {/* Skill Chips Selection */}
-                  <label style={{ marginTop: '0.25rem' }}>
-                    <span>Volunteer Skills & Capabilities</span>
-                    <div className="volunteer-skill-chips">
-                      {volunteerSkillOptions.map((skill) => {
-                        const isSelected = addForm.skills.includes(skill)
-                        return (
-                          <button
-                            key={skill}
-                            type="button"
-                            className={`volunteer-skill-chip ${isSelected ? 'volunteer-skill-chip--selected' : ''}`}
-                            onClick={() => {
-                              const nextSkills = isSelected
-                                ? addForm.skills.filter((s) => s !== skill)
-                                : [...addForm.skills, skill]
-                              setAddForm({ ...addForm, skills: nextSkills })
-                            }}
-                          >
-                            {isSelected && <Check size={12} />}
-                            <span>{skill}</span>
-                          </button>
-                        )
-                      })}
-                    </div>
-                  </label>
-
-                  <label>
-                    Other Skills / Specializations
-                    <input
-                      type="text"
-                      value={addForm.skillsOther}
-                      onChange={(e) => setAddForm({ ...addForm, skillsOther: e.target.value })}
-                      placeholder="e.g. Graphic design, photography, medical license, heavy machinery"
-                    />
-                  </label>
-                </>
-              )}
+              {/* Availability */}
+              <label style={{ marginBottom: '1rem' }}>
+                Availability
+                <select
+                  value={volunteerForm.availability}
+                  onChange={(e) => setVolunteerForm({ ...volunteerForm, availability: e.target.value })}
+                >
+                  <option value="Flexible / On-call">Flexible / On-call</option>
+                  <option value="Weekdays">Weekdays (Monday to Friday)</option>
+                  <option value="Weekends">Weekends (Saturday & Sunday)</option>
+                  <option value="Full-time Regular">Full-time Regular</option>
+                  <option value="Emergency Response Only">Emergency Response / Calamity Only</option>
+                </select>
+              </label>
 
               {/* Status & Portal Account Provisioning Selection */}
-              <div style={{ marginTop: '0.75rem' }}>
-                <span style={{ fontSize: '0.84rem', fontWeight: 600, color: '#334155' }}>
+              <div style={{ marginTop: '0.5rem' }}>
+                <span style={{ fontSize: '0.86rem', fontWeight: 600, color: '#0f172a' }}>
                   Initial Account & Application Status
                 </span>
                 <div className="status-choice-grid">
                   <div
-                    className={`status-choice-card ${addForm.status === 'Approved' ? 'status-choice-card--active' : ''}`}
-                    onClick={() => setAddForm({ ...addForm, status: 'Approved' })}
+                    className={`status-choice-card ${volunteerForm.status === 'Approved' ? 'status-choice-card--active' : ''}`}
+                    onClick={() => setVolunteerForm({ ...volunteerForm, status: 'Approved' })}
                     role="button"
                     tabIndex={0}
-                    onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') setAddForm({ ...addForm, status: 'Approved' }) }}
+                    onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') setVolunteerForm({ ...volunteerForm, status: 'Approved' }) }}
                   >
                     <div className="status-choice-card__title">
                       <span>Approved (Active)</span>
-                      {addForm.status === 'Approved' ? <CheckCircle2 size={16} color="#af101a" /> : <div style={{ width: 16 }} />}
+                      {volunteerForm.status === 'Approved' ? <CheckCircle2 size={16} color="#af101a" /> : <div style={{ width: 16 }} />}
                     </div>
                     <p className="status-choice-card__desc">
                       Activates the account immediately, provisions portal login, and sends credentials to their email.
@@ -3088,15 +3011,15 @@ export default function VolunteersPage() {
                   </div>
 
                   <div
-                    className={`status-choice-card ${addForm.status === 'Pending Review' ? 'status-choice-card--active' : ''}`}
-                    onClick={() => setAddForm({ ...addForm, status: 'Pending Review' })}
+                    className={`status-choice-card ${volunteerForm.status === 'Pending Review' ? 'status-choice-card--active' : ''}`}
+                    onClick={() => setVolunteerForm({ ...volunteerForm, status: 'Pending Review' })}
                     role="button"
                     tabIndex={0}
-                    onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') setAddForm({ ...addForm, status: 'Pending Review' }) }}
+                    onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') setVolunteerForm({ ...volunteerForm, status: 'Pending Review' }) }}
                   >
                     <div className="status-choice-card__title">
                       <span>Pending Review</span>
-                      {addForm.status === 'Pending Review' ? <CheckCircle2 size={16} color="#af101a" /> : <div style={{ width: 16 }} />}
+                      {volunteerForm.status === 'Pending Review' ? <CheckCircle2 size={16} color="#af101a" /> : <div style={{ width: 16 }} />}
                     </div>
                     <p className="status-choice-card__desc">
                       Enters as pending review in the applicant table. Portal account is created only when approved.
@@ -3110,18 +3033,240 @@ export default function VolunteersPage() {
                 <button
                   type="button"
                   className="btn btn--ghost"
-                  onClick={() => setShowAddModal(false)}
+                  onClick={() => setShowAddVolunteerModal(false)}
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   className="btn btn--primary"
-                  disabled={addSaving}
+                  disabled={volunteerSaving}
                 >
-                  {addSaving
-                    ? 'Saving…'
-                    : `+ Add ${addForm.applicantType === 'Intern' ? 'Intern' : 'Volunteer'}`}
+                  {volunteerSaving ? 'Saving…' : '+ Add Volunteer'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* 4. ADD INTERN MODAL */}
+      {showAddInternModal && (
+        <div className="admin-modal-overlay" onClick={() => setShowAddInternModal(false)}>
+          <div className="admin-modal admin-modal--wide" onClick={(e) => e.stopPropagation()}>
+            <ModalHeader
+              title="Add Intern"
+              onClose={() => setShowAddInternModal(false)}
+            />
+
+            <form onSubmit={handleInternSubmit}>
+              {/* Name Fields */}
+              <NameFields
+                value={internForm}
+                onChange={(parts) => setInternForm((prev) => ({ ...prev, ...parts }))}
+              />
+
+              {/* Contact Info */}
+              <div className="form-row">
+                <label>
+                  <Req required>Email Address</Req>
+                  <input
+                    type="email"
+                    required
+                    value={internForm.email}
+                    onChange={(e) => setInternForm({ ...internForm, email: e.target.value })}
+                    placeholder="student@university.edu.ph"
+                  />
+                </label>
+                <label>
+                  Phone Number
+                  <PhoneInput
+                    allowInternational
+                    value={internForm.phone}
+                    onChange={(phone) => setInternForm({ ...internForm, phone })}
+                  />
+                </label>
+              </div>
+
+              {/* School / Institution */}
+              <label style={{ marginBottom: '1rem' }}>
+                <Req required>School / University / Institution</Req>
+                <input
+                  type="text"
+                  required
+                  value={internForm.institution}
+                  onChange={(e) => setInternForm({ ...internForm, institution: e.target.value })}
+                  placeholder="e.g. University of San Carlos, CIT-U, Southwestern University, UV"
+                />
+              </label>
+
+              {/* OJT Hours */}
+              <div className="form-row">
+                <label>
+                  <Req required>Required Duty Hours (OJT)</Req>
+                  <input
+                    type="number"
+                    min="1"
+                    step="1"
+                    required
+                    value={internForm.requiredHours}
+                    onChange={(e) => setInternForm({ ...internForm, requiredHours: e.target.value })}
+                    placeholder="e.g. 300"
+                  />
+                </label>
+                <label>
+                  Starting Completed Hours
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.5"
+                    value={internForm.hours}
+                    onChange={(e) => setInternForm({ ...internForm, hours: e.target.value })}
+                    placeholder="0"
+                  />
+                </label>
+              </div>
+
+              {/* Assigned Programs / Department Multi-select */}
+              <CheckboxMultiSelect
+                label="Assigned Program / Department Placement"
+                placeholder="Select programs/departments from dropdown…"
+                options={programOptions}
+                value={internForm.programs}
+                onChange={(programs) => setInternForm({ ...internForm, programs })}
+                showOther
+                hasOther={internForm.hasOtherProgram}
+                onToggleOther={(checked) => setInternForm({ ...internForm, hasOtherProgram: checked })}
+                otherValue={internForm.otherProgram}
+                onOtherChange={(text) => setInternForm({ ...internForm, otherProgram: text })}
+                otherPlaceholder="Specify custom department or project…"
+                hint="Select program(s) or department where the intern is placed"
+              />
+
+              {/* Schedule / Availability */}
+              <label style={{ marginBottom: '1rem' }}>
+                Schedule / Duty Availability
+                <input
+                  type="text"
+                  value={internForm.availability}
+                  onChange={(e) => setInternForm({ ...internForm, availability: e.target.value })}
+                  placeholder="e.g. Monday to Friday (8am - 5pm)"
+                />
+              </label>
+
+              {/* Student CV / Resume Upload */}
+              <label style={{ marginBottom: '1rem' }}>
+                <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <span>Student CV / Resume (Optional)</span>
+                  <span style={{ fontSize: '0.74rem', color: '#64748b' }}>PDF, DOC, DOCX up to 10MB</span>
+                </span>
+
+                {internForm.resume ? (
+                  <div className="volunteer-cv-attached-card" style={{ marginTop: '0.35rem' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', overflow: 'hidden' }}>
+                      <FileText size={20} color="#16a34a" style={{ flexShrink: 0 }} />
+                      <div style={{ overflow: 'hidden' }}>
+                        <strong style={{ fontSize: '0.85rem', color: '#14532d', display: 'block', textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap' }}>
+                          {internForm.resume.name}
+                        </strong>
+                        <span style={{ fontSize: '0.74rem', color: '#15803d' }}>
+                          {(internForm.resume.size / 1024).toFixed(1)} KB · Ready for AI CV analysis
+                        </span>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      className="btn btn--ghost btn--sm"
+                      onClick={() => setInternForm({ ...internForm, resume: null })}
+                      title="Remove attached file"
+                      style={{ padding: '0.2rem 0.5rem', color: '#dc2626' }}
+                    >
+                      <X size={14} /> Remove
+                    </button>
+                  </div>
+                ) : (
+                  <label className="volunteer-cv-dropzone" style={{ marginTop: '0.35rem' }}>
+                    <UploadCloud size={24} color="#94a3b8" />
+                    <span style={{ fontSize: '0.84rem', fontWeight: 600, color: '#334155', marginTop: '0.35rem' }}>
+                      Click to upload Student CV / Resume
+                    </span>
+                    <span style={{ fontSize: '0.75rem', color: '#64748b' }}>
+                      Enables automatic AI skills matching and evidence scoring
+                    </span>
+                    <input
+                      type="file"
+                      accept=".pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                      style={{ display: 'none' }}
+                      onChange={(e) => {
+                        const file = e.target.files?.[0]
+                        if (file) {
+                          if (file.size > 10 * 1024 * 1024) {
+                            showErrorModal('File size must be under 10MB.')
+                            return
+                          }
+                          setInternForm({ ...internForm, resume: file })
+                        }
+                      }}
+                    />
+                  </label>
+                )}
+              </label>
+
+              {/* Status & Portal Account Provisioning Selection */}
+              <div style={{ marginTop: '0.5rem' }}>
+                <span style={{ fontSize: '0.86rem', fontWeight: 600, color: '#0f172a' }}>
+                  Initial Account & Application Status
+                </span>
+                <div className="status-choice-grid">
+                  <div
+                    className={`status-choice-card ${internForm.status === 'Approved' ? 'status-choice-card--active' : ''}`}
+                    onClick={() => setInternForm({ ...internForm, status: 'Approved' })}
+                    role="button"
+                    tabIndex={0}
+                    onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') setInternForm({ ...internForm, status: 'Approved' }) }}
+                  >
+                    <div className="status-choice-card__title">
+                      <span>Approved (Active)</span>
+                      {internForm.status === 'Approved' ? <CheckCircle2 size={16} color="#af101a" /> : <div style={{ width: 16 }} />}
+                    </div>
+                    <p className="status-choice-card__desc">
+                      Activates the account immediately, provisions portal login, and sends credentials to their email.
+                    </p>
+                  </div>
+
+                  <div
+                    className={`status-choice-card ${internForm.status === 'Pending Review' ? 'status-choice-card--active' : ''}`}
+                    onClick={() => setInternForm({ ...internForm, status: 'Pending Review' })}
+                    role="button"
+                    tabIndex={0}
+                    onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') setInternForm({ ...internForm, status: 'Pending Review' }) }}
+                  >
+                    <div className="status-choice-card__title">
+                      <span>Pending Review</span>
+                      {internForm.status === 'Pending Review' ? <CheckCircle2 size={16} color="#af101a" /> : <div style={{ width: 16 }} />}
+                    </div>
+                    <p className="status-choice-card__desc">
+                      Enters as pending review in the applicant table. Portal account is created only when approved.
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Modal Actions */}
+              <div className="admin-modal__actions" style={{ marginTop: '1.25rem' }}>
+                <button
+                  type="button"
+                  className="btn btn--ghost"
+                  onClick={() => setShowAddInternModal(false)}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="btn btn--primary"
+                  disabled={internSaving}
+                >
+                  {internSaving ? 'Saving…' : '+ Add Intern'}
                 </button>
               </div>
             </form>
