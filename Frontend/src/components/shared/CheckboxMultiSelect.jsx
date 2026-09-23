@@ -54,11 +54,13 @@ export default function CheckboxMultiSelect({
     onChange?.(selected.filter((item) => item !== opt))
   }
 
-  const selectAll = () => {
+  const selectAll = (e) => {
+    e.stopPropagation()
     onChange?.([...options])
   }
 
-  const clearAll = () => {
+  const clearAll = (e) => {
+    e.stopPropagation()
     onChange?.([])
   }
 
@@ -74,10 +76,12 @@ export default function CheckboxMultiSelect({
   return (
     <div className="checkbox-multiselect-field" ref={dropdownRef}>
       {label && (
-        <label className="checkbox-multiselect-field__label">
-          {required ? <Req required>{label}</Req> : label}
-          {hint && <span className="checkbox-multiselect-field__hint"> — {hint}</span>}
-        </label>
+        <div className="checkbox-multiselect-field__label-wrap">
+          <label className="checkbox-multiselect-field__label">
+            {required ? <Req required>{label}</Req> : label}
+          </label>
+          {hint && <span className="checkbox-multiselect-field__hint">{hint}</span>}
+        </div>
       )}
 
       {/* Trigger Button */}
@@ -102,7 +106,9 @@ export default function CheckboxMultiSelect({
         {isOpen && (
           <div className="checkbox-multiselect__menu" role="listbox">
             <div className="checkbox-multiselect__menu-header">
-              <span>{selected.length} of {options.length} selected</span>
+              <span className="checkbox-multiselect__header-count">
+                {selected.length} of {options.length} selected
+              </span>
               <div className="checkbox-multiselect__menu-actions">
                 {selected.length < options.length && (
                   <button
@@ -129,24 +135,30 @@ export default function CheckboxMultiSelect({
               {options.map((opt) => {
                 const isChecked = selected.includes(opt)
                 return (
-                  <label
+                  <div
                     key={opt}
                     className={`checkbox-multiselect__item ${isChecked ? 'checkbox-multiselect__item--checked' : ''}`}
+                    onClick={() => toggleOption(opt)}
+                    role="option"
+                    aria-selected={isChecked}
+                    tabIndex={0}
+                    onKeyDown={(e) => {
+                      if (e.key === ' ' || e.key === 'Enter') {
+                        e.preventDefault()
+                        toggleOption(opt)
+                      }
+                    }}
                   >
-                    <input
-                      type="checkbox"
-                      className="checkbox-multiselect__checkbox"
-                      checked={isChecked}
-                      onChange={() => toggleOption(opt)}
-                    />
-                    <span className="checkbox-multiselect__item-label">{opt}</span>
-                    {isChecked && <Check size={14} className="checkbox-multiselect__item-check" />}
-                  </label>
+                    <span className={`checkbox-multiselect__box ${isChecked ? 'checkbox-multiselect__box--checked' : ''}`}>
+                      {isChecked && <Check size={12} strokeWidth={3} className="checkbox-multiselect__check-icon" />}
+                    </span>
+                    <span className="checkbox-multiselect__item-text">{opt}</span>
+                  </div>
                 )
               })}
 
               {options.length === 0 && (
-                <div style={{ padding: '0.65rem 0.85rem', color: '#64748b', fontSize: '0.84rem' }}>
+                <div className="checkbox-multiselect__empty">
                   No options in catalog.
                 </div>
               )}
@@ -155,18 +167,26 @@ export default function CheckboxMultiSelect({
               {showOther && (
                 <>
                   <div className="checkbox-multiselect__divider" />
-                  <label className={`checkbox-multiselect__item checkbox-multiselect__item--other ${hasOther ? 'checkbox-multiselect__item--checked' : ''}`}>
-                    <input
-                      type="checkbox"
-                      className="checkbox-multiselect__checkbox"
-                      checked={hasOther}
-                      onChange={(e) => onToggleOther?.(e.target.checked)}
-                    />
-                    <span className="checkbox-multiselect__item-label">
+                  <div
+                    className={`checkbox-multiselect__item checkbox-multiselect__item--other ${hasOther ? 'checkbox-multiselect__item--checked' : ''}`}
+                    onClick={() => onToggleOther?.(!hasOther)}
+                    role="option"
+                    aria-selected={hasOther}
+                    tabIndex={0}
+                    onKeyDown={(e) => {
+                      if (e.key === ' ' || e.key === 'Enter') {
+                        e.preventDefault()
+                        onToggleOther?.(!hasOther)
+                      }
+                    }}
+                  >
+                    <span className={`checkbox-multiselect__box ${hasOther ? 'checkbox-multiselect__box--checked' : ''}`}>
+                      {hasOther && <Check size={12} strokeWidth={3} className="checkbox-multiselect__check-icon" />}
+                    </span>
+                    <span className="checkbox-multiselect__item-text">
                       <strong>Other</strong> (enter custom)
                     </span>
-                    {hasOther && <Check size={14} className="checkbox-multiselect__item-check" />}
-                  </label>
+                  </div>
                 </>
               )}
             </div>
@@ -177,16 +197,14 @@ export default function CheckboxMultiSelect({
       {/* Write-in field for "Other" when checked */}
       {showOther && hasOther && (
         <div className="checkbox-multiselect__other-box">
-          <div className="checkbox-multiselect__other-input-wrap">
-            <input
-              type="text"
-              className="checkbox-multiselect__other-input"
-              value={otherValue}
-              placeholder={otherPlaceholder}
-              onChange={(e) => onOtherChange?.(e.target.value)}
-              autoFocus
-            />
-          </div>
+          <input
+            type="text"
+            className="checkbox-multiselect__other-input"
+            value={otherValue}
+            placeholder={otherPlaceholder}
+            onChange={(e) => onOtherChange?.(e.target.value)}
+            autoFocus
+          />
         </div>
       )}
 

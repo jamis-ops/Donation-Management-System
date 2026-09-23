@@ -2943,7 +2943,7 @@ export default function VolunteersPage() {
 
               {/* Programs Multi-select Checkbox Dropdown */}
               <CheckboxMultiSelect
-                label="Enrolled Program Placement"
+                label="Program Placement"
                 placeholder="Select programs from dropdown to add…"
                 options={programOptions}
                 value={volunteerForm.programs}
@@ -2954,12 +2954,11 @@ export default function VolunteersPage() {
                 otherValue={volunteerForm.otherProgram}
                 onOtherChange={(text) => setVolunteerForm({ ...volunteerForm, otherProgram: text })}
                 otherPlaceholder="Specify other program (e.g. Environmental Greening, Relief Ops)…"
-                hint="Check all programs this volunteer will be enrolled in"
               />
 
               {/* Skills Multi-select Checkbox Dropdown */}
               <CheckboxMultiSelect
-                label="Volunteer Skills & Capabilities"
+                label="Skills"
                 placeholder="Select skills from dropdown to add…"
                 options={volunteerSkillOptions}
                 value={volunteerForm.skills}
@@ -2970,7 +2969,6 @@ export default function VolunteersPage() {
                 otherValue={volunteerForm.otherSkill}
                 onOtherChange={(text) => setVolunteerForm({ ...volunteerForm, otherSkill: text })}
                 otherPlaceholder="Specify other skills or specialized expertise…"
-                hint="Select skills to match with volunteer tasks and distributions"
               />
 
               {/* Availability */}
@@ -3129,8 +3127,8 @@ export default function VolunteersPage() {
 
               {/* Assigned Programs / Department Multi-select */}
               <CheckboxMultiSelect
-                label="Assigned Program / Department Placement"
-                placeholder="Select programs/departments from dropdown…"
+                label="Program Placement"
+                placeholder="Select programs from dropdown to add…"
                 options={programOptions}
                 value={internForm.programs}
                 onChange={(programs) => setInternForm({ ...internForm, programs })}
@@ -3140,7 +3138,6 @@ export default function VolunteersPage() {
                 otherValue={internForm.otherProgram}
                 onOtherChange={(text) => setInternForm({ ...internForm, otherProgram: text })}
                 otherPlaceholder="Specify custom department or project…"
-                hint="Select program(s) or department where the intern is placed"
               />
 
               {/* Schedule / Availability */}
