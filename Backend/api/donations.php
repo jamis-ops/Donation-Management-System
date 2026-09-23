@@ -735,9 +735,6 @@ if ($method === 'PUT') {
 
     $newStatus = trim((string) ($body['status'] ?? 'Verified'));
     $becomingVerified = $newStatus === 'Verified' && ($existing['status'] ?? '') !== 'Verified';
-    if ($becomingVerified && empty($existing['proof_path'])) {
-      json_response(['ok' => false, 'error' => 'Cannot approve: proof of donation is required. Ask the donor to resubmit with proof.'], 400);
-    }
 
     try {
       $pdo->exec("ALTER TABLE inventory_items ADD COLUMN item_type VARCHAR(100) NULL AFTER category");
@@ -907,9 +904,6 @@ if ($method === 'PUT') {
   $donationDate = (string) ($body['donationDate'] ?? $existing['donation_date']);
 
   $becomingVerified = $status === 'Verified' && ($existing['status'] ?? '') !== 'Verified';
-  if ($becomingVerified && empty($existing['proof_path'])) {
-    json_response(['ok' => false, 'error' => 'Cannot approve: proof of donation is required. Ask the donor to resubmit with proof.'], 400);
-  }
 
   $category = array_key_exists('category', $body) ? (trim((string) $body['category']) ?: null) : ($existing['category'] ?? null);
   $paymentMethod = array_key_exists('paymentMethod', $body)

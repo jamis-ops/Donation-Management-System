@@ -301,17 +301,13 @@ export default function DonationsPage() {
   }
 
   const handleVerify = async (row) => {
-    if (!row.hasProof) {
-      notify.warning('Cannot approve: proof of donation is required.')
-      return
-    }
-
     if (row.type === 'In-Kind') {
       setIntakeModalDonation(row)
       return
     }
 
-    const verifyMessage = `Verify monetary donation ${row.trackingCode} (${row.amount})? This will confirm receipt of funds and provision a donor account if needed.`
+    const proofNote = !row.hasProof ? ' Note: No digital proof was uploaded by the donor.' : ''
+    const verifyMessage = `Verify monetary donation ${row.trackingCode} (${row.amount})?${proofNote} This will confirm receipt of funds and provision a donor account if needed.`
 
     const confirmed = await confirmAction({
       title: 'Verify Donation',
@@ -1469,8 +1465,8 @@ export default function DonationsPage() {
                             type="button"
                             className="btn btn--primary"
                             onClick={() => handleVerify(selected)}
-                            disabled={!selected.hasProof || actionLoading}
-                            title={!selected.hasProof ? 'Proof of donation is required before verification' : undefined}
+                            disabled={actionLoading}
+                            title={selected.type === 'In-Kind' ? 'Verify & Post to Inventory' : 'Verify & Confirm Funds'}
                           >
                             <CheckCircle2 size={16} />
                             {selected.type === 'In-Kind' ? 'Verify & Post to Inventory' : 'Verify & Confirm Funds'}

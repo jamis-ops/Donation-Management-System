@@ -132,19 +132,18 @@ export default function StaffDonationsPage() {
 
   // Handle Verify Action (Monetary & general)
   const handleVerify = async (row) => {
-    if (!row.hasProof) {
-      notify.warning('Cannot approve: proof of donation is required before verification.')
-      return
-    }
-
     if (row.type === 'In-Kind') {
       setIntakeModalDonation(row)
       return
     }
 
+    const proofNotice = !row.hasProof
+      ? '\n\nNote: No digital proof was uploaded by the donor. Proceeding will verify receipt of funds based on manual staff confirmation.'
+      : ''
+
     const ok = await confirmAction({
       title: 'Verify & Confirm Funds',
-      message: `Verify monetary donation ${row.trackingCode} (${row.amount}) from ${row.donor}? This will confirm receipt of funds and update donation records.`,
+      message: `Verify monetary donation ${row.trackingCode} (${row.amount}) from ${row.donor}?${proofNotice}`,
       confirmText: 'Verify & Confirm Funds',
       type: 'primary',
     })
@@ -410,9 +409,9 @@ export default function StaffDonationsPage() {
                                 <button
                                   type="button"
                                   className="btn btn--sm btn--primary"
-                                  disabled={busy || !d.hasProof}
+                                  disabled={busy}
                                   onClick={() => handleVerify(d)}
-                                  title={!d.hasProof ? 'Proof required before verify' : (d.type === 'In-Kind' ? 'Verify & Intake Items' : 'Verify & Confirm Funds')}
+                                  title={d.type === 'In-Kind' ? 'Verify & Intake Items' : 'Verify & Confirm Funds'}
                                 >
                                   <CheckCircle2 size={14} /> {d.type === 'In-Kind' ? 'Intake' : 'Verify'}
                                 </button>
@@ -559,17 +558,17 @@ export default function StaffDonationsPage() {
                 >
                   <FileText size={16} /> Donation Details
                 </button>
-                {selected.hasProof && (
-                  <button
-                    type="button"
-                    className={`donation-tab ${modalTab === 'proof' ? 'donation-tab--active' : ''}`}
-                    onClick={() => setModalTab('proof')}
-                    style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', padding: '8px 16px', background: 'none', border: 'none', borderBottom: modalTab === 'proof' ? '2px solid #AF101A' : 'none', color: modalTab === 'proof' ? '#AF101A' : '#64748b', fontWeight: 600, cursor: 'pointer' }}
-                  >
-                    <FileCheck size={16} /> Proof of Donation
-                    <span style={{ fontSize: '0.7rem', padding: '1px 6px', borderRadius: '10px', background: '#fee2e2', color: '#AF101A' }}>1</span>
-                  </button>
-                )}
+                <button
+                  type="button"
+                  className={`donation-tab ${modalTab === 'proof' ? 'donation-tab--active' : ''}`}
+                  onClick={() => setModalTab('proof')}
+                  style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', padding: '8px 16px', background: 'none', border: 'none', borderBottom: modalTab === 'proof' ? '2px solid #AF101A' : 'none', color: modalTab === 'proof' ? '#AF101A' : '#64748b', fontWeight: 600, cursor: 'pointer' }}
+                >
+                  <FileCheck size={16} /> Proof of Donation
+                  <span style={{ fontSize: '0.7rem', padding: '1px 6px', borderRadius: '10px', background: selected.hasProof ? '#fee2e2' : '#f1f5f9', color: selected.hasProof ? '#AF101A' : '#94a3b8' }}>
+                    {selected.hasProof ? '1' : '0'}
+                  </span>
+                </button>
               </div>
 
               {/* TAB 1: Donation Details */}
@@ -745,8 +744,9 @@ export default function StaffDonationsPage() {
               )}
 
               {/* TAB 2: Proof of Donation */}
-              {modalTab === 'proof' && selected.hasProof && (
-                <div className="proof-viewer-card" style={{ padding: '0.5rem 0' }}>
+              {modalTab === 'proof' && (
+                selected.hasProof ? (
+                  <div className="proof-viewer-card" style={{ padding: '0.5rem 0' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
                     <div>
                       <h4 style={{ margin: 0, fontSize: '0.95rem', fontWeight: 700, color: '#1e293b', display: 'flex', alignItems: 'center', gap: '6px' }}>
@@ -835,7 +835,25 @@ export default function StaffDonationsPage() {
                     </div>
                   )}
                 </div>
-              )}
+              ) : (
+                <div style={{ padding: '2.5rem 1rem', textAlign: 'center', background: '#f8fafc', border: '1px dashed #cbd5e1', borderRadius: '8px' }}>
+                  <FileText size={36} color="#94a3b8" style={{ margin: '0 auto 0.5rem' }} />
+                  <h4 style={{ margin: '0 0 0.35rem', color: '#334155' }}>No Digital Proof Attached</h4>
+                  <p style={{ margin: '0 0 1rem', fontSize: '0.85rem', color: '#64748b', maxWidth: '420px', marginLeft: 'auto', marginRight: 'auto' }}>
+                    The donor did not upload a receipt or screenshot with this submission. Authorized Staff can still verify funds or intake goods directly.
+                  </p>
+                  {selected.status === 'Pending Verification' && (
+                    <button
+                      type="button"
+                      className="btn btn--primary btn--sm"
+                      onClick={() => handleVerify(selected)}
+                      disabled={busy}
+                    >
+                      <CheckCircle2 size={14} /> {selected.type === 'In-Kind' ? 'Verify & Intake Items' : 'Verify & Confirm Funds'}
+                    </button>
+                  )}
+                </div>
+              ))}
 
               {/* Modal Action Buttons Footer */}
               <div className="admin-modal__actions" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: '1px solid #e2e8f0', paddingTop: '1rem', marginTop: '1rem' }}>
@@ -858,8 +876,8 @@ export default function StaffDonationsPage() {
                       type="button"
                       className="btn btn--primary"
                       onClick={() => handleVerify(selected)}
-                      disabled={busy || !selected.hasProof}
-                      title={!selected.hasProof ? 'Proof of donation is required before verification' : undefined}
+                      disabled={busy}
+                      title={selected.type === 'In-Kind' ? 'Verify & Intake Items' : 'Verify & Confirm Funds'}
                     >
                       <CheckCircle2 size={16} /> {selected.type === 'In-Kind' ? 'Verify & Intake Items' : 'Verify & Confirm Funds'}
                     </button>
