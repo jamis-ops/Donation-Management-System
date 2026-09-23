@@ -41,8 +41,8 @@ const filterConfig = {
   ],
   sorts: [
     { key: 'barangay', label: 'Name' },
-    { key: 'affectedFamilies', label: 'Affected Families' },
     { key: 'municipality', label: 'Municipality' },
+    { key: 'status', label: 'Status' },
   ],
 }
 
@@ -51,7 +51,6 @@ const emptyCreateForm = {
   municipality: '',
   barangayType: '',
   address: '',
-  affectedFamilies: '',
   needs: [],
   nameParts: emptyNameParts(),
   representativePosition: '',
@@ -91,7 +90,6 @@ function formFromRow(row) {
     barangayType: row.barangayType || '',
     municipality: row.municipality || '',
     address: row.address || '',
-    affectedFamilies: row.affectedFamilies ?? '',
     needs: normalizeNeeds(row.needs),
     nameParts,
     representativePosition: row.representativePosition || '',
@@ -861,10 +859,6 @@ export default function BeneficiariesPage() {
                         </a>
                       </div>
                     )}
-                    <div className="barangay-submission-row">
-                      <span className="barangay-submission-label">Affected Families</span>
-                      <span className="barangay-submission-val font-semibold">{Number(sub.affectedFamilies || 0).toLocaleString()} families</span>
-                    </div>
                   </div>
 
                   <div className="barangay-submission-card__actions">
@@ -1006,30 +1000,18 @@ export default function BeneficiariesPage() {
                 </label>
               </div>
 
-              <div className="form-row">
-                <label>
-                  <CatalogFieldLabel catalog="barangay_types" onUpdated={applyBarangayTypes}>
-                    Barangay Type
-                  </CatalogFieldLabel>
-                  <select value={createForm.barangayType} onChange={(e) => setCreateForm({ ...createForm, barangayType: e.target.value })}>
-                    <option value="">Select type…</option>
-                    {barangayTypeOptions.map((t) => <option key={t} value={t}>{t}</option>)}
-                    {createForm.barangayType && !barangayTypeOptions.includes(createForm.barangayType) && (
-                      <option value={createForm.barangayType}>{createForm.barangayType}</option>
-                    )}
-                  </select>
-                </label>
-                <label>
-                  <Req required>Affected Families</Req>
-                  <input
-                    type="number"
-                    min="0"
-                    required
-                    value={createForm.affectedFamilies}
-                    onChange={(e) => setCreateForm({ ...createForm, affectedFamilies: e.target.value })}
-                  />
-                </label>
-              </div>
+              <label>
+                <CatalogFieldLabel catalog="barangay_types" onUpdated={applyBarangayTypes}>
+                  Barangay Type
+                </CatalogFieldLabel>
+                <select value={createForm.barangayType} onChange={(e) => setCreateForm({ ...createForm, barangayType: e.target.value })}>
+                  <option value="">Select type…</option>
+                  {barangayTypeOptions.map((t) => <option key={t} value={t}>{t}</option>)}
+                  {createForm.barangayType && !barangayTypeOptions.includes(createForm.barangayType) && (
+                    <option value={createForm.barangayType}>{createForm.barangayType}</option>
+                  )}
+                </select>
+              </label>
 
               <label>
                 <Req required>Complete Address</Req>
@@ -1154,12 +1136,12 @@ export default function BeneficiariesPage() {
               {/* Quick Stats Bar */}
               <div className="barangay-submission-modal__stats">
                 <div className="barangay-submission-modal__stat">
-                  <Users size={16} className="barangay-submission-modal__stat-icon" />
+                  <MapPin size={16} className="barangay-submission-modal__stat-icon" />
                   <div>
                     <span className="barangay-submission-modal__stat-value">
-                      {Number(viewingSubmission.affectedFamilies || 0).toLocaleString()}
+                      {viewingSubmission.municipality || 'Cebu'}
                     </span>
-                    <span className="barangay-submission-modal__stat-label">Affected Families</span>
+                    <span className="barangay-submission-modal__stat-label">Municipality / City</span>
                   </div>
                 </div>
                 <div className="barangay-submission-modal__stat">
@@ -1282,16 +1264,6 @@ export default function BeneficiariesPage() {
                       ) : (
                         <p className="barangay-submission-modal__empty">No specific needs listed</p>
                       )}
-                    </div>
-                    <div className="barangay-submission-modal__needs-col barangay-submission-modal__needs-col--narrow">
-                      <span className="barangay-submission-modal__section-label">Affected Families</span>
-                      <div className="barangay-submission-modal__affected-families">
-                        <Users size={24} className="barangay-submission-modal__affected-icon" />
-                        <span className="barangay-submission-modal__affected-value">
-                          {Number(viewingSubmission.affectedFamilies || 0).toLocaleString()}
-                        </span>
-                        <span className="barangay-submission-modal__affected-unit">families</span>
-                      </div>
                     </div>
                   </div>
                   {viewingSubmission.notes && (

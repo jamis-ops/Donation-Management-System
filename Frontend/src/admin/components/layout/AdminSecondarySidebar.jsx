@@ -168,7 +168,6 @@ export default function AdminSecondarySidebar({
                             <strong>{b.barangay || b.name || 'Barangay'}</strong>
                             <small>
                               {b.municipality || 'Cebu'}
-                              {b.affectedFamilies != null ? ` · ${Number(b.affectedFamilies).toLocaleString()} families` : ''}
                             </small>
                           </span>
                         </button>

@@ -291,27 +291,6 @@ function map_beneficiary(PDO $pdo, array $row): array
     $needs = is_array($decoded) ? $decoded : [];
   }
 
-  $affectedFamilies = (int) ($row['affected_families'] ?? 0);
-  if ($affectedFamilies <= 0) {
-    try {
-      $reqNotesStmt = $pdo->prepare('SELECT notes FROM assistance_requests WHERE beneficiary_id = ? AND notes IS NOT NULL ORDER BY id DESC LIMIT 5');
-      $reqNotesStmt->execute([$row['id']]);
-      foreach ($reqNotesStmt->fetchAll() as $reqRow) {
-        if (!empty($reqRow['notes'])) {
-          if (preg_match('/Families\s*Affected\s*:\s*(\d+)/i', (string) $reqRow['notes'], $m)) {
-            $affectedFamilies = (int) $m[1];
-            if ($affectedFamilies > 0) break;
-          } elseif (preg_match('/(\d+)\s*families/i', (string) $reqRow['notes'], $m)) {
-            $affectedFamilies = (int) $m[1];
-            if ($affectedFamilies > 0) break;
-          }
-        }
-      }
-    } catch (Throwable $e) {
-      // fallback
-    }
-  }
-
   return [
     'id' => $row['code'],
     'dbId' => (int) $row['id'],
@@ -320,7 +299,7 @@ function map_beneficiary(PDO $pdo, array $row): array
     'barangayType' => $row['barangay_type'] ?? '',
     'municipality' => $row['municipality'] ?? '',
     'address' => $row['address'] ?? '',
-    'affectedFamilies' => $affectedFamilies,
+    'affectedFamilies' => null,
     'representativeName' => $row['representative_name'] ?? '',
     'representativeFirstName' => $row['representative_first_name'] ?? '',
     'representativeLastName' => $row['representative_last_name'] ?? '',

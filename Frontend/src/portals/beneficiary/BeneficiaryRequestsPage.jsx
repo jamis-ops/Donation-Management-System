@@ -182,6 +182,8 @@ export default function BeneficiaryRequestsPage() {
         notes: structuredNotes,
         calamityTags: [calamityType],
         needs,
+        affectedFamilies: Number(form.familiesAffected) || 0,
+        familiesAffected: Number(form.familiesAffected) || 0,
       })
       showSuccessModal('Assistance request successfully submitted.')
       setForm(emptyForm)

@@ -192,6 +192,7 @@ CREATE TABLE IF NOT EXISTS assistance_requests (
   assistance_type VARCHAR(255) NOT NULL,
   status VARCHAR(50) NOT NULL DEFAULT 'Pending Review',
   priority ENUM('Low','Medium','High','Critical') NOT NULL DEFAULT 'Medium',
+  affected_families INT UNSIGNED NOT NULL DEFAULT 0,
   request_date DATE NOT NULL,
   notes TEXT NULL,
   needs_json TEXT NULL,

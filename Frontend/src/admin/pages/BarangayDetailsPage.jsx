@@ -3,7 +3,7 @@ import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import {
   ArrowLeft, Mail, Trash2, FileText, Truck, Package,
   User, Calendar, Check, Eye, X, Shield, Upload, CheckCircle2, XCircle,
-  Building, Phone, UserCheck, HeartHandshake, MapPin, Clock, Users, Activity
+  Building, Phone, UserCheck, HeartHandshake, MapPin, Clock, Users, Activity, Pencil, Tag
 } from 'lucide-react'
 import {
   beneficiariesApi,
@@ -21,6 +21,7 @@ import ApiState from '../components/shared/ApiState'
 import ModalHeader from '../components/shared/ModalHeader'
 import Req from '../../components/shared/Req'
 import NeedsPicker from '../../components/shared/NeedsPicker'
+import ReliefRequestModal from '../components/requests/ReliefRequestModal'
 import { usePagination, DEFAULT_PAGE_SIZE } from '../../hooks/usePagination'
 import Pagination from '../components/shared/Pagination'
 import { notifyBeneficiariesChanged } from '../../utils/beneficiariesSync'
@@ -40,7 +41,6 @@ function normalizeNeeds(value) {
   return []
 }
 
-const TABS = ['Overview', 'Relief Requests', 'Distributions', 'Tracker', 'Documents']
 const CLOSED_STATUSES = ['Completed', 'Done', 'Rejected', 'Cancelled']
 
 function derivePriority(requests) {
@@ -68,7 +68,7 @@ export default function BarangayDetailsPage() {
     [beneficiaries, id],
   )
 
-  const { data: assistanceRequests, loading: reqLoading } = useApiList(() => assistanceRequestsApi.list())
+  const { data: assistanceRequests, loading: reqLoading, reload: reloadReqs } = useApiList(() => assistanceRequestsApi.list())
   const requests = useMemo(() => {
     if (!beneficiary) return []
     return assistanceRequests.filter((r) => Number(r.beneficiaryId) === Number(beneficiary.dbId))
@@ -80,18 +80,10 @@ export default function BarangayDetailsPage() {
     return distributions.filter((d) => Number(d.beneficiaryId) === Number(beneficiary.dbId))
   }, [distributions, beneficiary])
 
-  const { data: allocations, loading: allocLoading } = useApiList(() => allocationsApi.list())
-  const bAllocations = useMemo(() => {
-    if (!beneficiary) return []
-    return allocations.filter((a) => Number(a.beneficiaryId) === Number(beneficiary.dbId))
-  }, [allocations, beneficiary])
-
-  const [searchParams, setSearchParams] = useSearchParams()
-  const tabFromUrl = (searchParams.get('tab') || '').toLowerCase().replace(/\s+/g, '-')
-  const [activeTab, setActiveTab] = useState(tabFromUrl || 'overview')
+  const [searchParams] = useSearchParams()
   const { showLoading, hideLoading } = useLoading()
   const [reqFilter, setReqFilter] = useState('All')
-  const tabKey = (tab) => tab.toLowerCase().replace(/\s+/g, '-')
+  const [selectedRequestModal, setSelectedRequestModal] = useState(null)
   const [isEditModalOpen, setIsEditModalOpen] = useState(false)
   const [saving, setSaving] = useState(false)
   const [actionBusy, setActionBusy] = useState(false)
@@ -113,7 +105,6 @@ export default function BarangayDetailsPage() {
       municipality: beneficiary.municipality || '',
       barangayType: beneficiary.barangayType || '',
       address: beneficiary.address || '',
-      affectedFamilies: beneficiary.affectedFamilies || 0,
       needs: normalizeNeeds(beneficiary.needs),
       representativeName: beneficiary.representativeName || '',
       representativePosition: beneficiary.representativePosition || '',
@@ -124,45 +115,29 @@ export default function BarangayDetailsPage() {
     })
   }, [beneficiary])
 
-  useEffect(() => {
-    if (tabFromUrl) {
-      const allowed = TABS.map(tabKey)
-      if (allowed.includes(tabFromUrl)) setActiveTab(tabFromUrl)
-    } else if (beneficiary && isAwaitingBarangayApproval(beneficiary)) {
-      setActiveTab('overview')
-    }
-  }, [beneficiary, tabFromUrl])
-
   const pageReady = Boolean(beneficiary) && !benLoading
   const focusReview = searchParams.get('focus') === 'review'
-    || (!tabFromUrl && Boolean(beneficiary && isAwaitingBarangayApproval(beneficiary)))
+    || Boolean(beneficiary && isAwaitingBarangayApproval(beneficiary))
   useHashScroll({ enabled: pageReady })
-  useQueryFocus(pageReady && focusReview && activeTab === 'overview', 'barangay-overview-review')
+  useQueryFocus(pageReady && focusReview, 'barangay-overview-review')
 
-  const selectTab = (key) => {
-    setActiveTab(key)
-    const next = new URLSearchParams(searchParams)
-    next.set('tab', key)
-    if (key !== 'overview') next.delete('focus')
-    setSearchParams(next, { replace: true })
-  }
+  const loading = benLoading || reqLoading || distLoading
 
-  const loading = benLoading || reqLoading || distLoading || allocLoading
-
-  const filteredRequests = reqFilter === 'All'
-    ? requests
-    : requests.filter((r) => {
+  const filteredRequests = useMemo(() => {
+    if (reqFilter === 'All') return requests
+    return requests.filter((r) => {
       if (reqFilter === 'Pending') {
         return ['Pending', 'Pending Verification', 'Pending Review', 'Under Review'].includes(r.status)
       }
       return r.status === reqFilter
     })
+  }, [requests, reqFilter])
 
   const requestsPaging = usePagination(filteredRequests, DEFAULT_PAGE_SIZE, `req|${reqFilter}`)
-  const distributionsPaging = usePagination(bDistributions, DEFAULT_PAGE_SIZE, 'dist')
+  const distributionsPaging = usePagination(bDistributions, 5, 'dist')
 
   if (loading && !beneficiary) {
-    return <ApiState loading message="Loading barangays…" />
+    return <ApiState loading message="Loading barangay details…" />
   }
 
   if (!beneficiary) {
@@ -190,15 +165,14 @@ export default function BarangayDetailsPage() {
     setSaving(true)
     showLoading('Saving…')
     try {
-      // Status is not editable here — Approve / Reject on Overview controls partnership status.
       const { status: _status, ...profileFields } = editForm
       await beneficiariesApi.update(beneficiary.dbId, {
         ...profileFields,
         status: beneficiary.status,
       })
       await reloadBen()
-      notify.success('Beneficiary updated.')
-      showSuccessModal('Successfully updated.')
+      notify.success('Barangay updated.')
+      showSuccessModal('Barangay details successfully updated.')
       setIsEditModalOpen(false)
     } catch (err) {
       notify.error(err.message)
@@ -212,7 +186,7 @@ export default function BarangayDetailsPage() {
     const name = beneficiary.barangay || beneficiary.name || 'this barangay'
     const ok = await confirmAction({
       title: 'Delete Barangay',
-      message: `Permanently delete "${name}"? This removes the barangay and its linked requests. This cannot be undone.`,
+      message: `Permanently delete "${name}"? This removes the barangay and its linked records. This cannot be undone.`,
       confirmText: 'Delete Barangay',
       type: 'danger',
     })
@@ -335,10 +309,9 @@ export default function BarangayDetailsPage() {
     }
   }
 
+  // Operational metrics without generic affected families
   const completedDistributions = bDistributions.filter((d) => ['Completed', 'Done', 'Distributed'].includes(d.status)).length
   const pendingRequestsCount = requests.filter((r) => !CLOSED_STATUSES.includes(r.status)).length
-  const pendingDistCount = bDistributions.filter((d) => !['Completed', 'Done', 'Distributed'].includes(d.status)).length
-  const pendingItems = pendingRequestsCount + pendingDistCount
   const highestPriority = derivePriority(requests)
 
   const needs = normalizeNeeds(beneficiary.needs)
@@ -382,24 +355,24 @@ export default function BarangayDetailsPage() {
               )}
             </div>
 
-              <div className="approval-confirm__actions" style={{ marginTop: '1.25rem' }}>
-                <button
-                  type="button"
-                  className="btn btn--ghost"
-                  onClick={() => setApproveConfirm(false)}
-                  disabled={actionBusy}
-                >
-                  Cancel
-                </button>
-                <button
-                  type="button"
-                  className="btn approval-overlay__btn-approve"
-                  onClick={handleApprove}
-                  disabled={actionBusy}
-                >
-                  {actionBusy ? 'Approving…' : 'Yes, Approve & Send Credentials'}
-                </button>
-              </div>
+            <div className="approval-confirm__actions" style={{ marginTop: '1.25rem' }}>
+              <button
+                type="button"
+                className="btn btn--ghost"
+                onClick={() => setApproveConfirm(false)}
+                disabled={actionBusy}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                className="btn approval-overlay__btn-approve"
+                onClick={handleApprove}
+                disabled={actionBusy}
+              >
+                {actionBusy ? 'Approving…' : 'Yes, Approve & Send Credentials'}
+              </button>
+            </div>
           </div>
         </div>
       )}
@@ -438,128 +411,89 @@ export default function BarangayDetailsPage() {
         </div>
       )}
 
+      {/* ── Main Barangay Details Content ── */}
       <div className="barangay-details__content">
 
-      <div className="barangay-details__top">
-        <div className="barangay-details__identity">
-          <button
-            type="button"
-            className="btn btn--ghost btn--sm barangay-details__back"
-            onClick={() => navigate('/admin/beneficiaries')}
-            aria-label="Back to barangay overview"
-          >
-            <ArrowLeft size={16} />
-          </button>
-          <div className="barangay-details__heading">
-            <h1 className="barangay-details__title">{beneficiary.barangay || beneficiary.name}</h1>
-            <span className="barangay-details__subtitle">{beneficiary.municipality || 'Cebu'}</span>
-            <StatusBadge status={beneficiary.status} />
-            {isPending && (
-              <span className="beneficiaries-review-pill">Awaiting approval</span>
-            )}
-            {highestPriority && <StatusBadge status={highestPriority} />}
-          </div>
-        </div>
-
-        <div className="barangay-details__actions">
-          {canInviteBarangay(beneficiary) && (
-            <button type="button" className="btn btn--outline btn--sm" onClick={handleSendInvite}>
-              <Mail size={14} /> Resend Invite
-            </button>
-          )}
-          <button type="button" className="btn btn--danger btn--sm" onClick={handleDelete}>
-            <Trash2 size={14} /> Remove
-          </button>
-        </div>
-      </div>
-
-      <div className="barangay-metrics">
-        <div className="barangay-metric">
-          <div className="barangay-metric__header">
-            <Users size={15} className="barangay-metric__icon" />
-            <span className="barangay-metric__label">Affected Families</span>
-          </div>
-          <span className="barangay-metric__value">{Number(beneficiary.affectedFamilies || 0).toLocaleString()}</span>
-        </div>
-        <div
-          className={`barangay-metric barangay-metric--clickable ${activeTab === 'relief-requests' ? 'barangay-metric--active' : ''}`}
-          onClick={() => selectTab('relief-requests')}
-          role="button"
-          tabIndex={0}
-          onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); selectTab('relief-requests') } }}
-          title="View relief requests for this barangay"
-        >
-          <div className="barangay-metric__header">
-            <FileText size={15} className="barangay-metric__icon" />
-            <span className="barangay-metric__label">Relief Requests</span>
-          </div>
-          <span className="barangay-metric__value">{requests.length}</span>
-        </div>
-        <div
-          className={`barangay-metric barangay-metric--clickable ${activeTab === 'distributions' ? 'barangay-metric--active' : ''}`}
-          onClick={() => selectTab('distributions')}
-          role="button"
-          tabIndex={0}
-          onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); selectTab('distributions') } }}
-          title="View distributions for this barangay"
-        >
-          <div className="barangay-metric__header">
-            <CheckCircle2 size={15} className="barangay-metric__icon" />
-            <span className="barangay-metric__label">Delivered Packs</span>
-          </div>
-          <span className="barangay-metric__value">{completedDistributions}</span>
-        </div>
-        <div
-          className={`barangay-metric barangay-metric--clickable ${activeTab === 'tracker' ? 'barangay-metric--active' : ''}`}
-          onClick={() => selectTab('tracker')}
-          role="button"
-          tabIndex={0}
-          onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); selectTab('tracker') } }}
-          title="View items tracker for this barangay"
-        >
-          <div className="barangay-metric__header">
-            <Clock size={15} className="barangay-metric__icon" />
-            <span className="barangay-metric__label">Pending Items</span>
-          </div>
-          <span className="barangay-metric__value">{pendingItems}</span>
-        </div>
-      </div>
-
-      <div className="barangay-tabs" role="tablist" aria-label="Beneficiary sections">
-        {TABS.map((tab) => {
-          const key = tabKey(tab)
-          let countBadge = null
-          if (key === 'relief-requests') countBadge = requests.length
-          if (key === 'distributions') countBadge = bDistributions.length
-
-          let TabIcon = FileText
-          if (key === 'overview') TabIcon = UserCheck
-          if (key === 'relief-requests') TabIcon = HeartHandshake
-          if (key === 'distributions') TabIcon = Truck
-          if (key === 'tracker') TabIcon = Activity
-          if (key === 'documents') TabIcon = Upload
-
-          return (
+        {/* 1. Barangay Header */}
+        <div className="barangay-details__top">
+          <div className="barangay-details__identity">
             <button
-              key={tab}
               type="button"
-              role="tab"
-              aria-selected={activeTab === key}
-              className={`barangay-tab${activeTab === key ? ' barangay-tab--active' : ''}`}
-              onClick={() => selectTab(key)}
+              className="btn btn--ghost btn--sm barangay-details__back"
+              onClick={() => navigate('/admin/beneficiaries')}
+              aria-label="Back to barangays overview"
             >
-              <TabIcon size={14} />
-              <span>{tab}</span>
-              {countBadge !== null && (
-                <span className="barangay-tab__badge">{countBadge}</span>
-              )}
+              <ArrowLeft size={16} />
             </button>
-          )
-        })}
-      </div>
+            <div className="barangay-details__heading">
+              <h1 className="barangay-details__title">{beneficiary.barangay || beneficiary.name}</h1>
+              <span className="barangay-details__subtitle">{beneficiary.municipality || 'Cebu'}</span>
+              <StatusBadge status={beneficiary.status} />
+              {isPending && (
+                <span className="beneficiaries-review-pill">Awaiting approval</span>
+              )}
+              {highestPriority && <StatusBadge status={highestPriority} />}
+            </div>
+          </div>
 
-      {activeTab === 'overview' && (
-        <div className="barangay-overview">
+          <div className="barangay-details__actions">
+            <button 
+              type="button" 
+              className="btn btn--outline btn--sm"
+              onClick={() => setIsEditModalOpen(true)}
+            >
+              <Pencil size={14} /> Edit Barangay
+            </button>
+            {canInviteBarangay(beneficiary) && (
+              <button type="button" className="btn btn--outline btn--sm" onClick={handleSendInvite}>
+                <Mail size={14} /> Resend Invite
+              </button>
+            )}
+            <button type="button" className="btn btn--danger btn--sm" onClick={handleDelete}>
+              <Trash2 size={14} /> Remove
+            </button>
+          </div>
+        </div>
+
+        {/* 2. Operational Summary Metrics (NO general affected families) */}
+        <div className="barangay-metrics">
+          <div className="barangay-metric">
+            <div className="barangay-metric__header">
+              <FileText size={15} className="barangay-metric__icon" />
+              <span className="barangay-metric__label">Relief Requests</span>
+            </div>
+            <span className="barangay-metric__value">{requests.length}</span>
+          </div>
+
+          <div className="barangay-metric">
+            <div className="barangay-metric__header">
+              <Clock size={15} className="barangay-metric__icon" />
+              <span className="barangay-metric__label">Active Requests</span>
+            </div>
+            <span className="barangay-metric__value">{pendingRequestsCount}</span>
+          </div>
+
+          <div className="barangay-metric">
+            <div className="barangay-metric__header">
+              <CheckCircle2 size={15} className="barangay-metric__icon" />
+              <span className="barangay-metric__label">Delivered Packs</span>
+            </div>
+            <span className="barangay-metric__value">{completedDistributions}</span>
+          </div>
+
+          <div className="barangay-metric">
+            <div className="barangay-metric__header">
+              <Truck size={15} className="barangay-metric__icon" />
+              <span className="barangay-metric__label">Distributions</span>
+            </div>
+            <span className="barangay-metric__value">{bDistributions.length}</span>
+          </div>
+        </div>
+
+        {/* 3. Centralized Overview Layout */}
+        <div className="barangay-overview" style={{ display: 'flex', flexDirection: 'column', gap: '1.75rem' }}>
+          
+          {/* Partnership Registration Awaiting Approval Banner */}
           {isPending && (
             <div
               id="barangay-overview-review"
@@ -599,8 +533,10 @@ export default function BarangayDetailsPage() {
             </div>
           )}
 
+          {/* 3-Card Barangay Information Grid */}
           <div className="barangay-overview-grid">
-            {/* Card 1: Representative & Contact Details */}
+            
+            {/* Card 1: Representative Details */}
             <div className="barangay-overview-card">
               <div className="barangay-overview-card__header">
                 <UserCheck size={16} className="barangay-overview-card__icon" />
@@ -638,7 +574,7 @@ export default function BarangayDetailsPage() {
               </div>
             </div>
 
-            {/* Card 2: Barangay Profile & Location */}
+            {/* Card 2: Barangay Profile & Location (NO affected families row) */}
             <div className="barangay-overview-card">
               <div className="barangay-overview-card__header">
                 <Building size={16} className="barangay-overview-card__icon" />
@@ -656,12 +592,6 @@ export default function BarangayDetailsPage() {
                 <div className="barangay-info-row">
                   <span className="barangay-info-label">Address</span>
                   <span className="barangay-info-value">{beneficiary.address || '—'}</span>
-                </div>
-                <div className="barangay-info-row">
-                  <span className="barangay-info-label">Affected Families</span>
-                  <span className="barangay-info-value font-semibold">
-                    {Number(beneficiary.affectedFamilies || 0).toLocaleString()}
-                  </span>
                 </div>
               </div>
             </div>
@@ -692,198 +622,279 @@ export default function BarangayDetailsPage() {
               </div>
             </div>
           </div>
-        </div>
-      )}
 
-      {activeTab === 'relief-requests' && (
-        <div>
-          <div className="barangay-chip-filters" style={{ marginBottom: '0.65rem' }}>
-            {['All', 'Pending', 'Approved', 'Completed', 'Rejected'].map((f) => (
-              <button
-                key={f}
-                type="button"
-                className={`barangay-chip${reqFilter === f ? ' barangay-chip--active' : ''}`}
-                onClick={() => setReqFilter(f)}
-              >
-                {f}
-              </button>
-            ))}
-          </div>
+          {/* 4. Relief Requests Section (Centralized in Overview) */}
+          <section className="barangay-overview-section" style={{
+            background: 'var(--admin-surface, #ffffff)',
+            borderRadius: '12px',
+            border: '1px solid var(--admin-border, #e2e8f0)',
+            padding: '1.35rem 1.5rem',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '1rem',
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '0.75rem' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
+                <HeartHandshake size={20} style={{ color: 'var(--admin-brand, #af101a)' }} />
+                <h3 style={{ margin: 0, fontSize: '1.05rem', fontWeight: 700, color: '#0f172a' }}>
+                  Relief Requests
+                </h3>
+                <span className="badge badge--neutral" style={{ fontWeight: 650 }}>
+                  {requests.length}
+                </span>
+              </div>
 
-          {filteredRequests.length === 0 ? (
-            <p className="barangay-empty">No requests found for this beneficiary.</p>
-          ) : (
-            <>
-              <div className="barangay-card-list">
-                {requestsPaging.pageItems.map((req) => (
-                  <div
-                    key={req.dbId || req.id}
-                    className="barangay-item-card"
-                    onClick={() => navigate('/admin/requests')}
-                    onKeyDown={(e) => { if (e.key === 'Enter') navigate('/admin/requests') }}
-                    role="button"
-                    tabIndex={0}
+              {/* Status Filter Chips */}
+              <div className="barangay-chip-filters" style={{ margin: 0 }}>
+                {['All', 'Pending', 'Approved', 'Completed', 'Rejected'].map((f) => (
+                  <button
+                    key={f}
+                    type="button"
+                    className={`barangay-chip${reqFilter === f ? ' barangay-chip--active' : ''}`}
+                    onClick={() => setReqFilter(f)}
                   >
-                    <div className="barangay-item-card__header">
-                      <div>
-                        <h4 className="barangay-item-card__title">{req.id} — {req.type}</h4>
-                        <div className="barangay-item-card__meta">
-                          <span><Calendar size={12} /> {req.date || '—'}</span>
-                        </div>
-                      </div>
-                      <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap' }}>
-                        {req.priority && <StatusBadge status={req.priority} />}
-                        <StatusBadge status={req.status} />
-                      </div>
-                    </div>
-                    {req.notes && <p className="barangay-item-card__notes">{req.notes}</p>}
-                  </div>
+                    {f}
+                  </button>
                 ))}
               </div>
-              <Pagination
-                page={requestsPaging.page}
-                totalPages={requestsPaging.totalPages}
-                total={requestsPaging.total}
-                startIndex={requestsPaging.startIndex}
-                endIndex={requestsPaging.endIndex}
-                onPageChange={requestsPaging.setPage}
-                className="pagination--portal"
-                noun="requests"
-              />
-            </>
-          )}
-        </div>
-      )}
+            </div>
 
-      {activeTab === 'distributions' && (
-        <div>
-          {bDistributions.length === 0 ? (
-            <p className="barangay-empty">No distributions found for this beneficiary.</p>
-          ) : (
-            <>
-              <div className="barangay-card-list">
-                {distributionsPaging.pageItems.map((dist) => (
-                  <div
-                    key={dist.dbId || dist.id}
-                    className="barangay-item-card"
-                    onClick={() => navigate('/admin/distributions')}
-                    onKeyDown={(e) => { if (e.key === 'Enter') navigate('/admin/distributions') }}
-                    role="button"
-                    tabIndex={0}
-                  >
-                    <div className="barangay-item-card__header">
-                      <div>
-                        <h4 className="barangay-item-card__title">{dist.eventName || dist.id}</h4>
-                        <div className="barangay-item-card__meta">
-                          <span><Calendar size={12} /> {dist.date || dist.distributionDate || '—'}</span>
-                          <span><Package size={12} /> {dist.program || 'General'}</span>
-                        </div>
-                      </div>
-                      <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap' }}>
-                        <StatusBadge status={dist.status} />
-                        {dist.proofStatus && <StatusBadge status={dist.proofStatus} />}
-                      </div>
-                    </div>
-                    {dist.itemsSummary && <p className="barangay-item-card__notes">{dist.itemsSummary}</p>}
-                  </div>
-                ))}
+            {filteredRequests.length === 0 ? (
+              <div style={{
+                textAlign: 'center',
+                padding: '2.5rem 1rem',
+                color: '#64748b',
+                background: '#f8fafc',
+                borderRadius: '8px',
+                border: '1px dashed #cbd5e1',
+              }}>
+                <FileText size={28} style={{ margin: '0 auto 0.5rem', opacity: 0.5 }} />
+                <p style={{ margin: 0, fontWeight: 500, fontSize: '0.9rem' }}>
+                  {reqFilter === 'All' ? 'No relief requests filed for this barangay yet.' : `No ${reqFilter.toLowerCase()} requests found.`}
+                </p>
               </div>
-              <Pagination
-                page={distributionsPaging.page}
-                totalPages={distributionsPaging.totalPages}
-                total={distributionsPaging.total}
-                startIndex={distributionsPaging.startIndex}
-                endIndex={distributionsPaging.endIndex}
-                onPageChange={distributionsPaging.setPage}
-                className="pagination--portal"
-                noun="distributions"
-              />
-            </>
-          )}
-        </div>
-      )}
-
-      {activeTab === 'tracker' && (
-        <div>
-          {requests.filter((r) => !['Completed', 'Done'].includes(r.status)).length === 0 ? (
-            <p className="barangay-empty">No active requests to track.</p>
-          ) : (
-            requests.filter((r) => !['Completed', 'Done'].includes(r.status)).map((req) => {
-              const isRejected = req.status === 'Rejected'
-              const reqAllocations = bAllocations.filter((a) => (
-                Number(a.assistanceRequestId) === Number(req.dbId)
-                || Number(a.beneficiaryId) === Number(req.beneficiaryId)
-              ))
-              const reqDists = bDistributions.filter((d) => Number(d.beneficiaryId) === Number(req.beneficiaryId))
-
-              let stage = 1
-              if (['Pending Review', 'Under Review'].includes(req.status)) stage = 2
-              if (req.status === 'Approved') stage = 3
-              if (reqAllocations.length > 0) stage = 4
-
-              const activeDist = reqDists[0]
-              if (activeDist) {
-                if (['Scheduled', 'Planning', 'Preparing'].includes(activeDist.status)) stage = 5
-                if (['In Transit', 'Dispatched', 'In Progress'].includes(activeDist.status)) stage = 6
-                if (['Delivered', 'Received', 'Awaiting Proof'].includes(activeDist.status)) stage = 7
-                if (['Verified', 'Proof Verified', 'Approved'].includes(activeDist.proofStatus)) stage = 8
-                if (['Completed', 'Done'].includes(activeDist.status)) stage = 9
-              }
-
-              const stages = [
-                { id: 1, label: 'Submitted', icon: FileText },
-                { id: 2, label: 'Reviewed', icon: Eye, admin: true },
-                { id: 3, label: 'Approved', icon: Check, admin: true },
-                { id: 4, label: 'Allocated', icon: Package },
-                { id: 5, label: 'Scheduled', icon: Calendar },
-                { id: 6, label: 'Dispatched', icon: Truck },
-                { id: 7, label: 'Confirmed', icon: User },
-                { id: 8, label: 'Verified', icon: Shield, admin: true },
-                { id: 9, label: 'Completed', icon: Check },
-              ]
-
-              return (
-                <div key={req.dbId || req.id} className="barangay-tracker">
-                  <h3 className="barangay-tracker__title">Request tracker: {req.id}</h3>
-                  <div className="barangay-tracker__timeline">
-                    {stages.map((s) => {
-                      if (isRejected && s.id > stage) return null
-                      const Icon = s.icon
-                      let nodeClass = 'barangay-tracker__node'
-                      if (s.id < stage && !isRejected) nodeClass += ' barangay-tracker__node--done'
-                      if (s.id === stage && !isRejected) nodeClass += ' barangay-tracker__node--current'
-                      if (s.id === stage && isRejected) nodeClass += ' barangay-tracker__node--rejected'
+            ) : (
+              <div style={{ overflowX: 'auto' }}>
+                <table className="admin-table" style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.86rem' }}>
+                  <thead>
+                    <tr style={{ background: '#f8fafc', textAlign: 'left', borderBottom: '1px solid #e2e8f0' }}>
+                      <th style={{ padding: '0.65rem 0.85rem', fontWeight: 650, color: '#475569' }}>Request ID</th>
+                      <th style={{ padding: '0.65rem 0.85rem', fontWeight: 650, color: '#475569' }}>Calamity</th>
+                      <th style={{ padding: '0.65rem 0.85rem', fontWeight: 650, color: '#475569' }}>Needs</th>
+                      <th style={{ padding: '0.65rem 0.85rem', fontWeight: 650, color: '#475569' }}>Affected Families</th>
+                      <th style={{ padding: '0.65rem 0.85rem', fontWeight: 650, color: '#475569' }}>Priority</th>
+                      <th style={{ padding: '0.65rem 0.85rem', fontWeight: 650, color: '#475569' }}>Status</th>
+                      <th style={{ padding: '0.65rem 0.85rem', fontWeight: 650, color: '#475569' }}>Date</th>
+                      <th style={{ padding: '0.65rem 0.85rem', textAlign: 'right', fontWeight: 650, color: '#475569' }}>Action</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {requestsPaging.pageItems.map((req) => {
+                      const reqCalamity = (req.calamityTags && req.calamityTags[0])
+                        || (req.notes?.match(/Calamity\/Program:\s*([^\n\r]+)/i)?.[1]?.trim())
+                        || req.reason
+                        || 'General'
+                      const reqFamilies = Number(req.affectedFamilies || 0)
 
                       return (
-                        <div key={s.id} className={nodeClass}>
-                          <div className="barangay-tracker__icon">
-                            {isRejected && s.id === stage ? <X size={14} /> : <Icon size={14} />}
-                          </div>
-                          {s.admin && <Shield size={10} className="barangay-tracker__gate" aria-label="Admin gate" />}
-                          <span className="barangay-tracker__label">{s.label}</span>
-                        </div>
+                        <tr 
+                          key={req.dbId || req.id} 
+                          style={{ borderBottom: '1px solid #f1f5f9', cursor: 'pointer' }}
+                          onClick={() => setSelectedRequestModal(req)}
+                          className="table-row-hover"
+                        >
+                          <td style={{ padding: '0.75rem 0.85rem', fontWeight: 650, color: '#0f172a' }}>
+                            {req.id}
+                          </td>
+                          <td style={{ padding: '0.75rem 0.85rem', color: '#334155' }}>
+                            <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.3rem', fontWeight: 600 }}>
+                              {reqCalamity}
+                            </span>
+                          </td>
+                          <td style={{ padding: '0.75rem 0.85rem', color: '#475569', maxWidth: '220px' }}>
+                            <span style={{ 
+                              display: '-webkit-box', 
+                              WebkitLineClamp: 1, 
+                              WebkitBoxOrient: 'vertical', 
+                              overflow: 'hidden',
+                              textOverflow: 'ellipsis' 
+                            }}>
+                              {Array.isArray(req.needs) && req.needs.length > 0 ? req.needs.join(', ') : (req.type || '—')}
+                            </span>
+                          </td>
+                          <td style={{ padding: '0.75rem 0.85rem' }}>
+                            <span style={{ fontWeight: 700, color: '#af101a', display: 'inline-flex', alignItems: 'center', gap: '0.3rem' }}>
+                              <Users size={13} /> {reqFamilies.toLocaleString()}
+                            </span>
+                          </td>
+                          <td style={{ padding: '0.75rem 0.85rem' }}>
+                            {req.priority && <StatusBadge status={req.priority} />}
+                          </td>
+                          <td style={{ padding: '0.75rem 0.85rem' }}>
+                            <StatusBadge status={req.status} />
+                          </td>
+                          <td style={{ padding: '0.75rem 0.85rem', color: '#64748b', fontSize: '0.82rem' }}>
+                            {req.date || req.requestDate || '—'}
+                          </td>
+                          <td style={{ padding: '0.75rem 0.85rem', textAlign: 'right' }}>
+                            <button
+                              type="button"
+                              className="btn btn--outline btn--xs"
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                setSelectedRequestModal(req)
+                              }}
+                              style={{ fontSize: '0.75rem' }}
+                            >
+                              <Eye size={12} /> View Details
+                            </button>
+                          </td>
+                        </tr>
                       )
                     })}
-                  </div>
-                </div>
-              )
-            })
-          )}
-        </div>
-      )}
+                  </tbody>
+                </table>
 
-      {activeTab === 'documents' && (
-        <div className="barangay-docs">
-          <Upload size={18} />
-          <h3>Documents & proofs</h3>
-          <p>
-            Proofs submitted: {beneficiary.proofsSubmitted || 0}. Uploads will show here when available.
-          </p>
-        </div>
-      )}
+                {requestsPaging.totalPages > 1 && (
+                  <div style={{ marginTop: '0.85rem' }}>
+                    <Pagination
+                      page={requestsPaging.page}
+                      totalPages={requestsPaging.totalPages}
+                      total={requestsPaging.total}
+                      startIndex={requestsPaging.startIndex}
+                      endIndex={requestsPaging.endIndex}
+                      onPageChange={requestsPaging.setPage}
+                      className="pagination--portal"
+                      noun="requests"
+                    />
+                  </div>
+                )}
+              </div>
+            )}
+          </section>
+
+          {/* 5. Distributions & Logistics Fulfillment Section (Centralized in Overview) */}
+          <section className="barangay-overview-section" style={{
+            background: 'var(--admin-surface, #ffffff)',
+            borderRadius: '12px',
+            border: '1px solid var(--admin-border, #e2e8f0)',
+            padding: '1.35rem 1.5rem',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '1rem',
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '0.75rem' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
+                <Truck size={20} style={{ color: 'var(--admin-brand, #af101a)' }} />
+                <h3 style={{ margin: 0, fontSize: '1.05rem', fontWeight: 700, color: '#0f172a' }}>
+                  Distributions & Fulfillment
+                </h3>
+                <span className="badge badge--neutral" style={{ fontWeight: 650 }}>
+                  {bDistributions.length}
+                </span>
+              </div>
+            </div>
+
+            {bDistributions.length === 0 ? (
+              <div style={{
+                textAlign: 'center',
+                padding: '2rem 1rem',
+                color: '#64748b',
+                background: '#f8fafc',
+                borderRadius: '8px',
+                border: '1px dashed #cbd5e1',
+              }}>
+                <Truck size={26} style={{ margin: '0 auto 0.4rem', opacity: 0.5 }} />
+                <p style={{ margin: 0, fontWeight: 500, fontSize: '0.88rem' }}>
+                  No distribution events recorded for this barangay yet.
+                </p>
+              </div>
+            ) : (
+              <div style={{ overflowX: 'auto' }}>
+                <table className="admin-table" style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.86rem' }}>
+                  <thead>
+                    <tr style={{ background: '#f8fafc', textAlign: 'left', borderBottom: '1px solid #e2e8f0' }}>
+                      <th style={{ padding: '0.65rem 0.85rem', fontWeight: 650, color: '#475569' }}>Event / Code</th>
+                      <th style={{ padding: '0.65rem 0.85rem', fontWeight: 650, color: '#475569' }}>Program</th>
+                      <th style={{ padding: '0.65rem 0.85rem', fontWeight: 650, color: '#475569' }}>Items Summary</th>
+                      <th style={{ padding: '0.65rem 0.85rem', fontWeight: 650, color: '#475569' }}>Date</th>
+                      <th style={{ padding: '0.65rem 0.85rem', fontWeight: 650, color: '#475569' }}>Status</th>
+                      <th style={{ padding: '0.65rem 0.85rem', textAlign: 'right', fontWeight: 650, color: '#475569' }}>Action</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {distributionsPaging.pageItems.map((dist) => (
+                      <tr 
+                        key={dist.dbId || dist.id} 
+                        style={{ borderBottom: '1px solid #f1f5f9' }}
+                      >
+                        <td style={{ padding: '0.75rem 0.85rem', fontWeight: 650, color: '#0f172a' }}>
+                          {dist.eventName || dist.id}
+                        </td>
+                        <td style={{ padding: '0.75rem 0.85rem', color: '#334155' }}>
+                          {dist.program || 'General Relief'}
+                        </td>
+                        <td style={{ padding: '0.75rem 0.85rem', color: '#475569' }}>
+                          {dist.itemsSummary || 'Relief goods package'}
+                        </td>
+                        <td style={{ padding: '0.75rem 0.85rem', color: '#64748b', fontSize: '0.82rem' }}>
+                          {dist.date || dist.distributionDate || '—'}
+                        </td>
+                        <td style={{ padding: '0.75rem 0.85rem' }}>
+                          <div style={{ display: 'inline-flex', gap: '0.35rem', flexWrap: 'wrap' }}>
+                            <StatusBadge status={dist.status} />
+                            {dist.proofStatus && <StatusBadge status={dist.proofStatus} />}
+                          </div>
+                        </td>
+                        <td style={{ padding: '0.75rem 0.85rem', textAlign: 'right' }}>
+                          <button
+                            type="button"
+                            className="btn btn--outline btn--xs"
+                            onClick={() => navigate('/admin/distributions')}
+                            style={{ fontSize: '0.75rem' }}
+                          >
+                            View in Logistics &rarr;
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+
+                {distributionsPaging.totalPages > 1 && (
+                  <div style={{ marginTop: '0.85rem' }}>
+                    <Pagination
+                      page={distributionsPaging.page}
+                      totalPages={distributionsPaging.totalPages}
+                      total={distributionsPaging.total}
+                      startIndex={distributionsPaging.startIndex}
+                      endIndex={distributionsPaging.endIndex}
+                      onPageChange={distributionsPaging.setPage}
+                      className="pagination--portal"
+                      noun="distributions"
+                    />
+                  </div>
+                )}
+              </div>
+            )}
+          </section>
+
+        </div>{/* end .barangay-overview */}
 
       </div>{/* end .barangay-details__content */}
 
+      {/* ── Relief Request Modal (Shared clean UI) ── */}
+      {selectedRequestModal && (
+        <ReliefRequestModal
+          request={selectedRequestModal}
+          onClose={() => setSelectedRequestModal(null)}
+          onUpdated={async () => {
+            await reloadReqs()
+          }}
+        />
+      )}
+
+      {/* ── Edit Barangay Modal (NO affected families input) ── */}
       {isEditModalOpen && (
         <div className="admin-modal-overlay" onClick={() => setIsEditModalOpen(false)}>
           <div className="admin-modal admin-modal--wide" onClick={(e) => e.stopPropagation()}>
@@ -899,6 +910,7 @@ export default function BarangayDetailsPage() {
                   <input required value={editForm.municipality} onChange={(e) => setEditForm({ ...editForm, municipality: e.target.value })} />
                 </label>
               </div>
+
               <div className="form-row">
                 <label>
                   <CatalogFieldLabel catalog="barangay_types" onUpdated={applyBarangayTypes}>
@@ -913,14 +925,11 @@ export default function BarangayDetailsPage() {
                   </select>
                 </label>
                 <label>
-                  Affected Families
-                  <input type="number" min="0" value={editForm.affectedFamilies} onChange={(e) => setEditForm({ ...editForm, affectedFamilies: e.target.value })} />
+                  <Req required>Complete Address</Req>
+                  <input required value={editForm.address} onChange={(e) => setEditForm({ ...editForm, address: e.target.value })} />
                 </label>
               </div>
-              <label>
-                <Req required>Complete Address</Req>
-                <input required value={editForm.address} onChange={(e) => setEditForm({ ...editForm, address: e.target.value })} />
-              </label>
+
               <NeedsPicker
                 value={editForm.needs || []}
                 onChange={(needs) => setEditForm({ ...editForm, needs })}
@@ -931,6 +940,7 @@ export default function BarangayDetailsPage() {
                 onCatalogUpdated={applyNeeds}
                 initialVisible={6}
               />
+
               <p className="form-section-title" style={{ margin: '1.25rem 0 0.85rem', fontWeight: 650 }}>Representative</p>
               <div className="form-row">
                 <label>

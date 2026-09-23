@@ -18,11 +18,30 @@ function ensure_request_columns(PDO $pdo): void
   if ($done) {
     return;
   }
+  try { $pdo->exec('ALTER TABLE assistance_requests ADD COLUMN affected_families INT UNSIGNED NOT NULL DEFAULT 0 AFTER priority'); } catch (Throwable $e) {}
   try { $pdo->exec('ALTER TABLE assistance_requests ADD COLUMN needs_json TEXT NULL AFTER notes'); } catch (Throwable $e) {}
   try { $pdo->exec('ALTER TABLE assistance_requests ADD COLUMN calamity_tags TEXT NULL AFTER needs_json'); } catch (Throwable $e) {}
   try { $pdo->exec('ALTER TABLE assistance_requests ADD COLUMN sla_deadline DATETIME NULL AFTER calamity_tags'); } catch (Throwable $e) {}
   try { $pdo->exec('ALTER TABLE assistance_requests ADD COLUMN is_emergency TINYINT(1) NOT NULL DEFAULT 0 AFTER sla_deadline'); } catch (Throwable $e) {}
   try { $pdo->exec('ALTER TABLE assistance_requests ADD COLUMN assigned_to VARCHAR(120) NULL AFTER is_emergency'); } catch (Throwable $e) {}
+
+  // Backfill affected_families from notes if existing request has 0
+  try {
+    $zeroRows = $pdo->query('SELECT id, notes FROM assistance_requests WHERE (affected_families IS NULL OR affected_families = 0) AND notes IS NOT NULL')->fetchAll(PDO::FETCH_ASSOC);
+    if (!empty($zeroRows)) {
+      $upd = $pdo->prepare('UPDATE assistance_requests SET affected_families = ? WHERE id = ?');
+      foreach ($zeroRows as $zr) {
+        $n = (string) $zr['notes'];
+        if (preg_match('/Families\s*Affected\s*:\s*(\d+)/i', $n, $m) || preg_match('/(\d+)\s*families/i', $n, $m)) {
+          $famCount = (int) $m[1];
+          if ($famCount > 0) {
+            $upd->execute([$famCount, $zr['id']]);
+          }
+        }
+      }
+    }
+  } catch (Throwable $e) {}
+
   $done = true;
 }
 
@@ -37,11 +56,11 @@ function encode_request_needs($needs): ?string
 
 function map_request(array $row, string $beneficiaryName, ?array $extra = null): array
 {
+  // Affected families belongs strictly to the specific Relief Request
   $families = 0;
-  if (!empty($extra['affectedFamilies'])) {
-    $families = (int) $extra['affectedFamilies'];
-  }
-  if ($families <= 0 && !empty($row['notes'])) {
+  if (isset($row['affected_families']) && (int) $row['affected_families'] > 0) {
+    $families = (int) $row['affected_families'];
+  } elseif (!empty($row['notes'])) {
     if (preg_match('/Families\s*Affected\s*:\s*(\d+)/i', (string) $row['notes'], $m)) {
       $families = (int) $m[1];
     } elseif (preg_match('/(\d+)\s*families/i', (string) $row['notes'], $m)) {
@@ -158,8 +177,9 @@ if ($method === 'GET') {
 
   // ── Single request endpoint ──
   if ($id) {
+    ensure_request_columns($pdo);
     $stmt = $pdo->prepare('
-      SELECT ar.*, b.full_name AS beneficiary_name, b.affected_families, b.municipality, b.representative_name, b.barangay
+      SELECT ar.*, b.full_name AS beneficiary_name, b.municipality, b.representative_name, b.barangay
       FROM assistance_requests ar
       JOIN beneficiaries b ON b.id = ar.beneficiary_id
       WHERE ar.id = ? LIMIT 1
@@ -170,7 +190,6 @@ if ($method === 'GET') {
       json_response(['ok' => false, 'error' => 'Relief request not found'], 404);
     }
     $extra = [
-      'affectedFamilies' => (int) ($row['affected_families'] ?? 0),
       'municipality' => $row['municipality'] ?? '',
       'representativeName' => $row['representative_name'] ?? '',
       'barangay' => $row['barangay'] ?? '',
@@ -381,17 +400,16 @@ if ($method === 'GET') {
 
   $rows = $stmt->fetchAll();
 
-  // Enrich with beneficiary data
+  // Enrich with beneficiary details (Municipality & Representative)
   $benCache = [];
   $enriched = array_map(function ($r) use ($pdo, &$benCache) {
     $benId = (int) $r['beneficiary_id'];
     if (!isset($benCache[$benId])) {
-      $b = $pdo->prepare('SELECT affected_families, municipality, representative_name FROM beneficiaries WHERE id = ? LIMIT 1');
+      $b = $pdo->prepare('SELECT municipality, representative_name FROM beneficiaries WHERE id = ? LIMIT 1');
       $b->execute([$benId]);
       $benCache[$benId] = $b->fetch() ?: [];
     }
     $extra = [
-      'affectedFamilies' => (int) ($benCache[$benId]['affected_families'] ?? 0),
       'municipality' => $benCache[$benId]['municipality'] ?? '',
       'representativeName' => $benCache[$benId]['representative_name'] ?? '',
     ];
@@ -493,13 +511,24 @@ if ($method === 'POST') {
   ensure_request_columns($pdo);
   $needsJson = array_key_exists('needs', $body) ? encode_request_needs($body['needs']) : null;
 
-  $stmt = $pdo->prepare('INSERT INTO assistance_requests (reference_code, beneficiary_id, assistance_type, status, priority, request_date, notes, needs_json, calamity_tags, sla_deadline, is_emergency, assigned_to) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)');
+  // Request-specific affected families
+  $reqFamilies = (int) ($body['affectedFamilies'] ?? $body['familiesAffected'] ?? $body['families'] ?? 0);
+  if ($reqFamilies <= 0 && !empty($notes)) {
+    if (preg_match('/Families\s*Affected\s*:\s*(\d+)/i', (string) $notes, $m)) {
+      $reqFamilies = (int) $m[1];
+    } elseif (preg_match('/(\d+)\s*families/i', (string) $notes, $m)) {
+      $reqFamilies = (int) $m[1];
+    }
+  }
+
+  $stmt = $pdo->prepare('INSERT INTO assistance_requests (reference_code, beneficiary_id, assistance_type, status, priority, affected_families, request_date, notes, needs_json, calamity_tags, sla_deadline, is_emergency, assigned_to) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)');
   $stmt->execute([
     $ref,
     $beneficiaryId,
     $type,
     $public ? 'Pending Review' : ($body['status'] ?? 'Pending Review'),
     $priority,
+    $reqFamilies,
     $body['requestDate'] ?? date('Y-m-d'),
     $notes,
     $needsJson,
@@ -510,22 +539,6 @@ if ($method === 'POST') {
   ]);
 
   $newId = (int) $pdo->lastInsertId();
-
-  $reqFamilies = (int) ($body['familiesAffected'] ?? $body['affectedFamilies'] ?? $body['families'] ?? 0);
-  if ($reqFamilies <= 0 && !empty($notes)) {
-    if (preg_match('/Families\s*Affected\s*:\s*(\d+)/i', (string) $notes, $m)) {
-      $reqFamilies = (int) $m[1];
-    } elseif (preg_match('/(\d+)\s*families/i', (string) $notes, $m)) {
-      $reqFamilies = (int) $m[1];
-    }
-  }
-  if ($reqFamilies > 0) {
-    try {
-      $pdo->prepare('UPDATE beneficiaries SET affected_families = ? WHERE id = ? AND (affected_families IS NULL OR affected_families = 0)')->execute([$reqFamilies, $beneficiaryId]);
-    } catch (Throwable $e) {
-      // best-effort
-    }
-  }
 
   notify_admins(
     $pdo,
@@ -665,11 +678,16 @@ if ($method === 'PUT') {
     ? encode_request_needs($body['needs'])
     : ($existing['needs_json'] ?? null);
 
-  $update = $pdo->prepare('UPDATE assistance_requests SET assistance_type = ?, status = ?, priority = ?, notes = ?, needs_json = ?, calamity_tags = ?, sla_deadline = ?, is_emergency = ?, assigned_to = ? WHERE id = ?');
+  $newFamilies = isset($body['affectedFamilies']) || isset($body['familiesAffected'])
+    ? (int) ($body['affectedFamilies'] ?? $body['familiesAffected'])
+    : (int) ($existing['affected_families'] ?? 0);
+
+  $update = $pdo->prepare('UPDATE assistance_requests SET assistance_type = ?, status = ?, priority = ?, affected_families = ?, notes = ?, needs_json = ?, calamity_tags = ?, sla_deadline = ?, is_emergency = ?, assigned_to = ? WHERE id = ?');
   $update->execute([
     $body['type'] ?? $existing['assistance_type'],
     $newStatus,
     $newPriority,
+    $newFamilies,
     $body['notes'] ?? $existing['notes'],
     $needsJson,
     $calamityTags,

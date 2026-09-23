@@ -1796,29 +1796,57 @@ function ReviewModal({
               </div>
             )}
 
-            <div className="relief-review-section">
-              <div className="relief-section-label">
-                <span>Requested Relief Items</span>
-                {calamityInfo && (
-                  <span className="badge badge--neutral" style={{ fontSize: '0.7rem', padding: '0.1rem 0.45rem' }}>
-                    🏷️ {calamityInfo}
+            {/* Unified Request Information Section */}
+            <div className="relief-review-section" style={{
+              background: '#ffffff',
+              border: '1px solid #e2e8f0',
+              borderRadius: '10px',
+              padding: '1.1rem 1.25rem',
+            }}>
+              <div style={{ display: 'grid', gridTemplateColumns: '130px 1fr', rowGap: '0.65rem', columnGap: '0.75rem', alignItems: 'center', fontSize: '0.86rem' }}>
+                <span style={{ color: '#64748b', fontWeight: 600 }}>Calamity:</span>
+                <span style={{ fontWeight: 650, color: '#0f172a' }}>{calamityInfo || request.reason || 'General Assistance'}</span>
+
+                <span style={{ color: '#64748b', fontWeight: 600 }}>Needs:</span>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.35rem' }}>
+                  {requestedNeeds.length > 0 ? (
+                    requestedNeeds.map((need, i) => {
+                      const Icon = iconForNeed(need);
+                      return (
+                        <div key={i} className="relief-need-chip">
+                          <Icon size={12} strokeWidth={2.2} />
+                          <span>{need}</span>
+                        </div>
+                      );
+                    })
+                  ) : (
+                    <span style={{ fontSize: '0.78rem', color: '#94a3b8' }}>General Relief Goods</span>
+                  )}
+                </div>
+
+                <span style={{ color: '#64748b', fontWeight: 600 }}>Affected Families:</span>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                  <Users size={14} style={{ color: '#af101a' }} />
+                  <span style={{ fontWeight: 700, color: '#af101a', fontSize: '0.94rem' }}>
+                    {(Number(request.affectedFamilies) || 0).toLocaleString()} families
                   </span>
-                )}
-              </div>
-              <div className="relief-needs-box">
-                {requestedNeeds.length > 0 ? (
-                  requestedNeeds.map((need, i) => {
-                    const Icon = iconForNeed(need);
-                    return (
-                      <div key={i} className="relief-need-chip">
-                        <Icon size={13} strokeWidth={2.2} />
-                        <span>{need}</span>
-                      </div>
-                    );
-                  })
-                ) : (
-                  <span style={{ fontSize: '0.78rem', color: '#94a3b8' }}>General Relief Assistance</span>
-                )}
+                </div>
+
+                <span style={{ color: '#64748b', fontWeight: 600 }}>Priority:</span>
+                <div>
+                  <PriorityBadge priority={request.priority} />
+                </div>
+
+                <span style={{ color: '#64748b', fontWeight: 600 }}>Status:</span>
+                <div>
+                  <StatusBadge status={request.status} />
+                </div>
+
+                <span style={{ color: '#64748b', fontWeight: 600 }}>Request Date:</span>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', color: '#334155' }}>
+                  <Clock size={13} style={{ color: '#64748b' }} />
+                  <span>{formattedDate}</span>
+                </div>
               </div>
             </div>
 
@@ -1904,15 +1932,6 @@ function ReviewModal({
               <div className="relief-barangay-stats-grid">
                 <div className="relief-bstat">
                   <span className="relief-bstat-label">
-                    <Users size={12} /> Families
-                  </span>
-                  <span className="relief-bstat-val">
-                    {(request.affectedFamilies || 0).toLocaleString()}
-                  </span>
-                </div>
-
-                <div className="relief-bstat">
-                  <span className="relief-bstat-label">
                     <FileText size={12} /> Past Requests
                   </span>
                   <span className="relief-bstat-val">
@@ -1920,7 +1939,7 @@ function ReviewModal({
                   </span>
                 </div>
 
-                <div className="relief-bstat" style={{ gridColumn: 'span 2' }}>
+                <div className="relief-bstat">
                   <span className="relief-bstat-label">
                     <Users size={12} /> Representative
                   </span>
