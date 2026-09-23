@@ -847,7 +847,11 @@ switch ($user['role']) {
     $openTaskCount = (int) $openTaskStmt->fetchColumn();
     $distsToday = (int) $pdo->query("SELECT COUNT(*) FROM distributions WHERE distribution_date = CURDATE()")->fetchColumn();
 
-    $taskList = $pdo->prepare("SELECT * FROM tasks WHERE assignee_user_id = ? OR assignee = ? ORDER BY FIELD(priority, 'High', 'Medium', 'Low'), due_date ASC");
+    $taskList = $pdo->prepare("SELECT t.*, d.code AS dist_code, d.location AS dist_location, d.program AS dist_program, d.event_name AS dist_event_name, d.status AS dist_status
+      FROM tasks t
+      LEFT JOIN distributions d ON d.id = t.distribution_id
+      WHERE t.assignee_user_id = ? OR t.assignee = ?
+      ORDER BY FIELD(t.priority, 'Critical', 'High', 'Medium', 'Low'), t.due_date ASC");
     $taskList->execute([$user['id'], $user['name']]);
     $taskRows = $taskList->fetchAll();
     $mappedTasks = [];
@@ -856,18 +860,32 @@ switch ($user['role']) {
       $status = $statusLabels[$column] ?? 'To Do';
       $completion = $column === 'done' ? 100 : ($column === 'inProgress' ? 50 : ($column === 'review' ? 80 : 0));
       $hours = isset($t['duty_hours']) && $t['duty_hours'] !== null ? (float) $t['duty_hours'] : null;
+      $prog = $t['module'] ?: ($t['dist_program'] ?: 'General Support');
+      $loc = !empty($t['location']) ? $t['location'] : (!empty($t['dist_location']) ? $t['dist_location'] : 'Cebu Operations');
+      $instructions = !empty($t['instructions']) ? $t['instructions'] : (!empty($t['description']) ? $t['description'] : 'Execute assigned operations according to standard safety, verification, and distribution guidelines.');
+
       $mappedTasks[] = [
         'id' => $t['code'],
         'dbId' => (int) $t['id'],
         'title' => $t['title'],
-        'category' => $t['module'] ?: 'General',
+        'category' => $prog,
+        'program' => $prog,
         'priority' => $t['priority'] ?: 'Medium',
         'status' => $status,
         'boardColumn' => $column,
         'assignedTo' => $t['assignee'] ?: $user['name'],
         'dueDate' => format_date($t['due_date']),
         'due' => format_date($t['due_date']),
-        'description' => $t['title'],
+        'location' => $loc,
+        'instructions' => $instructions,
+        'description' => $t['description'] ?? $t['title'],
+        'distributionId' => !empty($t['distribution_id']) ? (int) $t['distribution_id'] : null,
+        'distributionCode' => $t['dist_code'] ?? '',
+        'distributionLabel' => $t['dist_event_name'] ?: ($t['dist_location'] ?: ''),
+        'distributionStatus' => $t['dist_status'] ?? '',
+        'dutyStart' => $t['duty_start'] ?? null,
+        'dutyEnd' => $t['duty_end'] ?? null,
+        'schedule' => !empty($t['duty_start']) ? format_date($t['due_date']) . " ({$t['duty_start']} - {$t['duty_end']})" : format_date($t['due_date']),
         'estimatedTime' => $hours !== null ? (rtrim(rtrim(number_format($hours, 2), '0'), '.') . ' hrs') : '',
         'completionRate' => $completion,
       ];
@@ -888,10 +906,7 @@ switch ($user['role']) {
         'amount' => money_display($row['type'], $row['amount'], $row['items_description']),
         'submittedDate' => format_date($row['donation_date']),
         'program' => $row['category'] ?: 'General Donation',
-        'status' => $row['status'],
         'priority' => $priority,
-        'email' => $row['donor_email'] ?? '',
-        'notes' => $row['notes'] ?? '',
         'hasProof' => !empty($row['proof_path']),
       ];
     }, $pendingDonationRows);
@@ -910,6 +925,24 @@ switch ($user['role']) {
         $label === 'Low Stock' ? 'Low Stock' : ($label === 'Moderate' ? 'Low Stock' : 'Adequate')
       );
       $cat = $row['category'] ?: 'General';
+
+      $defaultCost = match(true) {
+        stripos($row['item_name'] ?? '', 'rice') !== false => 520.0,
+        stripos($row['item_name'] ?? '', 'sardines') !== false || stripos($row['item_name'] ?? '', 'canned') !== false => 35.0,
+        stripos($row['item_name'] ?? '', 'water') !== false => 25.0,
+        stripos($cat, 'food') !== false => 45.0,
+        stripos($cat, 'hygiene') !== false => 85.0,
+        stripos($cat, 'medical') !== false => 120.0,
+        stripos($cat, 'clothing') !== false => 150.0,
+        default => 50.0,
+      };
+      $cost = isset($row['cost_per_unit']) && $row['cost_per_unit'] !== null && (float)$row['cost_per_unit'] > 0
+        ? (float)$row['cost_per_unit']
+        : $defaultCost;
+      $supplier = !empty($row['supplier']) ? (string)$row['supplier'] : 'Rise Above Logistics / Community Donors';
+      $location = !empty($row['location']) ? (string)$row['location'] : ('Warehouse Shelf ' . strtoupper(substr($cat ?: 'G', 0, 1)) . '-1');
+      $reorder = !empty($row['reorder_amount']) ? (int)$row['reorder_amount'] : max(10, ($moderate ?: ($low * 2)) - $qty);
+
       $item = [
         'id' => $row['code'],
         'dbId' => (int) $row['id'],
@@ -922,14 +955,19 @@ switch ($user['role']) {
         'unit' => $row['unit'] ?: 'units',
         'status' => $uiStatus,
         'lastUpdated' => format_date($row['updated_at'] ?? null),
-        'location' => 'Warehouse',
-        'costPerUnit' => 0,
+        'location' => $location,
+        'costPerUnit' => $cost,
+        'totalValue' => $qty * $cost,
+        'supplier' => $supplier,
+        'reorderAmount' => $reorder,
       ];
       $inventory[] = $item;
       if (!isset($byCategory[$cat])) {
-        $byCategory[$cat] = ['category' => $cat, 'items' => 0, 'totalValue' => '—', 'status' => 'Adequate'];
+        $byCategory[$cat] = ['category' => $cat, 'items' => 0, 'totalValueNum' => 0, 'status' => 'Adequate'];
       }
       $byCategory[$cat]['items'] += 1;
+      $byCategory[$cat]['totalValueNum'] += ($qty * $cost);
+      $byCategory[$cat]['totalValue'] = '₱' . number_format($byCategory[$cat]['totalValueNum'], 2);
       if ($uiStatus === 'Critical') {
         $byCategory[$cat]['status'] = 'Critical';
       } elseif ($uiStatus === 'Low Stock' && $byCategory[$cat]['status'] !== 'Critical') {
@@ -940,6 +978,7 @@ switch ($user['role']) {
           'item' => $row['item_name'],
           'currentStock' => $qty,
           'minStock' => $low,
+          'unit' => $row['unit'] ?: 'units',
           'severity' => $uiStatus === 'Critical' ? 'Critical' : 'Low',
           'action' => $uiStatus === 'Critical' ? 'Order immediately' : 'Order soon',
           'dbId' => (int) $row['id'],
@@ -949,18 +988,37 @@ switch ($user['role']) {
 
     $distRows = $pdo->query('SELECT * FROM distributions ORDER BY distribution_date DESC, id DESC LIMIT 40')->fetchAll();
     $distributions = array_map(static function ($row) {
+      $rawNotes = (string)($row['notes'] ?? '');
+      $assignedVolunteers = [];
+      $assignedStaff = $row['coordinator'] ?: 'Operations Staff';
+      // Clean notes from embedded "Assigned Team: ..." strings
+      if (preg_match('/Assigned Team:\s*([^;\n\r]+)/i', $rawNotes, $m)) {
+        $teamStr = trim($m[1]);
+        $assignedVolunteers = array_values(array_filter(array_map('trim', explode(',', $teamStr))));
+        $cleanNotes = trim(preg_replace('/Assigned Team:\s*[^;\n\r]+/i', '', $rawNotes));
+      } else {
+        $cleanNotes = $rawNotes;
+      }
+      if (!empty($row['coordinator']) && !in_array($row['coordinator'], $assignedVolunteers, true)) {
+        $assignedStaff = $row['coordinator'];
+      }
+
       return [
         'id' => $row['code'],
         'dbId' => (int) $row['id'],
         'date' => format_date($row['distribution_date']),
-        'time' => $row['schedule_time'] ?: 'TBD',
+        'time' => $row['schedule_time'] ?: '09:00 AM',
         'location' => $row['location'] ?: '—',
-        'program' => $row['program'] ?: 'General',
-        'status' => $row['status'],
+        'program' => $row['program'] ?: 'General Relief',
+        'status' => $row['status'] ?: 'Planning',
         'beneficiaries' => (int) ($row['beneficiaries_count'] ?? 0),
-        'items' => $row['items_summary'] ?: 'Relief goods',
-        'notes' => $row['notes'] ?? '',
+        'items' => $row['items_summary'] ?: 'Relief goods packs',
+        'notes' => $cleanNotes,
         'type' => $row['distribution_type'] ?? 'Delivery',
+        'assignedStaff' => $assignedStaff,
+        'assignedVolunteers' => $assignedVolunteers,
+        'route' => $row['location'] ? "Depot → {$row['location']}" : '',
+        'vehicleNeeded' => true,
       ];
     }, $distRows);
 
@@ -1007,13 +1065,13 @@ switch ($user['role']) {
       'ok' => true,
       'data' => [
         'stats' => [
-          ['label' => 'Pending Verifications', 'value' => (string) $pendingDonations, 'icon' => 'clipboardCheck', 'color' => '#d97706'],
+          ['label' => 'Donations to Verify', 'value' => (string) $pendingDonations, 'icon' => 'clipboardCheck', 'color' => '#AF101A'],
           ['label' => 'Low Stock Items', 'value' => (string) $lowStockCount, 'icon' => 'alertTriangle', 'color' => '#dc2626'],
-          ['label' => 'Active Tasks', 'value' => (string) $openTaskCount, 'icon' => 'checkSquare', 'color' => '#2563eb'],
-          ['label' => 'Distributions Today', 'value' => (string) $distsToday, 'icon' => 'truck', 'color' => '#16a34a'],
+          ['label' => 'Assigned Tasks', 'value' => (string) $openTaskCount, 'icon' => 'checkSquare', 'color' => '#2563eb'],
+          ['label' => 'Active Deliveries', 'value' => (string) $distsToday, 'icon' => 'truck', 'color' => '#16a34a'],
         ],
         'quickActions' => [
-          ['id' => 'verify', 'label' => 'Verify Donations', 'icon' => 'clipboardCheck', 'count' => $pendingDonations, 'route' => '/staff/verification'],
+          ['id' => 'verify', 'label' => 'Verify Donations', 'icon' => 'clipboardCheck', 'count' => $pendingDonations, 'route' => '/staff/donations?status=Pending+Verification'],
           ['id' => 'inventory', 'label' => 'Update Inventory', 'icon' => 'package', 'count' => $lowStockCount, 'route' => '/staff/inventory'],
           ['id' => 'distribute', 'label' => 'Coordinate Distribution', 'icon' => 'truck', 'count' => $distsToday, 'route' => '/staff/distributions'],
           ['id' => 'tasks', 'label' => 'View All Tasks', 'icon' => 'listChecks', 'count' => $assignedTaskCount, 'route' => '/staff/tasks'],

@@ -68,7 +68,6 @@ import StaffDonationsPage from './portals/staff/StaffDonationsPage'
 import StaffInventoryPage from './portals/staff/StaffInventoryPage'
 import StaffDistributionsPage from './portals/staff/StaffDistributionsPage'
 import StaffTasksPage from './portals/staff/StaffTasksPage'
-import StaffVerificationPage from './portals/staff/StaffVerificationPage'
 
 /** Old email links used /verify?token=… — silently hand off to the API (no UI). */
 function LegacyVerifyRedirect() {
@@ -198,7 +197,7 @@ const router = createBrowserRouter([
     children: [
       { index: true, element: <StaffDashboard /> },
       { path: 'donations', element: <StaffDonationsPage /> },
-      { path: 'verification', element: <StaffVerificationPage /> },
+      { path: 'verification', element: <Navigate to="/staff/donations?status=Pending+Verification" replace /> },
       { path: 'inventory', element: <StaffInventoryPage /> },
       { path: 'distributions', element: <StaffDistributionsPage /> },
       { path: 'tasks', element: <StaffTasksPage /> },

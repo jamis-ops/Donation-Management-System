@@ -1,374 +1,428 @@
 import { useState, useMemo, useEffect } from 'react'
 import { useSearchParams } from 'react-router-dom'
-import { Truck, MapPin, Calendar, Users, Package, Clock, CheckCircle, Search, Filter, Eye, Edit, PlayCircle, CheckSquare, ArrowRight } from 'lucide-react'
+import {
+  Truck,
+  MapPin,
+  Calendar,
+  Users,
+  Package,
+  Clock,
+  CheckCircle,
+  Search,
+  Filter,
+  Eye,
+  PlayCircle,
+  ArrowRight,
+  ShieldCheck,
+  FileCheck,
+  Boxes,
+  UserCheck,
+  History,
+  Info,
+} from 'lucide-react'
 import ApiState from '../../admin/components/shared/ApiState'
-import { getPortalData, distributionsApi } from '../../api/resources'
-import { useApiObject } from '../../hooks/useApiList'
+import StatusBadge from '../../admin/components/shared/StatusBadge'
+import ModalHeader from '../../admin/components/shared/ModalHeader'
+import { distributionsApi } from '../../api/resources'
+import { useApiList } from '../../hooks/useApiList'
 import { usePagination, DEFAULT_PAGE_SIZE } from '../../hooks/usePagination'
 import Pagination from '../../admin/components/shared/Pagination'
 import { notify, confirmAction, showSuccessModal } from '../../utils/confirm'
+import { notifyBadgesChanged } from '../../utils/badgeSync'
 import { DISTRIBUTION_STATUSES } from '../../constants/options'
 import { useLoading } from '../../context/LoadingContext'
 
 const STAFF_ADVANCE = {
-  Planning: 'Preparing',
-  Preparing: 'In Transit',
-  'In Transit': 'Delivered',
+  Planning: { next: 'Preparing', label: 'Start Preparing Goods' },
+  Preparing: { next: 'In Transit', label: 'Dispatch / In Transit' },
+  'In Transit': { next: 'Delivered', label: 'Confirm Delivered to Site' },
+}
+
+// Helper to parse items summary into structured list
+function parseItemsList(distribution) {
+  if (Array.isArray(distribution?.allocations) && distribution.allocations.length > 0) {
+    return distribution.allocations.map((a) => ({
+      name: a.resource || a.resourceName || 'Relief Item',
+      quantity: a.quantity || 1,
+      program: a.program || '',
+    }))
+  }
+  const raw = distribution?.items || distribution?.itemsSummary || ''
+  if (!raw) return [{ name: 'Relief Goods Packs', quantity: distribution?.beneficiaries || 1 }]
+
+  // Split by ';' or by ',' if multiple
+  const delimiter = raw.includes(';') ? ';' : ','
+  const parts = raw.split(delimiter).map((s) => s.trim()).filter(Boolean)
+  if (parts.length === 0) return [{ name: 'Relief Goods Packs', quantity: distribution?.beneficiaries || 1 }]
+
+  return parts.map((part) => {
+    // Check if ends with × N
+    const multMatch = part.match(/(.+?)\s*[×x]\s*(\d+)$/i)
+    if (multMatch) {
+      return { name: multMatch[1].trim(), quantity: parseInt(multMatch[2], 10) }
+    }
+    return { name: part, quantity: 1 }
+  })
+}
+
+// Helper to extract clean team members & clean notes
+function extractTeamAndNotes(distribution) {
+  const rawNotes = String(distribution?.notes || '')
+  let teamMembers = []
+  let cleanNotes = rawNotes
+
+  const teamRegex = /Assigned Team:\s*([^;\n\r]+)/i
+  const match = rawNotes.match(teamRegex)
+  if (match) {
+    const rawTeam = match[1].trim()
+    teamMembers = rawTeam.split(',').map((t) => t.trim()).filter(Boolean)
+    cleanNotes = rawNotes.replace(teamRegex, '').trim()
+    // Clean up empty allocation strings if leftover
+    cleanNotes = cleanNotes.replace(/From allocation\(s\):\s*$/i, '').trim()
+  }
+
+  if (Array.isArray(distribution?.assignedVolunteers) && distribution.assignedVolunteers.length > 0) {
+    teamMembers = Array.from(new Set([...teamMembers, ...distribution.assignedVolunteers]))
+  }
+
+  const assignedStaff = distribution?.assignedStaff || distribution?.coordinator || 'Operations Staff'
+
+  return { assignedStaff, teamMembers, cleanNotes }
 }
 
 export default function StaffDistributionsPage() {
-  const [searchParams] = useSearchParams()
-  const { data: portalData, loading, error, reload } = useApiObject(() => getPortalData())
-  const [filterStatus, setFilterStatus] = useState(() => searchParams.get('status') || 'all')
+  const [searchParams, setSearchParams] = useSearchParams()
   const { showLoading, hideLoading } = useLoading()
+  const { data: distributions = [], loading, error, reload } = useApiList(() => distributionsApi.list())
+
+  const [filterStatus, setFilterStatus] = useState(() => searchParams.get('status') || 'all')
   const [filterProgram, setFilterProgram] = useState(() => searchParams.get('program') || 'all')
   const [searchQuery, setSearchQuery] = useState(() => searchParams.get('q') || searchParams.get('search') || '')
   const [selectedDistribution, setSelectedDistribution] = useState(null)
-  const [viewMode, setViewMode] = useState('grid') // 'grid' or 'calendar'
   const [saving, setSaving] = useState(false)
 
   useEffect(() => {
     const st = searchParams.get('status')
-    if (st) setFilterStatus(st)
+    if (st && st !== filterStatus) setFilterStatus(st)
     const prog = searchParams.get('program')
-    if (prog) setFilterProgram(prog)
+    if (prog && prog !== filterProgram) setFilterProgram(prog)
   }, [searchParams])
 
-  const distributions = portalData?.distributions || []
+  const programs = useMemo(() => {
+    const set = new Set()
+    distributions.forEach((d) => {
+      if (d.program) set.add(d.program)
+    })
+    return Array.from(set)
+  }, [distributions])
 
   const filteredDistributions = useMemo(() => {
-    return distributions.filter(dist => {
+    return distributions.filter((dist) => {
       if (filterStatus !== 'all' && dist.status !== filterStatus) return false
       if (filterProgram !== 'all' && dist.program !== filterProgram) return false
-      if (searchQuery && 
-          !dist.location.toLowerCase().includes(searchQuery.toLowerCase()) &&
-          !dist.program.toLowerCase().includes(searchQuery.toLowerCase())) return false
+      if (searchQuery.trim()) {
+        const q = searchQuery.toLowerCase().trim()
+        const matchCode = dist.id?.toLowerCase().includes(q)
+        const matchLoc = dist.location?.toLowerCase().includes(q)
+        const matchProg = dist.program?.toLowerCase().includes(q)
+        const matchBarangay = dist.barangay?.toLowerCase().includes(q)
+        if (!matchCode && !matchLoc && !matchProg && !matchBarangay) return false
+      }
       return true
     })
   }, [distributions, filterStatus, filterProgram, searchQuery])
 
-  const paging = usePagination(
-    filteredDistributions,
-    DEFAULT_PAGE_SIZE,
-    `${searchQuery}|${filterStatus}|${filterProgram}|${viewMode}`,
-  )
+  const paging = usePagination(filteredDistributions, DEFAULT_PAGE_SIZE, `${searchQuery}|${filterStatus}|${filterProgram}`)
 
-  const programs = [...new Set(distributions.map(d => d.program))]
-  const statusCounts = Object.fromEntries(
-    DISTRIBUTION_STATUSES.map((s) => [s, distributions.filter((d) => d.status === s).length])
-  )
-
-  const getStatusColor = (status) => {
-    switch (status) {
-      case 'Planning': return '#6b7280'
-      case 'Preparing': return '#3b82f6'
-      case 'In Transit': return '#f59e0b'
-      case 'Delivered': return '#0891b2'
-      case 'Awaiting Proof': return '#7c3aed'
-      case 'Completed': return '#16a34a'
-      default: return '#6b7280'
-    }
-  }
-
-  const getProgramColor = (program) => {
-    const colors = {
-      'Disaster Relief': '#dc2626',
-      'Feeding Programs': '#f59e0b',
-      'Medical Mission': '#ec4899',
-      'Educational Sponsorship': '#8b5cf6',
-      'House Building Project': '#10b981',
-      'Community Center': '#0891b2',
-    }
-    return colors[program] || '#6b7280'
-  }
+  // Distribution status counts
+  const statusCounts = useMemo(() => {
+    const counts = { all: distributions.length }
+    DISTRIBUTION_STATUSES.forEach((s) => {
+      counts[s] = distributions.filter((d) => d.status === s).length
+    })
+    return counts
+  }, [distributions])
 
   const handleAdvanceStatus = async (dist) => {
     if (!dist?.dbId) return
-    const next = STAFF_ADVANCE[dist.status]
-    if (!next) {
-      notify.info('After Delivered, barangay must confirm receipt and submit proof before Completed.')
-      return
-    }
+    const stepInfo = STAFF_ADVANCE[dist.status]
+    if (!stepInfo) return
+
     const ok = await confirmAction({
       title: 'Advance Distribution Status',
-      message: `Advance "${dist.location || dist.program}" to ${next}?`,
-      confirmText: `Advance to ${next}`,
+      message: `Advance distribution "${dist.id || dist.location}" from ${dist.status} to ${stepInfo.next}? This will update the distribution timeline and backend operations.`,
+      confirmText: stepInfo.label,
       type: 'primary',
     })
     if (!ok) return
 
     setSaving(true)
-    showLoading('Saving changes…')
+    showLoading('Updating distribution status…')
     try {
-      const res = await distributionsApi.update(dist.dbId, { status: next })
-      const status = res?.data?.status || next
-      showSuccessModal(`Status successfully updated to: ${status}.`)
-      setSelectedDistribution(null)
+      const res = await distributionsApi.update(dist.dbId, { status: stepInfo.next })
+      const status = res?.data?.status || stepInfo.next
+      showSuccessModal(`Distribution status successfully advanced to: ${status}.`)
       reload()
+      notifyBadgesChanged()
+      if (selectedDistribution && selectedDistribution.dbId === dist.dbId) {
+        setSelectedDistribution(res?.data || { ...selectedDistribution, status })
+      }
     } catch (err) {
-      notify.error(err.message || 'Failed to update distribution')
+      notify.error(err.message || 'Failed to update distribution status')
     } finally {
       hideLoading()
       setSaving(false)
     }
   }
 
-  const groupByDate = (list) => {
-    const grouped = {}
-    list.forEach(dist => {
-      if (!grouped[dist.date]) {
-        grouped[dist.date] = []
-      }
-      grouped[dist.date].push(dist)
-    })
-    return grouped
-  }
-
-  const groupedDistributions = viewMode === 'calendar' ? groupByDate(paging.pageItems) : {}
-
   return (
     <ApiState loading={loading} error={error} onRetry={reload}>
-      {portalData && (
-        <div className="staff-distributions-page">
-          {/* Summary Cards */}
-          <div className="staff-distributions-summary">
-            {Object.entries(statusCounts).map(([status, count]) => (
-              <div 
-                key={status}
-                className={`staff-distribution-summary-card staff-distribution-summary-card--clickable ${filterStatus === status ? 'staff-distribution-summary-card--active' : ''}`}
-                onClick={() => setFilterStatus(filterStatus === status ? 'all' : status)}
-                role="button"
-                tabIndex={0}
-                onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setFilterStatus(filterStatus === status ? 'all' : status) } }}
-                title={`Filter by ${status} distributions`}
-              >
-                <span className="staff-distribution-summary-card__value">{count}</span>
-                <span className="staff-distribution-summary-card__label">{status}</span>
-                <div 
-                  className="staff-distribution-summary-card__indicator"
-                  style={{ backgroundColor: getStatusColor(status) }}
-                ></div>
-              </div>
-            ))}
-          </div>
+      <div className="staff-distributions-page">
+        {/* Status Count Pills */}
+        <div className="staff-tasks-summary" style={{ marginBottom: '1.25rem' }}>
+          <button
+            type="button"
+            className={`staff-task-summary-card staff-task-summary-card--clickable ${filterStatus === 'all' ? 'staff-task-summary-card--active' : ''}`}
+            onClick={() => setFilterStatus('all')}
+          >
+            <span className="staff-task-summary-card__value">{statusCounts.all}</span>
+            <span className="staff-task-summary-card__label">All Distributions</span>
+          </button>
+          <button
+            type="button"
+            className={`staff-task-summary-card staff-task-summary-card--clickable ${filterStatus === 'Planning' ? 'staff-task-summary-card--active' : ''}`}
+            onClick={() => setFilterStatus('Planning')}
+          >
+            <span className="staff-task-summary-card__value" style={{ color: '#64748b' }}>{statusCounts['Planning'] || 0}</span>
+            <span className="staff-task-summary-card__label">Planning</span>
+          </button>
+          <button
+            type="button"
+            className={`staff-task-summary-card staff-task-summary-card--clickable ${filterStatus === 'Preparing' ? 'staff-task-summary-card--active' : ''}`}
+            onClick={() => setFilterStatus('Preparing')}
+          >
+            <span className="staff-task-summary-card__value" style={{ color: '#2563eb' }}>{statusCounts['Preparing'] || 0}</span>
+            <span className="staff-task-summary-card__label">Preparing</span>
+          </button>
+          <button
+            type="button"
+            className={`staff-task-summary-card staff-task-summary-card--clickable ${filterStatus === 'In Transit' ? 'staff-task-summary-card--active' : ''}`}
+            onClick={() => setFilterStatus('In Transit')}
+          >
+            <span className="staff-task-summary-card__value" style={{ color: '#d97706' }}>{statusCounts['In Transit'] || 0}</span>
+            <span className="staff-task-summary-card__label">In Transit</span>
+          </button>
+          <button
+            type="button"
+            className={`staff-task-summary-card staff-task-summary-card--clickable ${filterStatus === 'Delivered' ? 'staff-task-summary-card--active' : ''}`}
+            onClick={() => setFilterStatus('Delivered')}
+          >
+            <span className="staff-task-summary-card__value" style={{ color: '#059669' }}>{statusCounts['Delivered'] || 0}</span>
+            <span className="staff-task-summary-card__label">Delivered</span>
+          </button>
+          <button
+            type="button"
+            className={`staff-task-summary-card staff-task-summary-card--clickable ${filterStatus === 'Completed' ? 'staff-task-summary-card--active' : ''}`}
+            onClick={() => setFilterStatus('Completed')}
+          >
+            <span className="staff-task-summary-card__value" style={{ color: '#16a34a' }}>{statusCounts['Completed'] || 0}</span>
+            <span className="staff-task-summary-card__label">Completed</span>
+          </button>
+        </div>
 
-          <section className="portal-panel">
-            <div className="portal-panel__header">
-              <h2>Distribution Coordination</h2>
-              <div className="staff-distributions-view-toggle">
-                <button 
-                  className={`staff-distributions-view-toggle__btn ${viewMode === 'grid' ? 'staff-distributions-view-toggle__btn--active' : ''}`}
-                  onClick={() => setViewMode('grid')}
-                >
-                  <Package size={16} />
-                  Grid
-                </button>
-                <button 
-                  className={`staff-distributions-view-toggle__btn ${viewMode === 'calendar' ? 'staff-distributions-view-toggle__btn--active' : ''}`}
-                  onClick={() => setViewMode('calendar')}
-                >
-                  <Calendar size={16} />
-                  Calendar
-                </button>
-              </div>
+        {/* Main Panel */}
+        <section className="portal-panel">
+          <div className="portal-panel__header" style={{ flexWrap: 'wrap', gap: '0.75rem', alignItems: 'center' }}>
+            <div>
+              <h2>Scheduled Distributions</h2>
+              <span className="portal-panel__hint">
+                Showing {filteredDistributions.length} of {distributions.length} events
+              </span>
             </div>
 
-            {/* Filters */}
-            <div className="staff-distributions-filters">
-              <div className="staff-distributions-filters__search">
-                <Search size={18} />
+            {/* Filter and Search Bar */}
+            <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', flexWrap: 'wrap' }}>
+              <div className="portal-filter-bar__search" style={{ width: '260px', position: 'relative' }}>
+                <Search size={16} style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)', color: '#64748b' }} />
                 <input
-                  type="text"
-                  placeholder="Search by location or program..."
+                  className="portal-search-input"
+                  style={{ paddingLeft: '32px', width: '100%', height: '36px', borderRadius: '6px', border: '1px solid #cbd5e1' }}
+                  placeholder="Search location, code, or program..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  className="staff-distributions-filters__input"
                 />
               </div>
 
-              <div className="staff-distributions-filters__group">
-                <div className="staff-distributions-filters__item">
-                  <Filter size={16} />
-                  <select value={filterProgram} onChange={(e) => setFilterProgram(e.target.value)}>
-                    <option value="all">All Programs</option>
-                    {programs.map(prog => (
-                      <option key={prog} value={prog}>{prog}</option>
-                    ))}
-                  </select>
-                </div>
-              </div>
+              <select
+                className="portal-select"
+                style={{ height: '36px', borderRadius: '6px', border: '1px solid #cbd5e1', padding: '0 10px', background: '#fff' }}
+                value={filterProgram}
+                onChange={(e) => setFilterProgram(e.target.value)}
+              >
+                <option value="all">All Programs</option>
+                {programs.map((prog) => (
+                  <option key={prog} value={prog}>{prog}</option>
+                ))}
+              </select>
+
+              <select
+                className="portal-select"
+                style={{ height: '36px', borderRadius: '6px', border: '1px solid #cbd5e1', padding: '0 10px', background: '#fff' }}
+                value={filterStatus}
+                onChange={(e) => setFilterStatus(e.target.value)}
+              >
+                <option value="all">All Status</option>
+                {DISTRIBUTION_STATUSES.map((st) => (
+                  <option key={st} value={st}>{st}</option>
+                ))}
+              </select>
             </div>
+          </div>
 
-            {/* Distribution List - Grid View */}
-            {viewMode === 'grid' && (
-              <>
-                {filteredDistributions.length === 0 ? (
-                  <div className="portal-empty">
-                    <Truck size={48} />
-                    <p>No distributions match your filters.</p>
-                  </div>
-                ) : (
-                  <div className="staff-distributions-grid">
-                    {paging.pageItems.map((dist) => (
-                      <div key={dist.id} className="staff-distribution-card">
-                        <div className="staff-distribution-card__header">
-                          <span 
-                            className="staff-distribution-card__program"
-                            style={{ 
-                              backgroundColor: `${getProgramColor(dist.program)}15`,
-                              color: getProgramColor(dist.program)
+          {filteredDistributions.length === 0 ? (
+            <div className="portal-empty" style={{ padding: '3rem 1rem', textAlign: 'center' }}>
+              <Truck size={40} style={{ margin: '0 auto 0.75rem', color: '#94a3b8' }} />
+              <p style={{ margin: 0, fontWeight: 600, color: '#334155' }}>No distribution events found</p>
+              <span style={{ fontSize: '0.85rem', color: '#64748b' }}>Try changing the status or search filter.</span>
+            </div>
+          ) : (
+            <>
+              {/* Distribution Cards Grid */}
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: '1rem', marginTop: '1rem' }}>
+                {paging.pageItems.map((dist) => {
+                  const itemsList = parseItemsList(dist)
+                  const { assignedStaff, teamMembers, cleanNotes } = extractTeamAndNotes(dist)
+                  const advanceStep = STAFF_ADVANCE[dist.status]
+
+                  return (
+                    <div
+                      key={dist.dbId || dist.id}
+                      style={{
+                        background: '#fff',
+                        border: '1px solid #e2e8f0',
+                        borderRadius: '10px',
+                        padding: '1.15rem',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        justifyContent: 'space-between',
+                        boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
+                      }}
+                    >
+                      <div>
+                        {/* Header Badges */}
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
+                          <span
+                            style={{
+                              fontSize: '0.72rem',
+                              fontWeight: 700,
+                              padding: '2px 8px',
+                              borderRadius: '4px',
+                              backgroundColor: '#fee2e2',
+                              color: '#b91c1c',
+                              border: '1px solid #fecaca',
                             }}
                           >
-                            {dist.program}
+                            {dist.program || 'Disaster Relief'}
                           </span>
-                          <span 
-                            className="staff-distribution-card__status"
-                            style={{ 
-                              backgroundColor: `${getStatusColor(dist.status)}15`,
-                              color: getStatusColor(dist.status)
-                            }}
-                          >
-                            {dist.status}
+                          <StatusBadge status={dist.status} />
+                        </div>
+
+                        {/* Location */}
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '0.5rem' }}>
+                          <MapPin size={17} color="#AF101A" style={{ flexShrink: 0 }} />
+                          <h3 style={{ margin: 0, fontSize: '1.08rem', fontWeight: 700, color: '#0f172a' }}>
+                            {dist.location || dist.barangay || 'Cebu City'}
+                          </h3>
+                        </div>
+
+                        {/* Schedule & Beneficiaries */}
+                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.85rem', fontSize: '0.82rem', color: '#64748b', marginBottom: '0.75rem' }}>
+                          <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                            <Calendar size={13} /> {dist.date || 'TBD'}{dist.time || dist.scheduleTime ? ` at ${dist.time || dist.scheduleTime}` : ''}
                           </span>
-                        </div>
-
-                        <h3 className="staff-distribution-card__location">
-                          <MapPin size={18} />
-                          {dist.location}
-                        </h3>
-
-                        <div className="staff-distribution-card__details">
-                          <div className="staff-distribution-card__detail">
-                            <Calendar size={14} />
-                            <span>{dist.date} at {dist.time}</span>
-                          </div>
-                          <div className="staff-distribution-card__detail">
-                            <Users size={14} />
-                            <span>{dist.beneficiaries} beneficiaries</span>
-                          </div>
-                          <div className="staff-distribution-card__detail">
-                            <Package size={14} />
-                            <span>{dist.items}</span>
-                          </div>
-                        </div>
-
-                        {dist.assignedVolunteers && dist.assignedVolunteers.length > 0 && (
-                          <div className="staff-distribution-card__volunteers">
-                            <strong>Volunteers:</strong>
-                            <span>{dist.assignedVolunteers.length} assigned</span>
-                          </div>
-                        )}
-
-                        {dist.route && (
-                          <div className="staff-distribution-card__route">
-                            <strong>Route:</strong> {dist.route}
-                          </div>
-                        )}
-
-                        {dist.notes && (
-                          <div className="staff-distribution-card__notes">
-                            <strong>Notes:</strong> {dist.notes}
-                          </div>
-                        )}
-
-                        {dist.vehicleNeeded && (
-                          <div className="staff-distribution-card__vehicle">
-                            <Truck size={14} />
-                            <span>Vehicle required</span>
-                          </div>
-                        )}
-
-                        <div className="staff-distribution-card__actions">
-                          <button 
-                            className="btn btn--sm btn--secondary"
-                            onClick={() => setSelectedDistribution(dist)}
-                          >
-                            <Eye size={14} />
-                            Details
-                          </button>
-                          {STAFF_ADVANCE[dist.status] && (
-                            <button 
-                              className="btn btn--sm btn--warning"
-                              disabled={saving}
-                              onClick={() => handleAdvanceStatus(dist)}
-                            >
-                              <ArrowRight size={14} />
-                              {`→ ${STAFF_ADVANCE[dist.status]}`}
-                            </button>
-                          )}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </>
-            )}
-
-            {/* Distribution List - Calendar View */}
-            {viewMode === 'calendar' && (
-              <div className="staff-distributions-calendar">
-                {filteredDistributions.length === 0 ? (
-                  <div className="portal-empty">
-                    <Calendar size={48} />
-                    <p>No distributions match your filters.</p>
-                  </div>
-                ) : (
-                  Object.entries(groupedDistributions)
-                    .sort(([dateA], [dateB]) => new Date(dateA) - new Date(dateB))
-                    .map(([date, dists]) => (
-                      <div key={date} className="staff-distributions-calendar-day">
-                        <div className="staff-distributions-calendar-day__header">
-                          <Calendar size={20} />
-                          <h3>{date}</h3>
-                          <span className="staff-distributions-calendar-day__count">
-                            {dists.length} {dists.length === 1 ? 'event' : 'events'}
+                          <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                            <Users size={13} /> <strong>{dist.beneficiaries || 0}</strong> beneficiaries
                           </span>
                         </div>
-                        <div className="staff-distributions-calendar-day__events">
-                          {dists.map((dist) => (
-                            <div 
-                              key={dist.id} 
-                              className="staff-distributions-calendar-event"
-                              onClick={() => setSelectedDistribution(dist)}
-                            >
-                              <div 
-                                className="staff-distributions-calendar-event__indicator"
-                                style={{ backgroundColor: getStatusColor(dist.status) }}
-                              ></div>
-                              <div className="staff-distributions-calendar-event__content">
-                                <div className="staff-distributions-calendar-event__time">
-                                  <Clock size={14} />
-                                  {dist.time}
-                                </div>
-                                <strong>{dist.program}</strong>
-                                <span className="staff-distributions-calendar-event__location">
-                                  <MapPin size={12} />
-                                  {dist.location}
-                                </span>
-                                <span className="staff-distributions-calendar-event__beneficiaries">
-                                  <Users size={12} />
-                                  {dist.beneficiaries} beneficiaries
-                                </span>
-                              </div>
-                              <span 
-                                className="staff-distributions-calendar-event__status"
-                                style={{ 
-                                  backgroundColor: `${getStatusColor(dist.status)}15`,
-                                  color: getStatusColor(dist.status)
+
+                        {/* Readable Items (Pills / List instead of crowded string) */}
+                        <div style={{ background: '#f8fafc', padding: '0.65rem 0.75rem', borderRadius: '6px', border: '1px solid #f1f5f9', marginBottom: '0.75rem' }}>
+                          <span style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.72rem', fontWeight: 700, color: '#475569', textTransform: 'uppercase', marginBottom: '4px' }}>
+                            <Package size={13} color="#AF101A" /> Allocated Goods ({itemsList.length} items):
+                          </span>
+                          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px' }}>
+                            {itemsList.slice(0, 3).map((item, idx) => (
+                              <span
+                                key={idx}
+                                style={{
+                                  fontSize: '0.74rem',
+                                  background: '#fff',
+                                  border: '1px solid #cbd5e1',
+                                  padding: '2px 7px',
+                                  borderRadius: '4px',
+                                  color: '#1e293b',
+                                  fontWeight: 500,
                                 }}
                               >
-                                {dist.status}
+                                {item.name} {item.quantity > 1 ? `× ${item.quantity}` : ''}
                               </span>
-                            </div>
-                          ))}
+                            ))}
+                            {itemsList.length > 3 && (
+                              <span style={{ fontSize: '0.72rem', color: '#64748b', alignSelf: 'center', padding: '2px 4px' }}>
+                                +{itemsList.length - 3} more
+                              </span>
+                            )}
+                          </div>
                         </div>
-                      </div>
-                    ))
-                )}
-              </div>
-            )}
 
-            {filteredDistributions.length > 0 && (
+                        {/* Team Assignment (separate from notes) */}
+                        {(assignedStaff || teamMembers.length > 0) && (
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.78rem', color: '#475569', marginBottom: '0.65rem' }}>
+                            <UserCheck size={14} color="#0284c7" />
+                            <span>
+                              <strong>Team:</strong> {assignedStaff}
+                              {teamMembers.length > 0 && ` • ${teamMembers.join(', ')}`}
+                            </span>
+                          </div>
+                        )}
+
+                        {/* Clean Notes if present */}
+                        {cleanNotes && (
+                          <div style={{ fontSize: '0.76rem', color: '#64748b', fontStyle: 'italic', marginBottom: '0.5rem' }}>
+                            Notes: {cleanNotes}
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Card Actions */}
+                      <div style={{ display: 'flex', gap: '0.5rem', borderTop: '1px solid #f1f5f9', paddingTop: '0.75rem', marginTop: '0.5rem' }}>
+                        <button
+                          type="button"
+                          className="btn btn--sm btn--outline"
+                          style={{ flex: 1 }}
+                          onClick={() => setSelectedDistribution(dist)}
+                        >
+                          <Eye size={14} /> Details
+                        </button>
+
+                        {advanceStep && (
+                          <button
+                            type="button"
+                            className="btn btn--sm btn--primary"
+                            style={{ flex: 1.2 }}
+                            disabled={saving}
+                            onClick={() => handleAdvanceStatus(dist)}
+                            title={advanceStep.label}
+                          >
+                            <ArrowRight size={14} /> → {advanceStep.next}
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+
               <Pagination
                 page={paging.page}
                 totalPages={paging.totalPages}
@@ -379,186 +433,217 @@ export default function StaffDistributionsPage() {
                 className="pagination--portal"
                 noun="distributions"
               />
-            )}
-          </section>
+            </>
+          )}
+        </section>
 
-          {/* Distribution Schedule Overview */}
-          {portalData.distributionSchedule && (
-            <section className="portal-panel">
-              <div className="portal-panel__header">
-                <h2>Upcoming Schedule</h2>
-              </div>
-              <div className="staff-distribution-schedule-overview">
-                {portalData.distributionSchedule.map((schedule) => (
-                  <div key={schedule.date} className="staff-distribution-schedule-card">
-                    <div className="staff-distribution-schedule-card__date">
-                      <Calendar size={20} />
-                      <strong>{schedule.date}</strong>
-                    </div>
-                    <div className="staff-distribution-schedule-card__stats">
-                      <div className="staff-distribution-schedule-card__stat">
-                        <span className="staff-distribution-schedule-card__stat-value">{schedule.events}</span>
-                        <span className="staff-distribution-schedule-card__stat-label">Events</span>
+        {/* Distribution Details Modal */}
+        {selectedDistribution && (() => {
+          const itemsList = parseItemsList(selectedDistribution)
+          const { assignedStaff, teamMembers, cleanNotes } = extractTeamAndNotes(selectedDistribution)
+          const advanceStep = STAFF_ADVANCE[selectedDistribution.status]
+
+          return (
+            <div className="admin-modal-overlay" onClick={() => setSelectedDistribution(null)}>
+              <div className="admin-modal admin-modal--wide" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '780px' }}>
+                <ModalHeader
+                  title={`Distribution Event – ${selectedDistribution.id || 'DST'}`}
+                  onClose={() => setSelectedDistribution(null)}
+                />
+
+                {/* Top Badges */}
+                <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1rem', alignItems: 'center' }}>
+                  <span
+                    style={{
+                      fontSize: '0.75rem',
+                      fontWeight: 700,
+                      padding: '2px 8px',
+                      borderRadius: '4px',
+                      backgroundColor: '#fee2e2',
+                      color: '#b91c1c',
+                      border: '1px solid #fecaca',
+                    }}
+                  >
+                    {selectedDistribution.program || 'Disaster Relief'}
+                  </span>
+                  <StatusBadge status={selectedDistribution.status} />
+                  {selectedDistribution.id && (
+                    <span style={{ fontSize: '0.78rem', color: '#64748b', marginLeft: 'auto' }}>
+                      Ref Code: <strong>{selectedDistribution.id}</strong>
+                    </span>
+                  )}
+                </div>
+
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                  {/* Section 1: Location & Schedule */}
+                  <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '8px', padding: '1rem' }}>
+                    <h4 style={{ margin: '0 0 0.75rem', fontSize: '0.85rem', textTransform: 'uppercase', color: '#475569', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <MapPin size={15} color="#AF101A" /> Location & Schedule
+                    </h4>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '0.75rem', fontSize: '0.85rem' }}>
+                      <div>
+                        <span style={{ fontSize: '0.72rem', color: '#64748b', display: 'block', textTransform: 'uppercase' }}>Location / Site</span>
+                        <strong style={{ color: '#0f172a' }}>{selectedDistribution.location || selectedDistribution.barangay || '—'}</strong>
                       </div>
-                      <div className="staff-distribution-schedule-card__stat">
-                        <span className="staff-distribution-schedule-card__stat-value">{schedule.totalBeneficiaries}</span>
-                        <span className="staff-distribution-schedule-card__stat-label">Beneficiaries</span>
+                      <div>
+                        <span style={{ fontSize: '0.72rem', color: '#64748b', display: 'block', textTransform: 'uppercase' }}>Target Date</span>
+                        <strong style={{ color: '#0f172a' }}>{selectedDistribution.date || 'Scheduled Date'}</strong>
+                      </div>
+                      <div>
+                        <span style={{ fontSize: '0.72rem', color: '#64748b', display: 'block', textTransform: 'uppercase' }}>Schedule Time</span>
+                        <strong style={{ color: '#0f172a' }}>{selectedDistribution.time || selectedDistribution.scheduleTime || '09:00 AM'}</strong>
+                      </div>
+                      <div>
+                        <span style={{ fontSize: '0.72rem', color: '#64748b', display: 'block', textTransform: 'uppercase' }}>Dispatch Route</span>
+                        <span style={{ color: '#1e293b' }}>{selectedDistribution.route || `Depot → ${selectedDistribution.location || 'Site'}`}</span>
                       </div>
                     </div>
-                    <div className="staff-distribution-schedule-card__programs">
-                      {schedule.programs.map((prog, idx) => (
-                        <span 
+                  </div>
+
+                  {/* Section 2: Distribution Details & Beneficiaries */}
+                  <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '8px', padding: '1rem' }}>
+                    <h4 style={{ margin: '0 0 0.75rem', fontSize: '0.85rem', textTransform: 'uppercase', color: '#475569', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <Users size={15} color="#AF101A" /> Distribution Scope & Beneficiaries
+                    </h4>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem', fontSize: '0.85rem' }}>
+                      <div>
+                        <span style={{ fontSize: '0.72rem', color: '#64748b', display: 'block', textTransform: 'uppercase' }}>Registered Beneficiaries</span>
+                        <strong style={{ fontSize: '1.25rem', color: '#0f172a' }}>
+                          {selectedDistribution.beneficiaries || 0} Families / Individuals
+                        </strong>
+                      </div>
+                      <div>
+                        <span style={{ fontSize: '0.72rem', color: '#64748b', display: 'block', textTransform: 'uppercase' }}>Operational Program</span>
+                        <strong style={{ fontSize: '1rem', color: '#1e293b' }}>
+                          {selectedDistribution.program || 'Community Relief Aid'}
+                        </strong>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Section 3: Allocated Items (Itemized, Readable) */}
+                  <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '8px', padding: '1rem' }}>
+                    <h4 style={{ margin: '0 0 0.75rem', fontSize: '0.85rem', textTransform: 'uppercase', color: '#475569', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <Boxes size={15} color="#AF101A" /> Allocated Items & Relief Packs ({itemsList.length})
+                    </h4>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                      {itemsList.map((item, idx) => (
+                        <div
                           key={idx}
-                          className="staff-distribution-schedule-card__program"
-                          style={{ 
-                            backgroundColor: `${getProgramColor(prog)}15`,
-                            color: getProgramColor(prog)
+                          style={{
+                            background: '#fff',
+                            border: '1px solid #cbd5e1',
+                            borderRadius: '6px',
+                            padding: '0.5rem 0.75rem',
+                            display: 'flex',
+                            justifyContent: 'space-between',
+                            alignItems: 'center',
+                            fontSize: '0.85rem',
                           }}
                         >
-                          {prog}
-                        </span>
+                          <span style={{ fontWeight: 600, color: '#1e293b' }}>{item.name}</span>
+                          <span style={{ background: '#f1f5f9', padding: '2px 8px', borderRadius: '4px', fontWeight: 700, color: '#0f172a', fontSize: '0.8rem' }}>
+                            Qty: {item.quantity}
+                          </span>
+                        </div>
                       ))}
                     </div>
                   </div>
-                ))}
-              </div>
-            </section>
-          )}
 
-          {/* Distribution Detail Modal */}
-          {selectedDistribution && (
-            <div className="staff-modal-overlay" onClick={() => setSelectedDistribution(null)}>
-              <div className="staff-modal" onClick={(e) => e.stopPropagation()}>
-                <div className="staff-modal__header">
-                  <h2>Distribution Details - {selectedDistribution.id}</h2>
-                  <button 
-                    className="staff-modal__close"
-                    onClick={() => setSelectedDistribution(null)}
-                  >
-                    ×
-                  </button>
-                </div>
-                <div className="staff-modal__content">
-                  <div className="staff-modal__badges">
-                    <span style={{ backgroundColor: `${getProgramColor(selectedDistribution.program)}15`, color: getProgramColor(selectedDistribution.program) }}>
-                      {selectedDistribution.program}
-                    </span>
-                    <span style={{ backgroundColor: `${getStatusColor(selectedDistribution.status)}15`, color: getStatusColor(selectedDistribution.status) }}>
-                      {selectedDistribution.status}
-                    </span>
-                  </div>
-
-                  <div className="staff-modal__section">
-                    <h3>Location & Schedule</h3>
-                    <div className="staff-modal__grid">
-                      <div className="staff-modal__field">
-                        <MapPin size={14} />
-                        <strong>Location:</strong>
-                        <span>{selectedDistribution.location}</span>
+                  {/* Section 4: Team Assignment */}
+                  <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '8px', padding: '1rem' }}>
+                    <h4 style={{ margin: '0 0 0.75rem', fontSize: '0.85rem', textTransform: 'uppercase', color: '#475569', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <UserCheck size={15} color="#AF101A" /> Team Assignment
+                    </h4>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem', fontSize: '0.85rem' }}>
+                      <div>
+                        <span style={{ fontSize: '0.72rem', color: '#64748b', display: 'block', textTransform: 'uppercase' }}>Assigned Staff Lead</span>
+                        <strong style={{ color: '#0f172a' }}>{assignedStaff}</strong>
                       </div>
-                      <div className="staff-modal__field">
-                        <Calendar size={14} />
-                        <strong>Date:</strong>
-                        <span>{selectedDistribution.date}</span>
-                      </div>
-                      <div className="staff-modal__field">
-                        <Clock size={14} />
-                        <strong>Time:</strong>
-                        <span>{selectedDistribution.time}</span>
-                      </div>
-                      {selectedDistribution.completedTime && (
-                        <div className="staff-modal__field">
-                          <CheckCircle size={14} />
-                          <strong>Completed:</strong>
-                          <span>{selectedDistribution.completedTime}</span>
+                      <div>
+                        <span style={{ fontSize: '0.72rem', color: '#64748b', display: 'block', textTransform: 'uppercase' }}>Volunteers Assigned</span>
+                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px', marginTop: '4px' }}>
+                          {teamMembers.length > 0 ? (
+                            teamMembers.map((vol, idx) => (
+                              <span
+                                key={idx}
+                                style={{
+                                  fontSize: '0.74rem',
+                                  padding: '2px 8px',
+                                  borderRadius: '9999px',
+                                  background: '#e0f2fe',
+                                  color: '#0369a1',
+                                  fontWeight: 600,
+                                }}
+                              >
+                                {vol}
+                              </span>
+                            ))
+                          ) : (
+                            <span style={{ color: '#94a3b8', fontStyle: 'italic' }}>None assigned</span>
+                          )}
                         </div>
-                      )}
+                      </div>
                     </div>
                   </div>
 
-                  <div className="staff-modal__section">
-                    <h3>Distribution Details</h3>
-                    <div className="staff-modal__grid">
-                      <div className="staff-modal__field">
-                        <Users size={14} />
-                        <strong>Beneficiaries:</strong>
-                        <span>{selectedDistribution.beneficiaries}</span>
-                      </div>
-                      <div className="staff-modal__field">
-                        <Package size={14} />
-                        <strong>Items:</strong>
-                        <span>{selectedDistribution.items}</span>
-                      </div>
-                      {selectedDistribution.route && (
-                        <div className="staff-modal__field">
-                          <MapPin size={14} />
-                          <strong>Route:</strong>
-                          <span>{selectedDistribution.route}</span>
-                        </div>
-                      )}
-                      {selectedDistribution.vehicleNeeded && (
-                        <div className="staff-modal__field">
-                          <Truck size={14} />
-                          <strong>Vehicle:</strong>
-                          <span>Required</span>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-
-                  <div className="staff-modal__section">
-                    <h3>Team Assignment</h3>
-                    <div className="staff-modal__grid">
-                      <div className="staff-modal__field">
-                        <strong>Assigned Staff:</strong>
-                        <span>{selectedDistribution.assignedStaff}</span>
-                      </div>
-                      <div className="staff-modal__field">
-                        <strong>Volunteers:</strong>
-                        <span>{selectedDistribution.assignedVolunteers?.length || 0} assigned</span>
-                      </div>
-                    </div>
-                    {selectedDistribution.assignedVolunteers && selectedDistribution.assignedVolunteers.length > 0 && (
-                      <div className="staff-modal__volunteers">
-                        {selectedDistribution.assignedVolunteers.map((vol, idx) => (
-                          <span key={idx} className="staff-modal__volunteer-badge">{vol}</span>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-
-                  {selectedDistribution.notes && (
-                    <div className="staff-modal__section">
-                      <h3>Notes</h3>
-                      <p className="staff-modal__notes">{selectedDistribution.notes}</p>
+                  {/* Section 5: Notes & Special Instructions */}
+                  {cleanNotes && (
+                    <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '8px', padding: '1rem' }}>
+                      <h4 style={{ margin: '0 0 0.5rem', fontSize: '0.85rem', textTransform: 'uppercase', color: '#475569', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        <Info size={15} color="#64748b" /> Operational Notes
+                      </h4>
+                      <p style={{ margin: 0, fontSize: '0.85rem', color: '#334155' }}>{cleanNotes}</p>
                     </div>
                   )}
 
-                  <div className="staff-modal__actions">
-                    <button type="button" className="btn btn--secondary" onClick={() => setSelectedDistribution(null)}>
-                      Close
+                  {/* Section 6: Activity History / Timeline */}
+                  {Array.isArray(selectedDistribution.statusActivity) && selectedDistribution.statusActivity.length > 0 && (
+                    <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '8px', padding: '1rem' }}>
+                      <h4 style={{ margin: '0 0 0.75rem', fontSize: '0.85rem', textTransform: 'uppercase', color: '#475569', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        <History size={15} color="#64748b" /> Event Activity Log
+                      </h4>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.45rem' }}>
+                        {selectedDistribution.statusActivity.map((act, idx) => (
+                          <div key={idx} style={{ fontSize: '0.8rem', color: '#475569', borderLeft: '2px solid #cbd5e1', paddingLeft: '8px' }}>
+                            <strong>{act.title}</strong> — {act.message} <span style={{ color: '#94a3b8', fontSize: '0.72rem' }}>({act.at})</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* Modal Footer Actions */}
+                <div className="admin-modal__actions" style={{ display: 'flex', justifyContent: 'space-between', borderTop: '1px solid #e2e8f0', paddingTop: '1rem', marginTop: '1.25rem' }}>
+                  <button type="button" className="btn btn--ghost" onClick={() => setSelectedDistribution(null)}>
+                    Close
+                  </button>
+
+                  {advanceStep ? (
+                    <button
+                      type="button"
+                      className="btn btn--primary"
+                      disabled={saving}
+                      onClick={() => handleAdvanceStatus(selectedDistribution)}
+                    >
+                      <ArrowRight size={16} /> Advance Status to "{advanceStep.next}"
                     </button>
-                    {STAFF_ADVANCE[selectedDistribution.status] ? (
-                      <button 
-                        className="btn btn--warning"
-                        disabled={saving}
-                        onClick={() => handleAdvanceStatus(selectedDistribution)}
-                      >
-                        <ArrowRight size={16} />
-                        {`Advance to ${STAFF_ADVANCE[selectedDistribution.status]}`}
-                      </button>
-                    ) : selectedDistribution.status === 'Delivered' || selectedDistribution.status === 'Awaiting Proof' ? (
-                      <p className="staff-modal__hint" style={{ margin: 0, color: '#64748b', fontSize: '0.9rem' }}>
-                        Waiting for barangay receipt confirmation and proof verification before Completed.
-                      </p>
-                    ) : null}
-                  </div>
+                  ) : selectedDistribution.status === 'Delivered' ? (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.82rem', color: '#047857' }}>
+                      <CheckCircle size={16} /> Delivered to site. Awaiting barangay proof of receipt before final completion.
+                    </div>
+                  ) : selectedDistribution.status === 'Completed' ? (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.82rem', color: '#16a34a', fontWeight: 600 }}>
+                      <CheckCircle size={16} /> Distribution successfully completed and verified.
+                    </div>
+                  ) : null}
                 </div>
               </div>
             </div>
-          )}
-        </div>
-      )}
+          )
+        })()}
+      </div>
     </ApiState>
   )
 }

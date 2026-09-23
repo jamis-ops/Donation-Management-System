@@ -22,7 +22,7 @@ const emptyMetrics = {
 }
 
 const STAFF_STAT_LINKS = {
-  'Donations to Verify': '/staff/verification',
+  'Donations to Verify': '/staff/donations?status=Pending+Verification',
   'Active Deliveries': '/staff/distributions?status=In+Transit',
   'Low Stock Items': '/staff/inventory',
   'Assigned Tasks': '/staff/tasks?status=In+Progress',
@@ -192,7 +192,7 @@ export default function StaffDashboard() {
             <section className="portal-panel">
               <div className="portal-panel__header">
                 <h2>Pending Verifications</h2>
-                <Link to="/staff/verification" className="portal-panel__link">View All</Link>
+                <Link to="/staff/donations?status=Pending+Verification" className="portal-panel__link">View All</Link>
               </div>
               <div className="staff-verification-list">
                 {pendingVerify.length === 0 ? (
@@ -201,7 +201,7 @@ export default function StaffDashboard() {
                     <p>No donations waiting for verification.</p>
                   </div>
                 ) : pendingVerify.map((donation) => (
-                  <Link key={donation.id} to="/staff/verification" className="staff-verification-card">
+                  <Link key={donation.id} to={`/staff/donations?search=${encodeURIComponent(donation.id || '')}`} className="staff-verification-card">
                     <div className="staff-verification-card__header">
                       <strong>{donation.donor}</strong>
                       <span className="staff-verification-card__badge" style={{

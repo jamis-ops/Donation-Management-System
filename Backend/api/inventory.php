@@ -19,6 +19,18 @@ function ensure_inventory_items_columns(PDO $pdo): void
   try {
     $pdo->exec("ALTER TABLE inventory_items ADD COLUMN variant VARCHAR(100) NULL AFTER brand");
   } catch (Throwable $e) {}
+  try {
+    $pdo->exec("ALTER TABLE inventory_items ADD COLUMN cost_per_unit DECIMAL(10,2) NULL AFTER unit");
+  } catch (Throwable $e) {}
+  try {
+    $pdo->exec("ALTER TABLE inventory_items ADD COLUMN supplier VARCHAR(120) NULL AFTER cost_per_unit");
+  } catch (Throwable $e) {}
+  try {
+    $pdo->exec("ALTER TABLE inventory_items ADD COLUMN location VARCHAR(120) NULL AFTER supplier");
+  } catch (Throwable $e) {}
+  try {
+    $pdo->exec("ALTER TABLE inventory_items ADD COLUMN reorder_amount INT UNSIGNED NULL AFTER location");
+  } catch (Throwable $e) {}
   $ensured = true;
 }
 ensure_inventory_items_columns($pdo);
@@ -30,16 +42,35 @@ function map_inventory(array $row): array
   $moderate = (int) ($row['moderate_stock_threshold'] ?? ($low * 2));
   $qty = (int) ($row['quantity'] ?? 0);
   $level = stock_level($qty, $low, $moderate);
+  $cat = $row['category'] ?? '';
+
+  $defaultCost = match(true) {
+    stripos($row['item_name'] ?? '', 'rice') !== false => 520.0,
+    stripos($row['item_name'] ?? '', 'sardines') !== false || stripos($row['item_name'] ?? '', 'canned') !== false => 35.0,
+    stripos($row['item_name'] ?? '', 'water') !== false => 25.0,
+    stripos($cat, 'food') !== false => 45.0,
+    stripos($cat, 'hygiene') !== false => 85.0,
+    stripos($cat, 'medical') !== false => 120.0,
+    stripos($cat, 'clothing') !== false => 150.0,
+    default => 50.0,
+  };
+  $cost = isset($row['cost_per_unit']) && $row['cost_per_unit'] !== null && (float)$row['cost_per_unit'] > 0
+    ? (float)$row['cost_per_unit']
+    : $defaultCost;
+  $supplier = !empty($row['supplier']) ? (string)$row['supplier'] : 'Rise Above Logistics / Community Donors';
+  $location = !empty($row['location']) ? (string)$row['location'] : ('Warehouse Shelf ' . strtoupper(substr($cat ?: 'G', 0, 1)) . '-1');
+  $reorder = !empty($row['reorder_amount']) ? (int)$row['reorder_amount'] : max(10, ($moderate ?: ($low * 2)) - $qty);
 
   return [
     'id' => $row['code'],
     'dbId' => (int) $row['id'],
     'item' => $row['item_name'],
-    'category' => $row['category'] ?? '',
+    'category' => $cat,
     'itemType' => $row['item_type'] ?? '',
     'brand' => $row['brand'] ?? '',
     'variant' => $row['variant'] ?? '',
     'quantity' => $qty,
+    'currentStock' => $qty,
     'unit' => $row['unit'] ?? 'units',
     'status' => stock_level_label($level),
     'stockLevel' => $level,
@@ -50,6 +81,14 @@ function map_inventory(array $row): array
     'stockState' => $row['stock_state'] ?? 'Available',
     'lowStockThreshold' => $low,
     'moderateStockThreshold' => $moderate,
+    'minStock' => $low,
+    'maxStock' => max($moderate * 2, $low * 4, $qty),
+    'costPerUnit' => $cost,
+    'totalValue' => $qty * $cost,
+    'supplier' => $supplier,
+    'location' => $location,
+    'reorderAmount' => $reorder,
+    'lastUpdated' => format_date($row['updated_at'] ?? null),
   ];
 }
 

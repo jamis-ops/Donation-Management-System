@@ -53,11 +53,10 @@ const portalMenus = {
   Staff: {
     title: 'Staff Portal',
     base: '/staff',
-    color: '#d97706',
+    color: '#AF101A',
     items: [
       { to: '/staff', label: 'Dashboard', icon: LayoutDashboard, end: true },
       { to: '/staff/donations', label: 'Donations', icon: HeartHandshake },
-      { to: '/staff/verification', label: 'Verification', icon: ClipboardList },
       { to: '/staff/inventory', label: 'Inventory', icon: Package },
       { to: '/staff/distributions', label: 'Distributions', icon: Truck },
       { to: '/staff/tasks', label: 'My Tasks', icon: ListTodo },
