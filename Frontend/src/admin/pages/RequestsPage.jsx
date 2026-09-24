@@ -1553,6 +1553,20 @@ export default function RequestsPage() {
     [enrichedData],
   );
 
+  useEffect(() => {
+    const targetId = location.state?.openRequestId || new URLSearchParams(location.search).get('id') || new URLSearchParams(location.search).get('requestId');
+    if (targetId && enrichedData && enrichedData.length > 0) {
+      const found = enrichedData.find(r => 
+        String(r.id || '').toLowerCase() === String(targetId).toLowerCase() || 
+        String(r.dbId) === String(targetId) ||
+        String(r.code || '').toLowerCase() === String(targetId).toLowerCase()
+      );
+      if (found) {
+        setSelectedRequest(found);
+      }
+    }
+  }, [location.state, location.search, enrichedData]);
+
   const filterConfig = useMemo(() => ({
     searchKeys: ['beneficiary', 'id', 'type', 'notes'],
     filters: [

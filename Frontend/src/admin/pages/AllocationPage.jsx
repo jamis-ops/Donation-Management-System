@@ -2,7 +2,7 @@ import { useEffect, useState, useMemo } from 'react'
 import { useNavigate, useLocation, Link } from 'react-router-dom'
 import { 
   Eye, Pencil, ArrowRightCircle, Truck, Sparkles, CheckCircle2, X, Plus,
-  Package, Users, Calendar, MapPin, FileText, Tag, Banknote, Clock, Check, AlertCircle, Trash2, ArrowRight
+  Package, Users, Calendar, MapPin, FileText, Tag, Banknote, Clock, Check, AlertCircle, Trash2, ArrowRight, ExternalLink
 } from 'lucide-react'
 import { allocationsApi, beneficiariesApi, needsStockApi, assistanceRequestsApi, inventoryApi } from '../../api/resources'
 import { useApiList } from '../../hooks/useApiList'
@@ -497,9 +497,14 @@ const styles = `
   color: var(--admin-brand, #AF101A);
   background: #fef2f2;
   border: 1px solid #fecaca;
-  padding: 0.12rem 0.45rem;
-  border-radius: 4px;
+  padding: 0.15rem 0.5rem;
+  border-radius: 5px;
   letter-spacing: 0.02em;
+  transition: all 0.15s ease;
+}
+.alloc-req-code-tag:hover {
+  background: #fee2e2;
+  border-color: #f87171;
 }
 
 .alloc-calamity-badge {
@@ -510,25 +515,242 @@ const styles = `
   color: #0369a1;
   background: #e0f2fe;
   border: 1px solid #bae6fd;
-  padding: 0.15rem 0.5rem;
+  padding: 0.15rem 0.55rem;
   border-radius: 9999px;
 }
 
-.alloc-need-tag__action {
-  font-size: 0.68rem;
-  font-weight: 700;
-  color: var(--admin-brand, #AF101A);
-  background: #ffffff;
-  padding: 0.1rem 0.4rem;
-  border-radius: 4px;
-  margin-left: 0.4rem;
-  border: 1px solid #fecaca;
-  transition: all 0.15s ease;
+.alloc-needs-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(360px, 1fr));
+  gap: 1.25rem;
 }
 
-.alloc-need-tag--clickable:hover .alloc-need-tag__action {
+.alloc-needs-card {
+  position: relative;
+  background: #ffffff !important;
+  border: 1px solid #e2e8f0 !important;
+  border-left: 4px solid var(--admin-brand, #AF101A) !important;
+  border-radius: 12px !important;
+  padding: 1.15rem 1.25rem !important;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.05) !important;
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 0.75rem !important;
+  transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.2s ease, border-color 0.2s ease !important;
+  box-sizing: border-box !important;
+}
+
+.alloc-needs-card:hover {
+  transform: translateY(-3px) !important;
+  box-shadow: 0 10px 25px -5px rgba(175, 16, 26, 0.12), 0 0 0 1px rgba(175, 16, 26, 0.15) !important;
+  border-color: #fca5a5 !important;
+}
+
+.alloc-card-brgy-icon {
+  width: 28px;
+  height: 28px;
+  border-radius: 7px;
+  background: #fef2f2;
+  color: var(--admin-brand, #AF101A);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.alloc-card-brgy-name {
+  font-size: 1.05rem;
+  font-weight: 750;
+  color: #0f172a;
+  transition: color 0.15s ease;
+}
+.alloc-needs-card:hover .alloc-card-brgy-name {
+  color: var(--admin-brand, #AF101A);
+}
+
+.alloc-card-external-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 6px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  color: #64748b;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+.alloc-card-external-btn:hover {
+  background: #fef2f2;
+  color: var(--admin-brand, #AF101A);
+  border-color: #fca5a5;
+  transform: scale(1.08);
+}
+
+.alloc-needs-card__meta {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  flex-wrap: wrap;
+  padding-bottom: 0.55rem;
+  border-bottom: 1px solid #f1f5f9;
+}
+
+.alloc-families-count {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.8125rem;
+  color: #475569;
+}
+
+.alloc-needs-card__body {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+}
+
+.alloc-needs-subhead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #64748b;
+}
+
+.alloc-need-item-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 0.45rem 0.75rem;
+  transition: all 0.15s ease;
+}
+.alloc-need-item-row:hover {
+  background: #ffffff;
+  border-color: #cbd5e1;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.03);
+}
+
+.alloc-need-name {
+  font-size: 0.82rem;
+  font-weight: 650;
+  color: #1e293b;
+}
+
+.alloc-need-allocate-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.28rem 0.65rem;
+  font-size: 0.74rem;
+  font-weight: 700;
+  border-radius: 6px;
+  background: #fef2f2;
+  color: var(--admin-brand, #AF101A);
+  border: 1px solid #fecaca;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+.alloc-need-allocate-btn:hover {
   background: var(--admin-brand, #AF101A);
   color: #ffffff;
+  border-color: var(--admin-brand, #AF101A);
+  transform: translateY(-1px);
+  box-shadow: 0 2px 6px rgba(175, 16, 26, 0.25);
+}
+
+.alloc-needs-card__footer {
+  margin-top: 0.2rem;
+  padding-top: 0.5rem;
+  border-top: 1px dashed #e2e8f0;
+}
+
+.alloc-view-request-link {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: var(--admin-brand, #AF101A);
+  background: #fff8f8;
+  border: 1px solid #fecaca;
+  cursor: pointer;
+  padding: 0.45rem 0.75rem;
+  border-radius: 6px;
+  transition: all 0.15s ease;
+}
+.alloc-view-request-link:hover {
+  background: var(--admin-brand, #AF101A);
+  color: #ffffff;
+  border-color: var(--admin-brand, #AF101A);
+  box-shadow: 0 2px 6px rgba(175, 16, 26, 0.2);
+}
+
+/* Modal Banner */
+.alloc-modal-linked-request-banner {
+  margin-bottom: 1.15rem;
+  padding: 0.85rem 1.15rem;
+  background: #fff8f8;
+  border: 1px solid #fecaca;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.alloc-modal-linked-label {
+  font-size: 0.68rem;
+  font-weight: 750;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: #b91c1c;
+}
+
+.alloc-modal-linked-title {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  font-size: 1rem;
+  color: #0f172a;
+  margin-top: 0.15rem;
+}
+
+.alloc-modal-linked-sub {
+  font-size: 0.78rem;
+  color: #64748b;
+  margin-top: 0.15rem;
+}
+
+.alloc-modal-open-request-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.4rem 0.75rem;
+  font-size: 0.76rem;
+  font-weight: 650;
+  background: #ffffff;
+  border: 1px solid #cbd5e1;
+  color: #334155;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+.alloc-modal-open-request-btn:hover {
+  border-color: var(--admin-brand, #AF101A);
+  color: var(--admin-brand, #AF101A);
+  background: #fef2f2;
 }
 `;
 
@@ -1141,37 +1363,32 @@ export default function AllocationPage() {
   const FormFields = (
     <>
       {activeReliefRequest ? (
-        <div style={{
-          marginBottom: '1rem',
-          padding: '0.85rem 1.1rem',
-          background: '#f8fafc',
-          border: '1px solid #e2e8f0',
-          borderRadius: '10px',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-        }}>
+        <div className="alloc-modal-linked-request-banner">
           <div>
-            <div style={{ fontSize: '0.72rem', textTransform: 'uppercase', letterSpacing: '0.5px', color: '#64748b', fontWeight: 700 }}>
-              Target Barangay (Locked from Relief Request)
+            <div className="alloc-modal-linked-label">
+              Linked Relief Request
             </div>
-            <div style={{ fontSize: '1.05rem', fontWeight: 700, color: '#0f172a', display: 'flex', alignItems: 'center', gap: '6px', marginTop: '3px' }}>
-              <MapPin size={17} style={{ color: '#AF101A' }} />
-              Barangay {activeReliefRequest.barangay || activeReliefRequest.beneficiary || selectedBarangay?.barangay || selectedBarangay?.name}
-              {(activeReliefRequest.municipality || selectedBarangay?.municipality) ? `, ${activeReliefRequest.municipality || selectedBarangay?.municipality}` : ''}
+            <div className="alloc-modal-linked-title">
+              <MapPin size={16} style={{ color: '#AF101A' }} />
+              <strong>Barangay {activeReliefRequest.barangay || activeReliefRequest.beneficiary || selectedBarangay?.barangay || selectedBarangay?.name}</strong>
+              <span className="alloc-req-code-tag">{activeReliefRequest.id || activeReliefRequest.reference_code || `AST-${activeReliefRequest.dbId}`}</span>
+            </div>
+            <div className="alloc-modal-linked-sub">
+              {activeReliefRequest.calamity || activeReliefRequest.reason || activeReliefRequest.type || 'Relief assistance'} · <strong>{familiesForSuggestion}</strong> affected families
             </div>
           </div>
-          <span style={{
-            fontSize: '0.75rem',
-            color: '#0369a1',
-            background: '#e0f2fe',
-            border: '1px solid #bae6fd',
-            padding: '3px 10px',
-            borderRadius: '20px',
-            fontWeight: 600
-          }}>
-            📍 Pre-determined
-          </span>
+          <button
+            type="button"
+            className="alloc-modal-open-request-btn"
+            onClick={() => {
+              closeForm();
+              navigate('/admin/requests', { state: { openRequestId: activeReliefRequest.id || activeReliefRequest.dbId } });
+            }}
+            title="Open and review this relief request"
+          >
+            <span>View Relief Request</span>
+            <ExternalLink size={13} />
+          </button>
         </div>
       ) : (
         <label>
@@ -1612,42 +1829,98 @@ export default function AllocationPage() {
 
       {activeReliefRequests.length > 0 && (
         <section className="admin-panel alloc-needs-panel">
-          <h2>Relief Requests · Needs Overview</h2>
-          <p className="alloc-panel-hint">
-            Active relief requests awaiting inventory allocation. Affected families and requested goods are specific to each relief request. Click a need to allocate stock.
-          </p>
+          <div className="alloc-needs-header">
+            <div>
+              <h2>Relief Requests · Needs Overview</h2>
+              <p className="alloc-panel-hint">
+                Active community requests awaiting stock allocation. Click any card or request code to inspect the full request on the Requests Portal, or click "+ Allocate" on a need to allocate warehouse supplies.
+              </p>
+            </div>
+          </div>
           <div className="see-more-wrap">
             <div className="alloc-needs-grid">
               {requestsSeeMore.visible.map((req) => (
-                <article key={req.dbId} className="alloc-needs-card">
+                <article 
+                  key={req.dbId} 
+                  className="alloc-needs-card"
+                  onClick={() => navigate('/admin/requests', { state: { openRequestId: req.id || req.dbId } })}
+                  style={{ cursor: 'pointer' }}
+                  title={`Click to view full relief request ${req.requestCode}`}
+                >
                   <div className="alloc-needs-card__top">
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', flexWrap: 'wrap' }}>
-                      <strong style={{ fontSize: '1rem', color: '#0f172a' }}>{req.beneficiaryName}</strong>
-                      <span className="alloc-req-code-tag">{req.requestCode}</span>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', flexWrap: 'wrap' }}>
+                      <span className="alloc-card-brgy-icon"><MapPin size={15} /></span>
+                      <strong className="alloc-card-brgy-name">{req.beneficiaryName}</strong>
+                      <span 
+                        className="alloc-req-code-tag"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          navigate('/admin/requests', { state: { openRequestId: req.id || req.dbId } });
+                        }}
+                        title="Click to view relief request"
+                      >
+                        {req.requestCode}
+                      </span>
                     </div>
-                    <StatusBadge status={req.priority} />
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                      <StatusBadge status={req.priority} />
+                      <button
+                        type="button"
+                        className="alloc-card-external-btn"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          navigate('/admin/requests', { state: { openRequestId: req.id || req.dbId } });
+                        }}
+                        title={`View relief request ${req.requestCode}`}
+                      >
+                        <ExternalLink size={13} />
+                      </button>
+                    </div>
                   </div>
                   
-                  <div className="alloc-needs-card__meta" style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', flexWrap: 'wrap', marginBottom: '0.75rem' }}>
+                  <div className="alloc-needs-card__meta">
                     <span className="alloc-calamity-badge">{req.calamity}</span>
-                    <span style={{ fontSize: '0.84rem', color: '#475569' }}>
+                    <span className="alloc-families-count">
+                      <Users size={13} style={{ color: 'var(--admin-brand, #AF101A)' }} />
                       <strong>{req.families.toLocaleString()}</strong> affected families · ≈ {req.families * PACKS_PER_FAMILY} packs/need
                     </span>
                   </div>
 
-                  <div className="alloc-need-tags">
-                    {req.needs.map((n) => (
-                      <button
-                        type="button"
-                        key={n}
-                        className="alloc-need-tag alloc-need-tag--clickable"
-                        onClick={() => quickAllocateForRequest(req, n)}
-                        title={`Click to allocate warehouse stock for "${n}"`}
-                      >
-                        <span>{n}</span>
-                        <span className="alloc-need-tag__action">+ Allocate</span>
-                      </button>
-                    ))}
+                  <div className="alloc-needs-card__body">
+                    <div className="alloc-needs-subhead">
+                      <span>Requested Supplies:</span>
+                      <span style={{ fontSize: '0.68rem', color: '#94a3b8', fontWeight: 'normal' }}>Click "+ Allocate" to allocate inventory</span>
+                    </div>
+                    <div className="alloc-need-tags">
+                      {req.needs.map((n) => (
+                        <div key={n} className="alloc-need-item-row" onClick={(e) => e.stopPropagation()}>
+                          <span className="alloc-need-name">{n}</span>
+                          <button
+                            type="button"
+                            className="alloc-need-allocate-btn"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              quickAllocateForRequest(req, n);
+                            }}
+                            title={`Allocate warehouse stock for "${n}"`}
+                          >
+                            <span>+ Allocate</span>
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="alloc-needs-card__footer" onClick={(e) => e.stopPropagation()}>
+                    <button
+                      type="button"
+                      className="alloc-view-request-link"
+                      onClick={() => navigate('/admin/requests', { state: { openRequestId: req.id || req.dbId } })}
+                      title="Direct to actual relief request"
+                    >
+                      <span>Review Relief Request ({req.requestCode})</span>
+                      <ArrowRight size={13} />
+                    </button>
                   </div>
                 </article>
               ))}
@@ -1997,7 +2270,7 @@ function AllocationDetailModal({
                     style={{ padding: '0.3rem 0.5rem', fontSize: '0.76rem', color: 'var(--admin-brand, #AF101A)', justifyContent: 'flex-start' }}
                     onClick={() => {
                       onClose()
-                      navigate('/admin/requests')
+                      navigate('/admin/requests', { state: { openRequestId: detailRow.assistanceRequestCode || linkedReq?.id || detailRow.assistanceRequestId } })
                     }}
                   >
                     Open in Relief Requests &rarr;
