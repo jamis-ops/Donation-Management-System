@@ -30,7 +30,6 @@ export default function ProcurementModal({
   const [customAllocationAmount, setCustomAllocationAmount] = useState(null)
   const [items, setItems] = useState([])
   const [showItemization, setShowItemization] = useState(false)
-  const [addToInventory, setAddToInventory] = useState(false)
   const [notes, setNotes] = useState('')
   const [saving, setSaving] = useState(false)
 
@@ -222,7 +221,6 @@ export default function ProcurementModal({
       supplierName: '',
       familiesSupported: supportedFamilies,
       notes: notes.trim(),
-      addToInventory: Boolean(addToInventory),
     }
 
     setSaving(true)
@@ -778,19 +776,6 @@ export default function ProcurementModal({
                     </button>
                   </div>
                 )}
-
-                {/* Optional Inventory Checkbox */}
-                <div style={{ marginTop: '0.85rem', paddingTop: '0.65rem', borderTop: '1px solid #f1f5f9' }}>
-                  <label style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.8rem', color: '#334155', cursor: 'pointer' }}>
-                    <input
-                      type="checkbox"
-                      checked={addToInventory}
-                      onChange={e => setAddToInventory(e.target.checked)}
-                      style={{ borderRadius: '4px', cursor: 'pointer' }}
-                    />
-                    <span>Add purchased relief items to warehouse inventory for tracking</span>
-                  </label>
-                </div>
               </div>
             )}
 
