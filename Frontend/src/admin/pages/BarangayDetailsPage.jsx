@@ -1009,6 +1009,9 @@ export default function BarangayDetailsPage() {
           onUpdated={async () => {
             await reloadReqs()
           }}
+          onDeleted={async () => {
+            await reloadReqs()
+          }}
         />
       )}
 

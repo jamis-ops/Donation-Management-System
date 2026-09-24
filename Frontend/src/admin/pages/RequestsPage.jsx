@@ -9,7 +9,7 @@ import {
   Users, Search, Pin, FileText, 
   Check, X, MapPin, Loader2, Info,
   Utensils, Droplets, Shirt, Pill, Sparkles, Home, Banknote, GraduationCap, Package, Tag,
-  Phone, Mail, ExternalLink, Copy
+  Phone, Mail, ExternalLink, Copy, Trash2
 } from 'lucide-react';
 import PageHeader from '../components/shared/PageHeader';
 import ModalHeader from '../components/shared/ModalHeader';
@@ -457,6 +457,58 @@ const styles = `
 }
 .btn-action-reject:active {
   transform: scale(0.96);
+}
+
+.btn-action-delete {
+  background: #fef2f2 !important;
+  border: 1px solid #fecaca !important;
+  color: #dc2626 !important;
+  width: 34px;
+  height: 34px;
+  border-radius: 8px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  cursor: pointer;
+  box-shadow: 0 1px 2px rgba(220, 38, 38, 0.15);
+  transition: all 0.15s ease;
+}
+.btn-action-delete:hover {
+  background: #dc2626 !important;
+  border-color: #b91c1c !important;
+  color: #ffffff !important;
+  transform: translateY(-1px);
+  box-shadow: 0 3px 6px rgba(220, 38, 38, 0.35);
+}
+.btn-action-delete:active {
+  transform: scale(0.96);
+}
+
+.relief-btn-delete {
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 0.35rem !important;
+  background: #dc2626 !important;
+  color: #ffffff !important;
+  border: 1px solid #dc2626 !important;
+  font-weight: 650 !important;
+  padding: 0.42rem 0.95rem !important;
+  font-size: 0.82rem !important;
+  border-radius: 7px !important;
+  box-shadow: 0 1px 3px rgba(220, 38, 38, 0.25) !important;
+  transition: all 0.15s ease !important;
+  cursor: pointer !important;
+}
+.relief-btn-delete:hover:not(:disabled) {
+  background: #b91c1c !important;
+  border-color: #b91c1c !important;
+  transform: translateY(-1px);
+  box-shadow: 0 3px 8px rgba(220, 38, 38, 0.35) !important;
+}
+.relief-btn-delete:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
 }
 
 .requests-page .btn--outline {
@@ -1579,8 +1631,20 @@ export default function RequestsPage() {
     return () => s.remove();
   }, []);
 
-  // Allocated / Completed requests have left the relief queue — they continue in Allocation / Distribution.
-  const DONE_RELIEF_STATUSES = ['Allocated', 'Completed']
+  // Requests that have been allocated, partially allocated, or entered distribution
+  // have left the intake review queue — they continue in Resource Allocation & Logistics.
+  const ALLOCATED_OR_DONE_STATUSES = [
+    'Allocated',
+    'Partially Allocated',
+    'Partially Funded',
+    'In Distribution',
+    'In Transit',
+    'Delivered',
+    'Distributed',
+    'Completed',
+    'Done',
+    'Cancelled'
+  ];
 
   const enrichedData = useMemo(() => {
     if (!requestsData || !beneficiariesData) return requestsData || [];
@@ -1614,10 +1678,17 @@ export default function RequestsPage() {
     });
   }, [requestsData, beneficiariesData]);
 
-  const activeReliefData = useMemo(
-    () => enrichedData.filter((r) => !DONE_RELIEF_STATUSES.includes(r.status)),
-    [enrichedData],
-  );
+  const activeReliefData = useMemo(() => {
+    return (enrichedData || []).filter((r) => {
+      // 1. Exclude any status that represents an allocated, in-distribution, or completed request
+      if (ALLOCATED_OR_DONE_STATUSES.includes(r.status)) return false;
+      // 2. Exclude any request that has linked allocation or procurement records
+      if (r.hasAllocation || (r.allocationCount && r.allocationCount > 0) || (r.procurementCount && r.procurementCount > 0)) {
+        return false;
+      }
+      return true;
+    });
+  }, [enrichedData]);
 
   useEffect(() => {
     const targetId = location.state?.openRequestId || new URLSearchParams(location.search).get('id') || new URLSearchParams(location.search).get('requestId');
@@ -1754,6 +1825,37 @@ export default function RequestsPage() {
       }
     } catch (err) {
       notify.error(err?.message || 'Failed to update request');
+    } finally {
+      hideLoading();
+      setIsUpdating(false);
+    }
+  };
+
+  const handleDeleteRequest = async (dbId) => {
+    const existing = (enrichedData || []).find((r) => r.dbId === dbId);
+    const ok = await confirmAction({
+      title: 'Delete Relief Request',
+      message: `Are you sure you want to permanently delete the rejected relief request from ${existing?.beneficiary || 'barangay'}? This action cannot be undone.`,
+      confirmText: 'Delete Request',
+      type: 'danger',
+    });
+    if (!ok) return false;
+
+    try {
+      setIsUpdating(true);
+      showLoading('Deleting request…');
+      await assistanceRequestsApi.remove(dbId);
+      await reqReload();
+      notifyBadgesChanged();
+      notify.success('Relief request permanently deleted.');
+      showSuccessModal('Request successfully deleted.');
+      if (selectedRequest && selectedRequest.dbId === dbId) {
+        setSelectedRequest(null);
+      }
+      return true;
+    } catch (err) {
+      notify.error(err?.message || 'Failed to delete request');
+      return false;
     } finally {
       hideLoading();
       setIsUpdating(false);
@@ -1996,6 +2098,23 @@ export default function RequestsPage() {
                       >
                         Create Allocation &rarr;
                       </button>
+                    ) : req.status === 'Rejected' ? (
+                      <>
+                        <button 
+                          className="btn-action-review" 
+                          onClick={() => setSelectedRequest(req)}
+                        >
+                          Review
+                        </button>
+                        <button 
+                          className="btn-action-delete" 
+                          onClick={() => handleDeleteRequest(req.dbId)}
+                          title="Delete Request"
+                          aria-label="Delete Request"
+                        >
+                          <Trash2 size={15} strokeWidth={2.4} />
+                        </button>
+                      </>
                     ) : (
                       <>
                         <button 
@@ -2004,26 +2123,22 @@ export default function RequestsPage() {
                         >
                           Review
                         </button>
-                        {req.status !== 'Rejected' && (
-                          <button 
-                            className="btn-action-approve" 
-                            onClick={() => handleUpdateStatus(req.dbId, { status: 'Approved' })}
-                            title="Approve Request"
-                            aria-label="Approve Request"
-                          >
-                            <Check size={16} strokeWidth={2.6} />
-                          </button>
-                        )}
-                        {req.status !== 'Rejected' && (
-                          <button 
-                            className="btn-action-reject" 
-                            onClick={() => handleUpdateStatus(req.dbId, { status: 'Rejected' })}
-                            title="Reject Request"
-                            aria-label="Reject Request"
-                          >
-                            <X size={16} strokeWidth={2.6} />
-                          </button>
-                        )}
+                        <button 
+                          className="btn-action-approve" 
+                          onClick={() => handleUpdateStatus(req.dbId, { status: 'Approved' })}
+                          title="Approve Request"
+                          aria-label="Approve Request"
+                        >
+                          <Check size={16} strokeWidth={2.6} />
+                        </button>
+                        <button 
+                          className="btn-action-reject" 
+                          onClick={() => handleUpdateStatus(req.dbId, { status: 'Rejected' })}
+                          title="Reject Request"
+                          aria-label="Reject Request"
+                        >
+                          <X size={16} strokeWidth={2.6} />
+                        </button>
                       </>
                     )}
                   </div>
@@ -2059,6 +2174,7 @@ export default function RequestsPage() {
           availableMonetaryDonations={availableMonetaryDonations}
           onClose={() => setSelectedRequest(null)}
           onUpdate={handleUpdateStatus}
+          onDelete={handleDeleteRequest}
           onProcure={(req, donation) => {
             setSelectedRequest(null);
             setProcuringRequest(req);
@@ -2113,6 +2229,7 @@ function ReviewModal({
   availableMonetaryDonations, 
   onClose, 
   onUpdate, 
+  onDelete,
   onProcure,
   isUpdating, 
   navigate 
@@ -2301,28 +2418,48 @@ function ReviewModal({
                 <Clock size={13} /> Mark Under Review
               </button>
             )}
-            {request.status !== 'Rejected' && request.status !== 'Approved' && (
+            {/* When Rejected: show ONLY Delete Request option */}
+            {request.status === 'Rejected' && (
               <button 
                 type="button" 
-                className="btn btn--danger btn--sm relief-btn-reject" 
+                className="btn btn--danger btn--sm relief-btn-delete" 
                 disabled={isUpdating} 
-                onClick={() => handleSave('Rejected')} 
-                title="Reject this relief request"
+                onClick={async () => {
+                  const deleted = await onDelete?.(request.dbId);
+                  if (deleted) onClose();
+                }} 
+                title="Delete this rejected relief request permanently"
               >
-                <X size={14} strokeWidth={2.4} /> Reject
+                <Trash2 size={14} strokeWidth={2.4} /> Delete Request
               </button>
             )}
-            {request.status !== 'Approved' ? (
-              <button 
-                type="button" 
-                className="btn btn--success btn--sm relief-btn-approve" 
-                disabled={isUpdating} 
-                onClick={() => handleSave('Approved')} 
-                title="Approve this relief request"
-              >
-                <Check size={14} strokeWidth={2.6} /> Approve Request
-              </button>
-            ) : (
+
+            {/* When Pending Review / Under Review: show Reject and Approve */}
+            {request.status !== 'Rejected' && request.status !== 'Approved' && (
+              <>
+                <button 
+                  type="button" 
+                  className="btn btn--danger btn--sm relief-btn-reject" 
+                  disabled={isUpdating} 
+                  onClick={() => handleSave('Rejected')} 
+                  title="Reject this relief request"
+                >
+                  <X size={14} strokeWidth={2.4} /> Reject
+                </button>
+                <button 
+                  type="button" 
+                  className="btn btn--success btn--sm relief-btn-approve" 
+                  disabled={isUpdating} 
+                  onClick={() => handleSave('Approved')} 
+                  title="Approve this relief request"
+                >
+                  <Check size={14} strokeWidth={2.6} /> Approve Request
+                </button>
+              </>
+            )}
+
+            {/* When Approved: show Allocate & Procure (never Delete) */}
+            {request.status === 'Approved' && (
               <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', flexWrap: 'wrap' }}>
                 {stockFeasibility.hasShortage && (
                   <button

@@ -2,17 +2,18 @@ import React, { useState, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { 
   Calendar, Users, MapPin, FileText, Check, X, Clock, 
-  Package, Tag
+  Package, Tag, Trash2
 } from 'lucide-react'
 import ModalHeader from '../shared/ModalHeader'
 import StatusBadge from '../shared/StatusBadge'
-import { notify, showSuccessModal } from '../../../utils/confirm'
+import { notify, showSuccessModal, confirmAction } from '../../../utils/confirm'
 import { assistanceRequestsApi } from '../../../api/resources'
 
 export default function ReliefRequestModal({
   request,
   onClose,
   onUpdated,
+  onDeleted,
   onProcure,
   availableMonetaryDonations = [],
 }) {
@@ -135,6 +136,34 @@ export default function ReliefRequestModal({
     }
   }
 
+  const handleDelete = async () => {
+    const ok = await confirmAction({
+      title: 'Delete Relief Request',
+      message: `Are you sure you want to permanently delete this rejected relief request? This action cannot be undone.`,
+      confirmText: 'Delete Request',
+      type: 'danger',
+    })
+    if (!ok) return
+
+    setIsUpdating(true)
+    try {
+      const reqId = request.dbId || request.id
+      await assistanceRequestsApi.remove(reqId)
+      notify.success('Relief request permanently deleted.')
+      showSuccessModal('Request successfully deleted.')
+      if (onDeleted) {
+        onDeleted(reqId)
+      } else if (onUpdated) {
+        onUpdated({ ...request, status: 'Deleted', _deleted: true })
+      }
+      onClose()
+    } catch (err) {
+      notify.error(err.message || 'Failed to delete request')
+    } finally {
+      setIsUpdating(false)
+    }
+  }
+
   const isTerminal = ['Completed', 'Done', 'Rejected', 'Cancelled'].includes(request.status)
 
   return (
@@ -186,6 +215,32 @@ export default function ReliefRequestModal({
                 }}
               >
                 <Clock size={12} style={{ flexShrink: 0 }} /> Mark Under Review
+              </button>
+            )}
+
+            {/* When Rejected: show Delete button only */}
+            {request.status === 'Rejected' && (
+              <button
+                type="button"
+                className="btn btn--danger btn--sm"
+                disabled={isUpdating}
+                onClick={handleDelete}
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '0.35rem',
+                  fontWeight: 650,
+                  fontSize: '0.82rem',
+                  padding: '0.42rem 0.95rem',
+                  borderRadius: '7px',
+                  backgroundColor: '#dc2626',
+                  borderColor: '#dc2626',
+                  color: '#ffffff',
+                  boxShadow: '0 1px 3px rgba(220, 38, 38, 0.25)',
+                  cursor: 'pointer'
+                }}
+              >
+                <Trash2 size={14} style={{ flexShrink: 0 }} /> Delete Request
               </button>
             )}
 

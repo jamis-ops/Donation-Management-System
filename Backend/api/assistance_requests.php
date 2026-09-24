@@ -86,6 +86,9 @@ function map_request(array $row, string $beneficiaryName, ?array $extra = null):
     'assignedTo' => $row['assigned_to'] ?? null,
     'slaDeadline' => $row['sla_deadline'] ?? null,
     'createdAt' => $row['created_at'] ?? $row['request_date'],
+    'allocationCount' => (int) ($row['allocation_count'] ?? 0),
+    'procurementCount' => (int) ($row['procurement_count'] ?? 0),
+    'hasAllocation' => (((int) ($row['allocation_count'] ?? 0)) > 0 || ((int) ($row['procurement_count'] ?? 0)) > 0),
   ];
   // Calamity tags
   if (!empty($row['calamity_tags'])) {
@@ -174,12 +177,17 @@ function map_request(array $row, string $beneficiaryName, ?array $extra = null):
 
 if ($method === 'GET') {
   $user = require_auth(['Admin', 'Staff', 'Beneficiary']);
+  ensure_request_columns($pdo);
+  if (function_exists('ensure_procurement_table')) {
+    ensure_procurement_table($pdo);
+  }
 
   // ── Single request endpoint ──
   if ($id) {
-    ensure_request_columns($pdo);
     $stmt = $pdo->prepare('
-      SELECT ar.*, b.full_name AS beneficiary_name, b.municipality, b.representative_name, b.barangay
+      SELECT ar.*, b.full_name AS beneficiary_name, b.municipality, b.representative_name, b.barangay,
+             (SELECT COUNT(*) FROM allocations a WHERE a.assistance_request_id = ar.id) AS allocation_count,
+             (SELECT COUNT(*) FROM donation_procurements dp WHERE dp.assistance_request_id = ar.id) AS procurement_count
       FROM assistance_requests ar
       JOIN beneficiaries b ON b.id = ar.beneficiary_id
       WHERE ar.id = ? LIMIT 1
@@ -484,7 +492,9 @@ if ($method === 'GET') {
       json_response(['ok' => true, 'data' => []]);
     }
     $stmt = $pdo->prepare('
-      SELECT ar.*, b.full_name AS beneficiary_name
+      SELECT ar.*, b.full_name AS beneficiary_name,
+             (SELECT COUNT(*) FROM allocations a WHERE a.assistance_request_id = ar.id) AS allocation_count,
+             (SELECT COUNT(*) FROM donation_procurements dp WHERE dp.assistance_request_id = ar.id) AS procurement_count
       FROM assistance_requests ar
       JOIN beneficiaries b ON b.id = ar.beneficiary_id
       WHERE ar.beneficiary_id = ?
@@ -493,7 +503,9 @@ if ($method === 'GET') {
     $stmt->execute([$benId]);
   } else {
     $stmt = $pdo->query('
-      SELECT ar.*, b.full_name AS beneficiary_name
+      SELECT ar.*, b.full_name AS beneficiary_name,
+             (SELECT COUNT(*) FROM allocations a WHERE a.assistance_request_id = ar.id) AS allocation_count,
+             (SELECT COUNT(*) FROM donation_procurements dp WHERE dp.assistance_request_id = ar.id) AS procurement_count
       FROM assistance_requests ar
       JOIN beneficiaries b ON b.id = ar.beneficiary_id
       ORDER BY ar.created_at DESC, ar.request_date DESC, ar.id DESC
@@ -852,6 +864,9 @@ if ($method === 'DELETE') {
     }
   }
 
+  if (function_exists('notify_request_lifecycle')) {
+    notify_request_lifecycle($pdo, (int) $id, 'Deleted', (string) ($existing['status'] ?? ''));
+  }
   $pdo->prepare('DELETE FROM assistance_requests WHERE id = ?')->execute([$id]);
   json_response(['ok' => true]);
 }
