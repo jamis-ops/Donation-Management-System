@@ -192,38 +192,50 @@ export default function ReliefRequestModal({
             {!isTerminal && request.status !== 'Approved' && (
               <button
                 type="button"
-                className="btn btn--danger btn--xs"
+                className="btn btn--danger btn--sm"
                 disabled={isUpdating}
                 onClick={() => handleStatusUpdate('Rejected')}
                 style={{
                   display: 'inline-flex',
                   alignItems: 'center',
-                  gap: '0.3rem',
+                  gap: '0.35rem',
                   fontWeight: 650,
-                  fontSize: '0.78rem',
-                  padding: '0.35rem 0.75rem'
+                  fontSize: '0.82rem',
+                  padding: '0.42rem 0.95rem',
+                  borderRadius: '7px',
+                  backgroundColor: '#dc2626',
+                  borderColor: '#dc2626',
+                  color: '#ffffff',
+                  boxShadow: '0 1px 3px rgba(220, 38, 38, 0.25)',
+                  cursor: 'pointer'
                 }}
               >
-                <X size={12} style={{ flexShrink: 0 }} /> Reject
+                <X size={14} style={{ flexShrink: 0 }} /> Reject
               </button>
             )}
 
             {!isTerminal && request.status !== 'Approved' && (
               <button
                 type="button"
-                className="btn btn--success btn--xs"
+                className="btn btn--success btn--sm"
                 disabled={isUpdating}
                 onClick={() => handleStatusUpdate('Approved')}
                 style={{
                   display: 'inline-flex',
                   alignItems: 'center',
-                  gap: '0.3rem',
+                  gap: '0.35rem',
                   fontWeight: 650,
-                  fontSize: '0.78rem',
-                  padding: '0.35rem 0.85rem'
+                  fontSize: '0.82rem',
+                  padding: '0.42rem 1.05rem',
+                  borderRadius: '7px',
+                  backgroundColor: '#16a34a',
+                  borderColor: '#16a34a',
+                  color: '#ffffff',
+                  boxShadow: '0 1px 3px rgba(22, 163, 74, 0.25)',
+                  cursor: 'pointer'
                 }}
               >
-                <Check size={12} style={{ flexShrink: 0 }} /> Approve Request
+                <Check size={14} style={{ flexShrink: 0 }} /> Approve Request
               </button>
             )}
 

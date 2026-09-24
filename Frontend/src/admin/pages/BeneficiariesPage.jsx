@@ -1126,7 +1126,60 @@ export default function BeneficiariesPage() {
                   </div>
                 </div>
                 <div className="barangay-submission-modal__status-section">
-                  <StatusBadge status="Pending Approval" />
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+                    <StatusBadge status="Pending Approval" />
+                    <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.45rem' }}>
+                      <button
+                        type="button"
+                        className="btn btn--sm approval-overlay__btn-reject"
+                        onClick={() => {
+                          setViewingSubmission(null)
+                          handleReject(null, viewingSubmission)
+                        }}
+                        disabled={actionBusyId === viewingSubmission.dbId}
+                        style={{
+                          background: 'rgba(220, 38, 38, 0.95)',
+                          color: '#ffffff',
+                          border: '1px solid #dc2626',
+                          fontSize: '0.82rem',
+                          padding: '0.4rem 0.85rem',
+                          borderRadius: '7px',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '0.35rem',
+                          fontWeight: 650,
+                          cursor: 'pointer'
+                        }}
+                      >
+                        <XCircle size={15} /> Reject Application
+                      </button>
+                      <button
+                        type="button"
+                        className="btn btn--sm approval-overlay__btn-approve"
+                        onClick={() => {
+                          setViewingSubmission(null)
+                          handleApprove(null, viewingSubmission)
+                        }}
+                        disabled={actionBusyId === viewingSubmission.dbId}
+                        style={{
+                          background: '#16a34a',
+                          color: '#ffffff',
+                          border: '1px solid #15803d',
+                          fontSize: '0.82rem',
+                          padding: '0.4rem 0.95rem',
+                          borderRadius: '7px',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '0.35rem',
+                          fontWeight: 650,
+                          cursor: 'pointer',
+                          boxShadow: '0 2px 6px rgba(0,0,0,0.18)'
+                        }}
+                      >
+                        <CheckCircle2 size={15} /> Approve & Send Credentials
+                      </button>
+                    </div>
+                  </div>
                   <span className="barangay-submission-modal__submitted-by">
                     Submitted by {viewingSubmission.representativeName || 'Barangay Representative'}
                   </span>
@@ -1277,30 +1330,8 @@ export default function BeneficiariesPage() {
                 </div>
               </div>
 
-              {/* Action Buttons */}
-              <div className="barangay-submission-modal__actions">
-                <button
-                  type="button"
-                  className="btn btn--lg approval-overlay__btn-approve"
-                  onClick={() => {
-                    setViewingSubmission(null)
-                    handleApprove(null, viewingSubmission)
-                  }}
-                  disabled={actionBusyId === viewingSubmission.dbId}
-                >
-                  <CheckCircle2 size={18} /> Approve & Send Credentials
-                </button>
-                <button
-                  type="button"
-                  className="btn btn--lg approval-overlay__btn-reject"
-                  onClick={() => {
-                    setViewingSubmission(null)
-                    handleReject(null, viewingSubmission)
-                  }}
-                  disabled={actionBusyId === viewingSubmission.dbId}
-                >
-                  <XCircle size={18} /> Reject Application
-                </button>
+              {/* Modal Footer / Secondary Actions */}
+              <div className="barangay-submission-modal__actions" style={{ justifyContent: 'flex-end' }}>
                 <button
                   type="button"
                   className="btn btn--lg btn--ghost"

@@ -469,6 +469,76 @@ export default function StaffDonationsPage() {
                 onClose={() => setSelected(null)}
               />
 
+              {/* Top Action Bar for Pending Verification */}
+              {selected.status === 'Pending Verification' && (
+                <div style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  padding: '0.65rem 1rem',
+                  background: '#f8fafc',
+                  border: '1px solid #e2e8f0',
+                  borderRadius: '8px',
+                  marginBottom: '1rem',
+                  flexWrap: 'wrap',
+                  gap: '0.5rem'
+                }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                    <StatusBadge status={selected.status} />
+                    <span style={{ fontSize: '0.8rem', color: '#64748b' }}>
+                      Awaiting staff inspection and verification
+                    </span>
+                  </div>
+                  <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.45rem' }}>
+                    <button
+                      type="button"
+                      className="btn btn--danger btn--sm"
+                      onClick={() => handleReject(selected)}
+                      disabled={busy}
+                      style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '0.35rem',
+                        fontWeight: 650,
+                        fontSize: '0.82rem',
+                        padding: '0.4rem 0.85rem',
+                        borderRadius: '7px',
+                        backgroundColor: '#dc2626',
+                        borderColor: '#dc2626',
+                        color: '#ffffff',
+                        boxShadow: '0 1px 3px rgba(220, 38, 38, 0.25)',
+                        cursor: 'pointer'
+                      }}
+                    >
+                      <XCircle size={15} /> Reject Donation
+                    </button>
+                    <button
+                      type="button"
+                      className="btn btn--success btn--sm"
+                      onClick={() => handleVerify(selected)}
+                      disabled={busy}
+                      title={selected.type === 'In-Kind' ? 'Verify & Intake Items' : 'Verify & Confirm Funds'}
+                      style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '0.35rem',
+                        fontWeight: 650,
+                        fontSize: '0.82rem',
+                        padding: '0.4rem 0.95rem',
+                        borderRadius: '7px',
+                        backgroundColor: '#16a34a',
+                        borderColor: '#16a34a',
+                        color: '#ffffff',
+                        boxShadow: '0 1px 3px rgba(22, 163, 74, 0.25)',
+                        cursor: 'pointer'
+                      }}
+                    >
+                      <CheckCircle2 size={15} /> {selected.type === 'In-Kind' ? 'Verify & Intake Items' : 'Verify & Confirm Funds'}
+                    </button>
+                  </div>
+                </div>
+              )}
+
               {/* Top Summary Cards (3x2 Grid matching Admin Portal) */}
               <div className="donation-overview" style={{ marginBottom: '1rem' }}>
                 {/* 1: Tracking Code */}
@@ -868,33 +938,10 @@ export default function StaffDonationsPage() {
               ))}
 
               {/* Modal Action Buttons Footer */}
-              <div className="admin-modal__actions" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: '1px solid #e2e8f0', paddingTop: '1rem', marginTop: '1rem' }}>
+              <div className="admin-modal__actions" style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', borderTop: '1px solid #e2e8f0', paddingTop: '1rem', marginTop: '1rem' }}>
                 <button type="button" className="btn btn--ghost" onClick={() => setSelected(null)}>
                   Close
                 </button>
-
-                {selected.status === 'Pending Verification' && (
-                  <div style={{ display: 'flex', gap: '0.5rem' }}>
-                    <button
-                      type="button"
-                      className="btn btn--outline"
-                      onClick={() => handleReject(selected)}
-                      disabled={busy}
-                    >
-                      <XCircle size={16} /> Reject Donation
-                    </button>
-
-                    <button
-                      type="button"
-                      className="btn btn--primary"
-                      onClick={() => handleVerify(selected)}
-                      disabled={busy}
-                      title={selected.type === 'In-Kind' ? 'Verify & Intake Items' : 'Verify & Confirm Funds'}
-                    >
-                      <CheckCircle2 size={16} /> {selected.type === 'In-Kind' ? 'Verify & Intake Items' : 'Verify & Confirm Funds'}
-                    </button>
-                  </div>
-                )}
               </div>
             </div>
           </div>

@@ -237,8 +237,54 @@ export default function AdminProofReview({
               subtitle={`${preview.barangay} · ${preview.fileName}`}
               onClose={() => setPreview(null)}
             />
-            <div className="proof-preview-modal__head">
+            <div className="proof-preview-modal__head" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.85rem', flexWrap: 'wrap', gap: '0.5rem' }}>
               <StatusBadge status={preview.status} />
+              {isPending(preview.status) && (
+                <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem' }}>
+                  <button 
+                    type="button" 
+                    className="btn btn--sm btn--danger" 
+                    onClick={() => { setRejecting(preview); setRemarks(''); setPreview(null) }}
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '0.35rem',
+                      fontWeight: 650,
+                      fontSize: '0.82rem',
+                      padding: '0.4rem 0.85rem',
+                      borderRadius: '7px',
+                      backgroundColor: '#dc2626',
+                      borderColor: '#dc2626',
+                      color: '#ffffff',
+                      boxShadow: '0 1px 3px rgba(220, 38, 38, 0.25)',
+                      cursor: 'pointer'
+                    }}
+                  >
+                    <XCircle size={15} /> Reject
+                  </button>
+                  <button 
+                    type="button" 
+                    className="btn btn--sm btn--success" 
+                    onClick={() => { setPreview(null); approve(preview) }}
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '0.35rem',
+                      fontWeight: 650,
+                      fontSize: '0.82rem',
+                      padding: '0.4rem 0.95rem',
+                      borderRadius: '7px',
+                      backgroundColor: '#16a34a',
+                      borderColor: '#16a34a',
+                      color: '#ffffff',
+                      boxShadow: '0 1px 3px rgba(22, 163, 74, 0.25)',
+                      cursor: 'pointer'
+                    }}
+                  >
+                    <CheckCircle2 size={15} /> Approve
+                  </button>
+                </div>
+              )}
             </div>
             <div className="proof-preview-modal__body">
               {preview.isImage ? (
@@ -257,16 +303,6 @@ export default function AdminProofReview({
                 <a href={preview.fileUrl} download={preview.fileName} className="btn btn--outline" target="_blank" rel="noreferrer">
                   <Download size={14} /> Download
                 </a>
-                {isPending(preview.status) && (
-                  <>
-                    <button type="button" className="btn btn--danger" onClick={() => { setRejecting(preview); setRemarks(''); setPreview(null) }}>
-                      Reject
-                    </button>
-                    <button type="button" className="btn btn--primary" onClick={() => { setPreview(null); approve(preview) }}>
-                      Approve
-                    </button>
-                  </>
-                )}
               </div>
             </div>
           </div>

@@ -656,12 +656,27 @@ const styles = `
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 0.6rem 1.25rem;
+  padding: 0.65rem 1.25rem;
   background: #f8fafc;
   border-bottom: 1px solid #e2e8f0;
   gap: 0.75rem;
   flex-wrap: wrap;
   flex-shrink: 0;
+}
+
+.relief-review-header-info {
+  display: flex;
+  align-items: center;
+  gap: 0.85rem;
+  flex-wrap: wrap;
+}
+
+.relief-review-top-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  margin-left: auto;
 }
 
 .relief-review-badges {
@@ -1312,21 +1327,56 @@ const styles = `
   border-color: #fcd34d !important;
 }
 
+.relief-btn-reject {
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 0.35rem !important;
+  background: #dc2626 !important;
+  color: #ffffff !important;
+  border: 1px solid #dc2626 !important;
+  font-weight: 650 !important;
+  padding: 0.42rem 0.95rem !important;
+  font-size: 0.82rem !important;
+  border-radius: 7px !important;
+  box-shadow: 0 1px 3px rgba(220, 38, 38, 0.25) !important;
+  transition: all 0.15s ease !important;
+  cursor: pointer !important;
+}
+.relief-btn-reject:hover:not(:disabled) {
+  background: #b91c1c !important;
+  border-color: #b91c1c !important;
+  transform: translateY(-1px);
+  box-shadow: 0 3px 8px rgba(220, 38, 38, 0.35) !important;
+}
+.relief-btn-reject:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
 .relief-btn-approve {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.35rem;
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 0.35rem !important;
   background: #16a34a !important;
   color: #ffffff !important;
-  border-color: #16a34a !important;
+  border: 1px solid #16a34a !important;
   font-weight: 650 !important;
+  padding: 0.42rem 1.05rem !important;
+  font-size: 0.82rem !important;
+  border-radius: 7px !important;
   box-shadow: 0 1px 3px rgba(22, 163, 74, 0.25) !important;
+  transition: all 0.15s ease !important;
+  cursor: pointer !important;
 }
-.relief-btn-approve:hover {
+.relief-btn-approve:hover:not(:disabled) {
   background: #15803d !important;
   border-color: #15803d !important;
   transform: translateY(-1px);
   box-shadow: 0 3px 8px rgba(22, 163, 74, 0.35) !important;
+}
+.relief-btn-approve:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
 }
 
 .relief-btn-allocate {
@@ -1352,6 +1402,22 @@ const styles = `
   }
   .relief-review-body {
     padding: 0.85rem;
+  }
+  .relief-review-header-strip {
+    padding: 0.65rem 0.85rem;
+    gap: 0.6rem;
+  }
+  .relief-review-header-info {
+    width: 100%;
+    justify-content: space-between;
+  }
+  .relief-review-top-actions {
+    width: 100%;
+    justify-content: flex-end;
+  }
+  .relief-review-top-actions .btn {
+    flex: 1 1 auto;
+    justify-content: center;
   }
   .relief-review-footer {
     padding: 0.65rem 0.85rem;
@@ -2196,26 +2262,99 @@ function ReviewModal({
           </button>
         </div>
         
-        {/* Status & Timing Strip */}
+        {/* Status, Timing & Top Action Bar */}
         <div className="relief-review-header-strip">
-          <div className="relief-review-badges">
-            <PriorityBadge priority={request.priority} />
-            <StatusBadge status={request.status} />
-            {request.isEmergency && (
-              <span className="badge" style={{ background: '#fdf2f8', color: '#db2777', border: '1px solid #fbcfe8', display: 'inline-flex', alignItems: 'center', gap: '0.25rem', fontSize: '0.72rem', fontWeight: 600 }}>
-                <Pin size={11} /> Pinned Emergency
-              </span>
-            )}
-          </div>
-          
-          <div className="relief-meta-strip">
-            <div className="relief-meta-item" title="Request submission timestamp">
-              <Clock size={12} />
-              <span>{formattedDate}</span>
+          <div className="relief-review-header-info">
+            <div className="relief-review-badges">
+              <PriorityBadge priority={request.priority} />
+              <StatusBadge status={request.status} />
+              {request.isEmergency && (
+                <span className="badge" style={{ background: '#fdf2f8', color: '#db2777', border: '1px solid #fbcfe8', display: 'inline-flex', alignItems: 'center', gap: '0.25rem', fontSize: '0.72rem', fontWeight: 600 }}>
+                  <Pin size={11} /> Pinned Emergency
+                </span>
+              )}
             </div>
-            {slaInfo && (
-              <div className={`relief-sla-tag relief-sla-tag--${slaInfo.status}`}>
-                {slaInfo.text}
+            
+            <div className="relief-meta-strip">
+              <div className="relief-meta-item" title="Request submission timestamp">
+                <Clock size={12} />
+                <span>{formattedDate}</span>
+              </div>
+              {slaInfo && (
+                <div className={`relief-sla-tag relief-sla-tag--${slaInfo.status}`}>
+                  {slaInfo.text}
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Primary Action Buttons placed prominently at the top */}
+          <div className="relief-review-top-actions">
+            {request.status === 'Pending Review' && (
+              <button 
+                type="button" 
+                className="btn btn--outline btn--sm relief-btn-under-review" 
+                disabled={isUpdating} 
+                onClick={() => handleSave('Under Review')} 
+                title="Mark this request as Under Review"
+              >
+                <Clock size={13} /> Mark Under Review
+              </button>
+            )}
+            {request.status !== 'Rejected' && request.status !== 'Approved' && (
+              <button 
+                type="button" 
+                className="btn btn--danger btn--sm relief-btn-reject" 
+                disabled={isUpdating} 
+                onClick={() => handleSave('Rejected')} 
+                title="Reject this relief request"
+              >
+                <X size={14} strokeWidth={2.4} /> Reject
+              </button>
+            )}
+            {request.status !== 'Approved' ? (
+              <button 
+                type="button" 
+                className="btn btn--success btn--sm relief-btn-approve" 
+                disabled={isUpdating} 
+                onClick={() => handleSave('Approved')} 
+                title="Approve this relief request"
+              >
+                <Check size={14} strokeWidth={2.6} /> Approve Request
+              </button>
+            ) : (
+              <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', flexWrap: 'wrap' }}>
+                {stockFeasibility.hasShortage && (
+                  <button
+                    type="button"
+                    className="relief-procure-btn"
+                    onClick={() => onProcure(request, availableMonetaryDonations[0] || null)}
+                    style={{ padding: '0.45rem 0.85rem' }}
+                  >
+                    <Sparkles size={13} /> Procure Missing Goods
+                  </button>
+                )}
+                <button 
+                  type="button" 
+                  className="btn btn--primary btn--sm relief-btn-allocate" 
+                  onClick={() => {
+                    onClose();
+                    navigate('/admin/allocation', { 
+                      state: { 
+                        prefillRequest: { 
+                          requestId: request.dbId, 
+                          beneficiaryId: request.beneficiaryId, 
+                          type: request.type, 
+                          notes: request.notes, 
+                          beneficiaryName: request.beneficiary 
+                        } 
+                      } 
+                    });
+                  }} 
+                >
+                  <span>Allocate Warehouse Stock</span>
+                  <span>&rarr;</span>
+                </button>
               </div>
             )}
           </div>
@@ -2453,7 +2592,7 @@ function ReviewModal({
           </div>
         </div>
 
-        {/* Modal Footer / Workflow Actions (Fixed at bottom) */}
+        {/* Modal Footer / Secondary Actions (Fixed at bottom) */}
         <div className="relief-review-footer">
           <div className="relief-review-footer-left">
             <button 
@@ -2464,74 +2603,12 @@ function ReviewModal({
               Close
             </button>
           </div>
-          
-          <div className="relief-review-footer-actions">
-            {request.status === 'Pending Review' && (
-              <button 
-                type="button" 
-                className="btn btn--outline btn--sm relief-btn-under-review" 
-                disabled={isUpdating} 
-                onClick={() => handleSave('Under Review')} 
-              >
-                <Clock size={13} /> Mark Under Review
-              </button>
-            )}
-            {request.status !== 'Rejected' && request.status !== 'Approved' && (
-              <button 
-                type="button" 
-                className="btn btn--danger btn--sm" 
-                disabled={isUpdating} 
-                onClick={() => handleSave('Rejected')} 
-                style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}
-              >
-                <X size={13} /> Reject
-              </button>
-            )}
-            {request.status !== 'Approved' ? (
-              <button 
-                type="button" 
-                className="btn btn--success btn--sm relief-btn-approve" 
-                disabled={isUpdating} 
-                onClick={() => handleSave('Approved')} 
-              >
-                <Check size={14} strokeWidth={2.4} /> Approve Request
-              </button>
-            ) : (
-              <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
-                {stockFeasibility.hasShortage && (
-                  <button
-                    type="button"
-                    className="relief-procure-btn"
-                    onClick={() => onProcure(request, availableMonetaryDonations[0] || null)}
-                    style={{ padding: '0.45rem 0.85rem' }}
-                  >
-                    <Sparkles size={13} /> Procure Missing Goods
-                  </button>
-                )}
-                <button 
-                  type="button" 
-                  className="btn btn--primary btn--sm relief-btn-allocate" 
-                  onClick={() => {
-                    onClose();
-                    navigate('/admin/allocation', { 
-                      state: { 
-                        prefillRequest: { 
-                          requestId: request.dbId, 
-                          beneficiaryId: request.beneficiaryId, 
-                          type: request.type, 
-                          notes: request.notes, 
-                          beneficiaryName: request.beneficiary 
-                        } 
-                      } 
-                    });
-                  }} 
-                >
-                  <span>Allocate Warehouse Stock</span>
-                  <span>&rarr;</span>
-                </button>
-              </div>
-            )}
-          </div>
+          {isNotesDirty && (
+            <div style={{ fontSize: '0.78rem', color: '#b45309', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+              <Clock size={12} />
+              <span>Unsaved remarks changes</span>
+            </div>
+          )}
         </div>
 
       </div>
