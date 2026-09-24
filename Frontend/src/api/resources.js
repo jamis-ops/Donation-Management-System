@@ -157,7 +157,11 @@ export const beneficiariesApi = {
     body: JSON.stringify({ ...body, action: 'reject' }),
   }),
 }
-export const assistanceRequestsApi = resourceApi('/api/assistance_requests.php')
+
+export const assistanceRequestsApi = {
+  ...resourceApi('/api/assistance_requests.php'),
+  listFundingEligible: () => apiFetch('/api/assistance_requests.php?action=funding_eligible'),
+}
 export const inventoryApi = {
   ...resourceApi('/api/inventory.php'),
   deleteCategory: (category) => apiFetch(`/api/inventory.php?category=${encodeURIComponent(category)}`, { method: 'DELETE' }),

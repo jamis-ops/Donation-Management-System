@@ -1697,18 +1697,235 @@ const WORKFLOW_DONATION_STEPS = ['Pending Verification', 'Verified', 'In Invento
 const WORKFLOW_DONATION_TERMINAL = ['Completed', 'Rejected', 'Cancelled'];
 const WORKFLOW_DONATION_BRANCHES = [
   'Pending Verification' => ['Rejected', 'Cancelled'],
-  'Verified' => ['Cancelled'],
+  'Verified' => ['Partially Allocated', 'Allocated', 'Cancelled'],
+  'Partially Allocated' => ['Allocated', 'Cancelled'],
 ];
 
-const WORKFLOW_REQUEST_STEPS = ['Pending Review', 'Under Review', 'Approved', 'Allocated', 'In Distribution', 'Completed'];
+const WORKFLOW_REQUEST_STEPS = ['Pending Review', 'Under Review', 'Approved', 'Partially Funded', 'Partially Allocated', 'Allocated', 'In Distribution', 'Completed'];
 const WORKFLOW_REQUEST_TERMINAL = ['Completed', 'Rejected', 'Cancelled'];
 const WORKFLOW_REQUEST_BRANCHES = [
   'Pending Review' => ['Under Review', 'Approved', 'Rejected', 'Cancelled'],
   'Under Review' => ['Approved', 'Rejected', 'Cancelled'],
+  'Approved' => ['Partially Funded', 'Partially Allocated', 'Allocated', 'Rejected', 'Cancelled'],
+  'Partially Funded' => ['Partially Allocated', 'Allocated', 'Cancelled'],
+  'Partially Allocated' => ['Allocated', 'In Distribution', 'Cancelled'],
 ];
 const WORKFLOW_REQUEST_ALIASES = [
   'In Progress' => 'In Distribution',
 ];
+
+/**
+ * Resolves standard wholesale/catalog unit cost for relief goods.
+ * Checks inventory_items table if pdo provided, or falls back to standard Cebu wholesale rates.
+ */
+function get_standard_item_unit_cost(string $itemName, ?string $category = null, ?PDO $pdo = null): float
+{
+  $name = trim($itemName);
+  $cat = trim((string) ($category ?? ''));
+
+  if ($pdo && $name !== '') {
+    try {
+      $stmt = $pdo->prepare('SELECT cost_per_unit FROM inventory_items WHERE LOWER(item_name) = LOWER(?) AND cost_per_unit IS NOT NULL AND cost_per_unit > 0 LIMIT 1');
+      $stmt->execute([$name]);
+      $dbCost = $stmt->fetchColumn();
+      if ($dbCost !== false && (float) $dbCost > 0) {
+        return (float) $dbCost;
+      }
+    } catch (Throwable $e) {}
+  }
+
+  $lower = strtolower($name);
+  return match(true) {
+    str_contains($lower, '25kg') || str_contains($lower, '50kg') || (str_contains($lower, 'rice') && str_contains($lower, 'sack')) => 1250.0,
+    str_contains($lower, '5kg') && str_contains($lower, 'rice') => 260.0,
+    str_contains($lower, 'rice') => 350.0,
+    str_contains($lower, 'canned') && str_contains($lower, 'box') => 2500.0,
+    str_contains($lower, 'sardines') || str_contains($lower, 'canned') || str_contains($lower, 'tuna') || str_contains($lower, 'corned beef') => 35.0,
+    str_contains($lower, 'noodle') => 18.0,
+    str_contains($lower, '5-gallon') || str_contains($lower, '20l') => 75.0,
+    str_contains($lower, 'water') && str_contains($lower, 'case') => 240.0,
+    str_contains($lower, 'water') => 25.0,
+    str_contains($lower, 'hygiene') || str_contains($lower, 'sanitation') || str_contains($lower, 'toiletries') => 300.0,
+    str_contains($lower, 'soap') || str_contains($lower, 'alcohol') || str_contains($lower, 'sanitizer') => 85.0,
+    str_contains($lower, 'first aid') || str_contains($lower, 'medicine') || str_contains($lower, 'medical') => 450.0,
+    str_contains($lower, 'paracetamol') || str_contains($lower, 'vitamin') => 120.0,
+    str_contains($lower, 'tarpaulin') || str_contains($lower, 'tarp') || str_contains($lower, 'shelter') => 650.0,
+    str_contains($lower, 'mat') || str_contains($lower, 'blanket') => 380.0,
+    str_contains($lower, 'school') || str_contains($lower, 'student') || str_contains($lower, 'education') => 400.0,
+    str_contains($lower, 'baby') || str_contains($lower, 'infant') => 450.0,
+    str_contains($lower, 'clothing') || str_contains($lower, 'clothes') => 250.0,
+    str_contains($lower, 'relief pack') || str_contains($lower, 'food pack') || str_contains($lower, 'emergency pack') => 500.0,
+    stripos($cat, 'food') !== false => 250.0,
+    stripos($cat, 'hygiene') !== false => 250.0,
+    stripos($cat, 'medical') !== false => 350.0,
+    stripos($cat, 'shelter') !== false => 500.0,
+    default => 200.0,
+  };
+}
+
+/**
+ * Dynamically calculates total required cost, cost per family, funding received,
+ * remaining cost, and remaining families for a relief request from system data.
+ */
+function calculate_relief_request_finances(PDO $pdo, array $row): array
+{
+  $reqId = (int) ($row['id'] ?? 0);
+  $requestedFamilies = max(1, (int) ($row['affected_families'] ?? 0));
+  if ($requestedFamilies <= 1 && !empty($row['notes'])) {
+    if (preg_match('/Families\s*Affected\s*:\s*(\d+)/i', (string) $row['notes'], $m)) {
+      $requestedFamilies = max(1, (int) $m[1]);
+    } elseif (preg_match('/(\d+)\s*families/i', (string) $row['notes'], $m)) {
+      $requestedFamilies = max(1, (int) $m[1]);
+    }
+  }
+
+  // Parse needs_json
+  $needs = [];
+  if (!empty($row['needs_json'])) {
+    $decoded = json_decode((string) $row['needs_json'], true);
+    if (is_array($decoded)) {
+      $needs = $decoded;
+    }
+  }
+
+  $itemizedPlan = [];
+  $totalCalculatedCost = 0.0;
+
+  if (!empty($needs)) {
+    $isObjectArray = is_array($needs[0] ?? null);
+    if ($isObjectArray) {
+      foreach ($needs as $itemObj) {
+        $name = trim((string) ($itemObj['item'] ?? $itemObj['name'] ?? ''));
+        if ($name === '') continue;
+        $qty = max(1, (int) ($itemObj['quantity'] ?? 1));
+        $unit = trim((string) ($itemObj['unit'] ?? 'units'));
+        $unitCost = isset($itemObj['unitCost']) && (float)$itemObj['unitCost'] > 0
+          ? (float) $itemObj['unitCost']
+          : get_standard_item_unit_cost($name, null, $pdo);
+
+        $lineCost = $qty * $unitCost;
+        $totalCalculatedCost += $lineCost;
+        $itemizedPlan[] = [
+          'item' => $name,
+          'quantity' => $qty,
+          'unit' => $unit,
+          'unitCost' => $unitCost,
+          'totalCost' => $lineCost,
+        ];
+      }
+    } else {
+      $perFamilyCost = 0.0;
+      foreach ($needs as $strItem) {
+        $name = trim((string) $strItem);
+        if ($name === '') continue;
+        $unitCost = get_standard_item_unit_cost($name, null, $pdo);
+        $perFamilyCost += $unitCost;
+        $qty = $requestedFamilies;
+        $lineCost = $qty * $unitCost;
+        $itemizedPlan[] = [
+          'item' => $name,
+          'quantity' => $qty,
+          'unit' => 'packs',
+          'unitCost' => $unitCost,
+          'totalCost' => $lineCost,
+        ];
+      }
+      $totalCalculatedCost = $perFamilyCost * $requestedFamilies;
+    }
+  }
+
+  // Fallback if no items extracted: use assistance_type or notes
+  if ($totalCalculatedCost <= 0.01) {
+    $typeStr = (string) ($row['assistance_type'] ?? 'Disaster Relief Goods');
+    $parts = array_filter(array_map('trim', explode(',', $typeStr)));
+    if (empty($parts)) $parts = ['Family Emergency Relief Pack'];
+
+    $perFamilyCost = 0.0;
+    foreach ($parts as $p) {
+      $unitCost = get_standard_item_unit_cost($p, null, $pdo);
+      $perFamilyCost += $unitCost;
+      $itemizedPlan[] = [
+        'item' => $p,
+        'quantity' => $requestedFamilies,
+        'unit' => 'packs',
+        'unitCost' => $unitCost,
+        'totalCost' => $requestedFamilies * $unitCost,
+      ];
+    }
+    $totalCalculatedCost = max(200.0 * $requestedFamilies, $perFamilyCost * $requestedFamilies);
+  }
+
+  $costPerFamily = round($totalCalculatedCost / $requestedFamilies, 2);
+
+  // Calculate already funded amount and already supported families from donation_procurements
+  $alreadyFundedAmount = 0.0;
+  $alreadySupportedFamilies = 0;
+  if ($reqId > 0) {
+    try {
+      $stmt = $pdo->prepare('
+        SELECT COALESCE(SUM(total_amount), 0) AS total_funded,
+               COALESCE(SUM(families_supported), 0) AS total_families
+        FROM donation_procurements
+        WHERE assistance_request_id = ?
+      ');
+      $stmt->execute([$reqId]);
+      $fundingRow = $stmt->fetch();
+      if ($fundingRow) {
+        $alreadyFundedAmount = (float) $fundingRow['total_funded'];
+        $alreadySupportedFamilies = (int) $fundingRow['total_families'];
+      }
+    } catch (Throwable $e) {}
+  }
+
+  $remainingCost = max(0.0, round($totalCalculatedCost - $alreadyFundedAmount, 2));
+  $remainingFamilies = max(0, $requestedFamilies - $alreadySupportedFamilies);
+
+  return [
+    'requestedFamilies' => $requestedFamilies,
+    'totalCost' => $totalCalculatedCost,
+    'costPerFamily' => $costPerFamily,
+    'alreadyFundedAmount' => $alreadyFundedAmount,
+    'alreadySupportedFamilies' => $alreadySupportedFamilies,
+    'remainingCost' => $remainingCost,
+    'remainingFamilies' => $remainingFamilies,
+    'isFullyFunded' => ($remainingCost <= 0.01 && $remainingFamilies <= 0),
+    'items' => $itemizedPlan,
+  ];
+}
+
+if (!function_exists('ensure_procurement_table')) {
+  function ensure_procurement_table(PDO $pdo): void
+  {
+    static $done = false;
+    if ($done) {
+      return;
+    }
+    try {
+      $pdo->exec("
+        CREATE TABLE IF NOT EXISTS donation_procurements (
+          id INT AUTO_INCREMENT PRIMARY KEY,
+          donation_id INT NOT NULL,
+          mode VARCHAR(50) NOT NULL DEFAULT 'Pack Sponsorship',
+          beneficiary_id INT NULL,
+          assistance_request_id INT NULL,
+          allocation_id INT NULL,
+          total_amount DECIMAL(12,2) NOT NULL,
+          items_json TEXT NOT NULL,
+          receipt_number VARCHAR(100) NULL,
+          supplier_name VARCHAR(150) NULL,
+          families_supported INT UNSIGNED NOT NULL DEFAULT 0,
+          notes TEXT NULL,
+          created_by_user_id INT NULL,
+          created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          INDEX idx_proc_donation (donation_id),
+          INDEX idx_proc_ben (beneficiary_id),
+          INDEX idx_proc_req (assistance_request_id)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+      ");
+    } catch (Throwable $e) {}
+    $done = true;
+  }
+}
 
 const WORKFLOW_TASK_STEPS = ['todo', 'inProgress', 'review', 'done'];
 const WORKFLOW_TASK_TERMINAL = ['done'];

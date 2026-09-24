@@ -244,6 +244,123 @@ if ($method === 'GET') {
     json_response(['ok' => true, 'data' => $dupes]);
   }
 
+  // ── Eligible Requests & Barangays for Monetary Fund Allocation ──
+  if ($action === 'funding_eligible') {
+    ensure_request_columns($pdo);
+    ensure_procurement_table($pdo);
+
+    // Only fetch requests that are NOT Completed, Rejected, Cancelled, or In Distribution
+    $stmt = $pdo->query("
+      SELECT ar.*, b.full_name AS beneficiary_name, b.barangay, b.municipality
+      FROM assistance_requests ar
+      JOIN beneficiaries b ON b.id = ar.beneficiary_id
+      WHERE ar.status NOT IN ('Completed', 'Rejected', 'Cancelled', 'In Distribution')
+        AND NOT EXISTS (
+          SELECT 1 FROM allocations a
+          JOIN distributions d ON d.id = a.distribution_id
+          WHERE a.assistance_request_id = ar.id
+            AND d.status IN ('Preparing', 'In Transit', 'Delivered', 'Completed')
+        )
+      ORDER BY ar.created_at DESC, ar.request_date DESC, ar.id DESC
+    ");
+    $candidates = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+    $eligibleRequests = [];
+    $barangayMap = [];
+
+    foreach ($candidates as $row) {
+      $fin = calculate_relief_request_finances($pdo, $row);
+
+      // If fully satisfied or remaining cost <= 0, mark Allocated and skip
+      if ($fin['isFullyFunded']) {
+        if ($row['status'] !== 'Allocated') {
+          try {
+            $pdo->prepare("UPDATE assistance_requests SET status = 'Allocated' WHERE id = ?")->execute([$row['id']]);
+          } catch (Throwable $e) {}
+        }
+        continue;
+      }
+
+      // Determine accurate active status
+      if ($fin['alreadySupportedFamilies'] > 0) {
+        $properStatus = 'Partially Allocated';
+      } elseif ($fin['alreadyFundedAmount'] > 0) {
+        $properStatus = 'Partially Funded';
+      } else {
+        $properStatus = in_array($row['status'], ['Under Review', 'Pending Review'], true) ? $row['status'] : 'Approved';
+      }
+
+      // Sync status in DB if needed so Admin & Staff see the genuine state
+      if ($row['status'] !== $properStatus && !in_array($row['status'], ['Pending Review', 'Under Review'], true)) {
+        try {
+          $pdo->prepare("UPDATE assistance_requests SET status = ? WHERE id = ?")->execute([$properStatus, $row['id']]);
+        } catch (Throwable $e) {}
+      }
+
+      // Extract calamity name
+      $calamity = 'General Disaster Relief';
+      if (!empty($row['calamity_tags'])) {
+        $tags = json_decode((string) $row['calamity_tags'], true);
+        if (!empty($tags[0])) $calamity = (string) $tags[0];
+      }
+      if ($calamity === 'General Disaster Relief' && !empty($row['notes'])) {
+        if (preg_match('/Calamity\/Program:\s*([^\n\r]+)/i', (string) $row['notes'], $m)) {
+          $calamity = trim($m[1]);
+        }
+      }
+
+      $benId = (int) $row['beneficiary_id'];
+      $barangayName = trim((string) ($row['barangay'] ?: $row['beneficiary_name']));
+      $muni = trim((string) ($row['municipality'] ?? 'Cebu'));
+
+      $reqData = [
+        'id' => $row['reference_code'],
+        'dbId' => (int) $row['id'],
+        'referenceCode' => $row['reference_code'],
+        'beneficiaryId' => $benId,
+        'beneficiaryName' => $row['beneficiary_name'],
+        'barangay' => $barangayName,
+        'municipality' => $muni,
+        'assistanceType' => $row['assistance_type'],
+        'calamity' => $calamity,
+        'priority' => $row['priority'],
+        'status' => $properStatus,
+        'requestedFamilies' => $fin['requestedFamilies'],
+        'alreadySupportedFamilies' => $fin['alreadySupportedFamilies'],
+        'remainingFamilies' => $fin['remainingFamilies'],
+        'totalCost' => $fin['totalCost'],
+        'costPerFamily' => $fin['costPerFamily'],
+        'alreadyFundedAmount' => $fin['alreadyFundedAmount'],
+        'remainingCost' => $fin['remainingCost'],
+        'items' => $fin['items'],
+        'notes' => $row['notes'],
+      ];
+
+      $eligibleRequests[] = $reqData;
+
+      // Group into eligible barangays (strict: NO general affected families)
+      if (!isset($barangayMap[$benId])) {
+        $barangayMap[$benId] = [
+          'id' => $benId,
+          'dbId' => $benId,
+          'name' => $row['beneficiary_name'],
+          'barangay' => $barangayName,
+          'municipality' => $muni,
+          'eligibleRequestsCount' => 0,
+        ];
+      }
+      $barangayMap[$benId]['eligibleRequestsCount']++;
+    }
+
+    json_response([
+      'ok' => true,
+      'data' => [
+        'eligibleBarangays' => array_values($barangayMap),
+        'eligibleRequests' => $eligibleRequests,
+      ],
+    ]);
+  }
+
   // ── Tracker endpoint ──
   if ($action === 'tracker') {
     $reqId = (int) ($_GET['request_id'] ?? $id ?? 0);
@@ -375,21 +492,6 @@ if ($method === 'GET') {
     ');
     $stmt->execute([$benId]);
   } else {
-    // Keep Relief queue in sync: any request with allocations should be Allocated
-    try {
-      $pdo->exec("
-        UPDATE assistance_requests ar
-        SET ar.status = 'Allocated'
-        WHERE ar.status NOT IN ('Allocated', 'Completed', 'Rejected', 'Cancelled')
-          AND EXISTS (
-            SELECT 1 FROM allocations a
-            WHERE a.assistance_request_id = ar.id
-          )
-      ");
-    } catch (Throwable $e) {
-      // best-effort sync
-    }
-
     $stmt = $pdo->query('
       SELECT ar.*, b.full_name AS beneficiary_name
       FROM assistance_requests ar
