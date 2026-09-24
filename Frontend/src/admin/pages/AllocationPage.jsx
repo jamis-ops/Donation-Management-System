@@ -522,12 +522,10 @@ export default function AllocationPage() {
     return () => s.remove()
   }, [])
   const [saving, setSaving] = useState(false)
-  const [recs, setRecs] = useState([])
   const [needsSummary, setNeedsSummary] = useState(null)
   const [beneficiaryNeeds, setBeneficiaryNeeds] = useState([])
   const [draftNotice, setDraftNotice] = useState(null)
   const needsSeeMore = useSeeMore(beneficiaryNeeds, 3)
-  const recsSeeMore = useSeeMore(recs, 3)
 
   const findMatchingInventory = (resourceName, inventoryItemId = null) => {
     if (inventoryItemId) {
@@ -670,12 +668,10 @@ export default function AllocationPage() {
   useEffect(() => {
     needsStockApi.get()
       .then((res) => {
-        setRecs(res.data?.recommendations || [])
         setNeedsSummary(res.data?.summary || null)
         setBeneficiaryNeeds(res.data?.beneficiaries || [])
       })
       .catch(() => {
-        setRecs([])
         setNeedsSummary(null)
         setBeneficiaryNeeds([])
       })
@@ -735,23 +731,6 @@ export default function AllocationPage() {
     setStatusRow(row)
     setStatusValue(row.status)
     setDetailRow(null)
-  }
-
-  const applyRecommendation = (rec) => {
-    setShowCreate(true)
-    setEditRow(null)
-    setDetailRow(null)
-    setActiveReliefRequest(null)
-    const matched = findMatchingInventory(rec.resource, rec.inventoryId)
-    setForm({
-      lines: [makeLine(rec.resource || '', rec.quantity || '', matched?.dbId || rec.inventoryId || null, matched?.unit || rec.unit || '', matched?.variant || '')],
-      program: rec.requestType || rec.need || '',
-      beneficiaryId: rec.beneficiaryId || '',
-      assistanceRequestId: rec.assistanceRequestId || '',
-      status: 'Allocated',
-      priority: rec.priority || 'Medium',
-      notes: rec.reason || '',
-    })
   }
 
   const quickAllocateForNeed = (barangay, need) => {
@@ -1582,53 +1561,6 @@ export default function AllocationPage() {
         </section>
       )}
 
-      {recs.length > 0 && (
-        <section className="admin-panel alloc-recs-panel">
-          <h2>Recommended Allocations</h2>
-          <p className="alloc-panel-hint">Auto-matched from barangay needs × affected families against available inventory.</p>
-          <div className="see-more-wrap">
-            <div className="volunteer-task-list">
-              {recsSeeMore.visible.map((rec) => (
-                <article
-                  key={`${rec.assistanceRequestId || 'b'}-${rec.beneficiaryId}-${rec.inventoryId}-${rec.need}`}
-                  className="volunteer-task-card alloc-rec-card"
-                >
-                  <div className="alloc-rec-card__body">
-                    <div className="volunteer-task-card__top">
-                      <strong>{rec.resource} × {rec.quantity} {rec.unit}</strong>
-                      <StatusBadge status={rec.priority} />
-                    </div>
-                    <div className="volunteer-task-card__meta">
-                      <span>{rec.beneficiary || '—'}</span>
-                      <span>{rec.affectedFamilies || 0} families</span>
-                      <span>Need: {rec.need || rec.requestType}</span>
-                      <span>Stock: {rec.available}</span>
-                    </div>
-                    {(rec.beneficiaryNeeds || []).length > 0 && (
-                      <div className="alloc-need-tags" style={{ marginTop: '0.45rem' }}>
-                        {rec.beneficiaryNeeds.map((n) => <span key={n} className="alloc-need-tag">{n}</span>)}
-                      </div>
-                    )}
-                    <p style={{ margin: '0.4rem 0 0', fontSize: '0.82rem', color: '#64748b' }}>{rec.reason}</p>
-                  </div>
-                  <div className="alloc-rec-card__actions">
-                    <button type="button" className="btn btn--sm btn--primary" onClick={() => applyRecommendation(rec)}>
-                      Use Recommendation
-                    </button>
-                  </div>
-                </article>
-              ))}
-            </div>
-          {recsSeeMore.needsToggle && (
-            <SeeMoreToggle
-              expanded={recsSeeMore.expanded}
-              onToggle={recsSeeMore.toggle}
-              hiddenCount={recsSeeMore.hiddenCount}
-            />
-          )}
-          </div>
-        </section>
-      )}
 
       <FilterBar
         controller={filters}
