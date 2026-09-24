@@ -1053,6 +1053,13 @@ if ($method === 'PUT') {
         // best-effort
       }
     }
+    // Revert allocations to Active/Allocated if distribution is Cancelled
+    if ($newStatus === 'Cancelled') {
+      try {
+        $pdo->prepare("UPDATE allocations SET distribution_id = NULL, status = 'Allocated' WHERE distribution_id = ? AND status = 'In Distribution'")
+          ->execute([$id]);
+      } catch (Throwable $e) {}
+    }
     // Email + in-app for barangay on In Transit / Delivered / Completed
     $freshForMail = array_merge($existing, [
       'status' => $newStatus,
@@ -1076,7 +1083,7 @@ if ($method === 'DELETE') {
   $del->execute([$id]);
   $delCode = $del->fetchColumn();
   try {
-    $pdo->prepare('UPDATE allocations SET distribution_id = NULL WHERE distribution_id = ?')->execute([$id]);
+    $pdo->prepare("UPDATE allocations SET distribution_id = NULL, status = 'Allocated' WHERE distribution_id = ?")->execute([$id]);
   } catch (Throwable $e) {
     // ignore if column missing
   }

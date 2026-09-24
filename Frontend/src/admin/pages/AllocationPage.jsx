@@ -1,10 +1,10 @@
-import { useEffect, useState, useMemo } from 'react'
+import { useEffect, useState, useMemo, useCallback } from 'react'
 import { useNavigate, useLocation, Link } from 'react-router-dom'
 import { 
   Eye, Pencil, ArrowRightCircle, Truck, Sparkles, CheckCircle2, X, Plus,
-  Package, Users, Calendar, MapPin, FileText, Tag, Banknote, Clock, Check, AlertCircle, Trash2, ArrowRight, ExternalLink
+  Package, Users, Calendar, MapPin, FileText, Tag, Banknote, Clock, Check, AlertCircle, Trash2, ArrowRight, ExternalLink, RotateCcw
 } from 'lucide-react'
-import { allocationsApi, beneficiariesApi, needsStockApi, assistanceRequestsApi, inventoryApi } from '../../api/resources'
+import { allocationsApi, beneficiariesApi, needsStockApi, assistanceRequestsApi, inventoryApi, adminBadgesApi } from '../../api/resources'
 import { useApiList } from '../../hooks/useApiList'
 import { useFilters } from '../../hooks/useFilters'
 import PageHeader from '../components/shared/PageHeader'
@@ -18,7 +18,7 @@ import { useSeeMore } from '../../hooks/useSeeMore'
 import { SeeMoreToggle } from '../components/shared/SeeMoreList'
 import { useBulkSelection } from '../../hooks/useBulkSelection'
 import { notify, confirmAction, showSuccessModal } from '../../utils/confirm'
-import { notifyBadgesChanged } from '../../utils/badgeSync'
+import { notifyBadgesChanged, BADGES_CHANGED } from '../../utils/badgeSync'
 import {
   ALLOCATION_WORKFLOW,
   ALLOCATION_TERMINAL,
@@ -464,14 +464,28 @@ const styles = `
 }
 .alloc-tab-badge {
   font-size: 0.72rem;
-  padding: 2px 7px;
+  font-weight: 700;
+  padding: 1px 7px;
   border-radius: 9999px;
   background: #f1f5f9;
   color: #475569;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 18px;
+  line-height: 1;
 }
 .alloc-tab-btn--active .alloc-tab-badge {
   background: #fef2f2;
   color: var(--admin-brand, #AF101A);
+}
+.alloc-tab-badge--urgent {
+  background: #fee2e2 !important;
+  color: #b91c1c !important;
+  font-weight: 750 !important;
+  border: 1px solid #fca5a5 !important;
+  box-shadow: 0 1px 3px rgba(185, 28, 28, 0.15) !important;
 }
 
 .alloc-resource-line-wrap {
@@ -843,6 +857,42 @@ export default function AllocationPage() {
     if (activeTab === 'inDistribution') return inDistributionAllocations
     return data || []
   }, [activeTab, activeAllocations, inDistributionAllocations, data])
+
+  const [badgeCounts, setBadgeCounts] = useState({})
+
+  const fetchBadges = useCallback(async () => {
+    try {
+      const res = await adminBadgesApi.get()
+      if (res?.ok && res?.data) {
+        setBadgeCounts(res.data)
+      }
+    } catch {}
+  }, [])
+
+  useEffect(() => {
+    fetchBadges()
+    window.addEventListener(BADGES_CHANGED, fetchBadges)
+    // Synchronize section view in backend
+    adminBadgesApi.markSeen('/admin/allocation').catch(() => {})
+    return () => {
+      window.removeEventListener(BADGES_CHANGED, fetchBadges)
+    }
+  }, [fetchBadges])
+
+  // Attention badge count: only shown when there are actionable items requiring attention
+  const activeAttentionCount = useMemo(() => {
+    const urgentCount = activeAllocations.filter(
+      (a) => ['Urgent', 'Critical'].includes(a.priority) || a.status === 'Pending'
+    ).length
+    const backendCount = Number(badgeCounts['/admin/allocation'] || 0)
+    return Math.max(urgentCount, backendCount)
+  }, [activeAllocations, badgeCounts])
+
+  const inDistAttentionCount = useMemo(() => {
+    return inDistributionAllocations.filter(
+      (a) => ['Urgent', 'Critical'].includes(a.priority) && a.status === 'In Distribution'
+    ).length
+  }, [inDistributionAllocations])
 
   const filters = useFilters(tabData, filterConfig)
   const bulk = useBulkSelection(
@@ -1391,6 +1441,7 @@ export default function AllocationPage() {
     {
       key: 'request',
       label: 'Request ID',
+      width: '135px',
       exportValue: (row) => row.assistanceRequestCode || row.request?.id || (row.assistanceRequestId ? `#${row.assistanceRequestId}` : '—'),
       render: (row) => (
         <span className="alloc-request-id" title={row.assistanceRequestType || ''}>
@@ -1398,23 +1449,66 @@ export default function AllocationPage() {
         </span>
       ),
     },
-    { key: 'resource', label: 'Resource' },
+    {
+      key: 'resource',
+      label: 'Resource',
+      minWidth: '160px',
+      render: (row) => (
+        <span style={{ fontWeight: 600, color: '#0f172a' }}>
+          {row.resource || '—'}
+        </span>
+      ),
+    },
     {
       key: 'quantity',
       label: 'Qty',
+      width: '95px',
+      align: 'center',
       render: (row) => (
         <span style={{ fontWeight: 650, color: '#0f172a' }}>
           {row.quantity} {row.unit ? <small style={{ color: '#64748b', fontWeight: 500 }}>{row.unit}</small> : ''}
         </span>
       ),
     },
-    { key: 'beneficiary', label: 'Barangay' },
-    { key: 'priority', label: 'Priority', render: (row) => <StatusBadge status={row.priority} /> },
-    { key: 'status', label: 'Status', render: (row) => <StatusBadge status={row.status} /> },
-    { key: 'date', label: 'Date' },
+    {
+      key: 'beneficiary',
+      label: 'Barangay',
+      minWidth: '150px',
+      render: (row) => (
+        <span style={{ fontWeight: 550, color: '#1e293b' }}>
+          {row.beneficiary || 'Barangay'}
+        </span>
+      ),
+    },
+    {
+      key: 'priority',
+      label: 'Priority',
+      width: '105px',
+      align: 'center',
+      render: (row) => <StatusBadge status={row.priority} />,
+    },
+    {
+      key: 'status',
+      label: 'Status',
+      width: '135px',
+      align: 'center',
+      render: (row) => <StatusBadge status={row.status} />,
+    },
+    {
+      key: 'date',
+      label: 'Date',
+      width: '115px',
+      align: 'center',
+      render: (row) => (
+        <span style={{ color: '#64748b', fontSize: '0.82rem' }}>
+          {row.date || '—'}
+        </span>
+      ),
+    },
     {
       key: 'actions',
       label: 'Actions',
+      width: '75px',
       align: 'center',
       render: (row) => (
         <button
@@ -2033,10 +2127,20 @@ export default function AllocationPage() {
         <button
           type="button"
           className={`alloc-tab-btn ${activeTab === 'active' ? 'alloc-tab-btn--active' : ''}`}
-          onClick={() => setActiveTab('active')}
+          onClick={() => {
+            setActiveTab('active')
+            adminBadgesApi.markSeen('/admin/allocation').catch(() => {})
+          }}
         >
           <span>Active Allocations (Awaiting Distribution)</span>
-          <span className="alloc-tab-badge">{activeAllocations.length}</span>
+          {activeAttentionCount > 0 && (
+            <span
+              className="alloc-tab-badge alloc-tab-badge--urgent"
+              title={`${activeAttentionCount} allocation(s) requiring attention`}
+            >
+              {activeAttentionCount}
+            </span>
+          )}
         </button>
         <button
           type="button"
@@ -2044,7 +2148,14 @@ export default function AllocationPage() {
           onClick={() => setActiveTab('inDistribution')}
         >
           <span>In Distribution</span>
-          <span className="alloc-tab-badge">{inDistributionAllocations.length}</span>
+          {inDistAttentionCount > 0 && (
+            <span
+              className="alloc-tab-badge alloc-tab-badge--urgent"
+              title={`${inDistAttentionCount} delivery item(s) requiring attention`}
+            >
+              {inDistAttentionCount}
+            </span>
+          )}
         </button>
         <button
           type="button"
@@ -2052,10 +2163,8 @@ export default function AllocationPage() {
           onClick={() => setActiveTab('all')}
         >
           <span>All Allocations</span>
-          <span className="alloc-tab-badge">{(data || []).length}</span>
         </button>
       </div>
-
 
       <FilterBar
         controller={filters}
@@ -2076,6 +2185,37 @@ export default function AllocationPage() {
           onBulkDelete={bulk.handleBulkDelete}
           deleting={bulk.deleting}
           bulkDeleteLabel="Delete Selected"
+          emptyTitle={
+            filters.activeCount > 0 || filters.search
+              ? 'No Matching Allocations'
+              : activeTab === 'active'
+                ? 'No Active Allocations (Awaiting Distribution)'
+                : activeTab === 'inDistribution'
+                  ? 'No Allocations in Distribution'
+                  : 'No Allocations Found'
+          }
+          emptyDescription={
+            filters.activeCount > 0 || filters.search
+              ? 'No allocations matched your active search or filter criteria. Try resetting the filters.'
+              : activeTab === 'active'
+                ? 'There are currently no allocations awaiting logistics planning. Approved relief requests ready for allocation appear in the top section.'
+                : activeTab === 'inDistribution'
+                  ? 'No allocations are currently scheduled or assigned to active distribution events.'
+                  : 'No allocation records have been created in the system yet.'
+          }
+          emptyAction={
+            (filters.activeCount > 0 || filters.search) ? (
+              <button
+                type="button"
+                className="btn btn--sm btn--outline"
+                onClick={filters.reset}
+                style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}
+              >
+                <RotateCcw size={13} />
+                <span>Reset Filters</span>
+              </button>
+            ) : null
+          }
         />
       </ApiState>
 

@@ -80,27 +80,29 @@ export default function FilterBar({ controller, searchPlaceholder = 'Search reco
           </div>
         )}
 
-        <button
-          type="button"
-          className="filter-bar__reset"
-          onClick={reset}
-          disabled={activeCount === 0}
-        >
-          <RotateCcw size={13} />
-          Reset{activeCount > 0 ? ` (${activeCount})` : ''}
-        </button>
+        <div className="filter-bar__actions">
+          <button
+            type="button"
+            className="filter-bar__reset"
+            onClick={reset}
+            disabled={activeCount === 0}
+          >
+            <RotateCcw size={13} />
+            Reset{activeCount > 0 ? ` (${activeCount})` : ''}
+          </button>
 
-        {exportConfig && (
-          <ExportMenu
-            filename={exportConfig.filename}
-            title={exportConfig.title}
-            columns={exportConfig.columns}
-            rows={exportConfig.rows}
-            preparedBy={exportConfig.preparedBy}
-            date={exportConfig.date}
-            meta={exportConfig.meta}
-          />
-        )}
+          {exportConfig && (
+            <ExportMenu
+              filename={exportConfig.filename}
+              title={exportConfig.title}
+              columns={exportConfig.columns}
+              rows={exportConfig.rows}
+              preparedBy={exportConfig.preparedBy}
+              date={exportConfig.date}
+              meta={exportConfig.meta}
+            />
+          )}
+        </div>
       </div>
     </div>
   )

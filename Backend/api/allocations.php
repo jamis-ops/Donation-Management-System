@@ -6,20 +6,34 @@ $pdo = db();
 ensure_allocation_inventory_schema($pdo);
 
 // Normalize database state across workflow stages:
-// If an allocation is already linked to an active distribution, ensure its status is 'In Distribution' (or 'Delivered')
 try {
+  // 1. Sync allocations linked to distributions
   $pdo->exec("
     UPDATE allocations a
     JOIN distributions d ON d.id = a.distribution_id
-    SET a.status = CASE
-      WHEN d.status IN ('Delivered', 'Completed') THEN 'Delivered'
-      WHEN d.status != 'Cancelled' THEN 'In Distribution'
-      ELSE a.status
-    END
+    SET 
+      a.status = CASE
+        WHEN d.status IN ('Delivered', 'Completed') THEN 'Delivered'
+        WHEN d.status = 'Cancelled' THEN 'Allocated'
+        ELSE 'In Distribution'
+      END,
+      a.distribution_id = CASE
+        WHEN d.status = 'Cancelled' THEN NULL
+        ELSE a.distribution_id
+      END
     WHERE a.distribution_id IS NOT NULL 
       AND a.distribution_id > 0
-      AND a.status NOT IN ('In Distribution', 'Delivered', 'Cancelled')
   ");
+
+  // 2. Fix orphaned 'In Distribution' allocations that have no distribution
+  $pdo->exec("
+    UPDATE allocations
+    SET status = 'Allocated'
+    WHERE (distribution_id IS NULL OR distribution_id = 0)
+      AND status = 'In Distribution'
+  ");
+
+  // 3. Keep linked relief request status synchronized
   $pdo->exec("
     UPDATE assistance_requests ar
     JOIN allocations a ON a.assistance_request_id = ar.id

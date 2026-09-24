@@ -142,11 +142,21 @@ $pendingDistributions = $seen
   ? safe_count($pdo, "SELECT COUNT(*) FROM distributions WHERE status = 'Awaiting Proof' AND updated_at > ?", [$seen])
   : safe_count($pdo, "SELECT COUNT(*) FROM distributions WHERE status = 'Awaiting Proof'");
 
-// 7. Pending Allocations
+// 7. Actionable / New Allocations (awaiting distribution or urgent)
 $seen = get_last_seen($pdo, $userId, '/admin/allocation');
 $pendingAllocations = $seen
-  ? safe_count($pdo, "SELECT COUNT(*) FROM allocations WHERE status = 'Pending' AND created_at > ?", [$seen])
-  : safe_count($pdo, "SELECT COUNT(*) FROM allocations WHERE status = 'Pending'");
+  ? safe_count($pdo, "
+      SELECT COUNT(*) FROM allocations 
+      WHERE status NOT IN ('In Distribution', 'Delivered', 'Cancelled') 
+        AND (distribution_id IS NULL OR distribution_id = 0)
+        AND (created_at > ? OR priority IN ('Urgent', 'Critical'))
+    ", [$seen])
+  : safe_count($pdo, "
+      SELECT COUNT(*) FROM allocations 
+      WHERE status NOT IN ('In Distribution', 'Delivered', 'Cancelled') 
+        AND (distribution_id IS NULL OR distribution_id = 0)
+        AND (priority IN ('Urgent', 'Critical') OR created_at >= DATE_SUB(NOW(), INTERVAL 2 DAY))
+    ");
 
 json_response([
   'ok' => true,

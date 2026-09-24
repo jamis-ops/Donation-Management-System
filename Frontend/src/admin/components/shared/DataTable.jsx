@@ -1,3 +1,4 @@
+import { Inbox } from 'lucide-react'
 import { usePagination, DEFAULT_PAGE_SIZE } from '../../../hooks/usePagination'
 import Pagination from './Pagination'
 
@@ -22,6 +23,11 @@ export default function DataTable({
   deleting = false,
   bulkDeleteLabel = 'Delete Selected',
   idKey = null,
+  emptyTitle = null,
+  emptyDescription = null,
+  emptyIcon = null,
+  emptyAction = null,
+  emptyMessage = null,
 }) {
   const list = Array.isArray(data) ? data : []
   const size = (
@@ -144,7 +150,22 @@ export default function DataTable({
           {list.length === 0 ? (
             <tr>
               <td colSpan={colSpanCount} className="data-table__empty">
-                No records found
+                <div className="data-table__empty-state">
+                  <div className="data-table__empty-icon" aria-hidden="true">
+                    {emptyIcon || <Inbox size={32} strokeWidth={1.5} />}
+                  </div>
+                  <h4 className="data-table__empty-title">
+                    {emptyTitle || emptyMessage || 'No records found'}
+                  </h4>
+                  <p className="data-table__empty-desc">
+                    {emptyDescription || 'There are no records matching your current filter criteria or awaiting action.'}
+                  </p>
+                  {emptyAction && (
+                    <div className="data-table__empty-action">
+                      {emptyAction}
+                    </div>
+                  )}
+                </div>
               </td>
             </tr>
           ) : (

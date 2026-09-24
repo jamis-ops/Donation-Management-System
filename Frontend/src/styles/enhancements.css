@@ -1093,9 +1093,9 @@ optgroup {
   display: flex;
   flex-direction: column;
   align-items: stretch;
-  gap: 0.7rem;
+  gap: 0.75rem;
   padding: 0.85rem 1rem;
-  margin-bottom: 1rem;
+  margin-bottom: 1.25rem;
   background: var(--admin-surface, #fff);
   border: 1px solid var(--admin-border, #e5e7eb);
   border-radius: var(--admin-radius, 12px);
@@ -1107,7 +1107,8 @@ optgroup {
   display: flex;
   flex-wrap: wrap;
   align-items: flex-end;
-  gap: 0.6rem 0.75rem;
+  gap: 0.65rem 0.75rem;
+  width: 100%;
 }
 
 .filter-bar__search {
@@ -1115,16 +1116,19 @@ optgroup {
   align-items: center;
   gap: 0.5rem;
   width: 100%;
-  padding: 0.55rem 0.85rem;
-  background: var(--admin-bg, #f3f4f6);
-  border: 1px solid var(--admin-border, #e5e7eb);
+  height: 40px;
+  box-sizing: border-box;
+  padding: 0 0.85rem;
+  background: var(--admin-bg, #f8fafc);
+  border: 1px solid var(--admin-border, #e2e8f0);
   border-radius: 8px;
-  color: var(--admin-text-muted, #6b7280);
-  transition: border-color 0.16s ease, box-shadow 0.16s ease;
+  color: var(--admin-text-muted, #64748b);
+  transition: border-color 0.16s ease, box-shadow 0.16s ease, background 0.16s ease;
 }
 
 .filter-bar__search:focus-within {
   border-color: var(--admin-brand, #af101a);
+  background: #ffffff;
   box-shadow: 0 0 0 3px var(--admin-brand-muted, rgba(175, 16, 26, 0.12));
 }
 
@@ -1159,27 +1163,31 @@ optgroup {
 .filter-bar__field {
   display: flex;
   flex-direction: column;
-  gap: 0.2rem;
+  gap: 0.25rem;
 }
 
 .filter-bar__field-label {
-  font-size: 0.68rem;
-  font-weight: 600;
+  font-size: 0.7rem;
+  font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.04em;
-  color: var(--admin-text-subtle, #9ca3af);
+  color: var(--admin-text-subtle, #94a3b8);
+  margin-bottom: 1px;
 }
 
 .filter-bar__field select,
 .filter-bar__field input[type='date'] {
-  padding: 0.42rem 0.6rem;
+  height: 38px;
+  box-sizing: border-box;
+  padding: 0 0.65rem;
   font-size: 0.83rem;
   font-family: inherit;
-  color: var(--admin-text, #111827);
+  color: var(--admin-text, #1e293b);
   background: var(--admin-surface, #fff);
-  border: 1px solid var(--admin-border, #e5e7eb);
+  border: 1px solid var(--admin-border, #cbd5e1);
   border-radius: 8px;
   cursor: pointer;
+  outline: none;
   transition: border-color 0.16s ease, box-shadow 0.16s ease, background 0.16s ease;
 }
 
@@ -1201,22 +1209,32 @@ optgroup {
 .filter-bar__dates {
   display: flex;
   gap: 0.5rem;
+  align-items: flex-end;
+}
+
+.filter-bar__actions {
+  display: inline-flex;
+  align-items: flex-end;
+  gap: 0.5rem;
+  margin-left: auto;
 }
 
 .filter-bar__reset {
+  height: 38px;
+  box-sizing: border-box;
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   gap: 0.35rem;
-  margin-left: auto;
-  align-self: flex-end;
-  padding: 0.45rem 0.85rem;
-  font-size: 0.8rem;
+  padding: 0 0.85rem;
+  font-size: 0.82rem;
   font-weight: 600;
-  color: var(--admin-text-muted, #6b7280);
-  background: var(--admin-bg, #f3f4f6);
-  border: 1px solid var(--admin-border, #e5e7eb);
+  color: var(--admin-text-muted, #64748b);
+  background: var(--admin-bg, #f1f5f9);
+  border: 1px solid var(--admin-border, #cbd5e1);
   border-radius: 8px;
   cursor: pointer;
+  white-space: nowrap;
   transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease, opacity 0.15s ease;
 }
 
@@ -1237,7 +1255,8 @@ optgroup {
   .filter-bar__field { flex: 1 1 auto; }
   .filter-bar__field select,
   .filter-bar__field input[type='date'] { width: 100%; }
-  .filter-bar__reset { margin-left: 0; width: 100%; justify-content: center; }
+  .filter-bar__actions { margin-left: 0; width: 100%; justify-content: stretch; }
+  .filter-bar__reset { flex: 1; justify-content: center; }
 }
 
 /* Report period toggle — pill-shaped segmented control */
