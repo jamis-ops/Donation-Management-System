@@ -8,7 +8,8 @@ import {
   AlertTriangle, AlertCircle, Clock, CheckCircle, 
   Users, Search, Pin, FileText, 
   Check, X, MapPin, Loader2, Info,
-  Utensils, Droplets, Shirt, Pill, Sparkles, Home, Banknote, GraduationCap, Package, Tag
+  Utensils, Droplets, Shirt, Pill, Sparkles, Home, Banknote, GraduationCap, Package, Tag,
+  Phone, Mail, ExternalLink, Copy
 } from 'lucide-react';
 import PageHeader from '../components/shared/PageHeader';
 import ModalHeader from '../components/shared/ModalHeader';
@@ -551,57 +552,116 @@ const styles = `
 
 /* ---------- Modern Relief Request Review Modal ---------- */
 .relief-review-modal {
-  max-width: 820px !important;
-  width: 95vw !important;
+  max-width: 800px !important;
+  width: 94vw !important;
+  max-height: min(88vh, 720px) !important;
   padding: 0 !important;
-  border-radius: 12px !important;
+  border-radius: 14px !important;
   overflow: hidden !important;
   display: flex !important;
   flex-direction: column !important;
-  box-shadow: 0 20px 45px rgba(0, 0, 0, 0.22) !important;
-  border: 1px solid rgba(0, 0, 0, 0.08) !important;
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.28), 0 0 0 1px rgba(0, 0, 0, 0.06) !important;
+  border: none !important;
   box-sizing: border-box !important;
+  background: #ffffff !important;
 }
 
 .relief-review-modal .admin-modal__header {
   margin: 0 !important;
   top: 0 !important;
   position: static !important;
-  padding: 1rem 1.25rem !important;
+  padding: 0.9rem 1.25rem !important;
   display: flex !important;
   align-items: center !important;
   justify-content: space-between !important;
   background: linear-gradient(135deg, #AF101A 0%, #8E0D15 100%) !important;
-  border-top-left-radius: 12px !important;
-  border-top-right-radius: 12px !important;
+  border-top-left-radius: 14px !important;
+  border-top-right-radius: 14px !important;
   box-shadow: none !important;
-  border-bottom: 1px solid rgba(0, 0, 0, 0.1) !important;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.12) !important;
+  flex-shrink: 0 !important;
+}
+
+.relief-modal-header-content {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+
+.relief-modal-header-top {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+.relief-modal-tagline {
+  font-size: 0.68rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: rgba(255, 255, 255, 0.78);
+}
+
+.relief-code-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  background: rgba(255, 255, 255, 0.18);
+  color: #ffffff;
+  padding: 0.15rem 0.5rem;
+  border-radius: 6px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+.relief-code-chip:hover {
+  background: rgba(255, 255, 255, 0.3);
+  transform: translateY(-1px);
 }
 
 .relief-review-modal .admin-modal__header h2 {
   font-size: 1.15rem !important;
-  font-weight: 700 !important;
+  font-weight: 750 !important;
   color: #ffffff !important;
   margin: 0 !important;
   padding: 0 !important;
-  line-height: 1.3 !important;
+  line-height: 1.25 !important;
+  letter-spacing: -0.01em;
 }
 
 .relief-review-modal .admin-modal__close {
   margin: 0 !important;
   width: 32px !important;
   height: 32px !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  background: rgba(255, 255, 255, 0.14) !important;
+  color: #ffffff !important;
+  border: 1px solid rgba(255, 255, 255, 0.2) !important;
+  border-radius: 8px !important;
+  transition: all 0.15s ease !important;
+  cursor: pointer !important;
+}
+.relief-review-modal .admin-modal__close:hover {
+  background: rgba(255, 255, 255, 0.28) !important;
+  transform: scale(1.05);
 }
 
+/* Header status & metadata strip */
 .relief-review-header-strip {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 0.7rem 1.25rem;
+  padding: 0.6rem 1.25rem;
   background: #f8fafc;
   border-bottom: 1px solid #e2e8f0;
   gap: 0.75rem;
   flex-wrap: wrap;
+  flex-shrink: 0;
 }
 
 .relief-review-badges {
@@ -647,8 +707,8 @@ const styles = `
 .relief-meta-strip {
   display: flex;
   align-items: center;
-  gap: 0.85rem;
-  font-size: 0.8125rem;
+  gap: 0.75rem;
+  font-size: 0.8rem;
   color: #64748b;
   flex-wrap: wrap;
 }
@@ -662,32 +722,62 @@ const styles = `
 .relief-sla-tag {
   display: inline-flex;
   align-items: center;
-  gap: 0.25rem;
-  font-size: 0.75rem;
-  font-weight: 600;
-  padding: 0.15rem 0.5rem;
-  border-radius: 4px;
+  gap: 0.3rem;
+  font-size: 0.72rem;
+  font-weight: 700;
+  padding: 0.2rem 0.55rem;
+  border-radius: 6px;
+  letter-spacing: 0.02em;
 }
 .relief-sla-tag--red {
   background: #fee2e2;
   color: #b91c1c;
+  border: 1px solid #fecaca;
 }
 .relief-sla-tag--yellow {
   background: #fef3c7;
   color: #b45309;
+  border: 1px solid #fde68a;
 }
 .relief-sla-tag--green {
   background: #dcfce7;
   color: #15803d;
+  border: 1px solid #bbf7d0;
 }
 
-.relief-review-grid {
-  display: grid;
-  grid-template-columns: 1.15fr 0.85fr;
-  gap: 1.15rem;
-  padding: 1.1rem 1.25rem;
+/* Modal Scrollable Body */
+.relief-review-body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 1rem 1.25rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
   background: #ffffff;
   box-sizing: border-box;
+}
+
+.relief-review-body::-webkit-scrollbar {
+  width: 6px;
+}
+.relief-review-body::-webkit-scrollbar-track {
+  background: transparent;
+}
+.relief-review-body::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 4px;
+}
+.relief-review-body::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
+
+/* 2-Column Responsive Grid */
+.relief-review-grid {
+  display: grid;
+  grid-template-columns: 1.05fr 0.95fr;
+  gap: 0.85rem;
+  align-items: stretch;
 }
 
 .relief-review-col {
@@ -697,40 +787,115 @@ const styles = `
   min-width: 0;
 }
 
-.relief-review-section {
+/* Reusable Clean Card */
+.relief-card {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  padding: 0.85rem 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.7rem;
+  box-sizing: border-box;
+  transition: border-color 0.15s ease;
+}
+.relief-card:hover {
+  border-color: #cbd5e1;
+}
+
+/* Request Core Card */
+.relief-overview-card {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  padding: 0.85rem 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+}
+
+.relief-calamity-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding-bottom: 0.5rem;
+  border-bottom: 1px solid #f1f5f9;
+}
+
+.relief-calamity-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  font-size: 0.86rem;
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.relief-calamity-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.2rem 0.55rem;
+  border-radius: 9999px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  background: #f1f5f9;
+  color: #334155;
+  border: 1px solid #e2e8f0;
+}
+
+/* Impact families highlight */
+.relief-impact-stat-card {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  background: #fff5f5;
+  border: 1px solid #fed7d7;
+  border-radius: 8px;
+  padding: 0.55rem 0.85rem;
+}
+.relief-impact-stat-icon {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  background: #fee2e2;
+  color: #b91c1c;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+.relief-impact-stat-num {
+  font-size: 0.95rem;
+  font-weight: 800;
+  color: #991b1b;
+  line-height: 1.2;
+}
+.relief-impact-stat-sub {
+  font-size: 0.72rem;
+  color: #7f1d1d;
+  font-weight: 500;
+}
+
+/* Needs chips */
+.relief-needs-group {
   display: flex;
   flex-direction: column;
   gap: 0.35rem;
 }
-
-.relief-section-label {
-  font-size: 0.75rem;
+.relief-sub-label {
+  font-size: 0.7rem;
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.04em;
   color: #64748b;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
 }
 
-.relief-section-label span.editable-hint {
-  font-size: 0.7rem;
-  font-weight: normal;
-  text-transform: none;
-  color: #94a3b8;
-}
-
-.relief-needs-box {
+.relief-needs-list {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.4rem;
-  padding: 0.5rem 0.65rem;
-  background: #f8fafc;
-  border: 1px solid #e2e8f0;
-  border-radius: 8px;
-  min-height: 38px;
-  align-items: center;
+  gap: 0.35rem;
 }
 
 .relief-need-chip {
@@ -742,149 +907,20 @@ const styles = `
   border: 1px solid #fecaca;
   padding: 0.22rem 0.55rem;
   border-radius: 6px;
-  font-size: 0.78rem;
-  font-weight: 600;
+  font-size: 0.76rem;
+  font-weight: 650;
   box-shadow: 0 1px 2px rgba(0,0,0,0.03);
 }
 
-.relief-notes-textarea {
-  width: 100%;
-  height: 80px;
-  min-height: 70px;
-  max-height: 95px;
-  padding: 0.55rem 0.7rem;
-  font-size: 0.8125rem;
-  line-height: 1.4;
-  border: 1px solid #cbd5e1;
-  border-radius: 8px;
-  resize: vertical;
-  background: #ffffff;
-  color: #1e293b;
-  font-family: var(--font-sans);
-  box-sizing: border-box;
-  transition: border-color 0.15s ease, box-shadow 0.15s ease;
-}
-.relief-notes-textarea:focus {
-  outline: none;
-  border-color: var(--admin-brand);
-  box-shadow: 0 0 0 3px rgba(175, 16, 26, 0.1);
-}
-
-.relief-barangay-card {
-  background: #f8fafc;
-  border: 1px solid #e2e8f0;
-  border-radius: 10px;
-  padding: 0.85rem 1rem;
-  display: flex;
-  flex-direction: column;
-  justify-content: space-between;
-  gap: 0.75rem;
-  height: 100%;
-  box-sizing: border-box;
-}
-
-.relief-barangay-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.5rem;
-  border-bottom: 1px solid #e2e8f0;
-  padding-bottom: 0.5rem;
-}
-
-.relief-barangay-title {
-  display: flex;
-  align-items: center;
-  gap: 0.4rem;
-  font-size: 0.95rem;
-  font-weight: 700;
-  color: #1e293b;
-  margin: 0;
-}
-
-.relief-barangay-muni {
-  font-size: 0.72rem;
-  font-weight: 600;
-  color: #475569;
-  background: #e2e8f0;
-  padding: 0.15rem 0.45rem;
-  border-radius: 4px;
-}
-
-.relief-barangay-stats-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 0.6rem 0.75rem;
-}
-
-.relief-bstat {
-  display: flex;
-  flex-direction: column;
-  gap: 0.15rem;
-}
-
-.relief-bstat-label {
-  font-size: 0.68rem;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  color: #64748b;
-  display: flex;
-  align-items: center;
-  gap: 0.25rem;
-}
-
-.relief-bstat-val {
-  font-size: 0.85rem;
-  font-weight: 700;
-  color: #1e293b;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.relief-view-barangay-btn {
-  width: 100%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 0.35rem;
-  padding: 0.45rem 0.75rem;
-  font-size: 0.78rem;
-  font-weight: 600;
-  border-radius: 6px;
-  background: #ffffff;
-  border: 1px solid #cbd5e1;
-  color: #334155;
-  cursor: pointer;
-  transition: all 0.15s ease;
-}
-.relief-view-barangay-btn:hover {
-  border-color: var(--admin-brand);
-  color: var(--admin-brand);
-  background: #fff9f9;
-}
-
-.relief-duplicate-alert {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  background: #fffbeb;
-  border: 1px solid #fde68a;
-  border-radius: 6px;
-  padding: 0.45rem 0.75rem;
-  color: #b45309;
-  font-size: 0.78rem;
-}
-
-/* Stock Feasibility & AI Procurement Card */
+/* Stock Feasibility Card */
 .relief-stock-feasibility {
-  border-radius: 8px;
-  padding: 0.75rem 0.85rem;
+  border-radius: 10px;
+  padding: 0.8rem 1rem;
   display: flex;
   flex-direction: column;
-  gap: 0.5rem;
+  gap: 0.6rem;
   font-size: 0.8rem;
+  box-sizing: border-box;
 }
 .relief-stock-feasibility--in-stock {
   background: #f0fdf4;
@@ -904,7 +940,7 @@ const styles = `
   display: flex;
   align-items: center;
   gap: 0.4rem;
-  font-weight: 700;
+  font-weight: 750;
   font-size: 0.82rem;
 }
 .relief-stock-feasibility--in-stock .relief-stock-feasibility__title {
@@ -913,19 +949,26 @@ const styles = `
 .relief-stock-feasibility--deficit .relief-stock-feasibility__title {
   color: #b45309;
 }
+.relief-stock-feasibility__badge {
+  font-size: 0.68rem;
+  font-weight: 600;
+  color: #64748b;
+  background: rgba(255, 255, 255, 0.7);
+  padding: 0.15rem 0.45rem;
+  border-radius: 4px;
+}
 .relief-stock-feasibility__items {
   display: flex;
   flex-wrap: wrap;
   gap: 0.35rem;
-  margin-top: 0.15rem;
 }
 .relief-stock-tag {
   display: inline-flex;
   align-items: center;
   gap: 0.3rem;
-  padding: 0.2rem 0.45rem;
-  border-radius: 4px;
-  font-size: 0.74rem;
+  padding: 0.2rem 0.5rem;
+  border-radius: 5px;
+  font-size: 0.73rem;
   font-weight: 600;
 }
 .relief-stock-tag--available {
@@ -938,20 +981,22 @@ const styles = `
   color: #991b1b;
   border: 1px solid #fca5a5;
 }
+
 .relief-procure-action-box {
-  margin-top: 0.35rem;
-  padding-top: 0.5rem;
+  padding-top: 0.55rem;
   border-top: 1px dashed #fcd34d;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 0.5rem;
+  gap: 0.6rem;
   flex-wrap: wrap;
 }
 .relief-procure-action-text {
-  font-size: 0.76rem;
+  font-size: 0.75rem;
   color: #78350f;
-  line-height: 1.3;
+  line-height: 1.35;
+  flex: 1;
+  min-width: 180px;
 }
 .relief-procure-btn {
   display: inline-flex;
@@ -962,11 +1007,12 @@ const styles = `
   border: none;
   border-radius: 6px;
   padding: 0.38rem 0.75rem;
-  font-size: 0.77rem;
-  font-weight: 600;
+  font-size: 0.76rem;
+  font-weight: 650;
   cursor: pointer;
   transition: all 0.2s ease;
   box-shadow: 0 1px 3px rgba(180, 83, 9, 0.25);
+  white-space: nowrap;
 }
 .relief-procure-btn:hover {
   background: linear-gradient(135deg, #92400e 0%, #78350f 100%);
@@ -974,6 +1020,258 @@ const styles = `
   box-shadow: 0 3px 8px rgba(180, 83, 9, 0.35);
 }
 
+/* Barangay Card */
+.relief-barangay-card {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  padding: 0.85rem 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+}
+.relief-barangay-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding-bottom: 0.5rem;
+  border-bottom: 1px solid #f1f5f9;
+}
+.relief-barangay-main {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+.relief-barangay-icon {
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  background: #fef2f2;
+  color: var(--admin-brand);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+.relief-barangay-name {
+  font-size: 0.92rem;
+  font-weight: 750;
+  color: #1e293b;
+  margin: 0;
+  line-height: 1.2;
+}
+.relief-barangay-sub {
+  font-size: 0.73rem;
+  color: #64748b;
+  font-weight: 500;
+}
+.relief-barangay-status-badge {
+  font-size: 0.68rem;
+  font-weight: 600;
+  color: #15803d;
+  background: #dcfce7;
+  border: 1px solid #bbf7d0;
+  padding: 0.15rem 0.5rem;
+  border-radius: 9999px;
+  white-space: nowrap;
+}
+
+.relief-rep-info {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  background: #f8fafc;
+  padding: 0.6rem 0.75rem;
+  border-radius: 7px;
+  border: 1px solid #e2e8f0;
+}
+.relief-rep-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: #1e293b;
+}
+.relief-rep-role {
+  font-size: 0.72rem;
+  font-weight: 500;
+  color: #64748b;
+}
+.relief-contact-chips {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  margin-top: 0.2rem;
+}
+.relief-contact-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  font-size: 0.72rem;
+  color: #2563eb;
+  text-decoration: none;
+  background: #eff6ff;
+  padding: 0.15rem 0.45rem;
+  border-radius: 4px;
+  border: 1px solid #bfdbfe;
+  transition: all 0.15s ease;
+}
+.relief-contact-link:hover {
+  background: #dbeafe;
+  color: #1d4ed8;
+}
+
+.relief-barangay-bottom-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding-top: 0.25rem;
+}
+.relief-history-stat {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.75rem;
+  color: #64748b;
+}
+.relief-history-stat strong {
+  color: #0f172a;
+}
+.relief-view-barangay-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.32rem 0.65rem;
+  font-size: 0.74rem;
+  font-weight: 650;
+  border-radius: 6px;
+  background: #ffffff;
+  border: 1px solid #cbd5e1;
+  color: #334155;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  white-space: nowrap;
+}
+.relief-view-barangay-btn:hover {
+  border-color: var(--admin-brand);
+  color: var(--admin-brand);
+  background: #fff9f9;
+}
+
+/* Notes / Remarks Card */
+.relief-notes-card {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  padding: 0.75rem 0.95rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+}
+.relief-notes-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.relief-notes-header .relief-section-label {
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #64748b;
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+.relief-notes-header .editable-hint {
+  font-size: 0.68rem;
+  font-weight: normal;
+  text-transform: none;
+  color: #94a3b8;
+}
+
+.relief-save-notes-mini-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.2rem 0.5rem;
+  font-size: 0.7rem;
+  font-weight: 650;
+  border-radius: 4px;
+  background: #15803d;
+  color: #ffffff;
+  border: none;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+.relief-save-notes-mini-btn:hover {
+  background: #166534;
+}
+
+/* Quick Notes Tag Chips */
+.relief-quick-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+}
+.relief-quick-tag-btn {
+  background: #f1f5f9;
+  border: 1px solid #e2e8f0;
+  color: #475569;
+  font-size: 0.68rem;
+  font-weight: 550;
+  padding: 0.15rem 0.45rem;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.12s ease;
+  white-space: nowrap;
+}
+.relief-quick-tag-btn:hover {
+  background: #fee2e2;
+  border-color: #fca5a5;
+  color: #991b1b;
+}
+
+.relief-notes-textarea {
+  width: 100%;
+  height: 60px;
+  min-height: 52px;
+  max-height: 80px;
+  padding: 0.45rem 0.65rem;
+  font-size: 0.8rem;
+  line-height: 1.35;
+  border: 1px solid #cbd5e1;
+  border-radius: 7px;
+  resize: vertical;
+  background: #ffffff;
+  color: #1e293b;
+  font-family: var(--font-sans);
+  box-sizing: border-box;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+.relief-notes-textarea:focus {
+  outline: none;
+  border-color: var(--admin-brand);
+  box-shadow: 0 0 0 3px rgba(175, 16, 26, 0.08);
+}
+
+.relief-duplicate-alert {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  background: #fffbeb;
+  border: 1px solid #fde68a;
+  border-radius: 8px;
+  padding: 0.45rem 0.75rem;
+  color: #b45309;
+  font-size: 0.76rem;
+}
+
+/* Fixed Footer Actions */
 .relief-review-footer {
   display: flex;
   align-items: center;
@@ -982,22 +1280,81 @@ const styles = `
   background: #f8fafc;
   border-top: 1px solid #e2e8f0;
   gap: 0.75rem;
+  flex-shrink: 0;
+  border-bottom-left-radius: 14px;
+  border-bottom-right-radius: 14px;
+}
+
+.relief-review-footer-left {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
 }
 
 .relief-review-footer-actions {
   display: flex;
   align-items: center;
-  gap: 0.6rem;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.relief-btn-under-review {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  color: #b45309 !important;
+  border-color: #fde68a !important;
+  background: #fffbeb !important;
+  font-weight: 650 !important;
+}
+.relief-btn-under-review:hover {
+  background: #fef3c7 !important;
+  border-color: #fcd34d !important;
+}
+
+.relief-btn-approve {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  background: #16a34a !important;
+  color: #ffffff !important;
+  border-color: #16a34a !important;
+  font-weight: 650 !important;
+  box-shadow: 0 1px 3px rgba(22, 163, 74, 0.25) !important;
+}
+.relief-btn-approve:hover {
+  background: #15803d !important;
+  border-color: #15803d !important;
+  transform: translateY(-1px);
+  box-shadow: 0 3px 8px rgba(22, 163, 74, 0.35) !important;
+}
+
+.relief-btn-allocate {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-weight: 650 !important;
+  box-shadow: 0 1px 3px rgba(175, 16, 26, 0.25) !important;
+}
+.relief-btn-allocate:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 3px 8px rgba(175, 16, 26, 0.35) !important;
 }
 
 @media (max-width: 680px) {
   .relief-review-grid {
     grid-template-columns: 1fr;
-    padding: 0.85rem;
+    gap: 0.75rem;
   }
   .relief-review-modal {
     max-height: 94vh !important;
-    overflow-y: auto !important;
+    width: 96vw !important;
+  }
+  .relief-review-body {
+    padding: 0.85rem;
+  }
+  .relief-review-footer {
+    padding: 0.65rem 0.85rem;
   }
 }
 `;
@@ -1048,6 +1405,23 @@ const NEED_ICONS = {
   'Financial Assistance': Banknote,
   'Educational Support': GraduationCap,
 };
+
+function getCalamityConfig(calamity) {
+  const c = String(calamity || '').toLowerCase();
+  if (c.includes('landslide') || c.includes('earthquake')) {
+    return { label: calamity, color: '#92400e', bg: '#fef3c7', border: '#fde68a' };
+  }
+  if (c.includes('typhoon') || c.includes('storm')) {
+    return { label: calamity, color: '#0369a1', bg: '#e0f2fe', border: '#bae6fd' };
+  }
+  if (c.includes('flood')) {
+    return { label: calamity, color: '#0284c7', bg: '#e0f2fe', border: '#bae6fd' };
+  }
+  if (c.includes('fire')) {
+    return { label: calamity, color: '#b91c1c', bg: '#fee2e2', border: '#fecaca' };
+  }
+  return { label: calamity || 'General Assistance', color: '#475569', bg: '#f1f5f9', border: '#e2e8f0' };
+}
 
 function iconForNeed(label) {
   if (NEED_ICONS[label]) return NEED_ICONS[label];
@@ -1165,7 +1539,11 @@ export default function RequestsPage() {
         ...req,
         affectedFamilies: families,
         municipality: b?.municipality || req.municipality || 'Cebu City',
-        representative: b?.representative || b?.representativeName || req.representative || 'Barangay Official'
+        representative: b?.representative || b?.representativeName || req.representative || 'Barangay Official',
+        representativePosition: b?.representativePosition || b?.position || req.representativePosition || '',
+        representativePhone: b?.representativePhone || b?.phone || b?.contactNumber || req.representativePhone || '',
+        representativeEmail: b?.representativeEmail || b?.email || req.representativeEmail || '',
+        beneficiaryStatus: b?.status || ''
       };
     });
   }, [requestsData, beneficiariesData]);
@@ -1660,7 +2038,10 @@ function ReviewModal({
   navigate 
 }) {
   const [notes, setNotes] = useState(request.notes || '');
+  const [copiedId, setCopiedId] = useState(false);
   
+  const isNotesDirty = notes !== (request.notes || '');
+
   const activeCriticalRequests = useMemo(() => {
     return (allRequests || []).filter(r => 
       r.beneficiaryId === request.beneficiaryId && 
@@ -1686,8 +2067,10 @@ function ReviewModal({
     }
     const match = (request.notes || '').match(/Calamity\/Program:\s*([^\n\r]+)/i);
     if (match) return match[1].trim();
-    return null;
+    return request.calamity || request.reason || 'General Assistance';
   }, [request]);
+
+  const calamityBadge = useMemo(() => getCalamityConfig(calamityInfo), [calamityInfo]);
 
   const prevRequestsCount = useMemo(() => {
     return (allRequests || []).filter(r => r.beneficiaryId === request.beneficiaryId && r.dbId !== request.dbId).length;
@@ -1736,6 +2119,19 @@ function ReviewModal({
     if (status !== 'Approved') onClose();
   };
 
+  const handleSaveNotesOnly = async () => {
+    await onUpdate(request.dbId, { notes });
+  };
+
+  const handleCopyId = (e) => {
+    e.stopPropagation();
+    if (request.id) {
+      navigator.clipboard.writeText(request.id);
+      setCopiedId(true);
+      setTimeout(() => setCopiedId(false), 2000);
+    }
+  };
+
   const formattedDate = useMemo(() => {
     const raw = request.requestDate || request.date || request.createdAt;
     if (!raw) return 'N/A';
@@ -1752,15 +2148,41 @@ function ReviewModal({
     }
   }, [request]);
 
+  const familiesCount = Number(request.affectedFamilies) || 0;
+
   return (
     <div className="admin-modal-overlay" onClick={onClose}>
       <div className="admin-modal relief-review-modal" onClick={e => e.stopPropagation()}>
-        <ModalHeader
-          title={`Review Request: ${request.id}`}
-          onClose={onClose}
-        />
         
-        {/* Top Overview & Metadata Strip */}
+        {/* Header with Tagline & Copy Request ID */}
+        <div className="admin-modal__header">
+          <div className="relief-modal-header-content">
+            <div className="relief-modal-header-top">
+              <span className="relief-modal-tagline">Relief Assistance Review</span>
+              <button 
+                type="button" 
+                className="relief-code-chip"
+                onClick={handleCopyId}
+                title="Click to copy Request Code"
+              >
+                <span>{request.id}</span>
+                {copiedId ? <Check size={11} strokeWidth={2.5} /> : <Copy size={11} />}
+              </button>
+            </div>
+            <h2>Review Request: {request.beneficiary}</h2>
+          </div>
+          <button 
+            type="button" 
+            className="admin-modal__close" 
+            onClick={onClose}
+            aria-label="Close"
+            title="Close"
+          >
+            <X size={17} strokeWidth={2.4} />
+          </button>
+        </div>
+        
+        {/* Status & Timing Strip */}
         <div className="relief-review-header-strip">
           <div className="relief-review-badges">
             <PriorityBadge priority={request.priority} />
@@ -1773,8 +2195,8 @@ function ReviewModal({
           </div>
           
           <div className="relief-meta-strip">
-            <div className="relief-meta-item" title="Submission date and time">
-              <Clock size={13} />
+            <div className="relief-meta-item" title="Request submission timestamp">
+              <Clock size={12} />
               <span>{formattedDate}</span>
             </div>
             {slaInfo && (
@@ -1785,204 +2207,259 @@ function ReviewModal({
           </div>
         </div>
 
-        {/* Modal Main Content Grid */}
-        <div className="relief-review-grid">
-          {/* Left Column: Needs, Stock Feasibility & Notes */}
-          <div className="relief-review-col">
-            {activeCriticalRequests.length > 0 && request.priority === 'Critical' && (
-              <div className="relief-duplicate-alert">
-                <AlertTriangle size={15} style={{ flexShrink: 0 }} />
-                <span><strong>Duplicate Alert:</strong> There is another open Critical request for this barangay.</span>
-              </div>
-            )}
+        {/* Scrollable Body Container */}
+        <div className="relief-review-body">
+          {activeCriticalRequests.length > 0 && request.priority === 'Critical' && (
+            <div className="relief-duplicate-alert">
+              <AlertTriangle size={15} style={{ flexShrink: 0 }} />
+              <span><strong>Duplicate Critical Alert:</strong> Another open Critical request exists for this barangay.</span>
+            </div>
+          )}
 
-            {/* Unified Request Information Section */}
-            <div className="relief-review-section" style={{
-              background: '#ffffff',
-              border: '1px solid #e2e8f0',
-              borderRadius: '10px',
-              padding: '1.1rem 1.25rem',
-            }}>
-              <div style={{ display: 'grid', gridTemplateColumns: '130px 1fr', rowGap: '0.65rem', columnGap: '0.75rem', alignItems: 'center', fontSize: '0.86rem' }}>
-                <span style={{ color: '#64748b', fontWeight: 600 }}>Calamity:</span>
-                <span style={{ fontWeight: 650, color: '#0f172a' }}>{calamityInfo || request.reason || 'General Assistance'}</span>
-
-                <span style={{ color: '#64748b', fontWeight: 600 }}>Needs:</span>
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.35rem' }}>
-                  {requestedNeeds.length > 0 ? (
-                    requestedNeeds.map((need, i) => {
-                      const Icon = iconForNeed(need);
-                      return (
-                        <div key={i} className="relief-need-chip">
-                          <Icon size={12} strokeWidth={2.2} />
-                          <span>{need}</span>
-                        </div>
-                      );
-                    })
-                  ) : (
-                    <span style={{ fontSize: '0.78rem', color: '#94a3b8' }}>General Relief Goods</span>
-                  )}
-                </div>
-
-                <span style={{ color: '#64748b', fontWeight: 600 }}>Affected Families:</span>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
-                  <Users size={14} style={{ color: '#af101a' }} />
-                  <span style={{ fontWeight: 700, color: '#af101a', fontSize: '0.94rem' }}>
-                    {(Number(request.affectedFamilies) || 0).toLocaleString()} families
+          {/* 2-Column Balanced Grid */}
+          <div className="relief-review-grid">
+            
+            {/* Left Column: Calamity, Impact & Live Stock */}
+            <div className="relief-review-col">
+              
+              {/* Request Core Card */}
+              <div className="relief-card relief-overview-card">
+                <div className="relief-calamity-header">
+                  <span className="relief-sub-label">Calamity / Program</span>
+                  <span 
+                    className="relief-calamity-pill" 
+                    style={{ 
+                      color: calamityBadge.color, 
+                      background: calamityBadge.bg, 
+                      borderColor: calamityBadge.border 
+                    }}
+                  >
+                    {calamityBadge.label}
                   </span>
                 </div>
 
-                <span style={{ color: '#64748b', fontWeight: 600 }}>Priority:</span>
-                <div>
-                  <PriorityBadge priority={request.priority} />
+                {/* Families Impact Callout */}
+                <div className="relief-impact-stat-card">
+                  <div className="relief-impact-stat-icon">
+                    <Users size={16} strokeWidth={2.4} />
+                  </div>
+                  <div>
+                    <div className="relief-impact-stat-num">
+                      {familiesCount.toLocaleString()} Families
+                    </div>
+                    <div className="relief-impact-stat-sub">
+                      Impacted community members requiring relief aid
+                    </div>
+                  </div>
                 </div>
 
-                <span style={{ color: '#64748b', fontWeight: 600 }}>Status:</span>
-                <div>
-                  <StatusBadge status={request.status} />
+                {/* Requested Needs */}
+                <div className="relief-needs-group">
+                  <span className="relief-sub-label">Requested Goods & Supplies</span>
+                  <div className="relief-needs-list">
+                    {requestedNeeds.length > 0 ? (
+                      requestedNeeds.map((need, i) => {
+                        const Icon = iconForNeed(need);
+                        return (
+                          <span key={i} className="relief-need-chip">
+                            <Icon size={12} strokeWidth={2.2} />
+                            <span>{need}</span>
+                          </span>
+                        );
+                      })
+                    ) : (
+                      <span className="relief-need-chip" style={{ color: '#64748b', borderColor: '#e2e8f0' }}>
+                        General Relief Goods
+                      </span>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* Warehouse Stock Feasibility */}
+              <div className={`relief-stock-feasibility ${stockFeasibility.hasShortage ? 'relief-stock-feasibility--deficit' : 'relief-stock-feasibility--in-stock'}`}>
+                <div className="relief-stock-feasibility__header">
+                  <div className="relief-stock-feasibility__title">
+                    {stockFeasibility.hasShortage ? (
+                      <>
+                        <AlertCircle size={15} color="#b45309" />
+                        <span>Warehouse Stock Shortage</span>
+                      </>
+                    ) : (
+                      <>
+                        <CheckCircle size={15} color="#15803d" />
+                        <span>Supplies In Stock & Ready</span>
+                      </>
+                    )}
+                  </div>
+                  <span className="relief-stock-feasibility__badge">Live Feasibility</span>
                 </div>
 
-                <span style={{ color: '#64748b', fontWeight: 600 }}>Request Date:</span>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', color: '#334155' }}>
-                  <Clock size={13} style={{ color: '#64748b' }} />
-                  <span>{formattedDate}</span>
+                <div className="relief-stock-feasibility__items">
+                  {stockFeasibility.availableItems.map((item, idx) => (
+                    <span key={idx} className="relief-stock-tag relief-stock-tag--available">
+                      <Check size={11} strokeWidth={2.5} /> {item.need}: {item.totalAvail} {item.unit} available
+                    </span>
+                  ))}
+                  {stockFeasibility.shortageNeeds.map((need, idx) => (
+                    <span key={idx} className="relief-stock-tag relief-stock-tag--shortage">
+                      <X size={11} strokeWidth={2.5} /> {need}: 0 in stock
+                    </span>
+                  ))}
                 </div>
+
+                {stockFeasibility.hasShortage && (
+                  <div className="relief-procure-action-box">
+                    <div className="relief-procure-action-text">
+                      <strong>₱{stockFeasibility.totalCashAvailable.toLocaleString()}</strong> unallocated funds available to procure missing goods.
+                    </div>
+                    <button
+                      type="button"
+                      className="relief-procure-btn"
+                      onClick={() => onProcure(request, availableMonetaryDonations[0] || null)}
+                      title="Match and procure goods using available monetary donations"
+                    >
+                      <Sparkles size={13} />
+                      <span>AI Cash Procurement</span>
+                    </button>
+                  </div>
+                )}
               </div>
             </div>
 
-            {/* Warehouse Stock Feasibility & AI Monetary Procurement Suggestion */}
-            <div className={`relief-stock-feasibility ${stockFeasibility.hasShortage ? 'relief-stock-feasibility--deficit' : 'relief-stock-feasibility--in-stock'}`}>
-              <div className="relief-stock-feasibility__header">
-                <span className="relief-stock-feasibility__title">
-                  {stockFeasibility.hasShortage ? (
-                    <>
-                      <AlertCircle size={15} color="#b45309" />
-                      <span>Warehouse Stock Shortage Detected</span>
-                    </>
-                  ) : (
-                    <>
-                      <CheckCircle size={15} color="#15803d" />
-                      <span>Warehouse Stock Available</span>
-                    </>
-                  )}
-                </span>
-                <span style={{ fontSize: '0.74rem', color: '#64748b' }}>
-                  Live Stock Feasibility
-                </span>
-              </div>
-
-              <div className="relief-stock-feasibility__items">
-                {stockFeasibility.availableItems.map((item, idx) => (
-                  <span key={idx} className="relief-stock-tag relief-stock-tag--available">
-                    <Check size={11} /> {item.need}: {item.totalAvail} {item.unit} available
-                  </span>
-                ))}
-                {stockFeasibility.shortageNeeds.map((need, idx) => (
-                  <span key={idx} className="relief-stock-tag relief-stock-tag--shortage">
-                    <X size={11} /> {need}: 0 in stock
-                  </span>
-                ))}
-              </div>
-
-              {stockFeasibility.hasShortage && (
-                <div className="relief-procure-action-box">
-                  <div className="relief-procure-action-text">
-                    <strong>₱{stockFeasibility.totalCashAvailable.toLocaleString()}</strong> unallocated monetary donations available to procure missing goods.
+            {/* Right Column: Barangay Context & Remarks */}
+            <div className="relief-review-col">
+              
+              {/* Barangay Info Card */}
+              <div className="relief-card relief-barangay-card">
+                <div className="relief-barangay-header">
+                  <div className="relief-barangay-main">
+                    <div className="relief-barangay-icon">
+                      <MapPin size={15} />
+                    </div>
+                    <div>
+                      <h4 className="relief-barangay-name">{request.beneficiary}</h4>
+                      <span className="relief-barangay-sub">{request.municipality || 'Cebu City'}</span>
+                    </div>
                   </div>
-                  <button
+                  <span className="relief-barangay-status-badge">
+                    {request.beneficiaryStatus || 'Partner Barangay'}
+                  </span>
+                </div>
+
+                <div className="relief-rep-info">
+                  <div className="relief-rep-title">
+                    <span>{request.representative || 'Barangay Official'}</span>
+                    <span className="relief-rep-role">{request.representativePosition || 'Representative'}</span>
+                  </div>
+                  
+                  {(request.representativePhone || request.representativeEmail) && (
+                    <div className="relief-contact-chips">
+                      {request.representativePhone && (
+                        <a href={`tel:${request.representativePhone}`} className="relief-contact-link" title="Call representative">
+                          <Phone size={11} />
+                          <span>{request.representativePhone}</span>
+                        </a>
+                      )}
+                      {request.representativeEmail && (
+                        <a href={`mailto:${request.representativeEmail}`} className="relief-contact-link" title="Email representative">
+                          <Mail size={11} />
+                          <span>{request.representativeEmail}</span>
+                        </a>
+                      )}
+                    </div>
+                  )}
+                </div>
+
+                <div className="relief-barangay-bottom-row">
+                  <span className="relief-history-stat">
+                    <FileText size={12} />
+                    <span><strong>{prevRequestsCount}</strong> previous requests</span>
+                  </span>
+                  <button 
                     type="button"
-                    className="relief-procure-btn"
-                    onClick={() => onProcure(request, availableMonetaryDonations[0] || null)}
-                    title="Match and procure goods using available monetary donations"
+                    className="relief-view-barangay-btn"
+                    onClick={() => {
+                      onClose();
+                      navigate(`/admin/beneficiaries/${request.beneficiaryId}`);
+                    }}
+                    title="Open barangay history"
                   >
-                    <Sparkles size={13} />
-                    <span>AI Cash Procurement</span>
+                    <span>View Profile</span>
+                    <ExternalLink size={11} />
                   </button>
                 </div>
-              )}
-            </div>
-
-            <div className="relief-review-section" style={{ flex: 1 }}>
-              <div className="relief-section-label">
-                <span>Description & Remarks</span>
-                <span className="editable-hint">(Editable by Admin)</span>
-              </div>
-              <textarea 
-                className="relief-notes-textarea"
-                value={notes} 
-                onChange={e => setNotes(e.target.value)} 
-                placeholder="Enter administrative notes, delivery instructions, or remarks..."
-              />
-            </div>
-          </div>
-
-          {/* Right Column: Barangay Context */}
-          <div className="relief-review-col">
-            <div className="relief-barangay-card">
-              <div className="relief-barangay-header">
-                <h4 className="relief-barangay-title">
-                  <MapPin size={16} style={{ color: 'var(--admin-brand)', flexShrink: 0 }} />
-                  <span>{request.beneficiary}</span>
-                </h4>
-                <span className="relief-barangay-muni">
-                  {request.municipality || 'Cebu'}
-                </span>
               </div>
 
-              <div className="relief-barangay-stats-grid">
-                <div className="relief-bstat">
-                  <span className="relief-bstat-label">
-                    <FileText size={12} /> Past Requests
-                  </span>
-                  <span className="relief-bstat-val">
-                    {prevRequestsCount} previous
-                  </span>
+              {/* Administrative Remarks Card */}
+              <div className="relief-card relief-notes-card">
+                <div className="relief-notes-header">
+                  <div className="relief-section-label">
+                    <span>Administrative Remarks</span>
+                    <span className="editable-hint">(Editable)</span>
+                  </div>
+                  {isNotesDirty && (
+                    <button 
+                      type="button" 
+                      className="relief-save-notes-mini-btn" 
+                      onClick={handleSaveNotesOnly}
+                      disabled={isUpdating}
+                    >
+                      <Check size={11} strokeWidth={2.5} /> Save Notes
+                    </button>
+                  )}
                 </div>
 
-                <div className="relief-bstat">
-                  <span className="relief-bstat-label">
-                    <Users size={12} /> Representative
-                  </span>
-                  <span className="relief-bstat-val" style={{ fontSize: '0.8125rem' }}>
-                    {request.representative || 'Barangay Captain / Official'}
-                  </span>
+                {/* Quick note helpers */}
+                <div className="relief-quick-tags">
+                  {['Verified with captain', 'Immediate dispatch', 'Awaiting truck', 'Partial stock'].map((tag, idx) => (
+                    <button
+                      key={idx}
+                      type="button"
+                      className="relief-quick-tag-btn"
+                      onClick={() => {
+                        setNotes(prev => prev ? `${prev.trim()}\n• ${tag}` : `• ${tag}`);
+                      }}
+                      title={`Append "${tag}" to remarks`}
+                    >
+                      + {tag}
+                    </button>
+                  ))}
                 </div>
+
+                <textarea 
+                  className="relief-notes-textarea"
+                  value={notes} 
+                  onChange={e => setNotes(e.target.value)} 
+                  placeholder="Enter administrative notes, delivery instructions, or remarks..."
+                />
               </div>
 
-              <button 
-                type="button"
-                className="relief-view-barangay-btn"
-                onClick={() => {
-                  onClose();
-                  navigate(`/admin/beneficiaries/${request.beneficiaryId}`);
-                }}
-              >
-                View Barangay Details &rarr;
-              </button>
             </div>
           </div>
         </div>
 
-        {/* Modal Footer / Workflow Actions */}
+        {/* Modal Footer / Workflow Actions (Fixed at bottom) */}
         <div className="relief-review-footer">
-          <button 
-            type="button" 
-            className="btn btn--outline btn--sm" 
-            onClick={onClose}
-          >
-            Close
-          </button>
+          <div className="relief-review-footer-left">
+            <button 
+              type="button" 
+              className="btn btn--outline btn--sm" 
+              onClick={onClose}
+            >
+              Close
+            </button>
+          </div>
           
           <div className="relief-review-footer-actions">
             {request.status === 'Pending Review' && (
               <button 
                 type="button" 
-                className="btn btn--outline btn--sm" 
+                className="btn btn--outline btn--sm relief-btn-under-review" 
                 disabled={isUpdating} 
                 onClick={() => handleSave('Under Review')} 
-                style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem', color: '#b45309', borderColor: '#fde68a' }}
               >
-                <Clock size={14} /> Mark Under Review
+                <Clock size={13} /> Mark Under Review
               </button>
             )}
             {request.status !== 'Rejected' && request.status !== 'Approved' && (
@@ -1991,20 +2468,19 @@ function ReviewModal({
                 className="btn btn--danger btn--sm" 
                 disabled={isUpdating} 
                 onClick={() => handleSave('Rejected')} 
-                style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem' }}
+                style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}
               >
-                <X size={14} /> Reject
+                <X size={13} /> Reject
               </button>
             )}
             {request.status !== 'Approved' ? (
               <button 
                 type="button" 
-                className="btn btn--success btn--sm" 
+                className="btn btn--success btn--sm relief-btn-approve" 
                 disabled={isUpdating} 
                 onClick={() => handleSave('Approved')} 
-                style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem' }}
               >
-                <Check size={14} /> Approve Request
+                <Check size={14} strokeWidth={2.4} /> Approve Request
               </button>
             ) : (
               <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
@@ -2015,12 +2491,12 @@ function ReviewModal({
                     onClick={() => onProcure(request, availableMonetaryDonations[0] || null)}
                     style={{ padding: '0.45rem 0.85rem' }}
                   >
-                    <Sparkles size={14} /> Procure Missing Goods
+                    <Sparkles size={13} /> Procure Missing Goods
                   </button>
                 )}
                 <button 
                   type="button" 
-                  className="btn btn--primary btn--sm" 
+                  className="btn btn--primary btn--sm relief-btn-allocate" 
                   onClick={() => {
                     onClose();
                     navigate('/admin/allocation', { 
@@ -2035,14 +2511,15 @@ function ReviewModal({
                       } 
                     });
                   }} 
-                  style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem' }}
                 >
-                  Allocate Warehouse Stock &rarr;
+                  <span>Allocate Warehouse Stock</span>
+                  <span>&rarr;</span>
                 </button>
               </div>
             )}
           </div>
         </div>
+
       </div>
     </div>
   );
