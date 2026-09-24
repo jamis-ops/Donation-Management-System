@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useMemo } from 'react'
 import { useNavigate, useLocation, Link } from 'react-router-dom'
 import { 
   Eye, Pencil, ArrowRightCircle, Truck, Sparkles, CheckCircle2, X, Plus,
@@ -489,6 +489,47 @@ const styles = `
     padding: 0.85rem;
   }
 }
+
+.alloc-req-code-tag {
+  display: inline-block;
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: var(--admin-brand, #AF101A);
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  padding: 0.12rem 0.45rem;
+  border-radius: 4px;
+  letter-spacing: 0.02em;
+}
+
+.alloc-calamity-badge {
+  display: inline-flex;
+  align-items: center;
+  font-size: 0.74rem;
+  font-weight: 650;
+  color: #0369a1;
+  background: #e0f2fe;
+  border: 1px solid #bae6fd;
+  padding: 0.15rem 0.5rem;
+  border-radius: 9999px;
+}
+
+.alloc-need-tag__action {
+  font-size: 0.68rem;
+  font-weight: 700;
+  color: var(--admin-brand, #AF101A);
+  background: #ffffff;
+  padding: 0.1rem 0.4rem;
+  border-radius: 4px;
+  margin-left: 0.4rem;
+  border: 1px solid #fecaca;
+  transition: all 0.15s ease;
+}
+
+.alloc-need-tag--clickable:hover .alloc-need-tag__action {
+  background: var(--admin-brand, #AF101A);
+  color: #ffffff;
+}
 `;
 
 export default function AllocationPage() {
@@ -523,9 +564,41 @@ export default function AllocationPage() {
   }, [])
   const [saving, setSaving] = useState(false)
   const [needsSummary, setNeedsSummary] = useState(null)
-  const [beneficiaryNeeds, setBeneficiaryNeeds] = useState([])
   const [draftNotice, setDraftNotice] = useState(null)
-  const needsSeeMore = useSeeMore(beneficiaryNeeds, 3)
+
+  const activeReliefRequests = useMemo(() => {
+    if (!requests || !requests.length) return []
+    return requests
+      .filter((r) => !['Allocated', 'Completed', 'Rejected', 'Cancelled'].includes(r.status))
+      .map((r) => {
+        const details = parseRequestDetails(r)
+        const rawNeeds = (details?.goods && details.goods.length > 0)
+          ? details.goods
+          : (Array.isArray(r.needs) && r.needs.length > 0)
+            ? r.needs
+            : (r.type ? r.type.split(/[,;\n]/).map((s) => s.trim()).filter(Boolean) : [])
+        const cleanNeeds = Array.from(new Set(rawNeeds.filter((n) => n && !n.toLowerCase().startsWith('calamity/'))))
+        
+        let families = Number(details?.familiesAffected || r.affectedFamilies || r.familiesAffected || 0)
+        if (!families && r.notes) {
+          const match = r.notes.match(/Families\s*Affected\s*:\s*(\d+)/i) || r.notes.match(/(\d+)\s*families/i)
+          if (match) families = parseInt(match[1], 10)
+        }
+
+        return {
+          ...r,
+          parsedDetails: details,
+          families,
+          needs: cleanNeeds,
+          calamity: details?.reason || r.reason || r.type || 'Relief Assistance',
+          requestCode: r.id || r.code || `AST-${r.dbId}`,
+          beneficiaryName: r.beneficiary || r.beneficiaryName || 'Barangay',
+        }
+      })
+      .filter((r) => r.needs.length > 0)
+  }, [requests])
+
+  const requestsSeeMore = useSeeMore(activeReliefRequests, 3)
 
   const findMatchingInventory = (resourceName, inventoryItemId = null) => {
     if (inventoryItemId) {
@@ -731,6 +804,29 @@ export default function AllocationPage() {
     setStatusRow(row)
     setStatusValue(row.status)
     setDetailRow(null)
+  }
+
+  const quickAllocateForRequest = (req, need) => {
+    const qty = req.families ? req.families * PACKS_PER_FAMILY : 10
+    const matched = matchGoodsToInventory(need) || findMatchingInventory(need)
+    const remStock = matched ? getItemAvailableStock(matched.dbId, 'line-1') : 0
+    const finalQty = remStock > 0 ? (qty ? Math.min(qty, remStock) : 1) : (qty || 1)
+    setDetailRow(null)
+    setEditRow(null)
+    setActiveReliefRequest(req)
+    setForm({
+      ...emptyForm,
+      lines: [makeLine(matched ? matched.item : need, finalQty || '', matched ? matched.dbId : null, matched ? matched.unit : 'packs', matched ? matched.variant : '')],
+      program: req.calamity || need,
+      beneficiaryId: String(req.beneficiaryId || ''),
+      assistanceRequestId: String(req.dbId || req.id || ''),
+      priority: req.priority || 'Medium',
+      notes: req.families
+        ? `Allocating for relief request ${req.requestCode} (${req.beneficiaryName}): ${req.families} affected families for "${need}".`
+        : `Allocating for relief request ${req.requestCode} (${req.beneficiaryName}): "${need}".`,
+      status: 'Allocated',
+    })
+    setShowCreate(true)
   }
 
   const quickAllocateForNeed = (barangay, need) => {
@@ -1514,49 +1610,55 @@ export default function AllocationPage() {
         </div>
       )}
 
-      {beneficiaryNeeds.length > 0 && (
+      {activeReliefRequests.length > 0 && (
         <section className="admin-panel alloc-needs-panel">
-          <h2>Barangay Needs Overview</h2>
+          <h2>Relief Requests · Needs Overview</h2>
           <p className="alloc-panel-hint">
-            Needs and family counts used to calculate recommended pack quantities (≈ {PACKS_PER_FAMILY} pack per family per need).
-            Click a need to start an allocation for it.
+            Active relief requests awaiting inventory allocation. Affected families and requested goods are specific to each relief request. Click a need to allocate stock.
           </p>
           <div className="see-more-wrap">
-          <div className="alloc-needs-grid">
-            {needsSeeMore.visible.map((b) => (
-              <article key={b.beneficiaryId} className="alloc-needs-card">
-                <div className="alloc-needs-card__top">
-                  <strong>{b.name}</strong>
-                  <StatusBadge status={b.status} />
-                </div>
-                <p className="alloc-needs-card__meta">
-                  {b.affectedFamilies} affected families · ≈ {suggestedQuantity(b)} packs/need
-                </p>
-                <div className="alloc-need-tags">
-                  {(b.needs || []).length
-                    ? b.needs.map((n) => (
-                        <button
-                          type="button"
-                          key={n}
-                          className="alloc-need-tag alloc-need-tag--clickable"
-                          onClick={() => quickAllocateForNeed(b, n)}
-                          title={`Quick-allocate for "${n}"`}
-                        >
-                          {n}
-                        </button>
-                      ))
-                    : <span className="alloc-need-tag alloc-need-tag--muted">No needs listed</span>}
-                </div>
-              </article>
-            ))}
-          </div>
-          {needsSeeMore.needsToggle && (
-            <SeeMoreToggle
-              expanded={needsSeeMore.expanded}
-              onToggle={needsSeeMore.toggle}
-              hiddenCount={needsSeeMore.hiddenCount}
-            />
-          )}
+            <div className="alloc-needs-grid">
+              {requestsSeeMore.visible.map((req) => (
+                <article key={req.dbId} className="alloc-needs-card">
+                  <div className="alloc-needs-card__top">
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', flexWrap: 'wrap' }}>
+                      <strong style={{ fontSize: '1rem', color: '#0f172a' }}>{req.beneficiaryName}</strong>
+                      <span className="alloc-req-code-tag">{req.requestCode}</span>
+                    </div>
+                    <StatusBadge status={req.priority} />
+                  </div>
+                  
+                  <div className="alloc-needs-card__meta" style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', flexWrap: 'wrap', marginBottom: '0.75rem' }}>
+                    <span className="alloc-calamity-badge">{req.calamity}</span>
+                    <span style={{ fontSize: '0.84rem', color: '#475569' }}>
+                      <strong>{req.families.toLocaleString()}</strong> affected families · ≈ {req.families * PACKS_PER_FAMILY} packs/need
+                    </span>
+                  </div>
+
+                  <div className="alloc-need-tags">
+                    {req.needs.map((n) => (
+                      <button
+                        type="button"
+                        key={n}
+                        className="alloc-need-tag alloc-need-tag--clickable"
+                        onClick={() => quickAllocateForRequest(req, n)}
+                        title={`Click to allocate warehouse stock for "${n}"`}
+                      >
+                        <span>{n}</span>
+                        <span className="alloc-need-tag__action">+ Allocate</span>
+                      </button>
+                    ))}
+                  </div>
+                </article>
+              ))}
+            </div>
+            {requestsSeeMore.needsToggle && (
+              <SeeMoreToggle
+                expanded={requestsSeeMore.expanded}
+                onToggle={requestsSeeMore.toggle}
+                hiddenCount={requestsSeeMore.hiddenCount}
+              />
+            )}
           </div>
         </section>
       )}
