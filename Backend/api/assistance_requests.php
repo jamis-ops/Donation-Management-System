@@ -769,10 +769,31 @@ if ($method === 'PUT') {
     ? $existing['status']
     : ($body['status'] ?? $existing['status']);
 
-  if (!$isBeneficiary) {
+  if (!$isBeneficiary && isset($body['status']) && $body['status'] !== $existing['status']) {
+    $currentStatus = (string) ($existing['status'] ?? 'Pending Review');
+    $requestedStatus = (string) $body['status'];
+
+    // Workflow: Pending -> Approve OR Reject
+    // Approved -> no approval/rejection actions permitted
+    if ($requestedStatus === 'Approved') {
+      if (!in_array($currentStatus, ['Pending Review', 'Under Review', 'Pending'], true)) {
+        json_response([
+          'ok' => false,
+          'error' => "Cannot approve a request with status '{$currentStatus}'. Once approved or in progress, Approve is no longer permitted."
+        ], 400);
+      }
+    } elseif ($requestedStatus === 'Rejected') {
+      if (!in_array($currentStatus, ['Pending Review', 'Under Review', 'Pending'], true)) {
+        json_response([
+          'ok' => false,
+          'error' => "Cannot reject a request with status '{$currentStatus}'. Only pending requests can be rejected."
+        ], 400);
+      }
+    }
+
     assert_valid_status_transition(
       'Assistance request',
-      (string) ($existing['status'] ?? ''),
+      $currentStatus,
       $newStatus,
       WORKFLOW_REQUEST_STEPS,
       WORKFLOW_REQUEST_TERMINAL,
@@ -855,17 +876,29 @@ if ($method === 'DELETE') {
     json_response(['ok' => false, 'error' => 'Request not found'], 404);
   }
 
+  $currentStatus = (string) ($existing['status'] ?? '');
+
   if ($isBeneficiary) {
     if ($beneficiaryOwnedId <= 0 || (int) $existing['beneficiary_id'] !== $beneficiaryOwnedId) {
       json_response(['ok' => false, 'error' => 'You can only cancel your own requests.'], 403);
     }
-    if (!in_array($existing['status'], ['Pending Review', 'Under Review'], true)) {
+    if (!in_array($currentStatus, ['Pending Review', 'Under Review', 'Pending'], true)) {
       json_response(['ok' => false, 'error' => 'Only requests still under review can be cancelled.'], 400);
+    }
+  } else {
+    // Admin / Staff deletion:
+    // Workflow: Rejected -> Delete only
+    // Approved / Allocated / In Progress / Completed -> do not allow Delete
+    if ($currentStatus !== 'Rejected') {
+      json_response([
+        'ok' => false,
+        'error' => "Cannot delete request with status '{$currentStatus}'. Only rejected requests can be deleted."
+      ], 400);
     }
   }
 
   if (function_exists('notify_request_lifecycle')) {
-    notify_request_lifecycle($pdo, (int) $id, 'Deleted', (string) ($existing['status'] ?? ''));
+    notify_request_lifecycle($pdo, (int) $id, 'Deleted', $currentStatus);
   }
   $pdo->prepare('DELETE FROM assistance_requests WHERE id = ?')->execute([$id]);
   json_response(['ok' => true]);

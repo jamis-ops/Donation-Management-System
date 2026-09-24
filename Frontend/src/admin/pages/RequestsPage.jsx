@@ -27,6 +27,7 @@ import {
   REQUEST_ALIASES,
   validateStatusTransition,
   isTerminalStatus,
+  getReliefRequestActionPermissions,
 } from '../../utils/workflow';
 import { useLoading } from '../../context/LoadingContext';
 
@@ -2078,69 +2079,96 @@ export default function RequestsPage() {
                   >
                     <Pin size={15} />
                   </button>
-                  
                   <div style={{ display: 'flex', gap: '0.45rem', alignItems: 'center' }}>
-                    {req.status === 'Approved' ? (
-                      <button 
-                        className="btn btn--sm btn--primary" 
-                        onClick={() => navigate('/admin/allocation', { 
-                          state: { 
-                            prefillRequest: { 
-                              requestId: req.dbId, 
-                              beneficiaryId: req.beneficiaryId, 
-                              type: req.type, 
-                              notes: req.notes, 
-                              beneficiaryName: req.beneficiary 
-                            } 
-                          } 
-                        })}
-                        style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem', fontWeight: 600 }}
-                      >
-                        Create Allocation &rarr;
-                      </button>
-                    ) : req.status === 'Rejected' ? (
-                      <>
+                    {(() => {
+                      const perms = getReliefRequestActionPermissions(req.status);
+                      if (perms.canApprove) {
+                        return (
+                          <>
+                            <button 
+                              className="btn-action-review" 
+                              onClick={() => setSelectedRequest(req)}
+                            >
+                              Review
+                            </button>
+                            <button 
+                              className="btn-action-approve" 
+                              onClick={() => handleUpdateStatus(req.dbId, { status: 'Approved' })}
+                              title="Approve Request"
+                              aria-label="Approve Request"
+                            >
+                              <Check size={16} strokeWidth={2.6} />
+                            </button>
+                            <button 
+                              className="btn-action-reject" 
+                              onClick={() => handleUpdateStatus(req.dbId, { status: 'Rejected' })}
+                              title="Reject Request"
+                              aria-label="Reject Request"
+                            >
+                              <X size={16} strokeWidth={2.6} />
+                            </button>
+                          </>
+                        );
+                      }
+                      if (perms.canDelete) {
+                        return (
+                          <>
+                            <button 
+                              className="btn-action-review" 
+                              onClick={() => setSelectedRequest(req)}
+                            >
+                              Review
+                            </button>
+                            <button 
+                              className="btn-action-delete" 
+                              onClick={() => handleDeleteRequest(req.dbId)}
+                              title="Delete Request"
+                              aria-label="Delete Request"
+                            >
+                              <Trash2 size={15} strokeWidth={2.4} />
+                            </button>
+                          </>
+                        );
+                      }
+                      if (perms.isApproved && !req.hasAllocation && (req.allocationCount || 0) <= 0) {
+                        return (
+                          <>
+                            <button 
+                              className="btn-action-review" 
+                              onClick={() => setSelectedRequest(req)}
+                            >
+                              Review
+                            </button>
+                            <button 
+                              className="btn btn--sm btn--primary" 
+                              onClick={() => navigate('/admin/allocation', { 
+                                state: { 
+                                  prefillRequest: { 
+                                    requestId: req.dbId, 
+                                    beneficiaryId: req.beneficiaryId, 
+                                    type: req.type, 
+                                    notes: req.notes, 
+                                    beneficiaryName: req.beneficiary 
+                                  } 
+                                } 
+                              })}
+                              style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem', fontWeight: 600 }}
+                            >
+                              Create Allocation &rarr;
+                            </button>
+                          </>
+                        );
+                      }
+                      // Approved / Allocated / In Progress / Completed -> NO Approve, NO Reject, NO Delete
+                      return (
                         <button 
                           className="btn-action-review" 
                           onClick={() => setSelectedRequest(req)}
                         >
                           Review
                         </button>
-                        <button 
-                          className="btn-action-delete" 
-                          onClick={() => handleDeleteRequest(req.dbId)}
-                          title="Delete Request"
-                          aria-label="Delete Request"
-                        >
-                          <Trash2 size={15} strokeWidth={2.4} />
-                        </button>
-                      </>
-                    ) : (
-                      <>
-                        <button 
-                          className="btn-action-review" 
-                          onClick={() => setSelectedRequest(req)}
-                        >
-                          Review
-                        </button>
-                        <button 
-                          className="btn-action-approve" 
-                          onClick={() => handleUpdateStatus(req.dbId, { status: 'Approved' })}
-                          title="Approve Request"
-                          aria-label="Approve Request"
-                        >
-                          <Check size={16} strokeWidth={2.6} />
-                        </button>
-                        <button 
-                          className="btn-action-reject" 
-                          onClick={() => handleUpdateStatus(req.dbId, { status: 'Rejected' })}
-                          title="Reject Request"
-                          aria-label="Reject Request"
-                        >
-                          <X size={16} strokeWidth={2.6} />
-                        </button>
-                      </>
-                    )}
+                      );
+                    })()}
                   </div>
                 </div>
               </div>
@@ -2234,19 +2262,57 @@ function ReviewModal({
   isUpdating, 
   navigate 
 }) {
-  const [notes, setNotes] = useState(request.notes || '');
+  const [liveRequest, setLiveRequest] = useState(request);
+  const [isLoadingFresh, setIsLoadingFresh] = useState(false);
+
+  useEffect(() => {
+    setLiveRequest(request);
+    const reqId = request?.dbId || request?.id;
+    if (!reqId) return;
+
+    let active = true;
+    setIsLoadingFresh(true);
+    assistanceRequestsApi.get(reqId)
+      .then(res => {
+        if (!active) return;
+        const fresh = res?.data || res;
+        if (fresh && (fresh.id || fresh.dbId)) {
+          setLiveRequest(prev => ({ ...prev, ...fresh }));
+        }
+      })
+      .catch(err => {
+        console.warn('Could not fetch live relief request from database:', err);
+      })
+      .finally(() => {
+        if (active) setIsLoadingFresh(false);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [request?.dbId, request?.id]);
+
+  const modalPerms = useMemo(() => {
+    return getReliefRequestActionPermissions(liveRequest?.status);
+  }, [liveRequest?.status]);
+
+  const [notes, setNotes] = useState(liveRequest.notes || '');
   const [copiedId, setCopiedId] = useState(false);
   
-  const isNotesDirty = notes !== (request.notes || '');
+  useEffect(() => {
+    setNotes(liveRequest.notes || '');
+  }, [liveRequest.notes]);
+
+  const isNotesDirty = notes !== (liveRequest.notes || '');
 
   const activeCriticalRequests = useMemo(() => {
     return (allRequests || []).filter(r => 
-      r.beneficiaryId === request.beneficiaryId && 
+      r.beneficiaryId === liveRequest.beneficiaryId && 
       r.priority === 'Critical' && 
       !['Completed', 'Rejected', 'Allocated', 'Cancelled'].includes(r.status) && 
-      r.dbId !== request.dbId
+      r.dbId !== liveRequest.dbId
     );
-  }, [allRequests, request]);
+  }, [allRequests, liveRequest]);
 
   const requestedNeeds = useMemo(() => {
     if (Array.isArray(request.needs) && request.needs.length > 0) {
@@ -2383,9 +2449,14 @@ function ReviewModal({
         <div className="relief-review-header-strip">
           <div className="relief-review-header-info">
             <div className="relief-review-badges">
-              <PriorityBadge priority={request.priority} />
-              <StatusBadge status={request.status} />
-              {request.isEmergency && (
+              <PriorityBadge priority={liveRequest.priority} />
+              <StatusBadge status={liveRequest.status} />
+              {isLoadingFresh && (
+                <span style={{ fontSize: '0.72rem', color: '#94a3b8', fontStyle: 'italic' }}>
+                  syncing database…
+                </span>
+              )}
+              {liveRequest.isEmergency && (
                 <span className="badge" style={{ background: '#fdf2f8', color: '#db2777', border: '1px solid #fbcfe8', display: 'inline-flex', alignItems: 'center', gap: '0.25rem', fontSize: '0.72rem', fontWeight: 600 }}>
                   <Pin size={11} /> Pinned Emergency
                 </span>
@@ -2407,36 +2478,20 @@ function ReviewModal({
 
           {/* Primary Action Buttons placed prominently at the top */}
           <div className="relief-review-top-actions">
-            {request.status === 'Pending Review' && (
-              <button 
-                type="button" 
-                className="btn btn--outline btn--sm relief-btn-under-review" 
-                disabled={isUpdating} 
-                onClick={() => handleSave('Under Review')} 
-                title="Mark this request as Under Review"
-              >
-                <Clock size={13} /> Mark Under Review
-              </button>
-            )}
-            {/* When Rejected: show ONLY Delete Request option */}
-            {request.status === 'Rejected' && (
-              <button 
-                type="button" 
-                className="btn btn--danger btn--sm relief-btn-delete" 
-                disabled={isUpdating} 
-                onClick={async () => {
-                  const deleted = await onDelete?.(request.dbId);
-                  if (deleted) onClose();
-                }} 
-                title="Delete this rejected relief request permanently"
-              >
-                <Trash2 size={14} strokeWidth={2.4} /> Delete Request
-              </button>
-            )}
-
-            {/* When Pending Review / Under Review: show Reject and Approve */}
-            {request.status !== 'Rejected' && request.status !== 'Approved' && (
+            {/* 1. When Pending Review / Under Review: show Reject and Approve only (NO delete) */}
+            {modalPerms.canApprove && (
               <>
+                {liveRequest.status === 'Pending Review' && (
+                  <button 
+                    type="button" 
+                    className="btn btn--outline btn--sm relief-btn-under-review" 
+                    disabled={isUpdating} 
+                    onClick={() => handleSave('Under Review')} 
+                    title="Mark this request as Under Review"
+                  >
+                    <Clock size={13} /> Mark Under Review
+                  </button>
+                )}
                 <button 
                   type="button" 
                   className="btn btn--danger btn--sm relief-btn-reject" 
@@ -2458,14 +2513,30 @@ function ReviewModal({
               </>
             )}
 
-            {/* When Approved: show Allocate & Procure (never Delete) */}
-            {request.status === 'Approved' && (
+            {/* 2. When Rejected: show Delete only (NO approve, NO reject) */}
+            {modalPerms.canDelete && (
+              <button 
+                type="button" 
+                className="btn btn--danger btn--sm relief-btn-delete" 
+                disabled={isUpdating} 
+                onClick={async () => {
+                  const deleted = await onDelete?.(liveRequest.dbId || liveRequest.id);
+                  if (deleted) onClose();
+                }} 
+                title="Delete this rejected relief request permanently"
+              >
+                <Trash2 size={14} strokeWidth={2.4} /> Delete Request
+              </button>
+            )}
+
+            {/* 3. When Approved: show Allocate & Procure (NO Approve, NO Reject, NO Delete) */}
+            {modalPerms.isApproved && !liveRequest.hasAllocation && (
               <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', flexWrap: 'wrap' }}>
                 {stockFeasibility.hasShortage && (
                   <button
                     type="button"
                     className="relief-procure-btn"
-                    onClick={() => onProcure(request, availableMonetaryDonations[0] || null)}
+                    onClick={() => onProcure(liveRequest, availableMonetaryDonations[0] || null)}
                     style={{ padding: '0.45rem 0.85rem' }}
                   >
                     <Sparkles size={13} /> Procure Missing Goods
@@ -2479,11 +2550,11 @@ function ReviewModal({
                     navigate('/admin/allocation', { 
                       state: { 
                         prefillRequest: { 
-                          requestId: request.dbId, 
-                          beneficiaryId: request.beneficiaryId, 
-                          type: request.type, 
-                          notes: request.notes, 
-                          beneficiaryName: request.beneficiary 
+                          requestId: liveRequest.dbId || liveRequest.id, 
+                          beneficiaryId: liveRequest.beneficiaryId, 
+                          type: liveRequest.type, 
+                          notes: liveRequest.notes, 
+                          beneficiaryName: liveRequest.beneficiary 
                         } 
                       } 
                     });
@@ -2494,6 +2565,8 @@ function ReviewModal({
                 </button>
               </div>
             )}
+
+            {/* 4. Allocated / In Distribution / Completed / Cancelled: Absolutely NO Approve, NO Reject, NO Delete */}
           </div>
         </div>
 

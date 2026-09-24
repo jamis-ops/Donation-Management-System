@@ -51,6 +51,43 @@ export const REQUEST_ALIASES = {
   'In Progress': 'In Distribution',
 }
 
+/**
+ * Universal action permissions for Relief Requests:
+ * - Pending Review / Under Review: Approve and Reject only (NO delete).
+ * - Approved / Allocated / In Progress / Completed: NO Approve, NO Reject, NO Delete.
+ * - Rejected: Delete only (NO approve, NO reject).
+ */
+export function getReliefRequestActionPermissions(status) {
+  const norm = (status || '').trim()
+  const isPending = ['Pending Review', 'Under Review', 'Pending'].includes(norm)
+  const isRejected = norm === 'Rejected'
+  const isApproved = norm === 'Approved'
+  const isAllocatedOrInProgressOrDone = [
+    'Approved',
+    'Partially Funded',
+    'Partially Allocated',
+    'Allocated',
+    'In Distribution',
+    'In Progress',
+    'In Transit',
+    'Delivered',
+    'Distributed',
+    'Completed',
+    'Done',
+    'Cancelled',
+  ].includes(norm)
+
+  return {
+    canApprove: isPending,
+    canReject: isPending,
+    canDelete: isRejected,
+    isPending,
+    isRejected,
+    isApproved,
+    isAllocatedOrInProgressOrDone,
+  }
+}
+
 // ── 4. Task Board Columns Workflow ──
 export const TASK_WORKFLOW = ['todo', 'inProgress', 'review', 'done']
 export const TASK_TERMINAL = ['done']

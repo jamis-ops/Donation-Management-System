@@ -1706,7 +1706,7 @@ const WORKFLOW_REQUEST_TERMINAL = ['Completed', 'Rejected', 'Cancelled'];
 const WORKFLOW_REQUEST_BRANCHES = [
   'Pending Review' => ['Under Review', 'Approved', 'Rejected', 'Cancelled'],
   'Under Review' => ['Approved', 'Rejected', 'Cancelled'],
-  'Approved' => ['Partially Funded', 'Partially Allocated', 'Allocated', 'Rejected', 'Cancelled'],
+  'Approved' => ['Partially Funded', 'Partially Allocated', 'Allocated', 'Cancelled'],
   'Partially Funded' => ['Partially Allocated', 'Allocated', 'Cancelled'],
   'Partially Allocated' => ['Allocated', 'In Distribution', 'Cancelled'],
 ];

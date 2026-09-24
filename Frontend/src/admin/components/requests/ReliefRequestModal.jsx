@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react'
+import React, { useState, useEffect, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { 
   Calendar, Users, MapPin, FileText, Check, X, Clock, 
@@ -8,6 +8,14 @@ import ModalHeader from '../shared/ModalHeader'
 import StatusBadge from '../shared/StatusBadge'
 import { notify, showSuccessModal, confirmAction } from '../../../utils/confirm'
 import { assistanceRequestsApi } from '../../../api/resources'
+import {
+  getReliefRequestActionPermissions,
+  validateStatusTransition,
+  REQUEST_WORKFLOW,
+  REQUEST_TERMINAL,
+  REQUEST_BRANCHES,
+  REQUEST_ALIASES,
+} from '../../../utils/workflow'
 
 export default function ReliefRequestModal({
   request,
@@ -19,9 +27,44 @@ export default function ReliefRequestModal({
 }) {
   const navigate = useNavigate()
 
+  // Authoritative live request status fetched directly from the database
+  const [liveRequest, setLiveRequest] = useState(request)
+  const [isLoadingFresh, setIsLoadingFresh] = useState(false)
+
+  useEffect(() => {
+    setLiveRequest(request)
+    const reqId = request?.dbId || request?.id
+    if (!reqId) return
+
+    let active = true
+    setIsLoadingFresh(true)
+    assistanceRequestsApi.get(reqId)
+      .then((res) => {
+        if (!active) return
+        const fresh = res?.data || res
+        if (fresh && (fresh.id || fresh.dbId)) {
+          setLiveRequest((prev) => ({ ...prev, ...fresh }))
+        }
+      })
+      .catch((err) => {
+        console.warn('Could not fetch live relief request from database:', err)
+      })
+      .finally(() => {
+        if (active) setIsLoadingFresh(false)
+      })
+
+    return () => {
+      active = false
+    }
+  }, [request?.dbId, request?.id])
+
+  const permissions = useMemo(() => {
+    return getReliefRequestActionPermissions(liveRequest?.status)
+  }, [liveRequest?.status])
+
   // Clean structured notes to avoid repeating Calamity and Needs
   const cleanedInitialNotes = useMemo(() => {
-    const raw = request?.notes || ''
+    const raw = liveRequest?.notes || ''
     if (!raw) return ''
     const addMatch = raw.match(/Additional Notes:\s*([\s\S]+)/i)
     if (addMatch) return addMatch[1].trim()
@@ -32,58 +75,62 @@ export default function ReliefRequestModal({
       .replace(/Families\s*Affected\s*:\s*\d+/gi, '')
       .trim()
     return stripped
-  }, [request])
+  }, [liveRequest?.notes])
 
   const [notes, setNotes] = useState(cleanedInitialNotes)
   const [isUpdating, setIsUpdating] = useState(false)
 
-  if (!request) return null
+  useEffect(() => {
+    setNotes(cleanedInitialNotes)
+  }, [cleanedInitialNotes])
+
+  if (!liveRequest) return null
 
   // Extract calamity cleanly
   const calamity = useMemo(() => {
-    if (request.calamityTags && Array.isArray(request.calamityTags) && request.calamityTags.length > 0) {
-      return request.calamityTags[0]
+    if (liveRequest.calamityTags && Array.isArray(liveRequest.calamityTags) && liveRequest.calamityTags.length > 0) {
+      return liveRequest.calamityTags[0]
     }
-    if (request.calamity) return request.calamity
-    if (request.notes) {
-      const match = request.notes.match(/Calamity\/Program:\s*([^\n\r]+)/i)
+    if (liveRequest.calamity) return liveRequest.calamity
+    if (liveRequest.notes) {
+      const match = liveRequest.notes.match(/Calamity\/Program:\s*([^\n\r]+)/i)
       if (match) return match[1].trim()
     }
-    return request.reason || 'General Assistance'
-  }, [request])
+    return liveRequest.reason || 'General Assistance'
+  }, [liveRequest])
 
   // Extract needs cleanly
   const needsList = useMemo(() => {
-    if (Array.isArray(request.needs) && request.needs.length > 0) {
-      return request.needs
+    if (Array.isArray(liveRequest.needs) && liveRequest.needs.length > 0) {
+      return liveRequest.needs
     }
-    if (typeof request.needs === 'string' && request.needs.trim()) {
-      return request.needs.split(',').map(s => s.trim()).filter(Boolean)
+    if (typeof liveRequest.needs === 'string' && liveRequest.needs.trim()) {
+      return liveRequest.needs.split(',').map(s => s.trim()).filter(Boolean)
     }
-    if (request.type) {
-      return request.type.split(',').map(s => s.trim()).filter(Boolean)
+    if (liveRequest.type) {
+      return liveRequest.type.split(',').map(s => s.trim()).filter(Boolean)
     }
     return []
-  }, [request])
+  }, [liveRequest])
 
   // Request-specific affected families
   const affectedFamiliesCount = useMemo(() => {
-    if (request.affectedFamilies != null && Number(request.affectedFamilies) > 0) {
-      return Number(request.affectedFamilies)
+    if (liveRequest.affectedFamilies != null && Number(liveRequest.affectedFamilies) > 0) {
+      return Number(liveRequest.affectedFamilies)
     }
-    if (request.families != null && Number(request.families) > 0) {
-      return Number(request.families)
+    if (liveRequest.families != null && Number(liveRequest.families) > 0) {
+      return Number(liveRequest.families)
     }
-    if (request.notes) {
-      const match = request.notes.match(/Families\s*Affected\s*:\s*(\d+)/i) || request.notes.match(/(\d+)\s*families/i)
+    if (liveRequest.notes) {
+      const match = liveRequest.notes.match(/Families\s*Affected\s*:\s*(\d+)/i) || liveRequest.notes.match(/(\d+)\s*families/i)
       if (match) return parseInt(match[1], 10)
     }
     return 0
-  }, [request])
+  }, [liveRequest])
 
   // Formatted submission date
   const formattedDate = useMemo(() => {
-    const raw = request.requestDate || request.date || request.createdAt
+    const raw = liveRequest.requestDate || liveRequest.date || liveRequest.createdAt
     if (!raw) return '—'
     try {
       return new Date(raw).toLocaleDateString('en-US', {
@@ -94,22 +141,56 @@ export default function ReliefRequestModal({
     } catch {
       return raw
     }
-  }, [request])
+  }, [liveRequest])
 
   // Workflow update
   const handleStatusUpdate = async (nextStatus) => {
+    const current = liveRequest.status || 'Pending Review'
+    const check = validateStatusTransition({
+      entityName: 'Assistance request',
+      currentStatus: current,
+      nextStatus,
+      workflowOrder: REQUEST_WORKFLOW,
+      terminalStatuses: REQUEST_TERMINAL,
+      branches: REQUEST_BRANCHES,
+      aliases: REQUEST_ALIASES,
+    })
+    if (!check.valid) {
+      notify.error(check.message)
+      return
+    }
+
+    if (nextStatus === 'Approved') {
+      const ok = await confirmAction({
+        title: 'Approve Relief Request',
+        message: `Approve relief request for ${liveRequest.beneficiary || liveRequest.barangay || 'barangay'}? Once approved, approval and rejection actions are permanently completed.`,
+        confirmText: 'Approve Request',
+        type: 'primary',
+      })
+      if (!ok) return
+    } else if (nextStatus === 'Rejected') {
+      const ok = await confirmAction({
+        title: 'Reject Relief Request',
+        message: `Reject relief request for ${liveRequest.beneficiary || liveRequest.barangay || 'barangay'}? This action is final and will allow permanent deletion.`,
+        confirmText: 'Reject Request',
+        type: 'danger',
+      })
+      if (!ok) return
+    }
+
     setIsUpdating(true)
     try {
       const updates = {
         status: nextStatus,
         notes: notes,
       }
-      const reqId = request.dbId || request.id
+      const reqId = liveRequest.dbId || liveRequest.id
       await assistanceRequestsApi.update(reqId, updates)
       notify.success(`Request marked as ${nextStatus}.`)
       showSuccessModal(`Request successfully updated to "${nextStatus}".`)
+      setLiveRequest(prev => ({ ...prev, ...updates }))
       if (onUpdated) {
-        onUpdated({ ...request, ...updates })
+        onUpdated({ ...liveRequest, ...updates })
       }
       onClose()
     } catch (err) {
@@ -122,12 +203,13 @@ export default function ReliefRequestModal({
   const handleSaveNotesOnly = async () => {
     setIsUpdating(true)
     try {
-      const reqId = request.dbId || request.id
+      const reqId = liveRequest.dbId || liveRequest.id
       await assistanceRequestsApi.update(reqId, { notes })
       notify.success('Notes saved.')
       showSuccessModal('Request remarks successfully updated.')
+      setLiveRequest(prev => ({ ...prev, notes }))
       if (onUpdated) {
-        onUpdated({ ...request, notes })
+        onUpdated({ ...liveRequest, notes })
       }
     } catch (err) {
       notify.error(err.message || 'Failed to save notes')
@@ -137,6 +219,10 @@ export default function ReliefRequestModal({
   }
 
   const handleDelete = async () => {
+    if (!permissions.canDelete) {
+      notify.error('Only rejected relief requests can be deleted.')
+      return
+    }
     const ok = await confirmAction({
       title: 'Delete Relief Request',
       message: `Are you sure you want to permanently delete this rejected relief request? This action cannot be undone.`,
@@ -147,14 +233,14 @@ export default function ReliefRequestModal({
 
     setIsUpdating(true)
     try {
-      const reqId = request.dbId || request.id
+      const reqId = liveRequest.dbId || liveRequest.id
       await assistanceRequestsApi.remove(reqId)
       notify.success('Relief request permanently deleted.')
       showSuccessModal('Request successfully deleted.')
       if (onDeleted) {
         onDeleted(reqId)
       } else if (onUpdated) {
-        onUpdated({ ...request, status: 'Deleted', _deleted: true })
+        onUpdated({ ...liveRequest, status: 'Deleted', _deleted: true })
       }
       onClose()
     } catch (err) {
@@ -164,8 +250,6 @@ export default function ReliefRequestModal({
     }
   }
 
-  const isTerminal = ['Completed', 'Done', 'Rejected', 'Cancelled'].includes(request.status)
-
   return (
     <div className="admin-modal-overlay" onClick={onClose} role="dialog" aria-modal="true">
       <div 
@@ -174,12 +258,12 @@ export default function ReliefRequestModal({
         style={{ maxWidth: '640px', width: '92%', borderRadius: '14px', overflow: 'hidden' }}
       >
         <ModalHeader
-          title={`Relief Request — ${request.id}`}
-          subtitle={`Submitted for ${request.beneficiary || request.barangay || 'Barangay'}`}
+          title={`Relief Request — ${liveRequest.id}`}
+          subtitle={`Submitted for ${liveRequest.beneficiary || liveRequest.barangay || 'Barangay'}`}
           onClose={onClose}
         />
 
-        {/* ── TOP ACTION & STATUS BAR (Approve & Reject moved to the top!) ── */}
+        {/* ── TOP ACTION & STATUS BAR (Approve/Reject for Pending only; Delete for Rejected only; NO buttons for Approved/Allocated/In Distribution/Completed) ── */}
         <div style={{
           display: 'flex',
           justifyContent: 'space-between',
@@ -191,35 +275,91 @@ export default function ReliefRequestModal({
           gap: '0.65rem',
         }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
-            {request.priority && <StatusBadge status={request.priority} />}
-            <StatusBadge status={request.status} />
+            {liveRequest.priority && <StatusBadge status={liveRequest.priority} />}
+            <StatusBadge status={liveRequest.status} />
+            {isLoadingFresh && (
+              <span style={{ fontSize: '0.72rem', color: '#94a3b8', fontStyle: 'italic' }}>
+                syncing database…
+              </span>
+            )}
           </div>
 
-          {/* Action Buttons at the top! */}
+          {/* Action Buttons: Pending → Approve/Reject | Rejected → Delete only | Approved/Allocated/In Distribution/Completed → NO Approve/Reject/Delete */}
           <div style={{ display: 'flex', gap: '0.45rem', alignItems: 'center' }}>
-            {request.status === 'Pending Review' && (
-              <button
-                type="button"
-                className="btn btn--outline btn--xs"
-                disabled={isUpdating}
-                onClick={() => handleStatusUpdate('Under Review')}
-                style={{
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: '0.3rem',
-                  color: '#b45309',
-                  borderColor: '#fde68a',
-                  fontWeight: 650,
-                  fontSize: '0.78rem',
-                  padding: '0.35rem 0.65rem'
-                }}
-              >
-                <Clock size={12} style={{ flexShrink: 0 }} /> Mark Under Review
-              </button>
+            {/* 1. Pending / Under Review: Approve and Reject only (NO delete) */}
+            {permissions.canApprove && (
+              <>
+                {liveRequest.status === 'Pending Review' && (
+                  <button
+                    type="button"
+                    className="btn btn--outline btn--xs"
+                    disabled={isUpdating}
+                    onClick={() => handleStatusUpdate('Under Review')}
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '0.3rem',
+                      color: '#b45309',
+                      borderColor: '#fde68a',
+                      fontWeight: 650,
+                      fontSize: '0.78rem',
+                      padding: '0.35rem 0.65rem'
+                    }}
+                  >
+                    <Clock size={12} style={{ flexShrink: 0 }} /> Mark Under Review
+                  </button>
+                )}
+
+                <button
+                  type="button"
+                  className="btn btn--danger btn--sm"
+                  disabled={isUpdating}
+                  onClick={() => handleStatusUpdate('Rejected')}
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '0.35rem',
+                    fontWeight: 650,
+                    fontSize: '0.82rem',
+                    padding: '0.42rem 0.95rem',
+                    borderRadius: '7px',
+                    backgroundColor: '#dc2626',
+                    borderColor: '#dc2626',
+                    color: '#ffffff',
+                    boxShadow: '0 1px 3px rgba(220, 38, 38, 0.25)',
+                    cursor: 'pointer'
+                  }}
+                >
+                  <X size={14} style={{ flexShrink: 0 }} /> Reject
+                </button>
+
+                <button
+                  type="button"
+                  className="btn btn--success btn--sm"
+                  disabled={isUpdating}
+                  onClick={() => handleStatusUpdate('Approved')}
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '0.35rem',
+                    fontWeight: 650,
+                    fontSize: '0.82rem',
+                    padding: '0.42rem 1.05rem',
+                    borderRadius: '7px',
+                    backgroundColor: '#16a34a',
+                    borderColor: '#16a34a',
+                    color: '#ffffff',
+                    boxShadow: '0 1px 3px rgba(22, 163, 74, 0.25)',
+                    cursor: 'pointer'
+                  }}
+                >
+                  <Check size={14} style={{ flexShrink: 0 }} /> Approve Request
+                </button>
+              </>
             )}
 
-            {/* When Rejected: show Delete button only */}
-            {request.status === 'Rejected' && (
+            {/* 2. Rejected: Delete only (NO approve, NO reject) */}
+            {permissions.canDelete && (
               <button
                 type="button"
                 className="btn btn--danger btn--sm"
@@ -244,57 +384,8 @@ export default function ReliefRequestModal({
               </button>
             )}
 
-            {!isTerminal && request.status !== 'Approved' && (
-              <button
-                type="button"
-                className="btn btn--danger btn--sm"
-                disabled={isUpdating}
-                onClick={() => handleStatusUpdate('Rejected')}
-                style={{
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: '0.35rem',
-                  fontWeight: 650,
-                  fontSize: '0.82rem',
-                  padding: '0.42rem 0.95rem',
-                  borderRadius: '7px',
-                  backgroundColor: '#dc2626',
-                  borderColor: '#dc2626',
-                  color: '#ffffff',
-                  boxShadow: '0 1px 3px rgba(220, 38, 38, 0.25)',
-                  cursor: 'pointer'
-                }}
-              >
-                <X size={14} style={{ flexShrink: 0 }} /> Reject
-              </button>
-            )}
-
-            {!isTerminal && request.status !== 'Approved' && (
-              <button
-                type="button"
-                className="btn btn--success btn--sm"
-                disabled={isUpdating}
-                onClick={() => handleStatusUpdate('Approved')}
-                style={{
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: '0.35rem',
-                  fontWeight: 650,
-                  fontSize: '0.82rem',
-                  padding: '0.42rem 1.05rem',
-                  borderRadius: '7px',
-                  backgroundColor: '#16a34a',
-                  borderColor: '#16a34a',
-                  color: '#ffffff',
-                  boxShadow: '0 1px 3px rgba(22, 163, 74, 0.25)',
-                  cursor: 'pointer'
-                }}
-              >
-                <Check size={14} style={{ flexShrink: 0 }} /> Approve Request
-              </button>
-            )}
-
-            {request.status === 'Approved' && (
+            {/* 3. Approved: Allocate warehouse stock navigation only (NO Approve, NO Reject, NO Delete) */}
+            {permissions.isApproved && !liveRequest.hasAllocation && (
               <button
                 type="button"
                 className="btn btn--primary btn--xs"
@@ -303,11 +394,11 @@ export default function ReliefRequestModal({
                   navigate('/admin/allocation', {
                     state: {
                       prefillRequest: {
-                        requestId: request.dbId || request.id,
-                        beneficiaryId: request.beneficiaryId,
-                        type: request.type,
-                        notes: request.notes,
-                        beneficiaryName: request.beneficiary || request.barangay,
+                        requestId: liveRequest.dbId || liveRequest.id,
+                        beneficiaryId: liveRequest.beneficiaryId,
+                        type: liveRequest.type,
+                        notes: liveRequest.notes,
+                        beneficiaryName: liveRequest.beneficiary || liveRequest.barangay,
                         affectedFamilies: affectedFamiliesCount,
                       },
                     },
@@ -319,12 +410,21 @@ export default function ReliefRequestModal({
                   gap: '0.3rem',
                   fontWeight: 650,
                   fontSize: '0.78rem',
-                  padding: '0.35rem 0.85rem'
+                  padding: '0.38rem 0.75rem',
+                  borderRadius: '7px',
+                  backgroundColor: '#af101a',
+                  borderColor: '#af101a',
+                  color: '#ffffff',
+                  boxShadow: '0 1px 3px rgba(175, 16, 26, 0.25)',
+                  cursor: 'pointer'
                 }}
               >
-                Allocate Warehouse Stock &rarr;
+                <span>Allocate Warehouse Stock</span>
+                <span>&rarr;</span>
               </button>
             )}
+
+            {/* 4. Allocated / In Distribution / Completed / Cancelled: Absolutely NO Approve, NO Reject, NO Delete */}
           </div>
         </div>
 
