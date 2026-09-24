@@ -48,6 +48,7 @@ const statusMap = {
   // Blue / Primary / Ongoing
   'In Progress': 'primary',
   'In Transit': 'primary',
+  'In Distribution': 'primary',
   Preparing: 'primary',
   Allocated: 'primary',
   Assigned: 'primary',

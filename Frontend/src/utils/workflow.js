@@ -63,12 +63,13 @@ export const TASK_ALIASES = {
 }
 
 // ── 5. Allocations Workflow ──
-export const ALLOCATION_WORKFLOW = ['Pending', 'Reserved', 'Allocated', 'Delivered']
+export const ALLOCATION_WORKFLOW = ['Pending', 'Reserved', 'Allocated', 'In Distribution', 'Delivered']
 export const ALLOCATION_TERMINAL = ['Delivered', 'Cancelled']
 export const ALLOCATION_BRANCHES = {
   Pending: ['Cancelled'],
   Reserved: ['Cancelled'],
-  Allocated: ['Cancelled'],
+  Allocated: ['In Distribution', 'Cancelled'],
+  'In Distribution': ['Delivered', 'Cancelled'],
 }
 
 // ── 6. Volunteers Workflow ──

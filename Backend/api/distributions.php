@@ -875,9 +875,17 @@ if ($method === 'POST') {
   $newId = (int) $pdo->lastInsertId();
 
   if ($fromAllocations) {
-    $link = $pdo->prepare('UPDATE allocations SET distribution_id = ?, status = CASE WHEN status = \'Reserved\' THEN \'Allocated\' ELSE status END WHERE id = ?');
+    $link = $pdo->prepare("UPDATE allocations SET distribution_id = ?, status = 'In Distribution' WHERE id = ?");
     foreach ($fromAllocations as $a) {
       $link->execute([$newId, (int) $a['id']]);
+    }
+
+    // Also update linked assistance requests to In Distribution
+    $reqIds = array_values(array_unique(array_filter(array_map(fn($a) => !empty($a['assistance_request_id']) ? (int) $a['assistance_request_id'] : null, $fromAllocations))));
+    if (!empty($reqIds)) {
+      $inReq = implode(',', array_fill(0, count($reqIds), '?'));
+      $pdo->prepare("UPDATE assistance_requests SET status = 'In Distribution' WHERE id IN ($inReq) AND status NOT IN ('Completed', 'Rejected', 'Cancelled')")
+        ->execute($reqIds);
     }
   }
 
@@ -1005,13 +1013,13 @@ if ($method === 'PUT') {
     if (!empty($allocIds)) {
       $inClause = implode(',', array_fill(0, count($allocIds), '?'));
       // Unlink allocations previously linked to this distribution that were removed
-      $pdo->prepare("UPDATE allocations SET distribution_id = NULL WHERE distribution_id = ? AND id NOT IN ($inClause)")
+      $pdo->prepare("UPDATE allocations SET distribution_id = NULL, status = 'Allocated' WHERE distribution_id = ? AND id NOT IN ($inClause)")
         ->execute(array_merge([(int) $id], $allocIds));
       // Link the updated allocation batch IDs
-      $pdo->prepare("UPDATE allocations SET distribution_id = ?, status = CASE WHEN status = 'Reserved' THEN 'Allocated' ELSE status END WHERE id IN ($inClause)")
+      $pdo->prepare("UPDATE allocations SET distribution_id = ?, status = 'In Distribution' WHERE id IN ($inClause)")
         ->execute(array_merge([(int) $id], $allocIds));
     } else {
-      $pdo->prepare("UPDATE allocations SET distribution_id = NULL WHERE distribution_id = ?")
+      $pdo->prepare("UPDATE allocations SET distribution_id = NULL, status = 'Allocated' WHERE distribution_id = ?")
         ->execute([(int) $id]);
     }
   }
@@ -1020,7 +1028,7 @@ if ($method === 'PUT') {
     notify_admins($pdo, 'status_update', 'Distribution status updated', "Distribution {$existing['code']} is now {$newStatus}", '/admin/distributions?id=' . (int) $id . '#distributions-table');
     if (in_array($newStatus, ['Delivered', 'Completed'], true)) {
       try {
-        $allocStmt = $pdo->prepare("SELECT id, inventory_item_id, deducted_quantity FROM allocations WHERE distribution_id = ? AND status IN ('Reserved','Allocated') AND inventory_deducted = 1");
+        $allocStmt = $pdo->prepare("SELECT id, inventory_item_id, deducted_quantity FROM allocations WHERE distribution_id = ? AND status IN ('Reserved','Allocated','In Distribution') AND inventory_deducted = 1");
         $allocStmt->execute([$id]);
         $linkedAllocs = $allocStmt->fetchAll();
         foreach ($linkedAllocs as $la) {
@@ -1031,7 +1039,7 @@ if ($method === 'PUT') {
               ->execute([$dQty, $dQty, $invId]);
           }
         }
-        $pdo->prepare("UPDATE allocations SET status = 'Delivered' WHERE distribution_id = ? AND status IN ('Reserved','Allocated')")
+        $pdo->prepare("UPDATE allocations SET status = 'Delivered' WHERE distribution_id = ? AND status IN ('Reserved','Allocated','In Distribution')")
           ->execute([$id]);
       } catch (Throwable $e) {
         // column may not exist yet pre-migrate

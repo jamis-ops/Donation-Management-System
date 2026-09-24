@@ -1721,12 +1721,13 @@ const WORKFLOW_TASK_ALIASES = [
   'Ongoing' => 'inProgress',
 ];
 
-const WORKFLOW_ALLOCATION_STEPS = ['Pending', 'Reserved', 'Allocated', 'Delivered'];
+const WORKFLOW_ALLOCATION_STEPS = ['Pending', 'Reserved', 'Allocated', 'In Distribution', 'Delivered'];
 const WORKFLOW_ALLOCATION_TERMINAL = ['Delivered', 'Cancelled'];
 const WORKFLOW_ALLOCATION_BRANCHES = [
   'Pending' => ['Cancelled'],
   'Reserved' => ['Cancelled'],
-  'Allocated' => ['Cancelled'],
+  'Allocated' => ['In Distribution', 'Cancelled'],
+  'In Distribution' => ['Delivered', 'Cancelled'],
 ];
 
 /**

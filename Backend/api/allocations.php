@@ -4,6 +4,31 @@ require_once __DIR__ . '/bootstrap.php';
 
 $pdo = db();
 ensure_allocation_inventory_schema($pdo);
+
+// Normalize database state across workflow stages:
+// If an allocation is already linked to an active distribution, ensure its status is 'In Distribution' (or 'Delivered')
+try {
+  $pdo->exec("
+    UPDATE allocations a
+    JOIN distributions d ON d.id = a.distribution_id
+    SET a.status = CASE
+      WHEN d.status IN ('Delivered', 'Completed') THEN 'Delivered'
+      WHEN d.status != 'Cancelled' THEN 'In Distribution'
+      ELSE a.status
+    END
+    WHERE a.distribution_id IS NOT NULL 
+      AND a.distribution_id > 0
+      AND a.status NOT IN ('In Distribution', 'Delivered', 'Cancelled')
+  ");
+  $pdo->exec("
+    UPDATE assistance_requests ar
+    JOIN allocations a ON a.assistance_request_id = ar.id
+    SET ar.status = 'In Distribution'
+    WHERE a.status = 'In Distribution'
+      AND ar.status NOT IN ('In Distribution', 'In Transit', 'Delivered', 'Completed', 'Rejected', 'Cancelled')
+  ");
+} catch (Throwable $e) {}
+
 $method = request_method();
 $id = get_id_param();
 
@@ -300,7 +325,22 @@ if ($method === 'GET') {
     json_response(['ok' => true, 'data' => array_map(fn($r) => map_allocation($pdo, $r), $rows)]);
   }
 
-  $rows = $pdo->query('SELECT * FROM allocations ORDER BY created_at DESC, allocation_date DESC, id DESC')->fetchAll();
+  $scope = $_GET['scope'] ?? '';
+  $statusParam = $_GET['status'] ?? '';
+  if ($statusParam !== '') {
+    $stmt = $pdo->prepare('SELECT * FROM allocations WHERE status = ? ORDER BY created_at DESC, allocation_date DESC, id DESC');
+    $stmt->execute([$statusParam]);
+    $rows = $stmt->fetchAll();
+  } elseif ($scope === 'active') {
+    $rows = $pdo->query("
+      SELECT * FROM allocations
+      WHERE status NOT IN ('In Distribution', 'Delivered', 'Cancelled')
+        AND (distribution_id IS NULL OR distribution_id = 0)
+      ORDER BY created_at DESC, allocation_date DESC, id DESC
+    ")->fetchAll();
+  } else {
+    $rows = $pdo->query('SELECT * FROM allocations ORDER BY created_at DESC, allocation_date DESC, id DESC')->fetchAll();
+  }
   json_response(['ok' => true, 'data' => array_map(fn($r) => map_allocation($pdo, $r), $rows)]);
 }
 
@@ -484,17 +524,7 @@ if ($method === 'POST') {
   // Leave Relief Requests queue once this request has been allocated
   mark_request_allocated($pdo, $assistanceRequestId);
 
-  // ── Auto-create distribution draft if status is Allocated ──
-  $draftDistId = null;
-  if (!empty($beneficiaryId) && $firstAllocRow) {
-    $draftDistId = auto_create_distribution_draft($pdo, $firstAllocRow);
-  }
-
   $primaryResult = $createdAllocations[0] ?? [];
-  if ($draftDistId) {
-    $primaryResult['draftDistributionCreated'] = true;
-    $primaryResult['draftDistributionId'] = $draftDistId;
-  }
   $primaryResult['createdCount'] = count($createdAllocations);
   $primaryResult['allocations'] = $createdAllocations;
 
