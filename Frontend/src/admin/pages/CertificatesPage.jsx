@@ -1,6 +1,32 @@
-import { useState } from 'react'
-import { Award, Download, Eye, Pencil, Printer, Trash2, FileCheck, Clock } from 'lucide-react'
-import { certificatesApi, volunteersApi, donorsApi, donationsApi } from '../../api/resources'
+import { useState, useEffect, useMemo } from 'react'
+import {
+  Award,
+  Download,
+  Eye,
+  Pencil,
+  Printer,
+  Trash2,
+  FileCheck,
+  Clock,
+  Sparkles,
+  Upload,
+  X,
+  Image as ImageIcon,
+  CheckCircle2,
+  PenTool,
+  Sliders,
+  RefreshCw,
+  Plus,
+  ShieldCheck,
+} from 'lucide-react'
+import {
+  certificatesApi,
+  volunteersApi,
+  donorsApi,
+  donationsApi,
+  signatoriesApi,
+  certificateCaptionApi,
+} from '../../api/resources'
 import { useApiList } from '../../hooks/useApiList'
 import { useFilters } from '../../hooks/useFilters'
 import PageHeader from '../components/shared/PageHeader'
@@ -22,18 +48,25 @@ import {
 } from '../../utils/workflow'
 import { getTodayDateString } from '../../utils/date'
 import { useLoading } from '../../context/LoadingContext'
+import {
+  CERTIFICATE_TEMPLATES,
+  PHOTO_LAYOUTS,
+  CAPTION_TEMPLATES,
+} from '../../components/shared/certificateHelpers'
 
 const CERT_TYPES = [
   'Certificate of Donation',
+  'Acknowledgment of Donation',
   'Certificate of Volunteer Service',
   'Certificate of Participation',
   'Certificate of Appreciation',
+  'Special Recognition',
 ]
 
 const STATUS_OPTIONS = CERTIFICATE_WORKFLOW
 
 const filterConfig = {
-  searchKeys: ['id', 'recipient', 'reference', 'type'],
+  searchKeys: ['id', 'recipient', 'reference', 'type', 'signatoryName'],
   filters: [
     { key: 'status', label: 'Status' },
     { key: 'type', label: 'Type' },
@@ -44,14 +77,22 @@ const filterConfig = {
 
 const emptyForm = {
   type: 'Certificate of Donation',
+  templateId: 'modern_classic',
   recipientType: 'Donor',
   recipientKey: '',
   recipient: '',
   reference: '',
   details: '',
-  signatoryName: 'Maria Dela Cruz',
-  signatoryTitle: 'Executive Director',
+  signatoryId: null,
+  signatoryName: 'Flemming Hansen',
+  signatoryTitle: 'CEO and Co-Founder',
+  signatureUrl: 'sig_flemming_hansen.png',
+  photoUrl: '',
+  photoDisplayUrl: '',
+  photoLayout: 'none',
+  contributionDetails: '',
   certDate: new Date().toISOString().slice(0, 10),
+  location: 'Cebu City, Philippines',
   status: 'Generated',
 }
 
@@ -60,19 +101,62 @@ export default function CertificatesPage() {
   const { data: volunteers } = useApiList(() => volunteersApi.list())
   const { data: donors } = useApiList(() => donorsApi.list())
   const { data: donations } = useApiList(() => donationsApi.list())
+  const { data: signatories, reload: reloadSignatories } = useApiList(() => signatoriesApi.list())
 
   const [showForm, setShowForm] = useState(false)
+  const [showSignatoriesModal, setShowSignatoriesModal] = useState(false)
   const { showLoading, hideLoading } = useLoading()
   const [editRow, setEditRow] = useState(null)
   const [preview, setPreview] = useState(null)
   const [form, setForm] = useState(emptyForm)
   const [saving, setSaving] = useState(false)
 
+  // AI & Caption Assistant state
+  const [aiInstruction, setAiInstruction] = useState('')
+  const [aiGenerating, setAiGenerating] = useState(false)
+  const [selectedTone, setSelectedTone] = useState('Professional')
+  const [shortCaptionSuggestion, setShortCaptionSuggestion] = useState('')
+
+  // New signatory form state
+  const [newSigForm, setNewSigForm] = useState({
+    name: '',
+    title: '',
+    organization: 'Rise Above Foundation Cebu, Inc.',
+    signatureImage: '',
+    isDefault: false,
+  })
+  const [savingSig, setSavingSig] = useState(false)
+
   const filters = useFilters(data, filterConfig)
+
+  // Auto-set default signatory when signatories list loads
+  useEffect(() => {
+    if (signatories && signatories.length > 0 && !form.signatoryId && !editRow) {
+      const def = signatories.find((s) => s.isDefault) || signatories[0]
+      if (def) {
+        setForm((prev) => ({
+          ...prev,
+          signatoryId: def.id,
+          signatoryName: def.name,
+          signatoryTitle: def.title,
+          signatureUrl: def.signatureImage || 'sig_flemming_hansen.png',
+        }))
+      }
+    }
+  }, [signatories, form.signatoryId, editRow])
 
   const openCreate = () => {
     setEditRow(null)
-    setForm(emptyForm)
+    const def = signatories?.find((s) => s.isDefault) || signatories?.[0]
+    setForm({
+      ...emptyForm,
+      signatoryId: def?.id || null,
+      signatoryName: def?.name || 'Flemming Hansen',
+      signatoryTitle: def?.title || 'CEO and Co-Founder',
+      signatureUrl: def?.signatureImage || 'sig_flemming_hansen.png',
+    })
+    setAiInstruction('')
+    setShortCaptionSuggestion('')
     setShowForm(true)
   }
 
@@ -80,54 +164,252 @@ export default function CertificatesPage() {
     setEditRow(row)
     setForm({
       type: row.type,
+      templateId: row.templateId || 'modern_classic',
       recipientType: row.recipientType || 'Donor',
       recipientKey: '',
       recipient: row.recipient,
       reference: row.reference || '',
       details: row.details || '',
-      signatoryName: row.signatoryName || 'Maria Dela Cruz',
-      signatoryTitle: row.signatoryTitle || 'Executive Director',
+      signatoryId: row.signatoryId || null,
+      signatoryName: row.signatoryName || 'Flemming Hansen',
+      signatoryTitle: row.signatoryTitle || 'CEO and Co-Founder',
+      signatureUrl: row.signatureUrl || 'sig_flemming_hansen.png',
+      photoUrl: row.photoUrl || '',
+      photoDisplayUrl: row.photoDisplayUrl || row.photoUrl || '',
+      photoLayout: row.photoLayout || 'none',
+      contributionDetails: row.contributionDetails || '',
       certDate: row.certDate || new Date().toISOString().slice(0, 10),
+      location: row.location || 'Cebu City, Philippines',
       status: row.status,
     })
+    setAiInstruction('')
+    setShortCaptionSuggestion('')
     setShowForm(true)
   }
 
-  // Auto-populate recipient info once a name is picked.
+  // Handle donor / volunteer pick with real database contribution mapping
   const handleRecipientPick = (key) => {
     if (!key) {
-      setForm({ ...form, recipientKey: '', recipient: '', reference: '', details: '' })
+      setForm((prev) => ({
+        ...prev,
+        recipientKey: '',
+        recipient: '',
+        reference: '',
+        details: '',
+        contributionDetails: '',
+      }))
       return
     }
 
     if (form.recipientType === 'Volunteer') {
-      const vol = volunteers.find((v) => String(v.dbId) === key)
+      const vol = volunteers?.find((v) => String(v.dbId) === key)
       if (!vol) return
-      setForm({
-        ...form,
+
+      let progDesc = 'community outreach programs'
+      try {
+        if (vol.programs) {
+          const arr = Array.isArray(vol.programs) ? vol.programs : JSON.parse(vol.programs)
+          if (arr.length > 0) progDesc = arr.join(', ')
+        }
+      } catch {}
+
+      const hourText = vol.hours ? `${vol.hours} hours` : ''
+      const contribSummary = `Volunteer service${hourText ? ` (${hourText})` : ''} supporting ${progDesc}`
+
+      const caption = `In grateful recognition of ${vol.name} for dedicated volunteer service${hourText ? ` of ${hourText}` : ''} rendered to the ${progDesc} of Rise Above Foundation Cebu, Inc. Your selfless commitment and compassion have directly touched countless lives and brought hope to underprivileged communities in Cebu.`
+
+      setForm((prev) => ({
+        ...prev,
         recipientKey: key,
         recipient: vol.name,
-        reference: vol.id,
-        type: CERT_TYPES.includes(form.type) && form.type.includes('Volunteer') ? form.type : 'Certificate of Volunteer Service',
-        details: `In recognition of dedicated volunteer service rendered to Rise Above Foundation programs, touching countless lives in our communities.`,
-      })
+        reference: vol.id || `VOL-${key}`,
+        type: prev.type.includes('Volunteer') ? prev.type : 'Certificate of Volunteer Service',
+        contributionDetails: contribSummary,
+        details: caption,
+      }))
     } else {
-      const donor = donors.find((d) => String(d.dbId) === key)
+      const donor = donors?.find((d) => String(d.dbId) === key)
       if (!donor) return
-      const latest = donations.find((dn) => dn.donor === donor.name)
-      setForm({
-        ...form,
-        recipientKey: key,
-        recipient: donor.name,
-        reference: latest?.trackingCode || '',
-        type: form.type.includes('Volunteer') ? 'Certificate of Donation' : form.type,
-        details: latest
-          ? `In grateful appreciation of the generous donation of ${latest.amount} (${latest.trackingCode}) made on ${latest.date}, supporting relief efforts for communities in need.`
-          : `In grateful appreciation of generous contributions totaling ${donor.totalDonated}, supporting relief efforts for communities in need.`,
-      })
+
+      // Find real donation record from donations table
+      const donorDonations = (donations || []).filter(
+        (dn) => dn.donor === donor.name || dn.donorEmail === donor.email
+      )
+      const latest = donorDonations[0]
+
+      let contribSummary = ''
+      let caption = ''
+
+      if (latest) {
+        const isMonetary = latest.type === 'Monetary' || (latest.amount && !latest.amount.includes('items'))
+        const program = latest.category || latest.program || 'community relief programs'
+        const ref = latest.trackingCode || latest.reference || `DON-${latest.id}`
+        const dateStr = latest.date || 'recent operations'
+
+        if (isMonetary) {
+          contribSummary = `Monetary donation of ${latest.amount} (${ref}) for ${program}`
+          caption = `In grateful recognition of ${donor.name} for the generous monetary contribution of ${latest.amount} (Ref: ${ref}) on ${dateStr} supporting the ${program} of Rise Above Foundation Cebu, Inc. Your vital assistance provides essential relief and sustainable empowerment to vulnerable families across Cebu.`
+        } else {
+          const itemsDesc = latest.items || latest.description || 'in-kind essential provisions'
+          contribSummary = `In-kind donation: ${itemsDesc} (${ref}) for ${program}`
+          caption = `In heartfelt appreciation of ${donor.name} for the generous in-kind contribution of ${itemsDesc} (Ref: ${ref}) supporting the ${program} of Rise Above Foundation Cebu, Inc. Your compassionate support directly equips and nourishes families during times of greatest need.`
+        }
+
+        setForm((prev) => ({
+          ...prev,
+          recipientKey: key,
+          recipient: donor.name,
+          reference: ref,
+          type: prev.type.includes('Volunteer') ? 'Certificate of Donation' : prev.type,
+          contributionDetails: contribSummary,
+          details: caption,
+        }))
+      } else {
+        contribSummary = `Donations totaling ${donor.totalDonated || 'valued support'}`
+        caption = `In grateful acknowledgment of ${donor.name} for generous contributions totaling ${donor.totalDonated || 'significant support'}, partnering with Rise Above Foundation Cebu, Inc. in uplifting underprivileged children and communities in Cebu.`
+
+        setForm((prev) => ({
+          ...prev,
+          recipientKey: key,
+          recipient: donor.name,
+          reference: donor.id ? `DNR-${donor.id}` : '',
+          type: prev.type.includes('Volunteer') ? 'Certificate of Donation' : prev.type,
+          contributionDetails: contribSummary,
+          details: caption,
+        }))
+      }
     }
   }
 
+  // AI-Assisted Caption Generator
+  const handleGenerateAiCaption = async (toneToUse = selectedTone) => {
+    if (!form.recipient.trim()) {
+      notify.warning('Please enter or select a recipient name first.')
+      return
+    }
+
+    setAiGenerating(true)
+    try {
+      const res = await certificateCaptionApi.generate({
+        recipient: form.recipient,
+        recipientType: form.recipientType,
+        contributionType: form.type,
+        amount: form.contributionDetails.includes('₱') ? form.contributionDetails : '',
+        items: form.contributionDetails,
+        hours: form.contributionDetails.includes('hours') ? form.contributionDetails : '',
+        program: form.contributionDetails || 'community outreach',
+        reference: form.reference,
+        date: form.certDate,
+        tone: toneToUse,
+        instruction: aiInstruction,
+        hasPhoto: form.photoLayout !== 'none',
+      })
+
+      if (res && res.data) {
+        setForm((prev) => ({
+          ...prev,
+          details: res.data.caption,
+        }))
+        if (res.data.shortCaption) {
+          setShortCaptionSuggestion(res.data.shortCaption)
+        }
+        notify.success(`Caption generated with ${res.data.source === 'gemini_ai' ? 'Gemini AI' : 'Smart Assistant'}.`)
+      }
+    } catch (err) {
+      notify.error(err.message || 'Failed to generate caption.')
+    } finally {
+      setAiGenerating(false)
+    }
+  }
+
+  // Handle Photo File Upload
+  const handlePhotoUpload = (e) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+
+    if (!file.type.startsWith('image/')) {
+      notify.warning('Please select a valid image file (PNG, JPG, WEBP).')
+      return
+    }
+
+    if (file.size > 8 * 1024 * 1024) {
+      notify.warning('Image must be under 8MB.')
+      return
+    }
+
+    const reader = new FileReader()
+    reader.onload = (uploadEvent) => {
+      const dataUrl = uploadEvent.target?.result
+      setForm((prev) => ({
+        ...prev,
+        photoUrl: dataUrl,
+        photoDisplayUrl: dataUrl,
+        photoLayout: prev.photoLayout === 'none' ? 'featured' : prev.photoLayout,
+      }))
+      notify.success('Photo added to certificate.')
+    }
+    reader.readAsDataURL(file)
+  }
+
+  const handleRemovePhoto = () => {
+    setForm((prev) => ({
+      ...prev,
+      photoUrl: '',
+      photoDisplayUrl: '',
+      photoLayout: 'none',
+    }))
+  }
+
+  // Signatory Selection
+  const handleSignatoryChange = (sigId) => {
+    const sig = signatories?.find((s) => String(s.id) === String(sigId))
+    if (!sig) return
+    setForm((prev) => ({
+      ...prev,
+      signatoryId: sig.id,
+      signatoryName: sig.name,
+      signatoryTitle: sig.title,
+      signatureUrl: sig.signatureImage || '',
+    }))
+  }
+
+  // Handle Signatory Creation in Settings Modal
+  const handleCreateSignatory = async (e) => {
+    e.preventDefault()
+    if (!newSigForm.name.trim() || !newSigForm.title.trim()) {
+      notify.warning('Please fill in the signatory name and title.')
+      return
+    }
+    setSavingSig(true)
+    try {
+      await signatoriesApi.create(newSigForm)
+      notify.success('Signatory added successfully.')
+      setNewSigForm({
+        name: '',
+        title: '',
+        organization: 'Rise Above Foundation Cebu, Inc.',
+        signatureImage: '',
+        isDefault: false,
+      })
+      reloadSignatories()
+    } catch (err) {
+      notify.error(err.message || 'Failed to add signatory.')
+    } finally {
+      setSavingSig(false)
+    }
+  }
+
+  const handleSetDefaultSignatory = async (sig) => {
+    try {
+      await signatoriesApi.update(sig.id, { isDefault: true })
+      notify.success(`${sig.name} is now the default signatory.`)
+      reloadSignatories()
+    } catch (err) {
+      notify.error(err.message || 'Failed to set default signatory.')
+    }
+  }
+
+  // Save Certificate
   const handleSave = async (e) => {
     e.preventDefault()
     if (!form.recipient.trim()) {
@@ -135,19 +417,27 @@ export default function CertificatesPage() {
       return
     }
     setSaving(true)
-    showLoading('Saving…')
+    showLoading('Saving certificate…')
     try {
       const payload = {
         type: form.type,
+        templateId: form.templateId,
         recipientType: form.recipientType,
         recipient: form.recipient.trim(),
         reference: form.reference || null,
         details: form.details,
+        signatoryId: form.signatoryId,
         signatoryName: form.signatoryName,
         signatoryTitle: form.signatoryTitle,
+        signatureUrl: form.signatureUrl,
+        photoUrl: form.photoUrl || null,
+        photoLayout: form.photoLayout,
+        contributionDetails: form.contributionDetails || null,
         certDate: form.certDate,
+        location: form.location,
         status: form.status,
       }
+
       if (editRow) {
         if (form.status !== editRow.status) {
           const check = validateStatusTransition({
@@ -168,13 +458,13 @@ export default function CertificatesPage() {
       } else {
         await certificatesApi.create(payload)
         notify.success('Certificate created.')
-        showSuccessModal('Successfully added.')
+        showSuccessModal('Successfully created.')
       }
       setShowForm(false)
       reload()
       notifyBadgesChanged()
     } catch (err) {
-      notify.error(err.message)
+      notify.error(err.message || 'Failed to save certificate.')
     } finally {
       hideLoading()
       setSaving(false)
@@ -204,6 +494,26 @@ export default function CertificatesPage() {
       hideLoading()
     }
   }
+
+  // Live preview cert object derived from current form
+  const livePreviewCert = useMemo(() => {
+    return {
+      id: editRow?.id || 'CERT-PREVIEW',
+      type: form.type,
+      templateId: form.templateId,
+      recipient: form.recipient || 'Valued Supporter',
+      details: form.details,
+      reference: form.reference,
+      date: form.certDate,
+      location: form.location,
+      signatoryName: form.signatoryName,
+      signatoryTitle: form.signatoryTitle,
+      signatureUrl: form.signatureUrl,
+      photoUrl: form.photoUrl,
+      photoDisplayUrl: form.photoDisplayUrl,
+      photoLayout: form.photoLayout,
+    }
+  }, [form, editRow])
 
   const columns = [
     { key: 'id', label: 'ID' },
@@ -241,8 +551,22 @@ export default function CertificatesPage() {
     <>
       <PageHeader
         title="Certificate Management"
-        description="Create, edit, preview, and release certificates. Select a recipient and the details fill in automatically."
-        actions={<button type="button" className="btn btn--primary" onClick={openCreate}><Award size={15} /> New Certificate</button>}
+        description="Design, issue, and print clean, professional certificates. Contributions, automated signatories, and AI-assisted captions are integrated seamlessly."
+        actions={
+          <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+            <button
+              type="button"
+              className="btn btn--outline"
+              onClick={() => setShowSignatoriesModal(true)}
+              title="Configure official signatories"
+            >
+              <Sliders size={15} /> Signatory Settings
+            </button>
+            <button type="button" className="btn btn--primary" onClick={openCreate}>
+              <Award size={15} /> New Certificate
+            </button>
+          </div>
+        }
       />
 
       <div className="admin-stats-grid admin-stats-grid--compact">
@@ -251,8 +575,6 @@ export default function CertificatesPage() {
           onClick={() => filters.setValue('status', 'all')}
           role="button"
           tabIndex={0}
-          onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); filters.setValue('status', 'all') } }}
-          title="View all certificates"
         >
           <div className="admin-stat-card__header">
             <span className="admin-stat-card__label">Total Certificates</span>
@@ -262,13 +584,12 @@ export default function CertificatesPage() {
             <span className="admin-stat-card__value">{data.length}</span>
           </div>
         </div>
+
         <div
           className={`admin-stat-card admin-stat-card--clickable ${filters.values.status === 'Generated' ? 'admin-stat-card--active' : ''}`}
           onClick={() => filters.setValue('status', filters.values.status === 'Generated' ? 'all' : 'Generated')}
           role="button"
           tabIndex={0}
-          onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); filters.setValue('status', filters.values.status === 'Generated' ? 'all' : 'Generated') } }}
-          title="Filter by Generated certificates"
         >
           <div className="admin-stat-card__header">
             <span className="admin-stat-card__label">Generated</span>
@@ -278,13 +599,12 @@ export default function CertificatesPage() {
             <span className="admin-stat-card__value">{data.filter((c) => c.status === 'Generated').length}</span>
           </div>
         </div>
+
         <div
           className={`admin-stat-card admin-stat-card--clickable ${filters.values.status === 'Requested' ? 'admin-stat-card--active' : ''}`}
           onClick={() => filters.setValue('status', filters.values.status === 'Requested' ? 'all' : 'Requested')}
           role="button"
           tabIndex={0}
-          onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); filters.setValue('status', filters.values.status === 'Requested' ? 'all' : 'Requested') } }}
-          title="Filter by Pending certificate requests"
         >
           <div className="admin-stat-card__header">
             <span className="admin-stat-card__label">Pending Requests</span>
@@ -298,7 +618,7 @@ export default function CertificatesPage() {
 
       <FilterBar
         controller={filters}
-        searchPlaceholder="Search by ID, recipient, or reference..."
+        searchPlaceholder="Search by ID, recipient, reference, or signatory..."
         exportConfig={{
           filename: 'certificates-report',
           title: 'Certificates Report',
@@ -317,142 +637,395 @@ export default function CertificatesPage() {
         />
       </ApiState>
 
+      {/* TWO-COLUMN CERTIFICATE CREATOR / EDITOR MODAL */}
       {showForm && (
         <div className="admin-modal-overlay" onClick={() => setShowForm(false)}>
-          <div className="admin-modal admin-modal--wide" onClick={(e) => e.stopPropagation()}>
+          <div className="admin-modal cert-creator-modal" onClick={(e) => e.stopPropagation()}>
             <ModalHeader
-              title={editRow ? `Edit Certificate ${editRow.id}` : 'New Certificate'}
+              title={editRow ? `Edit Certificate: ${editRow.id}` : 'Create Official Certificate'}
               onClose={() => setShowForm(false)}
             />
-            <form onSubmit={handleSave}>
-              <div className="form-row">
-                <label>Recipient Type
-                  <select
-                    value={form.recipientType}
-                    onChange={(e) => setForm({ ...form, recipientType: e.target.value, recipientKey: '', recipient: '', reference: '', details: '' })}
-                  >
-                    <option value="Donor">Donor</option>
-                    <option value="Volunteer">Volunteer</option>
-                  </select>
-                </label>
-                <label>Select {form.recipientType}
-                  <select value={form.recipientKey} onChange={(e) => handleRecipientPick(e.target.value)}>
-                    <option value="">Choose a {form.recipientType.toLowerCase()}...</option>
-                    {(form.recipientType === 'Volunteer' ? volunteers : donors).map((p) => (
-                      <option key={p.dbId} value={p.dbId}>
-                        {p.name}{form.recipientType === 'Volunteer' ? (p.applicantType === 'Intern' && p.hours ? ` — ${p.hours} hrs` : '') : ` — ${p.totalDonated}`}
-                      </option>
-                    ))}
-                  </select>
-                </label>
+
+            <div className="cert-creator-body">
+              {/* LEFT COLUMN: FORM CONTROLS */}
+              <div className="cert-form-column">
+                <form id="cert-form" onSubmit={handleSave}>
+                  {/* SECTION 1: RECIPIENT & CONTRIBUTION */}
+                  <div className="cert-section-card">
+                    <h3 className="cert-section-title">
+                      <UserCheck size={16} /> 1. Recipient & Contribution
+                    </h3>
+                    <div className="form-row">
+                      <label>Recipient Type
+                        <select
+                          value={form.recipientType}
+                          onChange={(e) => {
+                            setForm({
+                              ...form,
+                              recipientType: e.target.value,
+                              recipientKey: '',
+                              recipient: '',
+                              reference: '',
+                              details: '',
+                              contributionDetails: '',
+                            })
+                          }}
+                        >
+                          <option value="Donor">Donor</option>
+                          <option value="Volunteer">Volunteer</option>
+                        </select>
+                      </label>
+
+                      <label>Select From Database
+                        <select value={form.recipientKey} onChange={(e) => handleRecipientPick(e.target.value)}>
+                          <option value="">Choose a {form.recipientType.toLowerCase()}...</option>
+                          {(form.recipientType === 'Volunteer' ? volunteers : donors)?.map((p) => (
+                            <option key={p.dbId} value={p.dbId}>
+                              {p.name} {form.recipientType === 'Volunteer' ? (p.hours ? `— ${p.hours} hrs` : '') : `— ${p.totalDonated || 'Donor'}`}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+                    </div>
+
+                    <div className="form-row">
+                      <label>Recipient Name
+                        <input
+                          required
+                          value={form.recipient}
+                          onChange={(e) => setForm({ ...form, recipient: e.target.value })}
+                          placeholder="Recipient Full Name / Organization"
+                        />
+                      </label>
+                      <label>Reference Code
+                        <input
+                          value={form.reference}
+                          onChange={(e) => setForm({ ...form, reference: e.target.value })}
+                          placeholder="e.g. DON-K2F9A or VOL-101"
+                        />
+                      </label>
+                    </div>
+
+                    {form.contributionDetails && (
+                      <div style={{ marginTop: '0.4rem', padding: '0.4rem 0.65rem', background: '#f8fafc', borderRadius: '6px', fontSize: '0.75rem', color: '#475569', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                        <CheckCircle2 size={14} color="#16a34a" />
+                        <span><strong>Database Match:</strong> {form.contributionDetails}</span>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* SECTION 2: CERTIFICATE STYLE & TEMPLATE */}
+                  <div className="cert-section-card" style={{ marginTop: '0.75rem' }}>
+                    <h3 className="cert-section-title">
+                      <Award size={16} /> 2. Certificate Title & Template
+                    </h3>
+                    <div className="form-row">
+                      <label>Certificate Type
+                        <select
+                          value={form.type}
+                          disabled={editRow && isTerminalStatus(editRow.status, CERTIFICATE_TERMINAL)}
+                          onChange={(e) => setForm({ ...form, type: e.target.value })}
+                        >
+                          {CERT_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
+                        </select>
+                      </label>
+
+                      <label>Date Issued
+                        <input
+                          type="date"
+                          value={form.certDate}
+                          onChange={(e) => setForm({ ...form, certDate: e.target.value })}
+                        />
+                      </label>
+                    </div>
+
+                    <label style={{ marginTop: '0.4rem', display: 'block' }}>Choose Design Template</label>
+                    <div className="cert-template-selector">
+                      {CERTIFICATE_TEMPLATES.map((tmpl) => (
+                        <button
+                          key={tmpl.id}
+                          type="button"
+                          className={`cert-template-btn ${form.templateId === tmpl.id ? 'cert-template-btn--active' : ''}`}
+                          onClick={() => setForm({ ...form, templateId: tmpl.id })}
+                        >
+                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%' }}>
+                            <span className="cert-template-btn__name">{tmpl.name}</span>
+                            <span style={{ fontSize: '0.62rem', background: tmpl.accentColor, color: '#fff', padding: '1px 5px', borderRadius: '4px' }}>
+                              {tmpl.badge}
+                            </span>
+                          </div>
+                          <span className="cert-template-btn__desc">{tmpl.description}</span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* SECTION 3: RECOGNITION CAPTION & AI ASSISTANT */}
+                  <div className="cert-section-card" style={{ marginTop: '0.75rem' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.4rem' }}>
+                      <h3 className="cert-section-title" style={{ margin: 0 }}>
+                        <PenTool size={16} /> 3. Certificate Caption
+                      </h3>
+                      <button
+                        type="button"
+                        className="btn btn--xs btn--outline"
+                        onClick={() => handleGenerateAiCaption()}
+                        disabled={aiGenerating}
+                      >
+                        <Sparkles size={12} color="#8a0d18" /> {aiGenerating ? 'Generating…' : 'AI Assistant'}
+                      </button>
+                    </div>
+
+                    {/* Predefined Caption Templates */}
+                    <div style={{ marginBottom: '0.5rem' }}>
+                      <label style={{ fontSize: '0.72rem', color: '#6b7280', marginBottom: '0.25rem', display: 'block' }}>
+                        Preset Tones & Themes:
+                      </label>
+                      <div className="cert-ai-quick-tones">
+                        {CAPTION_TEMPLATES.map((t) => (
+                          <button
+                            key={t.id}
+                            type="button"
+                            className={`cert-ai-tone-pill ${selectedTone === t.id ? 'cert-ai-tone-pill--active' : ''}`}
+                            onClick={() => {
+                              setSelectedTone(t.id)
+                              handleGenerateAiCaption(t.id)
+                            }}
+                          >
+                            {t.name}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* AI Prompt / Instruction Input */}
+                    <div className="cert-ai-assistant">
+                      <div className="cert-ai-header">
+                        <span className="cert-ai-title"><Sparkles size={13} /> AI Caption Instruction</span>
+                        <span style={{ fontSize: '0.65rem', color: '#6b7280' }}>Powered by Google Gemini / Smart Engine</span>
+                      </div>
+                      <div className="cert-ai-prompt-box">
+                        <input
+                          className="cert-ai-prompt-input"
+                          value={aiInstruction}
+                          onChange={(e) => setAiInstruction(e.target.value)}
+                          placeholder="e.g. Make it formal and heartfelt, focus on disaster relief..."
+                          onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); handleGenerateAiCaption(); } }}
+                        />
+                        <button
+                          type="button"
+                          className="btn btn--sm btn--primary"
+                          disabled={aiGenerating}
+                          onClick={() => handleGenerateAiCaption()}
+                        >
+                          {aiGenerating ? <RefreshCw size={13} className="spin" /> : <Sparkles size={13} />}
+                        </button>
+                      </div>
+
+                      {shortCaptionSuggestion && (
+                        <div style={{ marginTop: '0.35rem', background: '#ffffff', border: '1px dashed #c9a227', borderRadius: '6px', padding: '0.4rem', fontSize: '0.72rem' }}>
+                          <span style={{ fontWeight: 600, color: '#8a0d18', display: 'block' }}>💡 Photo Layout Compact Version:</span>
+                          <p style={{ margin: '2px 0 4px', color: '#4b5563' }}>{shortCaptionSuggestion}</p>
+                          <button
+                            type="button"
+                            className="btn btn--xs btn--outline"
+                            onClick={() => setForm({ ...form, details: shortCaptionSuggestion })}
+                          >
+                            Use Compact Version
+                          </button>
+                        </div>
+                      )}
+                    </div>
+
+                    <label style={{ marginTop: '0.5rem', display: 'block' }}>Final Certificate Text (Editable)
+                      <textarea
+                        rows={3}
+                        value={form.details}
+                        onChange={(e) => setForm({ ...form, details: e.target.value })}
+                        placeholder="Review or customize the final certificate caption text here..."
+                      />
+                    </label>
+                  </div>
+
+                  {/* SECTION 4: OPTIONAL PHOTO / IMAGE */}
+                  <div className="cert-section-card" style={{ marginTop: '0.75rem' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.4rem' }}>
+                      <h3 className="cert-section-title" style={{ margin: 0 }}>
+                        <ImageIcon size={16} /> 4. Optional Photo / Activity Image
+                      </h3>
+                      {form.photoUrl && (
+                        <button
+                          type="button"
+                          className="btn btn--xs btn--ghost"
+                          onClick={handleRemovePhoto}
+                          style={{ color: '#ef4444' }}
+                        >
+                          <X size={12} /> Remove Photo
+                        </button>
+                      )}
+                    </div>
+
+                    <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center', marginBottom: '0.5rem' }}>
+                      <label className="btn btn--sm btn--outline" style={{ cursor: 'pointer', margin: 0 }}>
+                        <Upload size={14} /> Upload Contribution Image
+                        <input
+                          type="file"
+                          accept="image/*"
+                          style={{ display: 'none' }}
+                          onChange={handlePhotoUpload}
+                        />
+                      </label>
+                      <span style={{ fontSize: '0.72rem', color: '#6b7280' }}>
+                        {form.photoUrl ? 'Image attached' : 'Optional volunteer/distribution photo'}
+                      </span>
+                    </div>
+
+                    {form.photoUrl && (
+                      <div>
+                        <label style={{ fontSize: '0.75rem', color: '#4b5563', marginBottom: '0.25rem', display: 'block' }}>
+                          Select Photo Placement:
+                        </label>
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '0.4rem' }}>
+                          {PHOTO_LAYOUTS.map((lay) => (
+                            <button
+                              key={lay.id}
+                              type="button"
+                              className={`cert-template-btn ${form.photoLayout === lay.id ? 'cert-template-btn--active' : ''}`}
+                              style={{ padding: '0.4rem 0.5rem', textAlign: 'center', alignItems: 'center' }}
+                              onClick={() => setForm({ ...form, photoLayout: lay.id })}
+                            >
+                              <span style={{ fontSize: '0.72rem', fontWeight: 600 }}>{lay.name}</span>
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* SECTION 5: AUTOMATIC SIGNATORY */}
+                  <div className="cert-section-card" style={{ marginTop: '0.75rem' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.4rem' }}>
+                      <h3 className="cert-section-title" style={{ margin: 0 }}>
+                        <ShieldCheck size={16} /> 5. Automatic Official Signatory
+                      </h3>
+                      <button
+                        type="button"
+                        className="btn btn--xs btn--outline"
+                        onClick={() => setShowSignatoriesModal(true)}
+                      >
+                        Manage Signatories
+                      </button>
+                    </div>
+
+                    <div className="form-row">
+                      <label>Official Signatory
+                        <select
+                          value={form.signatoryId || ''}
+                          onChange={(e) => handleSignatoryChange(e.target.value)}
+                        >
+                          {signatories?.map((sig) => (
+                            <option key={sig.id} value={sig.id}>
+                              {sig.name} — {sig.title} {sig.isDefault ? '(Default)' : ''}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+
+                      <label>Location
+                        <input
+                          value={form.location}
+                          onChange={(e) => setForm({ ...form, location: e.target.value })}
+                          placeholder="Cebu City, Philippines"
+                        />
+                      </label>
+                    </div>
+
+                    <p style={{ fontSize: '0.7rem', color: '#6b7280', margin: '0.25rem 0 0' }}>
+                      ✓ Official signature is automatically attached from the selected signatory profile.
+                    </p>
+                  </div>
+
+                  {/* SECTION 6: WORKFLOW STATUS */}
+                  <div className="cert-section-card" style={{ marginTop: '0.75rem' }}>
+                    <label>Workflow Status
+                      <select
+                        value={form.status}
+                        disabled={editRow && isTerminalStatus(editRow.status, CERTIFICATE_TERMINAL)}
+                        onChange={(e) => setForm({ ...form, status: e.target.value })}
+                      >
+                        {getAvailableNextStatuses({
+                          currentStatus: editRow ? editRow.status : form.status,
+                          allStatuses: STATUS_OPTIONS,
+                          workflowOrder: CERTIFICATE_WORKFLOW,
+                          terminalStatuses: CERTIFICATE_TERMINAL,
+                        }).map((s) => <option key={s} value={s}>{s}</option>)}
+                      </select>
+                      {editRow && isTerminalStatus(editRow.status, CERTIFICATE_TERMINAL) && (
+                        <small style={{ display: 'block', color: 'var(--admin-text-muted)', marginTop: '4px' }}>
+                          🔒 Certificate is Released and locked from further changes.
+                        </small>
+                      )}
+                    </label>
+                  </div>
+                </form>
               </div>
 
-              <div className="form-row">
-                <label>Recipient Name
-                  <input required value={form.recipient} onChange={(e) => setForm({ ...form, recipient: e.target.value })} placeholder="Auto-filled after selecting, or type manually" />
-                </label>
-                <label>Reference Code
-                  <input value={form.reference} onChange={(e) => setForm({ ...form, reference: e.target.value })} placeholder="e.g. DON-XXXX or VOL-XXX" />
-                </label>
-              </div>
-
-              <div className="form-row">
-                <label>Certificate Type
-                  <select
-                    value={form.type}
-                    disabled={editRow && isTerminalStatus(editRow.status, CERTIFICATE_TERMINAL)}
-                    onChange={(e) => setForm({ ...form, type: e.target.value })}
-                  >
-                    {CERT_TYPES.map((t) => <option key={t}>{t}</option>)}
-                  </select>
-                </label>
-                <label>Date Issued
-                  <input
-                    type="date"
-                    min={getTodayDateString()}
-                    disabled={editRow && isTerminalStatus(editRow.status, CERTIFICATE_TERMINAL)}
-                    value={form.certDate}
-                    onChange={(e) => setForm({ ...form, certDate: e.target.value })}
-                  />
-                </label>
-              </div>
-
-              <label>Certificate Text
-                <textarea
-                  rows={3}
-                  disabled={editRow && isTerminalStatus(editRow.status, CERTIFICATE_TERMINAL)}
-                  value={form.details}
-                  onChange={(e) => setForm({ ...form, details: e.target.value })}
-                  placeholder="Auto-generated when you pick a recipient — edit freely."
-                />
-              </label>
-
-              <div className="form-row">
-                <label>Signatory Name
-                  <input
-                    disabled={editRow && isTerminalStatus(editRow.status, CERTIFICATE_TERMINAL)}
-                    value={form.signatoryName}
-                    onChange={(e) => setForm({ ...form, signatoryName: e.target.value })}
-                  />
-                </label>
-                <label>Signatory Title
-                  <input
-                    disabled={editRow && isTerminalStatus(editRow.status, CERTIFICATE_TERMINAL)}
-                    value={form.signatoryTitle}
-                    onChange={(e) => setForm({ ...form, signatoryTitle: e.target.value })}
-                  />
-                </label>
-              </div>
-
-              <label>Status
-                <select
-                  value={form.status}
-                  disabled={editRow && isTerminalStatus(editRow.status, CERTIFICATE_TERMINAL)}
-                  onChange={(e) => setForm({ ...form, status: e.target.value })}
-                >
-                  {getAvailableNextStatuses({
-                    currentStatus: editRow ? editRow.status : form.status,
-                    allStatuses: STATUS_OPTIONS,
-                    workflowOrder: CERTIFICATE_WORKFLOW,
-                    terminalStatuses: CERTIFICATE_TERMINAL,
-                  }).map((s) => <option key={s} value={s}>{s}</option>)}
-                </select>
-                {editRow && isTerminalStatus(editRow.status, CERTIFICATE_TERMINAL) && (
-                  <small style={{ display: 'block', color: 'var(--admin-text-muted)', marginTop: '4px' }}>
-                    🔒 Certificate is Released and locked from further changes.
-                  </small>
-                )}
-              </label>
-
-              <div className="admin-modal__actions">
-                <button type="button" className="btn btn--ghost" onClick={() => setShowForm(false)}>Cancel</button>
-                <div className="admin-modal__actions-group">
-                  <button
-                    type="button"
-                    className="btn btn--outline"
-                    onClick={() => setPreview({ ...form, id: editRow?.id || 'CERT-PREVIEW', date: form.certDate })}
-                  >
-                    <Eye size={14} /> Preview
-                  </button>
-                  <button
-                    type="submit"
-                    className="btn btn--primary"
-                    disabled={saving || (editRow && isTerminalStatus(editRow.status, CERTIFICATE_TERMINAL))}
-                  >
-                    {saving ? 'Saving...' : editRow ? (isTerminalStatus(editRow.status, CERTIFICATE_TERMINAL) ? 'Released (Locked)' : 'Save Changes') : 'Create Certificate'}
-                  </button>
+              {/* RIGHT COLUMN: REAL-TIME LIVE PREVIEW */}
+              <div className="cert-preview-column">
+                <div className="cert-preview-card">
+                  <div className="cert-preview-header">
+                    <span className="cert-preview-label">Live Certificate Preview</span>
+                    <button
+                      type="button"
+                      className="btn btn--xs btn--outline"
+                      onClick={() => printCertificate(livePreviewCert)}
+                      title="Print or export current preview"
+                    >
+                      <Printer size={13} /> Quick Print
+                    </button>
+                  </div>
+                  <CertificateView cert={livePreviewCert} />
                 </div>
               </div>
-            </form>
+            </div>
+
+            {/* MODAL FOOTER ACTIONS */}
+            <div className="admin-modal__actions" style={{ borderTop: '1px solid var(--admin-border, #e5e7eb)', paddingTop: '0.75rem', marginTop: '0.5rem' }}>
+              <button type="button" className="btn btn--ghost" onClick={() => setShowForm(false)}>
+                Cancel
+              </button>
+              <div className="admin-modal__actions-group">
+                <button
+                  type="button"
+                  className="btn btn--outline"
+                  onClick={() => printCertificate(livePreviewCert)}
+                >
+                  <Download size={14} /> Print / Export PDF
+                </button>
+                <button
+                  type="submit"
+                  form="cert-form"
+                  className="btn btn--primary"
+                  disabled={saving || (editRow && isTerminalStatus(editRow.status, CERTIFICATE_TERMINAL))}
+                >
+                  {saving ? 'Saving...' : editRow ? 'Save Changes' : 'Issue Certificate'}
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       )}
 
+      {/* FULL PREVIEW MODAL (FROM TABLE) */}
       {preview && (
         <div className="admin-modal-overlay" onClick={() => setPreview(null)}>
           <div className="admin-modal admin-modal--cert" onClick={(e) => e.stopPropagation()}>
             <ModalHeader title={preview.type} onClose={() => setPreview(null)} />
             <div className="cert-preview-toolbar">
+              <h2 className="cert-preview-toolbar__title">
+                <Award size={18} color="#af101a" />
+                {preview.id} — {preview.recipient}
+              </h2>
               <div className="cert-preview-toolbar__actions">
                 <button type="button" className="btn btn--sm btn--outline" onClick={() => printCertificate(preview)}>
                   <Printer size={14} /> Print
@@ -463,6 +1036,132 @@ export default function CertificatesPage() {
               </div>
             </div>
             <CertificateView cert={preview} />
+          </div>
+        </div>
+      )}
+
+      {/* SIGNATORIES MANAGEMENT MODAL */}
+      {showSignatoriesModal && (
+        <div className="admin-modal-overlay" onClick={() => setShowSignatoriesModal(false)}>
+          <div className="admin-modal admin-modal--wide" onClick={(e) => e.stopPropagation()}>
+            <ModalHeader
+              title="Official Certificate Signatories & Settings"
+              onClose={() => setShowSignatoriesModal(false)}
+            />
+
+            <div style={{ padding: '0.5rem 0' }}>
+              <p style={{ fontSize: '0.82rem', color: '#4b5563', margin: '0 0 1rem' }}>
+                Register authorized executive signatories once. The default signatory is automatically attached to all new certificates without repeatedly uploading signatures.
+              </p>
+
+              {/* LIST OF REGISTERED SIGNATORIES */}
+              <div className="signatories-list-grid">
+                {signatories?.map((sig) => (
+                  <div key={sig.id} className={`signatory-card ${sig.isDefault ? 'signatory-card--default' : ''}`}>
+                    {sig.signatureUrl ? (
+                      <img src={sig.signatureUrl} alt={sig.name} className="signatory-card__sig" />
+                    ) : (
+                      <div className="signatory-card__sig" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.65rem', color: '#9ca3af' }}>
+                        No Image
+                      </div>
+                    )}
+                    <div style={{ flex: 1 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                        <strong style={{ fontSize: '0.85rem' }}>{sig.name}</strong>
+                        {sig.isDefault && (
+                          <span style={{ fontSize: '0.62rem', background: '#c9a227', color: '#fff', padding: '1px 5px', borderRadius: '4px' }}>
+                            Default
+                          </span>
+                        )}
+                      </div>
+                      <div style={{ fontSize: '0.72rem', color: '#6b7280' }}>{sig.title}</div>
+                      <div style={{ fontSize: '0.65rem', color: '#9ca3af' }}>{sig.organization}</div>
+                    </div>
+                    {!sig.isDefault && (
+                      <button
+                        type="button"
+                        className="btn btn--xs btn--outline"
+                        onClick={() => handleSetDefaultSignatory(sig)}
+                        title="Set as Default Signatory"
+                      >
+                        Set Default
+                      </button>
+                    )}
+                  </div>
+                ))}
+              </div>
+
+              {/* ADD NEW SIGNATORY FORM */}
+              <div className="cert-section-card" style={{ marginTop: '1.25rem' }}>
+                <h3 className="cert-section-title">
+                  <Plus size={16} /> Register New Authorized Signatory
+                </h3>
+                <form onSubmit={handleCreateSignatory}>
+                  <div className="form-row">
+                    <label>Signatory Full Name
+                      <input
+                        required
+                        value={newSigForm.name}
+                        onChange={(e) => setNewSigForm({ ...newSigForm, name: e.target.value })}
+                        placeholder="e.g. Flemming Hansen"
+                      />
+                    </label>
+                    <label>Position / Title
+                      <input
+                        required
+                        value={newSigForm.title}
+                        onChange={(e) => setNewSigForm({ ...newSigForm, title: e.target.value })}
+                        placeholder="e.g. CEO and Co-Founder"
+                      />
+                    </label>
+                  </div>
+
+                  <div className="form-row">
+                    <label>Organization
+                      <input
+                        value={newSigForm.organization}
+                        onChange={(e) => setNewSigForm({ ...newSigForm, organization: e.target.value })}
+                        placeholder="Rise Above Foundation Cebu, Inc."
+                      />
+                    </label>
+                    <label>Signature File (PNG / JPG / WEBP)
+                      <input
+                        type="file"
+                        accept="image/*"
+                        onChange={(e) => {
+                          const file = e.target.files?.[0]
+                          if (file) {
+                            const reader = new FileReader()
+                            reader.onload = (re) => setNewSigForm({ ...newSigForm, signatureImage: re.target?.result })
+                            reader.readAsDataURL(file)
+                          }
+                        }}
+                      />
+                    </label>
+                  </div>
+
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: '0.75rem' }}>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', cursor: 'pointer', fontSize: '0.8rem' }}>
+                      <input
+                        type="checkbox"
+                        checked={newSigForm.isDefault}
+                        onChange={(e) => setNewSigForm({ ...newSigForm, isDefault: e.target.checked })}
+                      />
+                      Make this the Default Signatory
+                    </label>
+                    <button type="submit" className="btn btn--primary" disabled={savingSig}>
+                      {savingSig ? 'Saving…' : 'Register Signatory'}
+                    </button>
+                  </div>
+                </form>
+              </div>
+            </div>
+
+            <div className="admin-modal__actions" style={{ marginTop: '1rem' }}>
+              <button type="button" className="btn btn--primary" onClick={() => setShowSignatoriesModal(false)}>
+                Done
+              </button>
+            </div>
           </div>
         </div>
       )}

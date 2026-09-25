@@ -6,22 +6,68 @@ $pdo = db();
 $method = request_method();
 $id = get_id_param();
 
+function resolve_file_url(?string $path, string $kind = 'certificates'): string
+{
+  if (!$path) return '';
+  if (str_starts_with($path, 'data:') || str_starts_with($path, 'http://') || str_starts_with($path, 'https://')) {
+    return $path;
+  }
+  return '/api/file.php?kind=' . $kind . '&name=' . rawurlencode(basename($path));
+}
+
 function map_certificate(array $row): array
 {
+  $sigImage = $row['signature_url'] ?? '';
+  if (empty($sigImage) && strcasecmp((string)($row['signatory_name'] ?? ''), 'Flemming Hansen') === 0) {
+    $sigImage = 'sig_flemming_hansen.png';
+  }
+
   return [
     'id' => $row['code'],
     'dbId' => (int) $row['id'],
     'type' => $row['cert_type'],
+    'templateId' => $row['template_id'] ?? 'modern_classic',
     'recipientType' => $row['recipient_type'] ?? 'Donor',
     'recipient' => $row['recipient_name'],
     'reference' => $row['reference_code'],
     'details' => $row['details'] ?? '',
-    'signatoryName' => $row['signatory_name'] ?? '',
-    'signatoryTitle' => $row['signatory_title'] ?? '',
+    'signatoryId' => !empty($row['signatory_id']) ? (int) $row['signatory_id'] : null,
+    'signatoryName' => $row['signatory_name'] ?? 'Flemming Hansen',
+    'signatoryTitle' => $row['signatory_title'] ?? 'CEO and Co-Founder',
+    'signatureUrl' => $sigImage,
+    'signatureDisplayUrl' => resolve_file_url($sigImage, 'certificates'),
+    'photoUrl' => $row['photo_url'] ?? '',
+    'photoDisplayUrl' => resolve_file_url($row['photo_url'] ?? '', 'certificates'),
+    'photoLayout' => $row['photo_layout'] ?? 'none',
+    'contributionDetails' => $row['contribution_details'] ?? '',
     'date' => format_date($row['cert_date']),
     'certDate' => $row['cert_date'],
+    'location' => $row['location'] ?? 'Cebu City, Philippines',
     'status' => $row['status'],
   ];
+}
+
+function save_certificate_photo_payload(?string $raw): ?string
+{
+  if (!$raw) return null;
+  $raw = trim($raw);
+  if ($raw === '') return null;
+
+  if (str_starts_with($raw, 'data:image/')) {
+    if (preg_match('/^data:image\/(\w+);base64,(.+)$/', $raw, $matches)) {
+      $ext = $matches[1] === 'jpeg' ? 'jpg' : $matches[1];
+      $binary = base64_decode($matches[2]);
+      if ($binary !== false) {
+        $dir = __DIR__ . '/uploads/certificates';
+        if (!is_dir($dir)) @mkdir($dir, 0755, true);
+        $safeName = 'cert_photo_' . time() . '_' . bin2hex(random_bytes(4)) . '.' . $ext;
+        file_put_contents($dir . '/' . $safeName, $binary);
+        return $safeName;
+      }
+    }
+  }
+
+  return basename($raw);
 }
 
 $user = require_auth(['Admin', 'Staff', 'Donor', 'Volunteer']);
@@ -87,12 +133,15 @@ if ($method === 'POST') {
     } else {
       json_response(['ok' => false, 'error' => 'A verified donation reference is required'], 400);
     }
-    // Force Certificate of Donation — Official Receipt module is not ready yet
     $code = generate_code('CERT');
-    $stmt = $pdo->prepare('INSERT INTO certificates (code, cert_type, recipient_type, recipient_name, reference_code, details, cert_date, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?)');
+    $stmt = $pdo->prepare('
+      INSERT INTO certificates (code, cert_type, template_id, recipient_type, recipient_name, reference_code, details, cert_date, status)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ');
     $stmt->execute([
       $code,
       'Certificate of Donation',
+      'modern_classic',
       'Donor',
       $user['name'],
       $reference ?: null,
@@ -134,10 +183,14 @@ if ($method === 'POST') {
     }
 
     $code = generate_code('CERT');
-    $stmt = $pdo->prepare('INSERT INTO certificates (code, cert_type, recipient_type, recipient_name, reference_code, details, cert_date, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?)');
+    $stmt = $pdo->prepare('
+      INSERT INTO certificates (code, cert_type, template_id, recipient_type, recipient_name, reference_code, details, cert_date, status)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ');
     $stmt->execute([
       $code,
       $certType,
+      'modern_classic',
       'Volunteer',
       $user['name'],
       $reference ?: null,
@@ -162,10 +215,10 @@ if ($method === 'POST') {
   }
 
   $certType = $body['type'] ?? 'Certificate of Donation';
-  // Hide unfinished Official Receipt generation
   if ($certType === 'Official Receipt') {
     json_response(['ok' => false, 'error' => 'Official Receipt module is not available yet. Use Certificate of Donation.'], 400);
   }
+
   if (!empty($body['reference'])) {
     $ref = trim((string) $body['reference']);
     $d = $pdo->prepare('SELECT status FROM donations WHERE tracking_code = ? LIMIT 1');
@@ -179,18 +232,70 @@ if ($method === 'POST') {
     }
   }
 
+  // Resolve signatory from DB
+  $signatoryId = !empty($body['signatoryId']) ? (int) $body['signatoryId'] : null;
+  $signatoryName = trim((string) ($body['signatoryName'] ?? ''));
+  $signatoryTitle = trim((string) ($body['signatoryTitle'] ?? ''));
+  $signatureUrl = trim((string) ($body['signatureUrl'] ?? ''));
+
+  if ($signatoryId) {
+    $sigRow = $pdo->prepare('SELECT * FROM certificate_signatories WHERE id = ? LIMIT 1');
+    $sigRow->execute([$signatoryId]);
+    $sig = $sigRow->fetch(PDO::FETCH_ASSOC);
+    if ($sig) {
+      if ($signatoryName === '') $signatoryName = $sig['name'];
+      if ($signatoryTitle === '') $signatoryTitle = $sig['title'];
+      if ($signatureUrl === '') $signatureUrl = $sig['signature_image'] ?? '';
+    }
+  } elseif ($signatoryName === '') {
+    // Default signatory: Flemming Hansen
+    $defRow = $pdo->query('SELECT * FROM certificate_signatories WHERE is_default = 1 AND is_active = 1 LIMIT 1')->fetch(PDO::FETCH_ASSOC);
+    if ($defRow) {
+      $signatoryId = (int) $defRow['id'];
+      $signatoryName = $defRow['name'];
+      $signatoryTitle = $defRow['title'];
+      $signatureUrl = $defRow['signature_image'] ?? 'sig_flemming_hansen.png';
+    } else {
+      $signatoryName = 'Flemming Hansen';
+      $signatoryTitle = 'CEO and Co-Founder';
+      $signatureUrl = 'sig_flemming_hansen.png';
+    }
+  }
+
+  $photoUrl = save_certificate_photo_payload($body['photoUrl'] ?? null);
+  $photoLayout = in_array(($body['photoLayout'] ?? 'none'), ['none', 'featured', 'side', 'card'], true) 
+    ? ($body['photoLayout'] ?? 'none') 
+    : 'none';
+
+  $templateId = trim((string) ($body['templateId'] ?? 'modern_classic'));
+  $location = trim((string) ($body['location'] ?? 'Cebu City, Philippines'));
+  $contributionDetails = trim((string) ($body['contributionDetails'] ?? ''));
+
   $code = generate_code('CERT');
-  $stmt = $pdo->prepare('INSERT INTO certificates (code, cert_type, recipient_type, recipient_name, reference_code, details, signatory_name, signatory_title, cert_date, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)');
+  $stmt = $pdo->prepare('
+    INSERT INTO certificates (
+      code, cert_type, template_id, recipient_type, recipient_name, reference_code, 
+      details, signatory_id, signatory_name, signatory_title, signature_url, 
+      photo_url, photo_layout, contribution_details, cert_date, location, status
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  ');
   $stmt->execute([
     $code,
     $certType,
+    $templateId ?: 'modern_classic',
     $body['recipientType'] ?? 'Donor',
     $recipient,
     $body['reference'] ?? null,
     trim((string) ($body['details'] ?? '')) ?: null,
-    trim((string) ($body['signatoryName'] ?? '')) ?: null,
-    trim((string) ($body['signatoryTitle'] ?? '')) ?: null,
+    $signatoryId,
+    $signatoryName ?: null,
+    $signatoryTitle ?: null,
+    $signatureUrl ?: null,
+    $photoUrl,
+    $photoLayout,
+    $contributionDetails ?: null,
     $body['certDate'] ?? date('Y-m-d'),
+    $location ?: 'Cebu City, Philippines',
     $body['status'] ?? 'Generated',
   ]);
   $newId = (int) $pdo->lastInsertId();
@@ -246,21 +351,80 @@ if ($method === 'PUT') {
     WORKFLOW_CERTIFICATE_TERMINAL
   );
 
-  $update = $pdo->prepare('UPDATE certificates SET cert_type = ?, recipient_type = ?, recipient_name = ?, reference_code = ?, details = ?, signatory_name = ?, signatory_title = ?, cert_date = ?, status = ? WHERE id = ?');
+  $signatoryId = array_key_exists('signatoryId', $body) 
+    ? (!empty($body['signatoryId']) ? (int) $body['signatoryId'] : null) 
+    : ($existing['signatory_id'] ?? null);
+
+  $signatoryName = array_key_exists('signatoryName', $body) 
+    ? trim((string) $body['signatoryName']) 
+    : ($existing['signatory_name'] ?? '');
+
+  $signatoryTitle = array_key_exists('signatoryTitle', $body) 
+    ? trim((string) $body['signatoryTitle']) 
+    : ($existing['signatory_title'] ?? '');
+
+  $signatureUrl = array_key_exists('signatureUrl', $body) 
+    ? trim((string) $body['signatureUrl']) 
+    : ($existing['signature_url'] ?? '');
+
+  if ($signatoryId && ($signatoryName === '' || $signatureUrl === '')) {
+    $sigRow = $pdo->prepare('SELECT * FROM certificate_signatories WHERE id = ? LIMIT 1');
+    $sigRow->execute([$signatoryId]);
+    $sig = $sigRow->fetch(PDO::FETCH_ASSOC);
+    if ($sig) {
+      if ($signatoryName === '') $signatoryName = $sig['name'];
+      if ($signatoryTitle === '') $signatoryTitle = $sig['title'];
+      if ($signatureUrl === '') $signatureUrl = $sig['signature_image'] ?? '';
+    }
+  }
+
+  $photoUrl = array_key_exists('photoUrl', $body)
+    ? save_certificate_photo_payload($body['photoUrl'])
+    : ($existing['photo_url'] ?? null);
+
+  $photoLayout = array_key_exists('photoLayout', $body)
+    ? (in_array($body['photoLayout'], ['none', 'featured', 'side', 'card'], true) ? $body['photoLayout'] : 'none')
+    : ($existing['photo_layout'] ?? 'none');
+
+  $templateId = array_key_exists('templateId', $body)
+    ? trim((string)$body['templateId'])
+    : ($existing['template_id'] ?? 'modern_classic');
+
+  $location = array_key_exists('location', $body)
+    ? trim((string)$body['location'])
+    : ($existing['location'] ?? 'Cebu City, Philippines');
+
+  $contributionDetails = array_key_exists('contributionDetails', $body)
+    ? trim((string)$body['contributionDetails'])
+    : ($existing['contribution_details'] ?? null);
+
+  $update = $pdo->prepare('
+    UPDATE certificates 
+    SET cert_type = ?, template_id = ?, recipient_type = ?, recipient_name = ?, reference_code = ?, 
+        details = ?, signatory_id = ?, signatory_name = ?, signatory_title = ?, signature_url = ?, 
+        photo_url = ?, photo_layout = ?, contribution_details = ?, cert_date = ?, location = ?, status = ? 
+    WHERE id = ?
+  ');
   $update->execute([
     $body['type'] ?? $existing['cert_type'],
+    $templateId ?: 'modern_classic',
     $body['recipientType'] ?? ($existing['recipient_type'] ?? 'Donor'),
     $body['recipient'] ?? $existing['recipient_name'],
     $body['reference'] ?? $existing['reference_code'],
     array_key_exists('details', $body) ? (trim((string) $body['details']) ?: null) : ($existing['details'] ?? null),
-    array_key_exists('signatoryName', $body) ? (trim((string) $body['signatoryName']) ?: null) : ($existing['signatory_name'] ?? null),
-    array_key_exists('signatoryTitle', $body) ? (trim((string) $body['signatoryTitle']) ?: null) : ($existing['signatory_title'] ?? null),
+    $signatoryId,
+    $signatoryName ?: null,
+    $signatoryTitle ?: null,
+    $signatureUrl ?: null,
+    $photoUrl,
+    $photoLayout,
+    $contributionDetails ?: null,
     $body['certDate'] ?? $existing['cert_date'],
+    $location ?: 'Cebu City, Philippines',
     $newStatus,
     $id,
   ]);
 
-  $newStatus = $body['status'] ?? $existing['status'];
   if ($newStatus === 'Generated' && $existing['status'] !== 'Generated') {
     $findUser = $pdo->prepare('SELECT id, email FROM users WHERE full_name = ? LIMIT 1');
     $findUser->execute([$existing['recipient_name']]);

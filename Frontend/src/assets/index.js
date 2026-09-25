@@ -5,6 +5,13 @@ export { default as logo } from './images/logo.png'
 export { default as heroBg } from './images/hero-bg.jpg'
 export { default as adminBg } from './images/admin-bg.png'
 
+/* Official Certificate Branding Assets */
+export { default as certBannerHeader } from './certificates/raf_banner_header.png'
+export { default as certSealRound } from './certificates/raf_seal_round.png'
+export { default as certGoldSeal } from './certificates/raf_gold_seal.png'
+export { default as certSigFlemming } from './certificates/sig_flemming_hansen.png'
+export { default as certReferenceSample } from './certificates/sample_certificate_reference.png'
+
 /* Homepage carousel */
 export { default as carousel1 } from './Carousel/pic1.jpg'
 export { default as carousel2 } from './Carousel/pic2.jpg'

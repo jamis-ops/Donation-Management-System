@@ -545,6 +545,67 @@ try {
     }
   }
 
+  // v30: Certificate Signatories and Certificate Generation System
+  if (!tableExists($pdo, 'certificate_signatories')) {
+    $pdo->exec("
+      CREATE TABLE IF NOT EXISTS certificate_signatories (
+        id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+        name VARCHAR(120) NOT NULL,
+        title VARCHAR(120) NOT NULL,
+        organization VARCHAR(150) NOT NULL DEFAULT 'Rise Above Foundation Cebu, Inc.',
+        signature_image VARCHAR(255) NULL,
+        is_default TINYINT(1) NOT NULL DEFAULT 0,
+        is_active TINYINT(1) NOT NULL DEFAULT 1,
+        created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+    ");
+    echo "Created certificate_signatories table\n";
+
+    // Seed default signatory: Flemming Hansen, CEO and Co-Founder
+    $stmt = $pdo->prepare("
+      INSERT INTO certificate_signatories (name, title, organization, signature_image, is_default, is_active)
+      VALUES (?, ?, ?, ?, 1, 1)
+    ");
+    $stmt->execute([
+      'Flemming Hansen',
+      'CEO and Co-Founder',
+      'Rise Above Foundation Cebu, Inc.',
+      'sig_flemming_hansen.png',
+    ]);
+    echo "Seeded default signatory Flemming Hansen\n";
+
+    // Seed secondary signatory: Marie Tangalin
+    $stmt = $pdo->prepare("
+      INSERT INTO certificate_signatories (name, title, organization, signature_image, is_default, is_active)
+      VALUES (?, ?, ?, ?, 0, 1)
+    ");
+    $stmt->execute([
+      'Marie Tangalin',
+      'Education Sponsorship Manager and Co-Founder',
+      'Rise Above Foundation Cebu, Inc.',
+      null,
+    ]);
+    echo "Seeded signatory Marie Tangalin\n";
+  }
+
+  addColumn($pdo, 'certificates', 'template_id', "VARCHAR(50) NOT NULL DEFAULT 'modern_classic' AFTER cert_type");
+  addColumn($pdo, 'certificates', 'signatory_id', "BIGINT UNSIGNED NULL AFTER signatory_title");
+  addColumn($pdo, 'certificates', 'signature_url', "VARCHAR(255) NULL AFTER signatory_id");
+  addColumn($pdo, 'certificates', 'photo_url', "VARCHAR(255) NULL AFTER signature_url");
+  addColumn($pdo, 'certificates', 'photo_layout', "VARCHAR(50) NOT NULL DEFAULT 'none' AFTER photo_url");
+  addColumn($pdo, 'certificates', 'contribution_details', "TEXT NULL AFTER photo_layout");
+  addColumn($pdo, 'certificates', 'location', "VARCHAR(150) NOT NULL DEFAULT 'Cebu City, Philippines' AFTER cert_date");
+
+  // Update older certificates without signatory or with placeholder
+  $pdo->exec("
+    UPDATE certificates 
+    SET signatory_name = 'Flemming Hansen', 
+        signatory_title = 'CEO and Co-Founder', 
+        signature_url = 'sig_flemming_hansen.png' 
+    WHERE signatory_name IS NULL OR signatory_name = '' OR signatory_name = 'Maria Dela Cruz'
+  ");
+
   echo "\nMigration complete!\n";
 } catch (Throwable $e) {
   http_response_code(500);

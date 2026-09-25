@@ -11,12 +11,12 @@ require_once __DIR__ . '/bootstrap.php';
 $kind = preg_replace('/[^a-z_]/', '', strtolower((string) ($_GET['kind'] ?? ''))) ?: '';
 $name = basename((string) ($_GET['name'] ?? ''));
 
-// Public assets (profiles and payment_methods QR/logos) — serve them without requiring auth
-if ($kind === 'payment_methods') {
+// Public assets (certificates logos/signatures, partners, profiles, and payment_methods) — serve them without requiring auth
+if (in_array($kind, ['certificates', 'partners', 'payment_methods'], true)) {
   if ($name === '') {
-    json_response(['ok' => false, 'error' => 'Invalid payment method image request'], 400);
+    json_response(['ok' => false, 'error' => "Invalid {$kind} image request"], 400);
   }
-  $dir = __DIR__ . '/uploads/payment_methods';
+  $dir = __DIR__ . '/uploads/' . $kind;
   $path = $dir . '/' . $name;
   if (is_file($path)) {
     $mime = mime_content_type($path) ?: 'image/png';
@@ -28,7 +28,7 @@ if ($kind === 'payment_methods') {
     readfile($path);
     exit;
   }
-  json_response(['ok' => false, 'error' => 'Payment method image not found'], 404);
+  json_response(['ok' => false, 'error' => "Asset not found in {$kind}"], 404);
 }
 
 // Profile photos are public assets — serve them without requiring auth
