@@ -1,11 +1,19 @@
 # Apache configuration for Rise Above Foundation Backend API
+<IfModule mod_headers.c>
+    SetEnvIf Origin "^(https?://.+)$" CORS_ORIGIN=$1
+    Header always set Access-Control-Allow-Origin "%{CORS_ORIGIN}e" env=CORS_ORIGIN
+    Header always set Access-Control-Allow-Credentials "true" env=CORS_ORIGIN
+    Header always set Access-Control-Allow-Methods "GET, POST, PUT, PATCH, DELETE, OPTIONS"
+    Header always set Access-Control-Allow-Headers "Content-Type, Authorization, X-Requested-With, Accept, Origin"
+</IfModule>
+
 <IfModule mod_rewrite.c>
     RewriteEngine On
     RewriteBase /
 
-    # Handle CORS Preflight early if needed
+    # Return 204 directly for OPTIONS preflight requests
     RewriteCond %{REQUEST_METHOD} OPTIONS
-    RewriteRule ^(.*)$ - [L]
+    RewriteRule ^(.*)$ - [R=204,L]
 
     # Ensure /api/health routes to api/health.php
     RewriteRule ^api/health/?$ api/health.php [L,QSA]

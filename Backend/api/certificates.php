@@ -6,6 +6,42 @@ $pdo = db();
 $method = request_method();
 $id = get_id_param();
 
+function ensure_certificates_schema(PDO $pdo): void
+{
+  static $ensured = false;
+  if ($ensured) return;
+  $ensured = true;
+
+  try {
+    $cols = $pdo->query("SHOW COLUMNS FROM certificates")->fetchAll(PDO::FETCH_COLUMN);
+    $colList = array_map('strtolower', $cols);
+
+    if (!in_array('template_id', $colList, true)) {
+      $pdo->exec("ALTER TABLE certificates ADD COLUMN template_id VARCHAR(50) NOT NULL DEFAULT 'modern_classic' AFTER cert_type");
+    }
+    if (!in_array('signatory_id', $colList, true)) {
+      $pdo->exec("ALTER TABLE certificates ADD COLUMN signatory_id BIGINT UNSIGNED NULL AFTER signatory_title");
+    }
+    if (!in_array('signature_url', $colList, true)) {
+      $pdo->exec("ALTER TABLE certificates ADD COLUMN signature_url VARCHAR(255) NULL AFTER signatory_id");
+    }
+    if (!in_array('photo_url', $colList, true)) {
+      $pdo->exec("ALTER TABLE certificates ADD COLUMN photo_url VARCHAR(255) NULL AFTER signature_url");
+    }
+    if (!in_array('photo_layout', $colList, true)) {
+      $pdo->exec("ALTER TABLE certificates ADD COLUMN photo_layout VARCHAR(50) NOT NULL DEFAULT 'none' AFTER photo_url");
+    }
+    if (!in_array('contribution_details', $colList, true)) {
+      $pdo->exec("ALTER TABLE certificates ADD COLUMN contribution_details TEXT NULL AFTER photo_layout");
+    }
+    if (!in_array('location', $colList, true)) {
+      $pdo->exec("ALTER TABLE certificates ADD COLUMN location VARCHAR(150) NOT NULL DEFAULT 'Cebu City, Philippines' AFTER cert_date");
+    }
+  } catch (Throwable) {}
+}
+
+ensure_certificates_schema($pdo);
+
 function resolve_file_url(?string $path, string $kind = 'certificates'): string
 {
   if (!$path) return '';

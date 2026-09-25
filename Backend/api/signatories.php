@@ -6,12 +6,51 @@ $pdo = db();
 $method = request_method();
 $id = get_id_param();
 
+function ensure_signatories_table(PDO $pdo): void
+{
+  static $checked = false;
+  if ($checked) return;
+  $checked = true;
+
+  try {
+    $pdo->exec("
+      CREATE TABLE IF NOT EXISTS certificate_signatories (
+        id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+        name VARCHAR(120) NOT NULL,
+        title VARCHAR(120) NOT NULL,
+        organization VARCHAR(150) NOT NULL DEFAULT 'Rise Above Foundation Cebu, Inc.',
+        signature_image VARCHAR(255) NULL,
+        is_default TINYINT(1) NOT NULL DEFAULT 0,
+        is_active TINYINT(1) NOT NULL DEFAULT 1,
+        created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+    ");
+
+    $count = (int) $pdo->query("SELECT COUNT(*) FROM certificate_signatories")->fetchColumn();
+    if ($count === 0) {
+      $stmt = $pdo->prepare("
+        INSERT INTO certificate_signatories (name, title, organization, signature_image, is_default, is_active)
+        VALUES (?, ?, ?, ?, 1, 1)
+      ");
+      $stmt->execute([
+        'Flemming Hansen',
+        'CEO and Co-Founder',
+        'Rise Above Foundation Cebu, Inc.',
+        'sig_flemming_hansen.png',
+      ]);
+    }
+  } catch (Throwable $e) {
+    // Ignore schema auto-creation issues
+  }
+}
+
 function format_signatory(array $row): array
 {
   $sigImage = $row['signature_image'] ?? '';
   $sigUrl = '';
   if (!empty($sigImage)) {
-    if (str_starts_with($sigImage, 'data:') || str_starts_with($sigImage, 'http')) {
+    if (str_starts_with($sigImage, 'data:') || str_starts_with($sigImage, 'http://') || str_starts_with($sigImage, 'https://')) {
       $sigUrl = $sigImage;
     } else {
       $sigUrl = '/api/file.php?kind=certificates&name=' . rawurlencode(basename($sigImage));
@@ -33,23 +72,36 @@ function format_signatory(array $row): array
 
 if ($method === 'GET') {
   require_auth(['Admin', 'Staff', 'Donor', 'Volunteer']);
-  $stmt = $pdo->query('SELECT * FROM certificate_signatories WHERE is_active = 1 ORDER BY is_default DESC, id ASC');
-  $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+  ensure_signatories_table($pdo);
 
-  // If table is somehow empty, seed default Flemming Hansen
-  if (empty($rows)) {
-    $pdo->exec("
-      INSERT INTO certificate_signatories (name, title, organization, signature_image, is_default, is_active)
-      VALUES ('Flemming Hansen', 'CEO and Co-Founder', 'Rise Above Foundation Cebu, Inc.', 'sig_flemming_hansen.png', 1, 1)
-    ");
+  $rows = [];
+  try {
     $stmt = $pdo->query('SELECT * FROM certificate_signatories WHERE is_active = 1 ORDER BY is_default DESC, id ASC');
     $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+  } catch (Throwable) {
+    $rows = [];
+  }
+
+  if (empty($rows)) {
+    $rows = [
+      [
+        'id' => 1,
+        'name' => 'Flemming Hansen',
+        'title' => 'CEO and Co-Founder',
+        'organization' => 'Rise Above Foundation Cebu, Inc.',
+        'signature_image' => 'sig_flemming_hansen.png',
+        'is_default' => 1,
+        'is_active' => 1,
+        'created_at' => date('Y-m-d H:i:s'),
+      ]
+    ];
   }
 
   json_response(['ok' => true, 'data' => array_map('format_signatory', $rows)]);
 }
 
 $user = require_auth(['Admin', 'Staff']);
+ensure_signatories_table($pdo);
 
 function handle_signature_upload(): ?string
 {
@@ -58,7 +110,6 @@ function handle_signature_upload(): ?string
     @mkdir($dir, 0755, true);
   }
 
-  // Check $_FILES
   if (isset($_FILES['signature']) && is_array($_FILES['signature']) && ($_FILES['signature']['error'] ?? UPLOAD_ERR_NO_FILE) === UPLOAD_ERR_OK) {
     $file = $_FILES['signature'];
     $ext = strtolower(pathinfo((string)$file['name'], PATHINFO_EXTENSION));
@@ -93,7 +144,6 @@ if ($method === 'POST') {
   if (!$sigImage && !empty($body['signatureImage'])) {
     $raw = (string) $body['signatureImage'];
     if (str_starts_with($raw, 'data:image/')) {
-      // Save data URL to a png file
       if (preg_match('/^data:image\/(\w+);base64,(.+)$/', $raw, $matches)) {
         $ext = $matches[1] === 'jpeg' ? 'jpg' : $matches[1];
         $binary = base64_decode($matches[2]);
@@ -111,7 +161,9 @@ if ($method === 'POST') {
   }
 
   if ($isDefault) {
-    $pdo->exec('UPDATE certificate_signatories SET is_default = 0');
+    try {
+      $pdo->exec('UPDATE certificate_signatories SET is_default = 0');
+    } catch (Throwable) {}
   }
 
   $stmt = $pdo->prepare('

@@ -18,6 +18,7 @@ import {
   RefreshCw,
   Plus,
   ShieldCheck,
+  UserCheck,
 } from 'lucide-react'
 import {
   certificatesApi,
