@@ -2033,6 +2033,22 @@ function ensure_allocation_inventory_schema(PDO $pdo): void
     $pdo->exec("ALTER TABLE allocations ADD COLUMN variant VARCHAR(100) NULL AFTER unit");
   } catch (Throwable $e) {}
 
+  // Monetary procurement allocations summarize multiple requested items in
+  // resource_name, which can exceed the legacy VARCHAR(120) limit. Expand old
+  // databases once before any allocation insert uses the wider summary.
+  try {
+    $resourceNameColumn = $pdo->query("SHOW COLUMNS FROM allocations LIKE 'resource_name'")->fetch(PDO::FETCH_ASSOC);
+    if (!$resourceNameColumn) {
+      throw new RuntimeException('allocations.resource_name column was not found.');
+    }
+    $resourceNameType = strtolower((string) ($resourceNameColumn['Type'] ?? ''));
+    if (!preg_match('/^(text|mediumtext|longtext)(\b|$)/', $resourceNameType)) {
+      $pdo->exec('ALTER TABLE allocations MODIFY COLUMN resource_name TEXT NOT NULL');
+    }
+  } catch (Throwable $e) {
+    throw new RuntimeException('Unable to expand allocations.resource_name for multi-item procurement summaries.', 0, $e);
+  }
+
   try {
     $pdo->exec("
       CREATE TABLE IF NOT EXISTS inventory_transactions (
