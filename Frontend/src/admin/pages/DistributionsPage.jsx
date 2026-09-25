@@ -90,7 +90,7 @@ const filterConfig = {
 
 const emptyForm = {
   eventName: '', location: '', beneficiaryId: '', program: '', distributionDate: '', scheduleTime: '',
-  beneficiaries: '', volunteers: '', vehicles: '', distanceKm: '', status: 'Planning',
+  beneficiaries: '', volunteers: '', vehicles: '1', distanceKm: '', status: 'Preparing',
   type: 'Delivery', itemsSummary: '', coordinator: '', notes: '', proofStatus: 'Awaiting Proof',
   allocationIds: [],
 }
@@ -113,7 +113,7 @@ function formFromAllocations(allocs, barangays) {
     itemsSummary,
     notes: `From allocation(s): ${allocs.map((a) => a.id || a.allocationId || a.code || 'ALC').join(', ')}`,
     allocationIds: allocs.map((a) => a.dbId || a.allocationId || a.id).filter(Boolean),
-    status: 'Planning',
+    status: 'Preparing',
     type: 'Delivery',
     proofStatus: 'Awaiting Proof',
   }
@@ -357,18 +357,6 @@ export default function DistributionsPage() {
 
     return list
   }, [editRow, form.allocationIds, allocationsList])
-
-  // Allocations ready in inventory for this barangay not yet linked
-  const availableUnlinkedAllocs = useMemo(() => {
-    if (!form.beneficiaryId) return []
-    const linkedIds = new Set(resolvedCargoAllocations.map((a) => a.dbId || a.id))
-    return allocationsList.filter(
-      (a) => Number(a.beneficiaryId) === Number(form.beneficiaryId) &&
-             a.status !== 'Delivered' &&
-             a.status !== 'Cancelled' &&
-             !linkedIds.has(a.dbId || a.id)
-    )
-  }, [allocationsList, form.beneficiaryId, resolvedCargoAllocations])
 
   const isStep1Complete = useMemo(() => {
     return Boolean(
@@ -655,13 +643,13 @@ export default function DistributionsPage() {
       beneficiaries: row.beneficiaries || '',
       volunteers: row.volunteers || (parsedVolunteers.length ? String(parsedVolunteers.length) : ''),
       vehicles: row.vehicles || (row.type === 'Delivery' ? '1' : ''),
-      distanceKm: row.distanceKm ?? '',
-      status: row.status,
+      distanceKm: '',
+      status: row.status === 'Planning' ? 'Preparing' : (row.status || 'Preparing'),
       type: row.type || 'Delivery',
       itemsSummary: items,
       coordinator: row.coordinator || '',
       notes: row.notes || '',
-      proofStatus: row.proofStatus || 'Awaiting Proof',
+      proofStatus: 'Awaiting Proof',
       allocationIds: allocIds,
     })
   }
@@ -760,13 +748,13 @@ export default function DistributionsPage() {
         beneficiaries: Number(form.beneficiaries) || 0,
         volunteers: Number(form.volunteers) || assignedVolunteers.length || 0,
         vehicles: Number(form.vehicles) || 0,
-        distanceKm: form.type === 'Delivery' && form.distanceKm !== '' ? Number(form.distanceKm) : '',
-        status: form.status,
+        distanceKm: '',
+        status: 'Preparing',
         type: form.type,
-        itemsSummary: form.itemsSummary,
+        itemsSummary: form.itemsSummary || (resolvedCargoAllocations.length > 0 ? resolvedCargoAllocations.map((a) => `${a.resource || a.resourceName || a.item || 'Relief Goods'} × ${a.quantity || 1}`).join('; ') : ''),
         coordinator: form.coordinator,
         notes: updatedNotes,
-        proofStatus: form.proofStatus,
+        proofStatus: 'Awaiting Proof',
       }
 
       if (editRow) {
@@ -1485,7 +1473,7 @@ export default function DistributionsPage() {
                   <span className="dist-step-number">3</span>
                   <span className="dist-step-text">
                     <strong>3. Status &amp; Notes</strong>
-                    <small>{form.status || 'Review & Finalize'}</small>
+                    <small>{form.status === 'Preparing' ? 'Preparing · Review' : (form.status || 'Preparing')}</small>
                   </span>
                 </button>
               </div>
@@ -1535,13 +1523,21 @@ export default function DistributionsPage() {
                           onChange={(e) => {
                             const id = e.target.value
                             const brgy = barangays.find((b) => String(b.dbId) === id)
-                            setForm({
-                              ...form,
+                            const matching = id ? allocationsList.filter((a) => Number(a.beneficiaryId) === Number(id) && a.status !== 'Delivered' && a.status !== 'Cancelled') : []
+                            const allocIds = matching.map((a) => a.dbId || a.id).filter(Boolean)
+                            const items = matching.map((a) => `${a.resource || a.resourceName || a.item || 'Relief Goods'} × ${a.quantity || 1}`).join('; ')
+                            const prog = matching.find((a) => a.program)?.program || form.program || ''
+
+                            setForm((prev) => ({
+                              ...prev,
                               beneficiaryId: id,
-                              location: form.location || brgy?.barangay || brgy?.name || '',
-                              eventName: form.eventName || (brgy ? `Delivery — ${brgy.barangay || brgy.name}` : ''),
-                              beneficiaries: form.beneficiaries || String(brgy?.affectedFamilies || ''),
-                            })
+                              location: prev.location || brgy?.barangay || brgy?.name || '',
+                              eventName: prev.eventName || (brgy ? `Delivery — ${brgy.barangay || brgy.name}` : ''),
+                              beneficiaries: prev.beneficiaries || String(brgy?.affectedFamilies || ''),
+                              allocationIds: allocIds.length ? allocIds : prev.allocationIds,
+                              itemsSummary: items || prev.itemsSummary,
+                              program: prog || prev.program,
+                            }))
                             if (stepErrors.destination?.beneficiaryId) {
                               setStepErrors((prev) => ({ ...prev, destination: { ...prev.destination, beneficiaryId: null } }))
                             }
@@ -1550,7 +1546,7 @@ export default function DistributionsPage() {
                           <option value="">Select barangay…</option>
                           {barangays.map((b) => (
                             <option key={b.dbId} value={b.dbId}>
-                              {b.barangay || b.name} — {b.affectedFamilies || 0} families
+                              {b.barangay || b.name}
                             </option>
                           ))}
                         </select>
@@ -1713,45 +1709,28 @@ export default function DistributionsPage() {
                         </div>
                       </div>
 
-                      {/* Sync Active Allocations Action Button */}
-                      {matchingActiveAllocs.length > 0 && (
-                        <button
-                          type="button"
-                          className="dist-cl-sum-sync-btn"
-                          onClick={() => handleSyncFromAllocations()}
-                          title="Re-sync cargo items from active allocations"
-                        >
-                          <RefreshCw size={12} />
-                          <span>Sync ({matchingActiveAllocs.length})</span>
-                        </button>
-                      )}
                     </div>
 
-                    {/* ── Cargo to Deliver ── */}
+                    {/* ── Cargo to Deliver (Allocated Resources Only — Read-Only) ── */}
                     <div className="dist-cl-card">
                       <div className="dist-cl-card__head">
                         <div className="dist-cl-card__title">
                           <Package size={14} style={{ color: '#AF101A' }} />
                           <span>Cargo to Deliver</span>
-                          <span className="dist-cl-req-star">*</span>
                           {resolvedCargoAllocations.length > 0 && (
                             <span className="dist-cl-count-badge">
-                              {resolvedCargoAllocations.length} batch(es) linked
+                              {resolvedCargoAllocations.length} allocated batch(es)
                             </span>
                           )}
                         </div>
-                        <button
-                          type="button"
-                          className="dist-cl-ghost-btn"
-                          onClick={() => handleSyncFromAllocations()}
-                          title="Auto-format cargo description from linked inventory allocations"
-                        >
-                          <RefreshCw size={11} /> Sync Cargo
-                        </button>
+                        <span className="dist-badge dist-badge--code" style={{ color: '#64748b' }}>
+                          <Lock size={10} style={{ marginRight: '3px' }} />
+                          Allocated &amp; Read-Only
+                        </span>
                       </div>
 
-                      {/* Display linked allocations as structured batch cards */}
-                      {resolvedCargoAllocations.length > 0 && (
+                      {/* Display allocated batches as clean read-only chips */}
+                      {resolvedCargoAllocations.length > 0 ? (
                         <div className="dist-cargo-batches-list">
                           {resolvedCargoAllocations.map((a) => {
                             const allocKey = a.dbId || a.id
@@ -1759,7 +1738,7 @@ export default function DistributionsPage() {
                             const itemName = a.resource || a.resourceName || a.item || 'Relief Goods'
                             const qty = a.quantity || 1
                             return (
-                              <div key={allocKey} className="dist-cargo-batch-chip">
+                              <div key={allocKey} className="dist-cargo-batch-chip dist-cargo-batch-chip--readonly">
                                 <div className="dist-cargo-batch-chip__main">
                                   <Package size={14} className="dist-cargo-batch-chip__icon" />
                                   <div>
@@ -1773,67 +1752,23 @@ export default function DistributionsPage() {
                                 <div className="dist-cargo-batch-chip__qty">
                                   <span className="dist-badge dist-badge--qty">Qty: {qty}</span>
                                   <span className="dist-badge dist-badge--status">{a.status || 'Allocated'}</span>
-                                  <button
-                                    type="button"
-                                    className="dist-cl-remove-btn"
-                                    onClick={() => handleUnlinkAllocation(allocKey)}
-                                    title="Unlink allocation from this delivery"
-                                  >
-                                    ×
-                                  </button>
                                 </div>
                               </div>
                             )
                           })}
                         </div>
-                      )}
+                      ) : null}
 
-                      {/* Available inventory allocations for this barangay not yet linked */}
-                      {availableUnlinkedAllocs.length > 0 && (
-                        <div className="dist-cargo-available-box">
-                          <div className="dist-cargo-available-box__header">
-                            <Sparkles size={12} />
-                            <span>Available in Inventory for this Barangay ({availableUnlinkedAllocs.length} unlinked batch{availableUnlinkedAllocs.length > 1 ? 'es' : ''}):</span>
-                          </div>
-                          <div className="dist-cargo-available-chips">
-                            {availableUnlinkedAllocs.map((ua) => {
-                              const uKey = ua.dbId || ua.id
-                              const itemName = ua.resource || ua.resourceName || ua.item || 'Relief Items'
-                              return (
-                                <div key={uKey} className="dist-cargo-avail-chip">
-                                  <span><strong>ALC-{String(uKey).padStart(4, '0')}</strong>: {itemName} × {ua.quantity || 1}</span>
-                                  <button
-                                    type="button"
-                                    onClick={() => handleIncludeAllocation(ua)}
-                                    title="Include this inventory allocation in this delivery"
-                                  >
-                                    + Include
-                                  </button>
-                                </div>
-                              )
-                            })}
-                          </div>
+                      {/* Read-Only Cargo Summary Manifest */}
+                      <div className="dist-cargo-readonly-box">
+                        <span className="dist-cargo-readonly-label">Allocated Cargo Manifest:</span>
+                        <div className="dist-cargo-readonly-text">
+                          {form.itemsSummary || (resolvedCargoAllocations.length > 0
+                            ? resolvedCargoAllocations.map((a) => `${a.resource || a.resourceName || a.item || 'Relief Goods'} × ${a.quantity || 1}`).join('; ')
+                            : 'No allocated cargo specified for this request.')}
                         </div>
-                      )}
-
-                      <textarea
-                        rows={2}
-                        required
-                        className={stepErrors.logistics?.itemsSummary ? 'input-error' : ''}
-                        value={form.itemsSummary}
-                        onChange={(e) => {
-                          setForm({ ...form, itemsSummary: e.target.value })
-                          if (stepErrors.logistics?.itemsSummary) {
-                            setStepErrors((prev) => ({ ...prev, logistics: { ...prev.logistics, itemsSummary: null } }))
-                          }
-                        }}
-                        placeholder="e.g. Emergency Relief Food Pack (1 packs) × 50; Family Hygiene Kits × 30"
-                        style={{ width: '100%', resize: 'vertical', fontSize: '0.84rem' }}
-                      />
-                      {stepErrors.logistics?.itemsSummary && (
-                        <span className="dist-field-error">{stepErrors.logistics.itemsSummary}</span>
-                      )}
-                      <small className="dist-cl-hint">Specify the relief items, packages, and quantities to be loaded for dispatch.</small>
+                      </div>
+                      <small className="dist-cl-hint">Cargo items are locked and reflect the resources already allocated to this relief request.</small>
                     </div>
 
                     {/* ── Dispatch Leadership & Fleet (Perfect Alignment) ── */}
@@ -1949,18 +1884,6 @@ export default function DistributionsPage() {
                                   }
                                 }}
                                 placeholder={form.type === 'Delivery' ? '1' : '0'}
-                              />
-                            </div>
-                            <div className="dist-cl-fleet-cell">
-                              <label className="dist-cl-fleet-cell__label">Distance (km)</label>
-                              <input
-                                type="number"
-                                min="0"
-                                step="0.1"
-                                className="dist-cl-aligned-input"
-                                value={form.distanceKm}
-                                onChange={(e) => setForm({ ...form, distanceKm: e.target.value })}
-                                placeholder="e.g. 5.5"
                               />
                             </div>
                             <div className="dist-cl-fleet-cell">
@@ -2212,7 +2135,7 @@ export default function DistributionsPage() {
                             Fleet &amp; Transport
                           </span>
                           <strong>
-                            {form.vehicles || 0} vehicle(s) {form.distanceKm ? `· ${form.distanceKm} km` : ''}
+                            {form.vehicles || 0} vehicle(s)
                           </strong>
                         </div>
 
@@ -2249,39 +2172,35 @@ export default function DistributionsPage() {
                     </div>
 
                     <div className="dist-form-grid-2">
-                      <label>
-                        <span style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
-                          <ShieldCheck size={13} style={{ color: '#AF101A' }} />
-                          Workflow Status
-                        </span>
-                        <select
-                          value={form.status}
-                          disabled={editRow && isTerminalStatus(editRow.status, DISTRIBUTION_TERMINAL)}
-                          onChange={(e) => setForm({ ...form, status: e.target.value })}
-                        >
-                          {getAvailableNextStatuses({
-                            currentStatus: editRow ? editRow.status : form.status,
-                            allStatuses: WORKFLOW,
-                            workflowOrder: DISTRIBUTION_WORKFLOW,
-                            terminalStatuses: DISTRIBUTION_TERMINAL,
-                            aliases: DISTRIBUTION_ALIASES,
-                          }).map((s) => <option key={s} value={s}>{s}</option>)}
-                        </select>
-                        {editRow && isTerminalStatus(editRow.status, DISTRIBUTION_TERMINAL) && (
-                          <small style={{ display: 'block', color: 'var(--admin-text-muted)', marginTop: '4px' }}>
-                            🔒 Status is finalized and locked.
-                          </small>
-                        )}
-                      </label>
-                      <label>
-                        <span style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
-                          <FileCheck size={13} style={{ color: '#AF101A' }} />
-                          Proof Requirement
-                        </span>
-                        <select value={form.proofStatus} onChange={(e) => setForm({ ...form, proofStatus: e.target.value })}>
-                          {PROOF_STATUS.map((s) => <option key={s} value={s}>{s}</option>)}
-                        </select>
-                      </label>
+                      <div className="dist-readonly-status-card">
+                        <div className="dist-readonly-status-card__header">
+                          <ShieldCheck size={13} style={{ color: '#0369a1' }} />
+                          <span>Workflow Status</span>
+                        </div>
+                        <div className="dist-readonly-status-card__body">
+                          <span className="dist-badge--preparing">
+                            Preparing
+                          </span>
+                          <p className="dist-readonly-status-card__hint">
+                            Workflow status automatically remains Preparing during delivery planning.
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="dist-readonly-status-card">
+                        <div className="dist-readonly-status-card__header">
+                          <FileCheck size={13} style={{ color: '#b45309' }} />
+                          <span>Proof Requirement</span>
+                        </div>
+                        <div className="dist-readonly-status-card__body">
+                          <span className="dist-badge--proof-pending">
+                            Awaiting Delivery Proof
+                          </span>
+                          <p className="dist-readonly-status-card__hint">
+                            Locked during planning. Proof is handled and verified upon field handover.
+                          </p>
+                        </div>
+                      </div>
                     </div>
 
                     <label>

@@ -2430,6 +2430,92 @@
   border: 1px solid #bbf7d0;
 }
 
+.dist-cargo-readonly-box {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 0.65rem 0.85rem;
+  margin-top: 0.45rem;
+}
+
+.dist-cargo-readonly-label {
+  display: block;
+  font-size: 0.7rem;
+  font-weight: 700;
+  color: #64748b;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-bottom: 0.25rem;
+}
+
+.dist-cargo-readonly-text {
+  font-size: 0.84rem;
+  color: #0f172a;
+  line-height: 1.45;
+  font-weight: 600;
+}
+
+.dist-cargo-batch-chip--readonly {
+  padding-right: 0.75rem !important;
+}
+
+.dist-readonly-status-card {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 0.75rem 0.95rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.dist-readonly-status-card__header {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  font-size: 0.76rem;
+  font-weight: 700;
+  color: #475569;
+}
+
+.dist-readonly-status-card__body {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  align-items: flex-start;
+}
+
+.dist-badge--preparing {
+  background: #e0f2fe;
+  color: #0369a1;
+  border: 1px solid #bae6fd;
+  display: inline-flex;
+  align-items: center;
+  padding: 0.2rem 0.6rem;
+  border-radius: 6px;
+  font-weight: 700;
+  font-size: 0.75rem;
+}
+
+.dist-badge--proof-pending {
+  background: #fef3c7;
+  color: #b45309;
+  border: 1px solid #fde68a;
+  display: inline-flex;
+  align-items: center;
+  padding: 0.2rem 0.6rem;
+  border-radius: 6px;
+  font-weight: 700;
+  font-size: 0.75rem;
+}
+
+.dist-readonly-status-card__hint {
+  font-size: 0.72rem;
+  color: #64748b;
+  margin: 0;
+  line-height: 1.35;
+}
+
 .dist-cargo-available-box {
   background: #fffbeb;
   border: 1px solid #fde68a;
@@ -2528,11 +2614,11 @@
   color: #AF101A;
 }
 
-/* 3-Column Fleet inputs */
+/* 2-Column Fleet inputs (Vehicles & Volunteers) */
 .dist-cl-fleet-triple {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 0.45rem;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 0.65rem;
 }
 
 .dist-cl-fleet-cell {
