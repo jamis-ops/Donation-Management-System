@@ -4,7 +4,7 @@ import {
   CheckCircle2, XCircle, CalendarDays, Briefcase, Truck, Users, Plus,
   FileText, Download, ExternalLink, GraduationCap, Sparkles, RefreshCw,
   Award, School, Check, Phone, Info, Lock, Unlock, AlertTriangle, Quote, User, Eye,
-  UploadCloud, X,
+  UploadCloud, X, Search, ChevronRight, ArrowLeft, ArrowRight,
 } from 'lucide-react'
 import { volunteersApi, tasksApi, volunteerMatchApi, distributionsApi, internAiMatchApi } from '../../api/resources'
 import { getTodayDateString, isPastDateString } from '../../utils/date'
@@ -173,6 +173,9 @@ export default function VolunteersPage() {
 
   // 1. General Task Assignment modal state (Outside Manage)
   const [showGeneralTaskModal, setShowGeneralTaskModal] = useState(false)
+  const [generalTaskStep, setGeneralTaskStep] = useState(1)
+  const [generalMemberSearch, setGeneralMemberSearch] = useState('')
+  const [generalMemberTypeFilter, setGeneralMemberTypeFilter] = useState('all')
   const [generalTaskForm, setGeneralTaskForm] = useState(emptyGeneralTaskForm)
   const { options: generalTaskTitleOptions } = useTaskTitles(generalTaskForm.module)
   const [generalSelectedVolunteerIds, setGeneralSelectedVolunteerIds] = useState([])
@@ -262,6 +265,80 @@ export default function VolunteersPage() {
     () => (allVolunteers || []).filter((v) => ['Approved', 'Active', 'Assigned'].includes(v.status)),
     [allVolunteers],
   )
+
+  const filteredActiveAssignees = useMemo(() => {
+    let list = activeAssigneesList || []
+    if (generalMemberTypeFilter === 'Volunteer') {
+      list = list.filter((v) => v.applicantType !== 'Intern')
+    } else if (generalMemberTypeFilter === 'Intern') {
+      list = list.filter((v) => v.applicantType === 'Intern')
+    }
+    if (generalMemberSearch.trim()) {
+      const q = generalMemberSearch.toLowerCase().trim()
+      list = list.filter((v) =>
+        (v.name || '').toLowerCase().includes(q) ||
+        (v.id || '').toLowerCase().includes(q) ||
+        (v.programs || []).some((p) => p.toLowerCase().includes(q))
+      )
+    }
+    return list
+  }, [activeAssigneesList, generalMemberTypeFilter, generalMemberSearch])
+
+  const selectedAssigneesDetails = useMemo(() => {
+    return (activeAssigneesList || []).filter((v) =>
+      generalSelectedVolunteerIds.includes(String(v.dbId))
+    )
+  }, [activeAssigneesList, generalSelectedVolunteerIds])
+
+  const isGeneralStep1Valid = generalSelectedVolunteerIds.length > 0
+  const isGeneralStep2Valid =
+    Boolean(generalTaskForm.module?.trim()) &&
+    Boolean(generalTaskForm.title?.trim()) &&
+    (!isDistributionProgram(generalTaskForm.module) || Boolean(generalTaskForm.distributionId)) &&
+    (!generalTaskForm.dueDate || !isPastDateString(generalTaskForm.dueDate))
+
+  const handleGeneralStepNext = () => {
+    if (generalTaskStep === 1) {
+      if (!isGeneralStep1Valid) {
+        showErrorModal('Please select at least one active member before proceeding.')
+        return
+      }
+      setGeneralTaskStep(2)
+    } else if (generalTaskStep === 2) {
+      if (!generalTaskForm.module?.trim()) {
+        showErrorModal('Please select a program or project.')
+        return
+      }
+      if (!generalTaskForm.title?.trim()) {
+        showErrorModal('Task title is required. Please select or specify a title.')
+        return
+      }
+      if (isDistributionProgram(generalTaskForm.module) && !generalTaskForm.distributionId) {
+        showErrorModal('Please select a distribution event for distribution programs.')
+        return
+      }
+      if (generalTaskForm.dueDate && isPastDateString(generalTaskForm.dueDate)) {
+        showErrorModal('Due date cannot be in the past. Please select today or a future date.')
+        return
+      }
+      setGeneralTaskStep(3)
+    } else if (generalTaskStep === 3) {
+      setGeneralTaskStep(4)
+    }
+  }
+
+  const handleGeneralStepPrev = () => {
+    if (generalTaskStep > 1) {
+      setGeneralTaskStep((prev) => prev - 1)
+    }
+  }
+
+  const handleCloseGeneralModal = () => {
+    setShowGeneralTaskModal(false)
+    setGeneralTaskStep(1)
+    setGeneralMemberSearch('')
+    setGeneralMemberTypeFilter('all')
+  }
 
   const loadTasks = async (volunteer) => {
     if (!volunteer) {
@@ -785,6 +862,9 @@ export default function VolunteersPage() {
     setGeneralTaskForm({ ...emptyGeneralTaskForm, module: programOptions[0] || 'Volunteer' })
     setSelectedSkillToAdd('')
     setSuggestions([])
+    setGeneralTaskStep(1)
+    setGeneralMemberSearch('')
+    setGeneralMemberTypeFilter('all')
     setShowGeneralTaskModal(true)
   }
 
@@ -838,6 +918,9 @@ export default function VolunteersPage() {
       setGeneralTaskForm(emptyGeneralTaskForm)
       setGeneralSelectedVolunteerIds([])
       setSuggestions([])
+      setGeneralTaskStep(1)
+      setGeneralMemberSearch('')
+      setGeneralMemberTypeFilter('all')
       if (selected) loadTasks(selected)
       reload()
       notifyBadgesChanged()
@@ -2486,290 +2569,660 @@ export default function VolunteersPage() {
 
       {/* 1. MAIN GENERAL ASSIGN TASK MODAL (Outside Manage) */}
       {showGeneralTaskModal && (
-        <div className="admin-modal-overlay" onClick={() => setShowGeneralTaskModal(false)}>
-          <div className="admin-modal admin-modal--wide" onClick={(e) => e.stopPropagation()}>
+        <div className="admin-modal-overlay" onClick={handleCloseGeneralModal}>
+          <div className="admin-modal admin-modal--general-task" onClick={(e) => e.stopPropagation()}>
             <ModalHeader
               title="Assign Task — General Task Management"
-              onClose={() => setShowGeneralTaskModal(false)}
+              onClose={handleCloseGeneralModal}
             />
-            <form onSubmit={handleCreateGeneralTask}>
-              <div className="task-banner-general">
-                <Briefcase size={18} />
-                <div>
-                  <strong>General Task Management</strong>
-                  <span>Create, schedule, and assign duty tasks to active volunteers and interns across programs.</span>
-                </div>
-              </div>
 
-              {/* Multi-Member Selection */}
-              <label>
-                <Req required>Assign to Member(s)</Req>
-                <div className="volunteer-multi-actions">
-                  <span>{generalSelectedVolunteerIds.length} of {activeAssigneesList.length} active member(s) selected</span>
-                  <div style={{ display: 'flex', gap: '0.75rem' }}>
-                    <button
-                      type="button"
-                      onClick={() => setGeneralSelectedVolunteerIds(activeAssigneesList.map((v) => String(v.dbId)))}
-                    >
-                      Select All Active
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setGeneralSelectedVolunteerIds([])}
-                    >
-                      Clear Selection
-                    </button>
-                  </div>
-                </div>
-                <div className="volunteer-multi-grid">
-                  {activeAssigneesList.map((v) => {
-                    const isChecked = generalSelectedVolunteerIds.includes(String(v.dbId))
-                    const isIntern = v.applicantType === 'Intern'
-                    return (
-                      <label
-                        key={v.dbId}
-                        className={`volunteer-multi-grid__item${isChecked ? ' volunteer-multi-grid__item--selected' : ''}`}
-                      >
-                        <input
-                          type="checkbox"
-                          checked={isChecked}
-                          onChange={(e) => {
-                            const val = String(v.dbId)
-                            if (e.target.checked) {
-                              setGeneralSelectedVolunteerIds((prev) => [...prev, val])
-                            } else {
-                              setGeneralSelectedVolunteerIds((prev) => prev.filter((id) => id !== val))
-                            }
-                          }}
-                        />
-                        <div style={{ minWidth: 0, flex: 1 }}>
-                          <strong style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', fontSize: '0.82rem', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                            {v.name}
-                            <span style={{ fontSize: '0.68rem', padding: '0.1rem 0.35rem', borderRadius: '4px', background: isIntern ? '#ede9fe' : '#e0f2fe', color: isIntern ? '#6b21a8' : '#0369a1', fontWeight: 600 }}>
-                              {isIntern ? 'Intern' : 'Volunteer'}
-                            </span>
-                          </strong>
-                          <span style={{ fontSize: '0.74rem', color: '#64748b', display: 'block', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                            {v.id} · {(v.programs || [])[0] || 'General'}
-                          </span>
-                        </div>
-                      </label>
-                    )
-                  })}
-                </div>
-              </label>
+            {/* Stepper Progress Bar */}
+            <div className="task-wizard-stepper" role="navigation" aria-label="Task Assignment Steps">
+              {[
+                { id: 1, label: 'Select Members' },
+                { id: 2, label: 'Task Details' },
+                { id: 3, label: 'Skills & Requirements' },
+                { id: 4, label: 'Review & Assign' },
+              ].map((step, idx) => {
+                const stepNum = idx + 1
+                const isActive = generalTaskStep === stepNum
+                const isCompleted = generalTaskStep > stepNum
+                const canJump =
+                  stepNum < generalTaskStep ||
+                  (stepNum === 2 && isGeneralStep1Valid) ||
+                  (stepNum === 3 && isGeneralStep1Valid && isGeneralStep2Valid) ||
+                  (stepNum === 4 && isGeneralStep1Valid && isGeneralStep2Valid)
 
-              {/* Program Selector */}
-              <label>
-                <Req required>Program / Project</Req>
-                <select
-                  required
-                  value={generalTaskForm.module}
-                  onChange={(e) => {
-                    const nextModule = e.target.value
-                    const isDist = isDistributionProgram(nextModule)
-                    setGeneralTaskForm((prev) => ({
-                      ...prev,
-                      module: nextModule,
-                      title: '',
-                      distributionId: isDist ? prev.distributionId : '',
-                    }))
-                  }}
-                >
-                  <option value="">Select a Program…</option>
-                  {programOptions.map((p) => (
-                    <option key={p} value={p}>{p}</option>
-                  ))}
-                </select>
-              </label>
-
-              {/* Task Title Dropdown connected to program */}
-              <label>
-                <Req required>Task Title</Req>
-                <select
-                  required
-                  value={generalTaskForm.title}
-                  onChange={(e) => setGeneralTaskForm({ ...generalTaskForm, title: e.target.value })}
-                >
-                  <option value="">
-                    {generalTaskTitleOptions.length > 0 ? 'Select a task title…' : 'No task titles for this program'}
-                  </option>
-                  {generalTaskTitleOptions.map((t) => (
-                    <option key={t} value={t}>{t}</option>
-                  ))}
-                  {generalTaskForm.title && !generalTaskTitleOptions.includes(generalTaskForm.title) && (
-                    <option value={generalTaskForm.title}>{generalTaskForm.title}</option>
-                  )}
-                </select>
-                <span style={{ fontSize: '0.74rem', color: '#64748b', marginTop: '0.2rem', display: 'block' }}>
-                  {generalTaskForm.module
-                    ? `Showing active task titles assigned to "${generalTaskForm.module}".`
-                    : 'Select a program above to view available task titles.'}
-                </span>
-              </label>
-
-              <div className="form-row">
-                <label>
-                  Priority
-                  <select
-                    value={generalTaskForm.priority}
-                    onChange={(e) => setGeneralTaskForm({ ...generalTaskForm, priority: e.target.value })}
-                  >
-                    <option>Low</option>
-                    <option>Medium</option>
-                    <option>High</option>
-                    <option>Critical</option>
-                  </select>
-                </label>
-                <label>
-                  Due Date
-                  <input
-                    type="date"
-                    min={getTodayDateString()}
-                    value={generalTaskForm.dueDate}
-                    onChange={(e) => setGeneralTaskForm({ ...generalTaskForm, dueDate: e.target.value })}
-                  />
-                </label>
-              </div>
-
-              {/* Required Skills Dropdown */}
-              <label>
-                Required Skills
-                <select
-                  value={selectedSkillToAdd}
-                  onChange={(e) => {
-                    const skill = e.target.value
-                    if (skill && !generalTaskForm.requiredSkills.includes(skill)) {
-                      const updated = [...generalTaskForm.requiredSkills, skill]
-                      setGeneralTaskForm({ ...generalTaskForm, requiredSkills: updated })
-                      loadSuggestions(updated, null)
-                    }
-                    setSelectedSkillToAdd('')
-                  }}
-                >
-                  <option value="">Select a required skill to add…</option>
-                  {volunteerSkillOptions.map((s) => (
-                    <option key={s} value={s} disabled={generalTaskForm.requiredSkills.includes(s)}>
-                      {s} {generalTaskForm.requiredSkills.includes(s) ? '✓ (Selected)' : ''}
-                    </option>
-                  ))}
-                </select>
-              </label>
-
-              {generalTaskForm.requiredSkills.length > 0 && (
-                <div className="task-selected-skills-tags">
-                  {generalTaskForm.requiredSkills.map((skill) => (
-                    <span key={skill} className="task-skill-tag">
-                      {skill}
-                      <button
-                        type="button"
-                        onClick={() => {
-                          const updated = generalTaskForm.requiredSkills.filter((s) => s !== skill)
-                          setGeneralTaskForm({ ...generalTaskForm, requiredSkills: updated })
-                          loadSuggestions(updated, null)
-                        }}
-                        aria-label={`Remove ${skill}`}
-                      >
-                        ×
-                      </button>
-                    </span>
-                  ))}
-                </div>
-              )}
-
-              {/* Link to Distribution (Conditional) */}
-              {isDistributionProgram(generalTaskForm.module) && (
-                <label>
-                  <Req required>Link to Distribution Event</Req>
-                  <select
-                    required
-                    value={generalTaskForm.distributionId}
-                    onChange={(e) => {
-                      const distributionId = e.target.value
-                      const dist = linkableDistributions.find((d) => String(d.dbId) === distributionId)
-                      setGeneralTaskForm((prev) => ({
-                        ...prev,
-                        distributionId,
-                        title: prev.title || (dist
-                          ? `Delivery — ${dist.id || dist.eventName || dist.location || 'Distribution'}`
-                          : prev.title),
-                      }))
+                return (
+                  <div
+                    key={step.id}
+                    className={`task-wizard-step ${isActive ? 'task-wizard-step--active' : ''} ${isCompleted ? 'task-wizard-step--completed' : ''}`}
+                    onClick={() => {
+                      if (stepNum < generalTaskStep) {
+                        setGeneralTaskStep(stepNum)
+                      } else if (stepNum === 2 && isGeneralStep1Valid) {
+                        setGeneralTaskStep(2)
+                      } else if (stepNum === 3 && isGeneralStep1Valid && isGeneralStep2Valid) {
+                        setGeneralTaskStep(3)
+                      } else if (stepNum === 4 && isGeneralStep1Valid && isGeneralStep2Valid) {
+                        setGeneralTaskStep(4)
+                      }
                     }}
+                    style={{ cursor: canJump ? 'pointer' : 'default' }}
+                    title={canJump ? `Go to Step ${stepNum}: ${step.label}` : undefined}
                   >
-                    <option value="">Select a distribution event…</option>
-                    {linkableDistributions.map((d) => (
-                      <option key={d.dbId} value={d.dbId}>
-                        {d.id} · {d.status} · {d.eventName || d.location || 'Distribution'}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-              )}
-
-              {/* Skill Matching Suggestions */}
-              {generalTaskForm.requiredSkills.length > 0 && (
-                <section className="suggested-volunteers" style={{ marginTop: '0.75rem' }}>
-                  <div className="suggested-volunteers__head">
-                    <h4>Suggested Member Matches</h4>
-                    <span>Ranked by skill match · programs · availability</span>
+                    <div className="task-wizard-step__indicator">
+                      <div className="task-wizard-step__circle">
+                        {isCompleted ? <Check size={13} strokeWidth={3} /> : stepNum}
+                      </div>
+                      <span className="task-wizard-step__label">{step.label}</span>
+                    </div>
+                    {idx < 3 && (
+                      <div className={`task-wizard-step__connector ${generalTaskStep > stepNum ? 'task-wizard-step__connector--completed' : ''}`} />
+                    )}
                   </div>
-                  {suggestionsLoading ? (
-                    <p className="beneficiary-view-empty">Finding matches…</p>
-                  ) : suggestions.length === 0 ? (
-                    <p className="beneficiary-view-empty">No active members matched these skills yet.</p>
-                  ) : (
-                    <ul className="suggested-volunteers__list">
-                      {suggestions.map((s) => {
-                        const isAssigned = generalSelectedVolunteerIds.includes(String(s.dbId))
-                        return (
-                          <li
-                            key={s.dbId}
-                            className={`suggested-volunteers__item${isAssigned ? ' suggested-volunteers__item--current' : ''}`}
-                          >
-                            <div>
-                              <strong>{s.name}</strong>
-                              {isAssigned ? <span className="suggested-volunteers__badge">Assigned</span> : null}
-                              <p>{s.whyMatched}</p>
-                            </div>
+                )
+              })}
+            </div>
+
+            <form
+              onSubmit={(e) => {
+                e.preventDefault()
+                if (generalTaskStep < 4) {
+                  handleGeneralStepNext()
+                } else {
+                  handleCreateGeneralTask(e)
+                }
+              }}
+              className="task-wizard-container"
+            >
+              <div className="task-wizard-body">
+                {/* STEP 1: SELECT MEMBERS */}
+                {generalTaskStep === 1 && (
+                  <div className="task-step-content">
+                    <div className="task-banner-general">
+                      <Briefcase size={18} />
+                      <div>
+                        <strong>Step 1: Choose Assignees</strong>
+                        <span>Select the approved volunteers and interns who will be assigned to this duty task.</span>
+                      </div>
+                    </div>
+
+                    <div className="task-member-toolbar">
+                      <div className="task-member-search-box">
+                        <Search size={15} />
+                        <input
+                          type="text"
+                          placeholder="Search active members by name, ID, or program…"
+                          value={generalMemberSearch}
+                          onChange={(e) => setGeneralMemberSearch(e.target.value)}
+                        />
+                      </div>
+                      <div className="task-member-type-filter">
+                        <button
+                          type="button"
+                          className={`task-member-type-btn ${generalMemberTypeFilter === 'all' ? 'task-member-type-btn--active' : ''}`}
+                          onClick={() => setGeneralMemberTypeFilter('all')}
+                        >
+                          All ({activeAssigneesList.length})
+                        </button>
+                        <button
+                          type="button"
+                          className={`task-member-type-btn ${generalMemberTypeFilter === 'Volunteer' ? 'task-member-type-btn--active' : ''}`}
+                          onClick={() => setGeneralMemberTypeFilter('Volunteer')}
+                        >
+                          Volunteers ({activeAssigneesList.filter((v) => v.applicantType !== 'Intern').length})
+                        </button>
+                        <button
+                          type="button"
+                          className={`task-member-type-btn ${generalMemberTypeFilter === 'Intern' ? 'task-member-type-btn--active' : ''}`}
+                          onClick={() => setGeneralMemberTypeFilter('Intern')}
+                        >
+                          Interns ({activeAssigneesList.filter((v) => v.applicantType === 'Intern').length})
+                        </button>
+                      </div>
+                    </div>
+
+                    <div className="volunteer-multi-actions">
+                      <span>
+                        <strong>{generalSelectedVolunteerIds.length}</strong> of {activeAssigneesList.length} active member(s) selected
+                      </span>
+                      <div style={{ display: 'flex', gap: '0.5rem' }}>
+                        <button
+                          type="button"
+                          onClick={() => setGeneralSelectedVolunteerIds(activeAssigneesList.map((v) => String(v.dbId)))}
+                        >
+                          <Check size={13} /> Select All Active
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setGeneralSelectedVolunteerIds([])}
+                          disabled={generalSelectedVolunteerIds.length === 0}
+                          style={{ opacity: generalSelectedVolunteerIds.length === 0 ? 0.5 : 1 }}
+                        >
+                          Clear Selection
+                        </button>
+                      </div>
+                    </div>
+
+                    {filteredActiveAssignees.length === 0 ? (
+                      <div style={{ padding: '2rem', textAlign: 'center', color: '#64748b', background: '#f8fafc', borderRadius: '8px', border: '1px dashed #cbd5e1' }}>
+                        <p style={{ margin: 0, fontWeight: 500, fontSize: '0.88rem' }}>No active members match your search filter.</p>
+                        <button
+                          type="button"
+                          style={{ marginTop: '0.5rem', background: 'none', border: 'none', color: '#AF101A', fontSize: '0.8rem', fontWeight: 600, cursor: 'pointer' }}
+                          onClick={() => { setGeneralMemberSearch(''); setGeneralMemberTypeFilter('all') }}
+                        >
+                          Reset Filters
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="volunteer-multi-grid">
+                        {filteredActiveAssignees.map((v) => {
+                          const isChecked = generalSelectedVolunteerIds.includes(String(v.dbId))
+                          const isIntern = v.applicantType === 'Intern'
+                          const initials = (v.name || 'V')
+                            .split(' ')
+                            .map((p) => p[0])
+                            .slice(0, 2)
+                            .join('')
+                            .toUpperCase()
+
+                          return (
+                            <label
+                              key={v.dbId}
+                              className={`volunteer-multi-grid__item${isChecked ? ' volunteer-multi-grid__item--selected' : ''}`}
+                            >
+                              <input
+                                type="checkbox"
+                                checked={isChecked}
+                                onChange={(e) => {
+                                  const val = String(v.dbId)
+                                  if (e.target.checked) {
+                                    setGeneralSelectedVolunteerIds((prev) => [...prev, val])
+                                  } else {
+                                    setGeneralSelectedVolunteerIds((prev) => prev.filter((id) => id !== val))
+                                  }
+                                }}
+                              />
+                              <div className="volunteer-avatar-circle">
+                                {initials}
+                              </div>
+                              <div style={{ minWidth: 0, flex: 1 }}>
+                                <strong style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', fontSize: '0.83rem', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                  <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{v.name}</span>
+                                  <span style={{ fontSize: '0.66rem', padding: '0.1rem 0.35rem', borderRadius: '4px', background: isIntern ? '#ede9fe' : '#fee2e2', color: isIntern ? '#6b21a8' : '#991b1b', fontWeight: 700, flexShrink: 0 }}>
+                                    {isIntern ? 'Intern' : 'Volunteer'}
+                                  </span>
+                                </strong>
+                                <span style={{ fontSize: '0.73rem', color: '#64748b', display: 'block', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                  {v.id} · {(v.programs || [])[0] || 'General'}
+                                </span>
+                              </div>
+                            </label>
+                          )
+                        })}
+                      </div>
+                    )}
+
+                    {!isGeneralStep1Valid && (
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', background: '#fff1f2', border: '1px solid #fecdd3', borderRadius: '8px', padding: '0.65rem 0.9rem', color: '#9f1239', fontSize: '0.82rem', marginTop: '0.35rem' }}>
+                        <AlertTriangle size={15} style={{ flexShrink: 0, color: '#e11d48' }} />
+                        <span>Please select at least one active volunteer or intern to proceed.</span>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* STEP 2: TASK DETAILS */}
+                {generalTaskStep === 2 && (
+                  <div className="task-step-content">
+                    <div className="task-step-intro">
+                      <h3>Task Specifications & Schedule</h3>
+                      <p>Specify the program context, task title, priority level, and optional due date.</p>
+                    </div>
+
+                    {/* Program Selector */}
+                    <label>
+                      <Req required>Program / Project</Req>
+                      <select
+                        required
+                        value={generalTaskForm.module}
+                        onChange={(e) => {
+                          const nextModule = e.target.value
+                          const isDist = isDistributionProgram(nextModule)
+                          setGeneralTaskForm((prev) => ({
+                            ...prev,
+                            module: nextModule,
+                            title: '',
+                            distributionId: isDist ? prev.distributionId : '',
+                          }))
+                        }}
+                      >
+                        <option value="">Select a Program…</option>
+                        {programOptions.map((p) => (
+                          <option key={p} value={p}>{p}</option>
+                        ))}
+                      </select>
+                      <span style={{ fontSize: '0.74rem', color: '#64748b', marginTop: '0.2rem', display: 'block' }}>
+                        Tasks will be categorized under this community initiative.
+                      </span>
+                    </label>
+
+                    {/* Task Title Dropdown connected to program */}
+                    <label>
+                      <Req required>Task Title</Req>
+                      <select
+                        required
+                        value={generalTaskForm.title}
+                        onChange={(e) => setGeneralTaskForm({ ...generalTaskForm, title: e.target.value })}
+                      >
+                        <option value="">
+                          {generalTaskTitleOptions.length > 0 ? 'Select a task title…' : 'No task titles available for this program'}
+                        </option>
+                        {generalTaskTitleOptions.map((t) => (
+                          <option key={t} value={t}>{t}</option>
+                        ))}
+                        {generalTaskForm.title && !generalTaskTitleOptions.includes(generalTaskForm.title) && (
+                          <option value={generalTaskForm.title}>{generalTaskForm.title}</option>
+                        )}
+                      </select>
+                      <span style={{ fontSize: '0.74rem', color: '#64748b', marginTop: '0.2rem', display: 'block' }}>
+                        {generalTaskForm.module
+                          ? `Showing active task titles assigned to "${generalTaskForm.module}".`
+                          : 'Select a program above to view available task titles.'}
+                      </span>
+                    </label>
+
+                    <div className="form-row">
+                      <label>
+                        Priority
+                        <select
+                          value={generalTaskForm.priority}
+                          onChange={(e) => setGeneralTaskForm({ ...generalTaskForm, priority: e.target.value })}
+                        >
+                          <option>Low</option>
+                          <option>Medium</option>
+                          <option>High</option>
+                          <option>Critical</option>
+                        </select>
+                      </label>
+                      <label>
+                        Due Date
+                        <input
+                          type="date"
+                          min={getTodayDateString()}
+                          value={generalTaskForm.dueDate}
+                          onChange={(e) => setGeneralTaskForm({ ...generalTaskForm, dueDate: e.target.value })}
+                        />
+                        <span style={{ fontSize: '0.74rem', color: '#64748b', marginTop: '0.2rem', display: 'block' }}>
+                          Optional — must be today or a future date.
+                        </span>
+                      </label>
+                    </div>
+
+                    {/* Link to Distribution (Conditional) */}
+                    {isDistributionProgram(generalTaskForm.module) && (
+                      <label>
+                        <Req required>Link to Distribution Event</Req>
+                        <select
+                          required
+                          value={generalTaskForm.distributionId}
+                          onChange={(e) => {
+                            const distributionId = e.target.value
+                            const dist = linkableDistributions.find((d) => String(d.dbId) === distributionId)
+                            setGeneralTaskForm((prev) => ({
+                              ...prev,
+                              distributionId,
+                              title: prev.title || (dist
+                                ? `Delivery — ${dist.id || dist.eventName || dist.location || 'Distribution'}`
+                                : prev.title),
+                            }))
+                          }}
+                        >
+                          <option value="">Select a distribution event…</option>
+                          {linkableDistributions.map((d) => (
+                            <option key={d.dbId} value={d.dbId}>
+                              {d.id} · {d.status} · {d.eventName || d.location || 'Distribution'}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+                    )}
+                  </div>
+                )}
+
+                {/* STEP 3: SKILLS & REQUIREMENTS */}
+                {generalTaskStep === 3 && (
+                  <div className="task-step-content">
+                    <div className="task-step-intro">
+                      <h3>Skills & Intelligent Matching</h3>
+                      <p>Tag the skills needed for this duty. The system recommends active members matching these skills.</p>
+                    </div>
+
+                    <label>
+                      Required Skills
+                      <select
+                        value={selectedSkillToAdd}
+                        onChange={(e) => {
+                          const skill = e.target.value
+                          if (skill && !generalTaskForm.requiredSkills.includes(skill)) {
+                            const updated = [...generalTaskForm.requiredSkills, skill]
+                            setGeneralTaskForm({ ...generalTaskForm, requiredSkills: updated })
+                            loadSuggestions(updated, null)
+                          }
+                          setSelectedSkillToAdd('')
+                        }}
+                      >
+                        <option value="">Select a skill to add to this task…</option>
+                        {volunteerSkillOptions.map((s) => (
+                          <option key={s} value={s} disabled={generalTaskForm.requiredSkills.includes(s)}>
+                            {s} {generalTaskForm.requiredSkills.includes(s) ? '✓ (Selected)' : ''}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+
+                    {/* Quick popular skill chips if not already added */}
+                    {volunteerSkillOptions.length > 0 && (
+                      <div className="task-quick-skills-row">
+                        <span style={{ fontSize: '0.74rem', color: '#64748b', fontWeight: 600 }}>Quick Add:</span>
+                        {volunteerSkillOptions.slice(0, 6).map((skill) => {
+                          const isAdded = generalTaskForm.requiredSkills.includes(skill)
+                          if (isAdded) return null
+                          return (
                             <button
+                              key={skill}
                               type="button"
-                              className={`btn btn--sm ${isAssigned ? 'btn--outline' : 'btn--primary'}`}
+                              className="task-quick-skill-btn"
                               onClick={() => {
-                                const idStr = String(s.dbId)
-                                if (isAssigned) {
-                                  setGeneralSelectedVolunteerIds((prev) => prev.filter((id) => id !== idStr))
-                                } else {
-                                  setGeneralSelectedVolunteerIds((prev) => [...prev, idStr])
-                                }
+                                const updated = [...generalTaskForm.requiredSkills, skill]
+                                setGeneralTaskForm({ ...generalTaskForm, requiredSkills: updated })
+                                loadSuggestions(updated, null)
                               }}
                             >
-                              {isAssigned ? 'Remove' : '+ Add to Assigned'}
+                              + {skill}
                             </button>
-                          </li>
-                        )
-                      })}
-                    </ul>
-                  )}
-                </section>
-              )}
+                          )
+                        })}
+                      </div>
+                    )}
 
-              <div className="admin-modal__actions">
-                <button
-                  type="button"
-                  className="btn btn--ghost"
-                  onClick={() => setShowGeneralTaskModal(false)}
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  className="btn btn--primary"
-                  disabled={saving || !generalSelectedVolunteerIds.length}
-                >
-                  {generalSelectedVolunteerIds.length > 1
-                    ? `Assign Task to ${generalSelectedVolunteerIds.length} Members`
-                    : 'Assign Task'}
-                </button>
+                    {/* Selected Skills Tags */}
+                    {generalTaskForm.requiredSkills.length > 0 ? (
+                      <div>
+                        <span style={{ fontSize: '0.76rem', color: '#475569', fontWeight: 600, display: 'block', marginTop: '0.35rem' }}>
+                          Selected Task Skills ({generalTaskForm.requiredSkills.length}):
+                        </span>
+                        <div className="task-selected-skills-tags">
+                          {generalTaskForm.requiredSkills.map((skill) => (
+                            <span key={skill} className="task-skill-tag">
+                              {skill}
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  const updated = generalTaskForm.requiredSkills.filter((s) => s !== skill)
+                                  setGeneralTaskForm({ ...generalTaskForm, requiredSkills: updated })
+                                  loadSuggestions(updated, null)
+                                }}
+                                aria-label={`Remove ${skill}`}
+                              >
+                                ×
+                              </button>
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    ) : (
+                      <div style={{ padding: '0.85rem 1rem', background: '#f8fafc', border: '1px dashed #cbd5e1', borderRadius: '8px', color: '#64748b', fontSize: '0.82rem' }}>
+                        No specific skills selected yet. Adding skills helps verify that assigned members possess the required competencies.
+                      </div>
+                    )}
+
+                    {/* Skill Matching Suggestions */}
+                    {generalTaskForm.requiredSkills.length > 0 && (
+                      <section className="suggested-volunteers" style={{ marginTop: '0.5rem' }}>
+                        <div className="suggested-volunteers__head">
+                          <h4>Suggested Member Matches</h4>
+                          <span>Ranked by skill match · programs · availability</span>
+                        </div>
+                        {suggestionsLoading ? (
+                          <p className="beneficiary-view-empty">Finding matches…</p>
+                        ) : suggestions.length === 0 ? (
+                          <p className="beneficiary-view-empty">No active members matched these skills yet.</p>
+                        ) : (
+                          <ul className="suggested-volunteers__list">
+                            {suggestions.map((s) => {
+                              const isAssigned = generalSelectedVolunteerIds.includes(String(s.dbId))
+                              return (
+                                <li
+                                  key={s.dbId}
+                                  className={`suggested-volunteers__item${isAssigned ? ' suggested-volunteers__item--current' : ''}`}
+                                >
+                                  <div>
+                                    <strong>{s.name}</strong>
+                                    {isAssigned ? <span className="suggested-volunteers__badge">Assigned</span> : null}
+                                    <p>{s.whyMatched}</p>
+                                  </div>
+                                  <button
+                                    type="button"
+                                    className={`btn btn--sm ${isAssigned ? 'btn--outline' : 'btn--primary'}`}
+                                    onClick={() => {
+                                      const idStr = String(s.dbId)
+                                      if (isAssigned) {
+                                        setGeneralSelectedVolunteerIds((prev) => prev.filter((id) => id !== idStr))
+                                      } else {
+                                        setGeneralSelectedVolunteerIds((prev) => [...prev, idStr])
+                                      }
+                                    }}
+                                  >
+                                    {isAssigned ? 'Remove' : '+ Add to Assigned'}
+                                  </button>
+                                </li>
+                              )
+                            })}
+                          </ul>
+                        )}
+                      </section>
+                    )}
+                  </div>
+                )}
+
+                {/* STEP 4: REVIEW & ASSIGN */}
+                {generalTaskStep === 4 && (
+                  <div className="task-step-content">
+                    <div className="task-step-intro">
+                      <h3>Review & Confirm Assignment</h3>
+                      <p>Verify all details before finalizing and notifying the assigned members.</p>
+                    </div>
+
+                    <div className="task-review-container">
+                      {/* Card 1: Task Specifications */}
+                      <div className="task-review-card task-review-card--highlight">
+                        <div className="task-review-card__header">
+                          <h4>
+                            <Briefcase size={16} color="#AF101A" />
+                            Task Information
+                          </h4>
+                          <button
+                            type="button"
+                            className="task-review-card__edit-btn"
+                            onClick={() => setGeneralTaskStep(2)}
+                          >
+                            <Pencil size={12} /> Edit Details
+                          </button>
+                        </div>
+                        <div className="task-review-grid">
+                          <div className="task-review-field">
+                            <span className="task-review-field__label">Task Title</span>
+                            <span className="task-review-field__value">{generalTaskForm.title}</span>
+                          </div>
+                          <div className="task-review-field">
+                            <span className="task-review-field__label">Program / Project</span>
+                            <span className="task-review-field__value">{generalTaskForm.module}</span>
+                          </div>
+                          <div className="task-review-field">
+                            <span className="task-review-field__label">Priority</span>
+                            <div>
+                              <span className={`task-priority-pill task-priority-pill--${(generalTaskForm.priority || 'medium').toLowerCase()}`}>
+                                {generalTaskForm.priority}
+                              </span>
+                            </div>
+                          </div>
+                          <div className="task-review-field">
+                            <span className="task-review-field__label">Due Date</span>
+                            <span className="task-review-field__value">
+                              {generalTaskForm.dueDate ? generalTaskForm.dueDate : 'No due date specified'}
+                            </span>
+                          </div>
+                          {generalTaskForm.distributionId && (
+                            <div className="task-review-field" style={{ gridColumn: '1 / -1' }}>
+                              <span className="task-review-field__label">Linked Distribution Event</span>
+                              <span className="task-review-field__value" style={{ color: '#0369a1' }}>
+                                {linkableDistributions.find((d) => String(d.dbId) === generalTaskForm.distributionId)?.eventName || `Distribution Event #${generalTaskForm.distributionId}`}
+                              </span>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Card 2: Required Skills */}
+                      <div className="task-review-card">
+                        <div className="task-review-card__header">
+                          <h4>
+                            <Sparkles size={16} color="#AF101A" />
+                            Required Skills
+                          </h4>
+                          <button
+                            type="button"
+                            className="task-review-card__edit-btn"
+                            onClick={() => setGeneralTaskStep(3)}
+                          >
+                            <Pencil size={12} /> Edit Skills
+                          </button>
+                        </div>
+                        {generalTaskForm.requiredSkills.length > 0 ? (
+                          <div className="task-selected-skills-tags" style={{ margin: 0 }}>
+                            {generalTaskForm.requiredSkills.map((s) => (
+                              <span key={s} className="task-skill-tag" style={{ padding: '0.25rem 0.6rem' }}>
+                                {s}
+                              </span>
+                            ))}
+                          </div>
+                        ) : (
+                          <span style={{ fontSize: '0.84rem', color: '#64748b', fontStyle: 'italic' }}>
+                            None specified (general assignment without skill constraints)
+                          </span>
+                        )}
+                      </div>
+
+                      {/* Card 3: Assigned Members */}
+                      <div className="task-review-card">
+                        <div className="task-review-card__header">
+                          <h4>
+                            <Users size={16} color="#AF101A" />
+                            Assigned Members ({selectedAssigneesDetails.length})
+                          </h4>
+                          <button
+                            type="button"
+                            className="task-review-card__edit-btn"
+                            onClick={() => setGeneralTaskStep(1)}
+                          >
+                            <Pencil size={12} /> Edit Members
+                          </button>
+                        </div>
+                        <div className="task-review-assignees-scroll">
+                          {selectedAssigneesDetails.map((v) => {
+                            const isIntern = v.applicantType === 'Intern'
+                            const initials = (v.name || 'V')
+                              .split(' ')
+                              .map((p) => p[0])
+                              .slice(0, 2)
+                              .join('')
+                              .toUpperCase()
+
+                            return (
+                              <div key={v.dbId} className="task-review-assignee-item">
+                                <div className="volunteer-avatar-circle" style={{ background: '#fee2e2', color: '#AF101A' }}>
+                                  {initials}
+                                </div>
+                                <div style={{ minWidth: 0, flex: 1 }}>
+                                  <strong style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', fontSize: '0.82rem', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                    <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{v.name}</span>
+                                    <span style={{ fontSize: '0.64rem', padding: '0.1rem 0.3rem', borderRadius: '4px', background: isIntern ? '#ede9fe' : '#fee2e2', color: isIntern ? '#6b21a8' : '#991b1b', fontWeight: 700 }}>
+                                      {isIntern ? 'Intern' : 'Vol'}
+                                    </span>
+                                  </strong>
+                                  <span style={{ fontSize: '0.72rem', color: '#64748b', display: 'block', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                    {v.id} · {(v.programs || [])[0] || 'General'}
+                                  </span>
+                                </div>
+                              </div>
+                            )
+                          })}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Consistent Footer Actions */}
+              <div className="task-wizard-footer">
+                <div>
+                  {generalTaskStep === 1 ? (
+                    <button
+                      type="button"
+                      className="btn btn--ghost"
+                      onClick={handleCloseGeneralModal}
+                    >
+                      Cancel
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      className="btn btn--outline"
+                      onClick={handleGeneralStepPrev}
+                    >
+                      <ArrowLeft size={15} /> Back
+                    </button>
+                  )}
+                </div>
+
+                <div className="task-wizard-footer__actions">
+                  <span className="task-wizard-footer__step-info">
+                    Step {generalTaskStep} of 4
+                  </span>
+                  {generalTaskStep < 4 ? (
+                    <button
+                      type="button"
+                      className="btn btn--primary"
+                      onClick={handleGeneralStepNext}
+                      disabled={
+                        (generalTaskStep === 1 && !isGeneralStep1Valid) ||
+                        (generalTaskStep === 2 && !isGeneralStep2Valid)
+                      }
+                    >
+                      Continue <ArrowRight size={15} />
+                    </button>
+                  ) : (
+                    <button
+                      type="submit"
+                      className="btn btn--primary"
+                      disabled={saving || !isGeneralStep1Valid || !isGeneralStep2Valid}
+                    >
+                      {saving ? (
+                        <>
+                          <RefreshCw size={15} className="spin" /> Assigning…
+                        </>
+                      ) : generalSelectedVolunteerIds.length > 1 ? (
+                        `Confirm & Assign to ${generalSelectedVolunteerIds.length} Members`
+                      ) : (
+                        'Confirm & Assign Task'
+                      )}
+                    </button>
+                  )}
+                </div>
               </div>
             </form>
           </div>
