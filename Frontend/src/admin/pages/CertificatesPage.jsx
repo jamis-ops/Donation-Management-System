@@ -19,6 +19,7 @@ import {
   Plus,
   ShieldCheck,
   UserCheck,
+  Check,
 } from 'lucide-react'
 import {
   certificatesApi,
@@ -654,7 +655,7 @@ export default function CertificatesPage() {
                   {/* SECTION 1: RECIPIENT & CONTRIBUTION */}
                   <div className="cert-section-card">
                     <h3 className="cert-section-title">
-                      <UserCheck size={16} /> 1. Recipient & Contribution
+                      <UserCheck size={16} color="#af101a" /> 1. Recipient & Contribution
                     </h3>
                     <div className="form-row">
                       <label>Recipient Type
@@ -708,7 +709,7 @@ export default function CertificatesPage() {
                     </div>
 
                     {form.contributionDetails && (
-                      <div style={{ marginTop: '0.4rem', padding: '0.4rem 0.65rem', background: '#f8fafc', borderRadius: '6px', fontSize: '0.75rem', color: '#475569', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                      <div style={{ marginTop: '0.45rem', padding: '0.45rem 0.65rem', background: '#f8fafc', borderRadius: '6px', fontSize: '0.74rem', color: '#475569', display: 'flex', alignItems: 'center', gap: '0.4rem', border: '1px solid #e2e8f0' }}>
                         <CheckCircle2 size={14} color="#16a34a" />
                         <span><strong>Database Match:</strong> {form.contributionDetails}</span>
                       </div>
@@ -718,7 +719,7 @@ export default function CertificatesPage() {
                   {/* SECTION 2: CERTIFICATE STYLE & TEMPLATE */}
                   <div className="cert-section-card" style={{ marginTop: '0.75rem' }}>
                     <h3 className="cert-section-title">
-                      <Award size={16} /> 2. Certificate Title & Template
+                      <Award size={16} color="#af101a" /> 2. Certificate Title & Template
                     </h3>
                     <div className="form-row">
                       <label>Certificate Type
@@ -740,54 +741,67 @@ export default function CertificatesPage() {
                       </label>
                     </div>
 
-                    <label style={{ marginTop: '0.4rem', display: 'block' }}>Choose Design Template</label>
+                    <label style={{ marginTop: '0.45rem', display: 'block', fontSize: '0.74rem', fontWeight: 600, color: '#475569' }}>
+                      Choose Design Template
+                    </label>
                     <div className="cert-template-selector">
-                      {CERTIFICATE_TEMPLATES.map((tmpl) => (
-                        <button
-                          key={tmpl.id}
-                          type="button"
-                          className={`cert-template-btn ${form.templateId === tmpl.id ? 'cert-template-btn--active' : ''}`}
-                          onClick={() => setForm({ ...form, templateId: tmpl.id })}
-                        >
-                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%' }}>
-                            <span className="cert-template-btn__name">{tmpl.name}</span>
-                            <span style={{ fontSize: '0.62rem', background: tmpl.accentColor, color: '#fff', padding: '1px 5px', borderRadius: '4px' }}>
-                              {tmpl.badge}
-                            </span>
-                          </div>
-                          <span className="cert-template-btn__desc">{tmpl.description}</span>
-                        </button>
-                      ))}
+                      {CERTIFICATE_TEMPLATES.map((tmpl) => {
+                        const isSelected = form.templateId === tmpl.id
+                        return (
+                          <button
+                            key={tmpl.id}
+                            type="button"
+                            className={`cert-template-card ${isSelected ? 'cert-template-card--active' : ''}`}
+                            onClick={() => setForm({ ...form, templateId: tmpl.id })}
+                          >
+                            <div className="cert-template-card__header">
+                              <span className="cert-template-card__name">
+                                {isSelected && <Check size={12} color="#af101a" strokeWidth={3} />}
+                                {tmpl.name}
+                              </span>
+                              <span
+                                className="cert-template-card__badge"
+                                style={{ backgroundColor: tmpl.accentColor }}
+                              >
+                                {tmpl.badge}
+                              </span>
+                            </div>
+                            <p className="cert-template-card__desc">{tmpl.description}</p>
+                          </button>
+                        )
+                      })}
                     </div>
                   </div>
 
                   {/* SECTION 3: RECOGNITION CAPTION & AI ASSISTANT */}
                   <div className="cert-section-card" style={{ marginTop: '0.75rem' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.4rem' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.5rem', flexWrap: 'wrap', gap: '0.4rem' }}>
                       <h3 className="cert-section-title" style={{ margin: 0 }}>
-                        <PenTool size={16} /> 3. Certificate Caption
+                        <PenTool size={16} color="#af101a" /> 3. Certificate Caption
                       </h3>
                       <button
                         type="button"
-                        className="btn btn--xs btn--outline"
+                        className="cert-ai-suggest-btn"
                         onClick={() => handleGenerateAiCaption()}
                         disabled={aiGenerating}
+                        title="Generate tailored caption based on actual donor/volunteer contribution"
                       >
-                        <Sparkles size={12} color="#8a0d18" /> {aiGenerating ? 'Generating…' : 'AI Assistant'}
+                        {aiGenerating ? <RefreshCw size={13} className="spin" /> : <Sparkles size={13} />}
+                        <span>{aiGenerating ? 'Generating Caption…' : 'AI Suggest Caption'}</span>
                       </button>
                     </div>
 
-                    {/* Predefined Caption Templates */}
-                    <div style={{ marginBottom: '0.5rem' }}>
-                      <label style={{ fontSize: '0.72rem', color: '#6b7280', marginBottom: '0.25rem', display: 'block' }}>
+                    {/* Predefined Tone Selectors */}
+                    <div style={{ marginBottom: '0.55rem' }}>
+                      <label style={{ fontSize: '0.72rem', color: '#64748b', marginBottom: '0.25rem', display: 'block', fontWeight: 600 }}>
                         Preset Tones & Themes:
                       </label>
-                      <div className="cert-ai-quick-tones">
+                      <div className="cert-ai-tone-chips">
                         {CAPTION_TEMPLATES.map((t) => (
                           <button
                             key={t.id}
                             type="button"
-                            className={`cert-ai-tone-pill ${selectedTone === t.id ? 'cert-ai-tone-pill--active' : ''}`}
+                            className={`cert-ai-tone-chip ${selectedTone === t.id ? 'cert-ai-tone-chip--active' : ''}`}
                             onClick={() => {
                               setSelectedTone(t.id)
                               handleGenerateAiCaption(t.id)
@@ -799,60 +813,53 @@ export default function CertificatesPage() {
                       </div>
                     </div>
 
-                    {/* AI Prompt / Instruction Input */}
-                    <div className="cert-ai-assistant">
-                      <div className="cert-ai-header">
-                        <span className="cert-ai-title"><Sparkles size={13} /> AI Caption Instruction</span>
-                        <span style={{ fontSize: '0.65rem', color: '#6b7280' }}>Powered by Google Gemini / Smart Engine</span>
-                      </div>
-                      <div className="cert-ai-prompt-box">
-                        <input
-                          className="cert-ai-prompt-input"
-                          value={aiInstruction}
-                          onChange={(e) => setAiInstruction(e.target.value)}
-                          placeholder="e.g. Make it formal and heartfelt, focus on disaster relief..."
-                          onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); handleGenerateAiCaption(); } }}
-                        />
-                        <button
-                          type="button"
-                          className="btn btn--sm btn--primary"
-                          disabled={aiGenerating}
-                          onClick={() => handleGenerateAiCaption()}
-                        >
-                          {aiGenerating ? <RefreshCw size={13} className="spin" /> : <Sparkles size={13} />}
-                        </button>
-                      </div>
-
-                      {shortCaptionSuggestion && (
-                        <div style={{ marginTop: '0.35rem', background: '#ffffff', border: '1px dashed #c9a227', borderRadius: '6px', padding: '0.4rem', fontSize: '0.72rem' }}>
-                          <span style={{ fontWeight: 600, color: '#8a0d18', display: 'block' }}>💡 Photo Layout Compact Version:</span>
-                          <p style={{ margin: '2px 0 4px', color: '#4b5563' }}>{shortCaptionSuggestion}</p>
-                          <button
-                            type="button"
-                            className="btn btn--xs btn--outline"
-                            onClick={() => setForm({ ...form, details: shortCaptionSuggestion })}
-                          >
-                            Use Compact Version
-                          </button>
-                        </div>
-                      )}
+                    {/* Optional Custom AI Guidance */}
+                    <div className="cert-ai-custom-prompt">
+                      <input
+                        className="cert-ai-custom-input"
+                        value={aiInstruction}
+                        onChange={(e) => setAiInstruction(e.target.value)}
+                        placeholder="Optional AI prompt guidance (e.g. Focus on dental outreach, 50 hours service...)"
+                        onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); handleGenerateAiCaption(); } }}
+                      />
                     </div>
 
-                    <label style={{ marginTop: '0.5rem', display: 'block' }}>Final Certificate Text (Editable)
+                    {shortCaptionSuggestion && (
+                      <div style={{ marginBottom: '0.5rem', background: '#fffbeb', border: '1px dashed #f59e0b', borderRadius: '6px', padding: '0.45rem 0.65rem', fontSize: '0.72rem' }}>
+                        <span style={{ fontWeight: 700, color: '#b45309', display: 'block' }}>💡 Photo Layout Compact Version:</span>
+                        <p style={{ margin: '2px 0 4px', color: '#4b5563' }}>{shortCaptionSuggestion}</p>
+                        <button
+                          type="button"
+                          className="btn btn--xs btn--outline"
+                          onClick={() => setForm({ ...form, details: shortCaptionSuggestion })}
+                        >
+                          Use Compact Version
+                        </button>
+                      </div>
+                    )}
+
+                    <label style={{ margin: 0, display: 'block' }}>
+                      <span style={{ fontSize: '0.74rem', fontWeight: 600, color: '#334155', display: 'block', marginBottom: '0.25rem' }}>
+                        Certificate Caption / Recognition Message (Editable)
+                      </span>
                       <textarea
-                        rows={3}
+                        className="cert-caption-textarea"
+                        rows={4}
                         value={form.details}
                         onChange={(e) => setForm({ ...form, details: e.target.value })}
-                        placeholder="Review or customize the final certificate caption text here..."
+                        placeholder="Type manual caption or click 'AI Suggest Caption' to generate automatically based on contribution..."
                       />
                     </label>
+                    <span style={{ fontSize: '0.68rem', color: '#64748b', marginTop: '0.25rem', display: 'block' }}>
+                      ✓ Admin can edit anytime. Changes immediately update the live certificate preview on the right.
+                    </span>
                   </div>
 
                   {/* SECTION 4: OPTIONAL PHOTO / IMAGE */}
                   <div className="cert-section-card" style={{ marginTop: '0.75rem' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.4rem' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.45rem' }}>
                       <h3 className="cert-section-title" style={{ margin: 0 }}>
-                        <ImageIcon size={16} /> 4. Optional Photo / Activity Image
+                        <ImageIcon size={16} color="#af101a" /> 4. Contribution / Activity Image (Optional)
                       </h3>
                       {form.photoUrl && (
                         <button
@@ -861,14 +868,22 @@ export default function CertificatesPage() {
                           onClick={handleRemovePhoto}
                           style={{ color: '#ef4444' }}
                         >
-                          <X size={12} /> Remove Photo
+                          <X size={12} /> Remove Image
                         </button>
                       )}
                     </div>
 
-                    <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center', marginBottom: '0.5rem' }}>
-                      <label className="btn btn--sm btn--outline" style={{ cursor: 'pointer', margin: 0 }}>
-                        <Upload size={14} /> Upload Contribution Image
+                    {!form.photoUrl ? (
+                      <label className="cert-image-dropzone">
+                        <Upload size={20} color="#af101a" />
+                        <div>
+                          <div style={{ fontSize: '0.78rem', fontWeight: 600, color: '#1e293b' }}>
+                            Upload Contribution or Activity Photo
+                          </div>
+                          <div style={{ fontSize: '0.68rem', color: '#64748b' }}>
+                            Optional photo of volunteer outreach, handover, or ceremony (PNG, JPG, WEBP)
+                          </div>
+                        </div>
                         <input
                           type="file"
                           accept="image/*"
@@ -876,45 +891,60 @@ export default function CertificatesPage() {
                           onChange={handlePhotoUpload}
                         />
                       </label>
-                      <span style={{ fontSize: '0.72rem', color: '#6b7280' }}>
-                        {form.photoUrl ? 'Image attached' : 'Optional volunteer/distribution photo'}
-                      </span>
-                    </div>
-
-                    {form.photoUrl && (
+                    ) : (
                       <div>
-                        <label style={{ fontSize: '0.75rem', color: '#4b5563', marginBottom: '0.25rem', display: 'block' }}>
-                          Select Photo Placement:
-                        </label>
-                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '0.4rem' }}>
-                          {PHOTO_LAYOUTS.map((lay) => (
-                            <button
-                              key={lay.id}
-                              type="button"
-                              className={`cert-template-btn ${form.photoLayout === lay.id ? 'cert-template-btn--active' : ''}`}
-                              style={{ padding: '0.4rem 0.5rem', textAlign: 'center', alignItems: 'center' }}
-                              onClick={() => setForm({ ...form, photoLayout: lay.id })}
-                            >
-                              <span style={{ fontSize: '0.72rem', fontWeight: 600 }}>{lay.name}</span>
-                            </button>
-                          ))}
+                        <div className="cert-image-preview-bar">
+                          <div className="cert-image-thumb-wrap">
+                            <img src={form.photoUrl} alt="Contribution Preview" className="cert-image-thumb" />
+                            <div>
+                              <div style={{ fontSize: '0.75rem', fontWeight: 600, color: '#1e293b' }}>Image Attached</div>
+                              <div style={{ fontSize: '0.68rem', color: '#16a34a' }}>✓ Automatically fitted to certificate canvas</div>
+                            </div>
+                          </div>
+                          <label className="btn btn--xs btn--outline" style={{ cursor: 'pointer', margin: 0 }}>
+                            Replace Image
+                            <input
+                              type="file"
+                              accept="image/*"
+                              style={{ display: 'none' }}
+                              onChange={handlePhotoUpload}
+                            />
+                          </label>
+                        </div>
+
+                        <div>
+                          <label style={{ fontSize: '0.72rem', color: '#64748b', marginBottom: '0.25rem', display: 'block', fontWeight: 600 }}>
+                            Select Photo Placement:
+                          </label>
+                          <div className="cert-photo-layout-grid">
+                            {PHOTO_LAYOUTS.map((lay) => (
+                              <button
+                                key={lay.id}
+                                type="button"
+                                className={`cert-photo-layout-btn ${form.photoLayout === lay.id ? 'cert-photo-layout-btn--active' : ''}`}
+                                onClick={() => setForm({ ...form, photoLayout: lay.id })}
+                              >
+                                <span>{lay.name}</span>
+                              </button>
+                            ))}
+                          </div>
                         </div>
                       </div>
                     )}
                   </div>
 
-                  {/* SECTION 5: AUTOMATIC SIGNATORY */}
+                  {/* SECTION 5: AUTOMATIC OFFICIAL SIGNATORY */}
                   <div className="cert-section-card" style={{ marginTop: '0.75rem' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.4rem' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.45rem' }}>
                       <h3 className="cert-section-title" style={{ margin: 0 }}>
-                        <ShieldCheck size={16} /> 5. Automatic Official Signatory
+                        <ShieldCheck size={16} color="#af101a" /> 5. Automatic Official Signatory
                       </h3>
                       <button
                         type="button"
                         className="btn btn--xs btn--outline"
                         onClick={() => setShowSignatoriesModal(true)}
                       >
-                        Manage Signatories
+                        <Sliders size={12} /> Signatory Settings
                       </button>
                     </div>
 
@@ -941,9 +971,10 @@ export default function CertificatesPage() {
                       </label>
                     </div>
 
-                    <p style={{ fontSize: '0.7rem', color: '#6b7280', margin: '0.25rem 0 0' }}>
-                      ✓ Official signature is automatically attached from the selected signatory profile.
-                    </p>
+                    <div style={{ marginTop: '0.45rem', padding: '0.45rem 0.65rem', background: '#f8fafc', borderRadius: '6px', fontSize: '0.72rem', color: '#475569', display: 'flex', alignItems: 'center', gap: '0.45rem', border: '1px solid #e2e8f0' }}>
+                      <CheckCircle2 size={14} color="#16a34a" />
+                      <span><strong>Official Signatory Attached:</strong> {form.signatoryName || 'Flemming Hansen'} ({form.signatoryTitle || 'CEO and Co-Founder'}). Stored signature and Rise Above official seal are automatically attached.</span>
+                    </div>
                   </div>
 
                   {/* SECTION 6: WORKFLOW STATUS */}
@@ -975,33 +1006,40 @@ export default function CertificatesPage() {
               <div className="cert-preview-column">
                 <div className="cert-preview-card">
                   <div className="cert-preview-header">
-                    <span className="cert-preview-label">Live Certificate Preview</span>
-                    <button
-                      type="button"
-                      className="btn btn--xs btn--outline"
-                      onClick={() => printCertificate(livePreviewCert)}
-                      title="Print or export current preview"
-                    >
-                      <Printer size={13} /> Quick Print
-                    </button>
+                    <span className="cert-preview-label">
+                      <Award size={15} color="#af101a" /> Live Certificate Preview
+                    </span>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
+                      <span className="cert-preview-spec-badge">A4 Landscape</span>
+                      <button
+                        type="button"
+                        className="btn btn--xs btn--outline"
+                        onClick={() => printCertificate(livePreviewCert)}
+                        title="Print or export current preview"
+                      >
+                        <Printer size={13} /> Quick Print
+                      </button>
+                    </div>
                   </div>
-                  <CertificateView cert={livePreviewCert} />
+                  <div className="cert-live-canvas-wrap">
+                    <CertificateView cert={livePreviewCert} />
+                  </div>
                 </div>
               </div>
             </div>
 
             {/* MODAL FOOTER ACTIONS */}
-            <div className="admin-modal__actions" style={{ borderTop: '1px solid var(--admin-border, #e5e7eb)', paddingTop: '0.75rem', marginTop: '0.5rem' }}>
+            <div className="cert-creator-footer">
               <button type="button" className="btn btn--ghost" onClick={() => setShowForm(false)}>
                 Cancel
               </button>
-              <div className="admin-modal__actions-group">
+              <div className="cert-creator-footer__group">
                 <button
                   type="button"
                   className="btn btn--outline"
                   onClick={() => printCertificate(livePreviewCert)}
                 >
-                  <Download size={14} /> Print / Export PDF
+                  <Download size={14} /> Preview / Export PDF
                 </button>
                 <button
                   type="submit"
@@ -1009,7 +1047,7 @@ export default function CertificatesPage() {
                   className="btn btn--primary"
                   disabled={saving || (editRow && isTerminalStatus(editRow.status, CERTIFICATE_TERMINAL))}
                 >
-                  {saving ? 'Saving...' : editRow ? 'Save Changes' : 'Issue Certificate'}
+                  <Award size={14} /> {saving ? 'Saving...' : editRow ? 'Save Changes' : 'Issue Certificate'}
                 </button>
               </div>
             </div>
