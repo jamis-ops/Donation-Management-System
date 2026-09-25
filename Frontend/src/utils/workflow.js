@@ -23,6 +23,7 @@ export const DONATION_WORKFLOW = [
   'Pending Verification',
   'Verified',
   'In Inventory',
+  'Partially Allocated',
   'Allocated',
   'Distributed',
   'Completed',
@@ -30,7 +31,8 @@ export const DONATION_WORKFLOW = [
 export const DONATION_TERMINAL = ['Completed', 'Rejected', 'Cancelled']
 export const DONATION_BRANCHES = {
   'Pending Verification': ['Rejected', 'Cancelled'],
-  'Verified': ['Cancelled'],
+  'Verified': ['Partially Allocated', 'Allocated', 'Cancelled'],
+  'Partially Allocated': ['Allocated', 'Cancelled'],
 }
 
 // ── 3. Relief / Assistance Requests Workflow ──
@@ -38,6 +40,8 @@ export const REQUEST_WORKFLOW = [
   'Pending Review',
   'Under Review',
   'Approved',
+  'Partially Funded',
+  'Partially Allocated',
   'Allocated',
   'In Distribution',
   'Completed',
@@ -46,6 +50,11 @@ export const REQUEST_TERMINAL = ['Completed', 'Rejected', 'Cancelled']
 export const REQUEST_BRANCHES = {
   'Pending Review': ['Under Review', 'Approved', 'Rejected', 'Cancelled'],
   'Under Review': ['Approved', 'Rejected', 'Cancelled'],
+  'Approved': ['Partially Funded', 'Partially Allocated', 'Allocated', 'Cancelled'],
+  'Partially Funded': ['Partially Allocated', 'Allocated', 'Cancelled'],
+  'Partially Allocated': ['Allocated', 'In Distribution', 'Cancelled'],
+  'Allocated': ['In Distribution', 'Cancelled'],
+  'In Distribution': ['Completed'],
 }
 export const REQUEST_ALIASES = {
   'In Progress': 'In Distribution',

@@ -1,10 +1,7 @@
-import { useState, useMemo, useEffect } from 'react'
+import { useState, useMemo, useEffect, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { 
-  Package, ShoppingBag, Plus, Trash2, CheckCircle2, 
-  DollarSign, Users, MapPin, FileText, Send, AlertCircle, 
-  Sparkles, Coins, Store, ArrowRight, Bot, Wand2, RefreshCw, Check, Lightbulb,
-  Info, ShieldAlert
+  Package, Plus, Trash2, CheckCircle2, MapPin, Coins, Info
 } from 'lucide-react'
 import ModalHeader from '../shared/ModalHeader'
 import { donationsApi, assistanceRequestsApi } from '../../../api/resources'
@@ -22,56 +19,73 @@ export default function ProcurementModal({
   const { showLoading, hideLoading } = useLoading()
 
   const [loadingEligible, setLoadingEligible] = useState(true)
+  const [loadingDonation, setLoadingDonation] = useState(true)
+  const [loadError, setLoadError] = useState('')
   const [eligibleBarangays, setEligibleBarangays] = useState([])
   const [eligibleRequests, setEligibleRequests] = useState([])
+  const [currentDonation, setCurrentDonation] = useState(donation)
 
   const [selectedBarangayId, setSelectedBarangayId] = useState(initialBeneficiaryId ? String(initialBeneficiaryId) : '')
   const [selectedRequestId, setSelectedRequestId] = useState(initialRequestId ? String(initialRequestId) : '')
   const [customAllocationAmount, setCustomAllocationAmount] = useState(null)
-  const [items, setItems] = useState([])
+  const [itemsByRequest, setItemsByRequest] = useState({})
   const [showItemization, setShowItemization] = useState(false)
   const [notes, setNotes] = useState('')
   const [saving, setSaving] = useState(false)
 
-  // Fetch verified, eligible Barangays and Relief Requests dynamically from backend
-  useEffect(() => {
-    let isMounted = true
-    setLoadingEligible(true)
-    assistanceRequestsApi.listFundingEligible()
-      .then(res => {
-        if (!isMounted) return
-        const barangays = res?.data?.eligibleBarangays || []
-        const requests = res?.data?.eligibleRequests || []
-        setEligibleBarangays(barangays)
-        setEligibleRequests(requests)
+  // Fetch the latest persisted balance and server-filtered funding candidates.
+  const loadFundingData = useCallback(async () => {
+    const donationId = donation?.dbId || donation?.id
+    const [requestsResult, donationResult] = await Promise.allSettled([
+      assistanceRequestsApi.listFundingEligible(),
+      donationId ? donationsApi.get(donationId) : Promise.reject(new Error('Donation record is unavailable.')),
+    ])
 
-        // Pre-select barangay if specified or if only one exists
+    if (requestsResult.status === 'fulfilled') {
+      setLoadError('')
+      const barangays = requestsResult.value?.data?.eligibleBarangays || []
+      const requests = requestsResult.value?.data?.eligibleRequests || []
+      setEligibleBarangays(barangays)
+      setEligibleRequests(requests)
+      setSelectedBarangayId(current => {
         if (initialBeneficiaryId && barangays.some(b => String(b.id || b.dbId) === String(initialBeneficiaryId))) {
-          setSelectedBarangayId(String(initialBeneficiaryId))
-        } else if (!selectedBarangayId && barangays.length === 1) {
-          setSelectedBarangayId(String(barangays[0].id || barangays[0].dbId))
+          return String(initialBeneficiaryId)
         }
-
-        // Pre-select request if specified
+        if (current && barangays.some(b => String(b.id || b.dbId) === String(current))) return current
+        return !current && barangays.length === 1 ? String(barangays[0].id || barangays[0].dbId) : ''
+      })
+      setSelectedRequestId(current => {
         if (initialRequestId && requests.some(r => String(r.dbId || r.id) === String(initialRequestId))) {
-          setSelectedRequestId(String(initialRequestId))
+          return String(initialRequestId)
         }
+        return requests.some(r => String(r.dbId || r.id) === String(current)) ? current : ''
       })
-      .catch(err => {
-        console.error('Failed to load eligible requests:', err)
-        notify.error('Could not load eligible relief requests.')
-      })
-      .finally(() => {
-        if (isMounted) setLoadingEligible(false)
-      })
+    } else {
+      setEligibleBarangays([])
+      setEligibleRequests([])
+      setLoadError('Could not load eligible relief requests. Refresh and try again.')
+    }
 
-    return () => { isMounted = false }
-  }, [initialBeneficiaryId, initialRequestId])
+    if (donationResult.status === 'fulfilled') {
+      setCurrentDonation(donationResult.value?.data || donation)
+    } else {
+      setCurrentDonation(donation)
+      setLoadError(current => current || 'Could not refresh this donation balance. Refresh and try again.')
+    }
+
+    setLoadingEligible(false)
+    setLoadingDonation(false)
+  }, [donation, initialBeneficiaryId, initialRequestId])
+
+  useEffect(() => {
+    Promise.resolve().then(loadFundingData)
+  }, [loadFundingData])
 
   // Available monetary balance from donor
   const availableDonation = useMemo(() => {
-    return Math.max(0, Number(donation?.remainingBalance ?? donation?.amountRaw ?? donation?.amount ?? 0))
-  }, [donation])
+    const amount = Number(currentDonation?.remainingBalance ?? currentDonation?.amountRaw ?? currentDonation?.amount ?? 0)
+    return Number.isFinite(amount) ? Math.max(0, amount) : 0
+  }, [currentDonation])
 
   // Eligible relief requests for selected barangay only
   const availableRequestsForBarangay = useMemo(() => {
@@ -79,43 +93,30 @@ export default function ProcurementModal({
     return eligibleRequests.filter(r => String(r.beneficiaryId) === String(selectedBarangayId))
   }, [eligibleRequests, selectedBarangayId])
 
-  // Auto-select first eligible request when barangay changes
-  useEffect(() => {
-    if (availableRequestsForBarangay.length > 0) {
-      const stillValid = availableRequestsForBarangay.some(r => String(r.dbId || r.id) === String(selectedRequestId))
-      if (!stillValid) {
-        setSelectedRequestId(String(availableRequestsForBarangay[0].dbId || availableRequestsForBarangay[0].id))
-      }
-    } else {
-      setSelectedRequestId('')
-    }
-  }, [availableRequestsForBarangay, selectedRequestId])
-
   // Selected request object
   const selectedRequest = useMemo(() => {
-    if (!selectedRequestId) return null
-    return availableRequestsForBarangay.find(r => 
+    const selected = selectedRequestId && availableRequestsForBarangay.find(r =>
       String(r.dbId) === String(selectedRequestId) || 
       String(r.id) === String(selectedRequestId)
-    ) || null
+    )
+    return selected || availableRequestsForBarangay[0] || null
   }, [availableRequestsForBarangay, selectedRequestId])
 
-  // Populate items when selected request changes
-  useEffect(() => {
+  const selectedRequestKey = String(selectedRequest?.dbId || selectedRequest?.id || '')
+  const items = useMemo(() => {
+    if (Object.hasOwn(itemsByRequest, selectedRequestKey)) return itemsByRequest[selectedRequestKey]
     if (selectedRequest?.items && selectedRequest.items.length > 0) {
-      setItems(selectedRequest.items.map((it, idx) => ({
+      return selectedRequest.items.map((it, idx) => ({
         id: idx + 1,
         item: it.item || 'Relief Package Item',
         quantity: Number(it.quantity) || 1,
         unit: it.unit || 'units',
         unitCost: Number(it.unitCost) || 0,
         totalCost: Number(it.totalCost) || ((Number(it.quantity) || 1) * (Number(it.unitCost) || 0)),
-      })))
-    } else {
-      setItems([])
+      }))
     }
-    setCustomAllocationAmount(null)
-  }, [selectedRequest])
+    return []
+  }, [itemsByRequest, selectedRequest, selectedRequestKey])
 
   // Selected Barangay object
   const selectedBarangay = useMemo(() => {
@@ -130,7 +131,7 @@ export default function ProcurementModal({
 
   // The maximum affordable allocation cannot exceed donor balance or remaining request cost
   const maxAffordableAllocation = useMemo(() => {
-    if (!selectedRequest) return availableDonation
+    if (!selectedRequest) return 0
     return Math.min(availableDonation, remainingRequestCost)
   }, [availableDonation, remainingRequestCost, selectedRequest])
 
@@ -145,47 +146,71 @@ export default function ProcurementModal({
   // For small donations < costPerFamily, this correctly calculates 0 (not rounded up to 1)
   const supportedFamilies = useMemo(() => {
     if (!selectedRequest || costPerFamily <= 0 || allocationAmount <= 0) return 0
-    const affordable = Math.floor(allocationAmount / costPerFamily)
-    return Math.min(remainingFamilies, affordable)
+    const cumulativeFunding = Number(selectedRequest.alreadyFundedAmount || 0) + allocationAmount
+    const familiesAfterFunding = Math.floor((cumulativeFunding + 0.00001) / costPerFamily)
+    return Math.max(0, Math.min(remainingFamilies, familiesAfterFunding - Number(selectedRequest.alreadySupportedFamilies || 0)))
   }, [allocationAmount, costPerFamily, remainingFamilies, selectedRequest])
 
   const isSmallDonation = Boolean(
     selectedRequest &&
     costPerFamily > 0 &&
     allocationAmount > 0 &&
-    allocationAmount < costPerFamily
+    supportedFamilies === 0
   )
 
   const remainingDonationBalance = Math.max(0, availableDonation - allocationAmount)
   const remainingFamiliesAfter = Math.max(0, remainingFamilies - supportedFamilies)
   const remainingCostAfter = Math.max(0, remainingRequestCost - allocationAmount)
+  const canAllocate = Boolean(
+    !saving &&
+    !loadingEligible &&
+    !loadingDonation &&
+    !loadError &&
+    selectedBarangayId &&
+    selectedRequest &&
+    Number.isFinite(allocationAmount) &&
+    costPerFamily > 0 &&
+    remainingFamilies > 0 &&
+    remainingRequestCost > 0 &&
+    availableDonation > 0 &&
+    allocationAmount > 0 &&
+    allocationAmount <= availableDonation &&
+    allocationAmount <= remainingRequestCost
+  )
 
   // Item adjustments
   const handleItemChange = (id, field, val) => {
-    setItems(prev => prev.map(it => {
+    setItemsByRequest(prev => ({ ...prev, [selectedRequestKey]: items.map(it => {
       if (it.id !== id) return it
       const updated = { ...it, [field]: val }
       if (field === 'quantity' || field === 'unitCost') {
         updated.totalCost = (Number(updated.quantity) || 0) * (Number(updated.unitCost) || 0)
       }
       return updated
-    }))
+    }) }))
   }
 
   const handleAddItem = () => {
-    setItems(prev => [
+    setItemsByRequest(prev => ({
       ...prev,
+      [selectedRequestKey]: [
+        ...items,
       { id: Date.now(), item: '', quantity: 1, unit: 'packs', unitCost: 0, totalCost: 0 }
-    ])
+      ],
+    }))
   }
 
   const handleRemoveItem = (id) => {
-    setItems(prev => prev.filter(it => it.id !== id))
+    setItemsByRequest(prev => ({ ...prev, [selectedRequestKey]: items.filter(it => it.id !== id) }))
   }
 
   const handleSubmit = async (e) => {
     e.preventDefault()
 
+    if (!canAllocate) {
+      notify.error(loadError || 'Allocation is unavailable until the donation balance and eligible request are valid.')
+      return
+    }
     if (!selectedBarangayId) {
       notify.error('Please select a Target Barangay.')
       return
@@ -205,11 +230,11 @@ export default function ProcurementModal({
 
     const payload = {
       action: 'procure',
-      donationId: donation.dbId || donation.id,
+      donationId: currentDonation.dbId || currentDonation.id,
       mode: 'Relief Allocation',
       totalAmount: allocationAmount,
       beneficiaryId: Number(selectedBarangayId),
-      assistanceRequestId: Number(selectedRequestId),
+      assistanceRequestId: Number(selectedRequest.dbId || selectedRequest.id),
       items: items.map(it => ({
         item: it.item.trim() || 'Procured Relief Supply',
         quantity: Number(it.quantity) || 1,
@@ -233,15 +258,18 @@ export default function ProcurementModal({
 
       const createdAllocId = res?.allocationId
       const targetBenName = selectedBarangay?.barangay || selectedBarangay?.name || 'Barangay'
+      const fundedItems = res?.allocationItems || payload.items
+      const familiesFunded = Number(res?.familiesSupported ?? supportedFamilies)
+      const canScheduleDistribution = res?.requestStatus === 'Allocated' && Boolean(createdAllocId)
 
       if (onSuccess) onSuccess(res?.data || res)
       onClose()
 
-      // Prompt admin to schedule distribution if families or goods were allocated
-      if (supportedFamilies > 0 || (payload.items && payload.items.length > 0)) {
+      // Funding and distribution are separate stages; only a fully funded request can be scheduled.
+      if (canScheduleDistribution) {
         const scheduleNow = await confirmAction({
-          title: 'Monetary Allocation Complete',
-          message: `Successfully allocated ₱${allocationAmount.toLocaleString()} for ${targetBenName} (${supportedFamilies > 0 ? `${supportedFamilies} families supported` : 'Partial Funding'}). Would you like to schedule logistics delivery now?`,
+          title: 'Funding Complete',
+          message: `${res.message} Schedule logistics delivery for ${targetBenName} now?`,
           confirmText: 'Schedule Distribution →',
           cancelText: 'View in Allocations',
           type: 'primary',
@@ -254,10 +282,11 @@ export default function ProcurementModal({
                 allocationId: createdAllocId,
                 beneficiaryId: selectedBarangayId,
                 beneficiaryName: targetBenName,
-                resourceName: payload.items.map(p => `${p.item} (${p.quantity} ${p.unit})`).join(', ') || 'Relief Assistance',
-                quantity: payload.items.reduce((s, p) => s + (Number(p.quantity) || 1), 0),
-                program: donation.category || 'Disaster Relief',
-                notes: `Funded from Monetary Donation ${donation.trackingCode || donation.code || ''}`,
+                resourceName: fundedItems.map(p => `${p.item} (${p.quantity} ${p.unit})`).join(', ') || 'Relief Assistance',
+                quantity: fundedItems.reduce((s, p) => s + (Number(p.quantity) || 1), 0),
+                affectedFamilies: familiesFunded,
+                program: currentDonation.category || 'Disaster Relief',
+                notes: `Funded from Monetary Donation ${currentDonation.trackingCode || currentDonation.code || ''}`,
               },
             },
           })
@@ -269,16 +298,17 @@ export default function ProcurementModal({
       hideLoading()
       setSaving(false)
       notify.error(err?.message || 'Failed to allocate donation')
+      await loadFundingData()
     }
   }
 
   return (
     <div className="admin-modal-overlay" onClick={onClose}>
       <div 
-        className="admin-modal admin-modal--wide" 
+        className="admin-modal admin-modal--wide fund-allocation-modal"
         onClick={e => e.stopPropagation()}
         style={{
-          maxWidth: '780px',
+          maxWidth: '980px',
           width: '95vw',
           maxHeight: '92vh',
           borderRadius: '16px',
@@ -308,7 +338,7 @@ export default function ProcurementModal({
           {/* 1. DONATION INFORMATION BANNER */}
           <div style={{
             background: 'linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%)',
-            padding: '1rem 1.4rem',
+            padding: '0.85rem 1.25rem',
             borderBottom: '1px solid #e2e8f0',
             display: 'flex',
             justifyContent: 'space-between',
@@ -316,25 +346,25 @@ export default function ProcurementModal({
             flexWrap: 'wrap',
             gap: '0.85rem'
           }}>
-            <div>
+            <div className="fund-allocation-donor">
               <div style={{ fontSize: '0.72rem', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
                 Monetary Donor
               </div>
               <div style={{ fontSize: '1.05rem', fontWeight: 800, color: '#0f172a', display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
-                <span>{donation?.donor || donation?.donor_name || 'Anonymous Donor'}</span>
+                <span>{currentDonation?.donor || currentDonation?.donor_name || 'Anonymous Donor'}</span>
                 <span style={{ fontSize: '0.78rem', fontWeight: 600, color: '#475569', background: '#e2e8f0', padding: '0.15rem 0.5rem', borderRadius: '4px' }}>
-                  {donation?.trackingCode || donation?.code || 'DON-ID'}
+                  {currentDonation?.trackingCode || currentDonation?.code || 'DON-ID'}
                 </span>
               </div>
             </div>
 
-            <div style={{ display: 'flex', gap: '1.2rem', alignItems: 'center' }}>
+            <div className="fund-allocation-totals">
               <div style={{ textAlign: 'right' }}>
                 <div style={{ fontSize: '0.7rem', fontWeight: 600, color: '#64748b', textTransform: 'uppercase' }}>
                   Total Donated
                 </div>
                 <div style={{ fontSize: '1.1rem', fontWeight: 700, color: '#334155' }}>
-                  ₱{Number(donation?.amountRaw ?? donation?.amount ?? 0).toLocaleString('en-PH', { minimumFractionDigits: 2 })}
+                  ₱{Number(currentDonation?.amountRaw ?? currentDonation?.amount ?? 0).toLocaleString('en-PH', { minimumFractionDigits: 2 })}
                 </div>
               </div>
 
@@ -358,7 +388,7 @@ export default function ProcurementModal({
 
         {/* Modal Scrollable Body */}
         <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0, overflow: 'hidden' }}>
-          <div style={{ flex: 1, overflowY: 'auto', padding: '1.25rem 1.4rem', display: 'flex', flexDirection: 'column', gap: '1.2rem' }}>
+            <div className="fund-allocation-body">
 
             {/* 2. TARGET SELECTION (BARANGAY & RELIEF REQUEST) */}
             <div style={{ 
@@ -373,7 +403,7 @@ export default function ProcurementModal({
                 <span>Target Beneficiary & Relief Request</span>
               </div>
 
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '1rem' }}>
+              <div className="fund-allocation-selection-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '1rem' }}>
                 {/* Dropdown 1: Target Barangay (Only eligible barangays, NO general affected families) */}
                 <div>
                   <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 700, color: '#334155', marginBottom: '0.35rem' }}>
@@ -385,7 +415,7 @@ export default function ProcurementModal({
                       setSelectedBarangayId(e.target.value)
                       setCustomAllocationAmount(null)
                     }}
-                    disabled={loadingEligible}
+                    disabled={loadingEligible || eligibleBarangays.length === 0}
                     style={{ 
                       width: '100%', 
                       padding: '0.65rem 0.8rem', 
@@ -410,7 +440,7 @@ export default function ProcurementModal({
                   </select>
                   {eligibleBarangays.length === 0 && !loadingEligible && (
                     <div style={{ fontSize: '0.75rem', color: '#64748b', marginTop: '0.3rem' }}>
-                      No partner barangays currently have active unallocated relief requests.
+                      {loadError || 'No pending relief requests available for allocation in this barangay.'}
                     </div>
                   )}
                 </div>
@@ -421,12 +451,12 @@ export default function ProcurementModal({
                     Eligible Relief Request <span style={{ color: '#AF101A' }}>*</span>
                   </label>
                   <select
-                    value={selectedRequestId}
+                    value={selectedRequest ? String(selectedRequest.dbId || selectedRequest.id) : ''}
                     onChange={e => {
                       setSelectedRequestId(e.target.value)
                       setCustomAllocationAmount(null)
                     }}
-                    disabled={!selectedBarangayId || availableRequestsForBarangay.length === 0}
+                    disabled={loadingEligible || !selectedBarangayId || availableRequestsForBarangay.length === 0}
                     style={{ 
                       width: '100%', 
                       padding: '0.65rem 0.8rem', 
@@ -441,7 +471,7 @@ export default function ProcurementModal({
                     <option value="">
                       {!selectedBarangayId 
                         ? '-- Select Barangay first --' 
-                        : (availableRequestsForBarangay.length === 0 ? '-- No eligible requests for this Barangay --' : '-- Select Relief Request --')
+                        : (availableRequestsForBarangay.length === 0 ? 'No pending relief requests available for allocation in this barangay.' : '-- Select Relief Request --')
                       }
                     </option>
                     {availableRequestsForBarangay.map(r => (
@@ -453,40 +483,41 @@ export default function ProcurementModal({
                 </div>
               </div>
 
-              {/* Stated Request Details Preview */}
+              {selectedBarangayId && availableRequestsForBarangay.length === 0 && !loadingEligible && eligibleBarangays.length > 0 && (
+                <div className="fund-allocation-empty-state" role="status">
+                  {loadError || 'No pending relief requests available for allocation in this barangay.'}
+                </div>
+              )}
+
+              {/* Selected request details in compact, scannable groups */}
               {selectedRequest && (
-                <div style={{ 
-                  marginTop: '0.9rem', 
-                  padding: '0.75rem 0.9rem', 
-                  background: '#f8fafc', 
-                  borderRadius: '8px', 
-                  border: '1px solid #e2e8f0',
-                  display: 'flex',
-                  justifyContent: 'space-between',
-                  alignItems: 'center',
-                  flexWrap: 'wrap',
-                  gap: '0.75rem',
-                  fontSize: '0.8rem'
-                }}>
-                  <div>
-                    <div style={{ fontWeight: 700, color: '#0f172a' }}>
-                      {selectedRequest.calamity} • {selectedRequest.assistanceType}
+                <div className="fund-allocation-request-summary">
+                  <div className="fund-allocation-request-heading">
+                    <div>
+                      <strong>{selectedRequest.calamity || 'Relief Request'}</strong>
+                      <span>{selectedRequest.assistanceType}</span>
                     </div>
-                    <div style={{ color: '#64748b', marginTop: '0.15rem' }}>
-                      Target Requirement: <strong style={{ color: '#0f172a' }}>{selectedRequest.requestedFamilies} families</strong>
-                      {selectedRequest.alreadySupportedFamilies > 0 && (
-                        <span> ({selectedRequest.alreadySupportedFamilies} already funded, <strong style={{ color: '#b91c1c' }}>{selectedRequest.remainingFamilies} remaining</strong>)</span>
-                      )}
-                    </div>
+                    <span className="fund-allocation-request-id">Request ID: {selectedRequest.referenceCode}</span>
                   </div>
 
-                  <div style={{ textAlign: 'right' }}>
-                    <div style={{ color: '#64748b' }}>
-                      Calculated Package Cost: <strong style={{ color: '#0f172a' }}>₱{selectedRequest.costPerFamily.toLocaleString()} / family</strong>
+                  {selectedRequest.items?.length > 0 && (
+                    <div className="fund-allocation-request-needs">
+                      <span>Requested relief items</span>
+                      <div>
+                        {selectedRequest.items.map((item, index) => (
+                          <span className="fund-allocation-item-chip" key={`${item.item || item.name || 'item'}-${index}`}>
+                            {item.item || item.name || 'Relief item'}
+                          </span>
+                        ))}
+                      </div>
                     </div>
-                    <div style={{ color: '#64748b', marginTop: '0.15rem' }}>
-                      Remaining Request Cost: <strong style={{ color: '#b91c1c' }}>₱{selectedRequest.remainingCost.toLocaleString()}</strong>
-                    </div>
+                  )}
+
+                  <div className="fund-allocation-request-stats">
+                    <div><span>Target requirement</span><strong>{selectedRequest.requestedFamilies} families</strong></div>
+                    <div><span>Remaining requirement</span><strong>{selectedRequest.remainingFamilies} families</strong></div>
+                    <div><span>Package cost</span><strong>₱{Number(selectedRequest.costPerFamily).toLocaleString()} / family</strong></div>
+                    <div><span>Remaining request cost</span><strong>₱{Number(selectedRequest.remainingCost).toLocaleString()}</strong></div>
                   </div>
                 </div>
               )}
@@ -517,7 +548,7 @@ export default function ProcurementModal({
                       ₱{availableDonation.toLocaleString()}
                     </div>
                     <div style={{ fontSize: '0.7rem', color: '#64748b', marginTop: '0.15rem' }}>
-                      From {donation?.donor || 'Donor'}
+                      From {currentDonation?.donor || 'Donor'}
                     </div>
                   </div>
 
@@ -617,7 +648,7 @@ export default function ProcurementModal({
                   </div>
 
                   {/* Quick Preset Buttons */}
-                  <div style={{ display: 'flex', gap: '0.4rem' }}>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.4rem' }}>
                     <button
                       type="button"
                       onClick={() => setCustomAllocationAmount(maxAffordableAllocation)}
@@ -706,7 +737,8 @@ export default function ProcurementModal({
                   <div>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem', marginBottom: '0.6rem' }}>
                       {items.map((it) => (
-                        <div 
+                        <div
+                          className="fund-allocation-item-row"
                           key={it.id}
                           style={{
                             display: 'grid',
@@ -802,7 +834,7 @@ export default function ProcurementModal({
           </div>
 
           {/* Modal Sticky Footer */}
-          <div style={{
+          <div className="fund-allocation-footer" style={{
             padding: '1rem 1.4rem',
             background: '#ffffff',
             borderTop: '1px solid #e2e8f0',
@@ -830,7 +862,7 @@ export default function ProcurementModal({
 
             <button
               type="submit"
-              disabled={saving || !selectedRequest || allocationAmount <= 0}
+              disabled={!canAllocate}
               style={{
                 display: 'inline-flex',
                 alignItems: 'center',
@@ -838,11 +870,11 @@ export default function ProcurementModal({
                 padding: '0.65rem 1.4rem',
                 borderRadius: '8px',
                 border: 'none',
-                background: (saving || !selectedRequest || allocationAmount <= 0) ? '#94a3b8' : '#AF101A',
+                background: !canAllocate ? '#94a3b8' : '#AF101A',
                 color: '#ffffff',
                 fontSize: '0.92rem',
                 fontWeight: 700,
-                cursor: (saving || !selectedRequest || allocationAmount <= 0) ? 'not-allowed' : 'pointer',
+                cursor: !canAllocate ? 'not-allowed' : 'pointer',
                 boxShadow: '0 4px 6px -1px rgba(175, 16, 26, 0.25)',
                 transition: 'background 0.15s ease'
               }}

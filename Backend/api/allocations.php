@@ -221,15 +221,40 @@ function mark_request_allocated(PDO $pdo, ?int $requestId): void
     return;
   }
   try {
-    $stmt = $pdo->prepare("
-      UPDATE assistance_requests
-      SET status = 'Allocated'
-      WHERE id = ?
-        AND status NOT IN ('Allocated', 'Completed', 'Rejected', 'Cancelled')
-    ");
-    $stmt->execute([$requestId]);
-    if ($stmt->rowCount() > 0 && function_exists('notify_request_lifecycle')) {
-      notify_request_lifecycle($pdo, (int) $requestId, 'Allocated');
+    $requestStmt = $pdo->prepare('SELECT * FROM assistance_requests WHERE id = ? LIMIT 1');
+    $requestStmt->execute([$requestId]);
+    $request = $requestStmt->fetch(PDO::FETCH_ASSOC);
+    if (!$request || in_array($request['status'], ['In Distribution', 'Completed', 'Rejected', 'Cancelled'], true)) {
+      return;
+    }
+
+    ensure_procurement_table($pdo);
+    $fundingStmt = $pdo->prepare('SELECT COUNT(*) FROM donation_procurements WHERE assistance_request_id = ?');
+    $fundingStmt->execute([$requestId]);
+    $hasMonetaryFunding = (int) $fundingStmt->fetchColumn() > 0;
+
+    // Preserve the established inventory/in-kind allocation workflow. Only
+    // monetary-backed requests derive their allocation stage from the fund ledger.
+    if (!$hasMonetaryFunding) {
+      $newStatus = 'Allocated';
+    } else {
+      $finances = calculate_relief_request_finances($pdo, $request);
+      if ($finances['remainingFamilies'] <= 0 || $finances['remainingCost'] <= 0.01) {
+        $newStatus = 'Allocated';
+      } elseif ($finances['alreadySupportedFamilies'] > 0) {
+        $newStatus = 'Partially Allocated';
+      } elseif ($finances['alreadyFundedAmount'] > 0) {
+        $newStatus = 'Partially Funded';
+      } else {
+        return;
+      }
+    }
+
+    if ($request['status'] !== $newStatus) {
+      $pdo->prepare('UPDATE assistance_requests SET status = ? WHERE id = ?')->execute([$newStatus, $requestId]);
+      if (function_exists('notify_request_lifecycle')) {
+        notify_request_lifecycle($pdo, (int) $requestId, $newStatus, (string) $request['status']);
+      }
     }
   } catch (Throwable $e) {
     // best-effort status sync

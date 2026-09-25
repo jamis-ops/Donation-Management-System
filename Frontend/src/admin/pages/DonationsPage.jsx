@@ -250,6 +250,7 @@ export default function DonationsPage() {
     const monetaryStatusMap = {
       'Pending Verification': 1,
       'Verified': 3,
+      'Partially Allocated': 4,
       'Allocated': 4,
       'Completed': 5,
     }

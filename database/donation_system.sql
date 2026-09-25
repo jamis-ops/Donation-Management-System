@@ -152,6 +152,7 @@ CREATE TABLE IF NOT EXISTS donation_procurements (
   allocation_id BIGINT UNSIGNED NULL,
   total_amount DECIMAL(12,2) NOT NULL,
   items_json TEXT NOT NULL,
+  allocation_snapshot_json TEXT NULL,
   receipt_number VARCHAR(100) NULL,
   supplier_name VARCHAR(150) NULL,
   families_supported INT UNSIGNED NOT NULL DEFAULT 0,

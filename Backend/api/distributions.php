@@ -843,6 +843,29 @@ if ($method === 'POST') {
     }
   }
 
+  // Keep monetary funding completion separate from logistics without changing
+  // the existing in-kind allocation workflow for requests with no fund ledger.
+  if ($requestId) {
+    $requestStmt = $pdo->prepare('SELECT * FROM assistance_requests WHERE id = ? LIMIT 1');
+    $requestStmt->execute([(int) $requestId]);
+    $linkedRequest = $requestStmt->fetch(PDO::FETCH_ASSOC);
+    if (!$linkedRequest) {
+      json_response(['ok' => false, 'error' => 'Linked relief request was not found.'], 404);
+    }
+    ensure_procurement_table($pdo);
+    $fundingStmt = $pdo->prepare('SELECT COUNT(*) FROM donation_procurements WHERE assistance_request_id = ?');
+    $fundingStmt->execute([(int) $requestId]);
+    if ((int) $fundingStmt->fetchColumn() > 0) {
+      $requestFinances = calculate_relief_request_finances($pdo, $linkedRequest);
+      if ($requestFinances['remainingFamilies'] > 0 && $requestFinances['remainingCost'] > 0.01) {
+        json_response(['ok' => false, 'error' => 'This relief request still has an unmet funding requirement and cannot enter distribution yet.'], 409);
+      }
+      if (!in_array($linkedRequest['status'], ['Allocated', 'In Distribution'], true)) {
+        json_response(['ok' => false, 'error' => "This relief request must be fully allocated before distribution (current status: {$linkedRequest['status']})."], 409);
+      }
+    }
+  }
+
   $distributionDate = !empty($body['distributionDate']) ? trim((string) $body['distributionDate']) : null;
   if ($distributionDate !== null && $distributionDate !== '') {
     if ($distributionDate < date('Y-m-d')) {

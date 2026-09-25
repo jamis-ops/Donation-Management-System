@@ -3,6 +3,169 @@
    Crimson brand theme #AF101A
    ========================================================= */
 
+.fund-allocation-modal {
+  min-height: 0;
+}
+
+.fund-allocation-body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 1.1rem 1.25rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  overscroll-behavior: contain;
+}
+
+.fund-allocation-donor,
+.fund-allocation-totals {
+  min-width: 0;
+}
+
+.fund-allocation-totals {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.fund-allocation-request-summary {
+  margin-top: 0.9rem;
+  padding: 0.85rem 0.95rem;
+  border: 1px solid #e2e8f0;
+  border-radius: 9px;
+  background: #f8fafc;
+}
+
+.fund-allocation-request-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 0.5rem 1rem;
+  color: #1e293b;
+}
+
+.fund-allocation-request-heading > div {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem 0.65rem;
+}
+
+.fund-allocation-request-id,
+.fund-allocation-request-needs > span,
+.fund-allocation-request-stats > div > span {
+  color: #64748b;
+  font-size: 0.76rem;
+}
+
+.fund-allocation-request-needs {
+  display: grid;
+  gap: 0.4rem;
+  margin-top: 0.7rem;
+}
+
+.fund-allocation-request-needs > div {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+
+.fund-allocation-item-chip {
+  padding: 0.22rem 0.55rem;
+  border: 1px solid #dbe4ef;
+  border-radius: 999px;
+  background: #fff;
+  color: #334155;
+  font-size: 0.75rem;
+}
+
+.fund-allocation-request-stats,
+.fund-allocation-metrics {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.6rem;
+  margin-top: 0.75rem;
+}
+
+.fund-allocation-request-stats > div,
+.fund-allocation-metric {
+  display: grid;
+  align-content: start;
+  gap: 0.25rem;
+  min-width: 0;
+  padding: 0.65rem 0.7rem;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  background: #fff;
+}
+
+.fund-allocation-request-stats > div > strong,
+.fund-allocation-metric > strong {
+  color: #0f172a;
+  font-size: 0.92rem;
+  overflow-wrap: anywhere;
+}
+
+.fund-allocation-metric > span {
+  color: #64748b;
+  font-size: 0.68rem;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.fund-allocation-metric--coverage {
+  border-color: #bfdbfe;
+  background: #eff6ff;
+}
+
+.fund-allocation-metric--coverage > strong { color: #1d4ed8; }
+
+.fund-allocation-metric--partial {
+  border-color: #fde68a;
+  background: #fffbeb;
+}
+
+.fund-allocation-metric--partial > strong { color: #a16207; }
+
+.fund-allocation-metric--total {
+  border-color: #fecaca;
+  background: #fef2f2;
+}
+
+.fund-allocation-metric--total > strong { color: #af101a; }
+
+.fund-allocation-empty-state {
+  padding: 0.75rem 0.9rem;
+  border: 1px solid #fecaca;
+  border-radius: 8px;
+  background: #fff7f7;
+  color: #991b1b;
+  font-size: 0.82rem;
+}
+
+.fund-allocation-selection-grid {
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 280px), 1fr)) !important;
+}
+
+.fund-allocation-footer {
+  gap: 0.75rem;
+}
+
+@media (max-width: 680px) {
+  .fund-allocation-body { padding: 0.9rem; }
+  .fund-allocation-totals { width: 100%; justify-content: space-between; gap: 0.6rem; }
+  .fund-allocation-request-stats,
+  .fund-allocation-metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .fund-allocation-item-row {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) 32px !important;
+  }
+  .fund-allocation-item-row > :first-child { grid-column: 1 / -1; }
+  .fund-allocation-item-row > :nth-child(4) { text-align: left !important; }
+  .fund-allocation-footer { flex-wrap: wrap; }
+  .fund-allocation-footer > button { flex: 1 1 150px; justify-content: center; }
+}
+
 /* =========================================================
    ALLOCATION PAGE STYLES
    ========================================================= */

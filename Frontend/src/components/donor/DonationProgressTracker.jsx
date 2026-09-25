@@ -29,7 +29,7 @@ const WORKFLOW_STAGES = [
     key: 'allocation',
     label: 'Allocation',
     icon: MapPin,
-    statuses: ['Allocated', 'Reserved', 'Assigned'],
+    statuses: ['Partially Allocated', 'Allocated', 'Reserved', 'Assigned'],
     description: 'Resources are being assigned to beneficiaries',
   },
   {

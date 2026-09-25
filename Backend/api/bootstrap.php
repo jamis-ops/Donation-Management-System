@@ -1693,7 +1693,7 @@ const WORKFLOW_DISTRIBUTION_ALIASES = [
   'In Progress' => 'Preparing',
 ];
 
-const WORKFLOW_DONATION_STEPS = ['Pending Verification', 'Verified', 'In Inventory', 'Allocated', 'Distributed', 'Completed'];
+const WORKFLOW_DONATION_STEPS = ['Pending Verification', 'Verified', 'In Inventory', 'Partially Allocated', 'Allocated', 'Distributed', 'Completed'];
 const WORKFLOW_DONATION_TERMINAL = ['Completed', 'Rejected', 'Cancelled'];
 const WORKFLOW_DONATION_BRANCHES = [
   'Pending Verification' => ['Rejected', 'Cancelled'],
@@ -1857,14 +1857,14 @@ function calculate_relief_request_finances(PDO $pdo, array $row): array
 
   $costPerFamily = round($totalCalculatedCost / $requestedFamilies, 2);
 
-  // Calculate already funded amount and already supported families from donation_procurements
+  // Calculate cumulative funding and family coverage from the persisted ledger.
   $alreadyFundedAmount = 0.0;
   $alreadySupportedFamilies = 0;
   if ($reqId > 0) {
     try {
       $stmt = $pdo->prepare('
         SELECT COALESCE(SUM(total_amount), 0) AS total_funded,
-               COALESCE(SUM(families_supported), 0) AS total_families
+               COALESCE(SUM(families_supported), 0) AS recorded_families
         FROM donation_procurements
         WHERE assistance_request_id = ?
       ');
@@ -1872,7 +1872,11 @@ function calculate_relief_request_finances(PDO $pdo, array $row): array
       $fundingRow = $stmt->fetch();
       if ($fundingRow) {
         $alreadyFundedAmount = (float) $fundingRow['total_funded'];
-        $alreadySupportedFamilies = (int) $fundingRow['total_families'];
+         $recordedFamilies = (int) $fundingRow['recorded_families'];
+         $familiesByCumulativeFunding = $costPerFamily > 0
+           ? (int) floor(($alreadyFundedAmount + 0.00001) / $costPerFamily)
+           : 0;
+         $alreadySupportedFamilies = min($requestedFamilies, max($recordedFamilies, $familiesByCumulativeFunding));
       }
     } catch (Throwable $e) {}
   }
@@ -1888,7 +1892,7 @@ function calculate_relief_request_finances(PDO $pdo, array $row): array
     'alreadySupportedFamilies' => $alreadySupportedFamilies,
     'remainingCost' => $remainingCost,
     'remainingFamilies' => $remainingFamilies,
-    'isFullyFunded' => ($remainingCost <= 0.01 && $remainingFamilies <= 0),
+    'isFullyFunded' => ($remainingCost <= 0.01 || $remainingFamilies <= 0),
     'items' => $itemizedPlan,
   ];
 }
@@ -1911,6 +1915,7 @@ if (!function_exists('ensure_procurement_table')) {
           allocation_id INT NULL,
           total_amount DECIMAL(12,2) NOT NULL,
           items_json TEXT NOT NULL,
+          allocation_snapshot_json TEXT NULL,
           receipt_number VARCHAR(100) NULL,
           supplier_name VARCHAR(150) NULL,
           families_supported INT UNSIGNED NOT NULL DEFAULT 0,
@@ -1923,6 +1928,7 @@ if (!function_exists('ensure_procurement_table')) {
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
       ");
     } catch (Throwable $e) {}
+    ensure_column($pdo, 'donation_procurements', 'allocation_snapshot_json', 'TEXT NULL AFTER items_json');
     $done = true;
   }
 }

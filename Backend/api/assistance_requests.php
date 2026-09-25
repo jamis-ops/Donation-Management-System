@@ -254,15 +254,17 @@ if ($method === 'GET') {
 
   // ── Eligible Requests & Barangays for Monetary Fund Allocation ──
   if ($action === 'funding_eligible') {
+    require_auth(['Admin', 'Staff']);
     ensure_request_columns($pdo);
     ensure_procurement_table($pdo);
 
-    // Only fetch requests that are NOT Completed, Rejected, Cancelled, or In Distribution
+    // Only approved requests in a funding stage may receive monetary allocations.
+    // Include Allocated here only so stale statuses can be repaired from persisted finance data.
     $stmt = $pdo->query("
       SELECT ar.*, b.full_name AS beneficiary_name, b.barangay, b.municipality
       FROM assistance_requests ar
       JOIN beneficiaries b ON b.id = ar.beneficiary_id
-      WHERE ar.status NOT IN ('Completed', 'Rejected', 'Cancelled', 'In Distribution')
+      WHERE ar.status IN ('Approved', 'Partially Funded', 'Partially Allocated', 'Allocated')
         AND NOT EXISTS (
           SELECT 1 FROM allocations a
           JOIN distributions d ON d.id = a.distribution_id
@@ -279,8 +281,8 @@ if ($method === 'GET') {
     foreach ($candidates as $row) {
       $fin = calculate_relief_request_finances($pdo, $row);
 
-      // If fully satisfied or remaining cost <= 0, mark Allocated and skip
-      if ($fin['isFullyFunded']) {
+      // A request is not eligible as soon as either its family or cost requirement is met.
+      if ($fin['remainingFamilies'] <= 0 || $fin['remainingCost'] <= 0.009) {
         if ($row['status'] !== 'Allocated') {
           try {
             $pdo->prepare("UPDATE assistance_requests SET status = 'Allocated' WHERE id = ?")->execute([$row['id']]);
