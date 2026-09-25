@@ -346,7 +346,7 @@ export default function CertificatesPage() {
         ...prev,
         photoUrl: dataUrl,
         photoDisplayUrl: dataUrl,
-        photoLayout: prev.photoLayout === 'none' ? 'featured' : prev.photoLayout,
+        photoLayout: prev.photoLayout === 'none' ? 'backdrop' : prev.photoLayout,
       }))
       notify.success('Photo added to certificate.')
     }
@@ -917,14 +917,15 @@ export default function CertificatesPage() {
                             Select Photo Placement:
                           </label>
                           <div className="cert-photo-layout-grid">
-                            {PHOTO_LAYOUTS.map((lay) => (
+                            {PHOTO_LAYOUTS.filter((lay) => lay.id !== 'none').map((lay) => (
                               <button
                                 key={lay.id}
                                 type="button"
                                 className={`cert-photo-layout-btn ${form.photoLayout === lay.id ? 'cert-photo-layout-btn--active' : ''}`}
                                 onClick={() => setForm({ ...form, photoLayout: lay.id })}
                               >
-                                <span>{lay.name}</span>
+                                <span className="cert-photo-layout-name">{lay.name}</span>
+                                {lay.badge && <span className="cert-photo-layout-badge">{lay.badge}</span>}
                               </button>
                             ))}
                           </div>
@@ -1011,6 +1012,14 @@ export default function CertificatesPage() {
                     </span>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
                       <span className="cert-preview-spec-badge">A4 Landscape</span>
+                      <button
+                        type="button"
+                        className="btn btn--xs btn--outline"
+                        onClick={() => setPreview(livePreviewCert)}
+                        title="Open full high-resolution review modal"
+                      >
+                        <Eye size={13} /> Fullscreen Review
+                      </button>
                       <button
                         type="button"
                         className="btn btn--xs btn--outline"

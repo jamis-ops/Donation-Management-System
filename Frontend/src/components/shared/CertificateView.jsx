@@ -37,6 +37,14 @@ export default function CertificateView({ cert }) {
     <div className={`certificate certificate--${templateId} ${showPhoto ? `certificate--has-photo certificate--layout-${photoLayout}` : ''}`}>
       <div className="certificate__frame">
         <div className="certificate__frame-inner">
+          {/* Full-Width Background Photo Layer with Glass Scrim for 'backdrop' layout */}
+          {showPhoto && photoLayout === 'backdrop' && (
+            <div className="certificate__backdrop-layer" aria-hidden="true">
+              <img src={photoSrc} alt="" className="certificate__backdrop-img" />
+              <div className="certificate__backdrop-scrim" />
+            </div>
+          )}
+
           {/* Subtle Background Watermark Seal */}
           <div className="certificate__watermark" aria-hidden="true">
             <img src={certSealRound} alt="" />
@@ -99,30 +107,43 @@ export default function CertificateView({ cert }) {
 
           {/* Body Content with Optional Photo Layout */}
           <div className={`certificate__body certificate__body--${photoLayout}`}>
-            {showPhoto && photoLayout === 'featured' && (
-              <div className="certificate__photo-container certificate__photo-container--featured">
-                <img src={photoSrc} alt="Contribution / Activity" className="certificate__photo" />
+            {showPhoto && photoLayout === 'backdrop' && (
+              <div className="certificate__caption-plaque">
+                <p className="certificate__details">{details}</p>
               </div>
             )}
 
-            {showPhoto && photoLayout === 'side' ? (
+            {showPhoto && photoLayout === 'featured' && (
+              <>
+                <div className="certificate__photo-showcase">
+                  <img src={photoSrc} alt="Contribution Activity" className="certificate__photo-showcase-img" />
+                </div>
+                <p className="certificate__details">{details}</p>
+              </>
+            )}
+
+            {showPhoto && photoLayout === 'panel' && (
+              <div className="certificate__photo-panel-wrap">
+                <img src={photoSrc} alt="Contribution Activity" className="certificate__photo-panel-bg" />
+                <div className="certificate__photo-panel-content">
+                  <p className="certificate__details certificate__details--panel">{details}</p>
+                </div>
+              </div>
+            )}
+
+            {showPhoto && photoLayout === 'side' && (
               <div className="certificate__side-grid">
                 <div className="certificate__photo-container certificate__photo-container--side">
-                  <img src={photoSrc} alt="Contribution / Activity" className="certificate__photo" />
+                  <img src={photoSrc} alt="Contribution Activity" className="certificate__photo" />
                 </div>
                 <div className="certificate__side-copy">
                   <p className="certificate__details">{details}</p>
                 </div>
               </div>
-            ) : (
-              <p className="certificate__details">{details}</p>
             )}
 
-            {showPhoto && photoLayout === 'card' && (
-              <div className="certificate__photo-container certificate__photo-container--card">
-                <img src={photoSrc} alt="Contribution / Activity" className="certificate__photo" />
-                <span className="certificate__photo-tag">Official Contribution Record</span>
-              </div>
+            {(!showPhoto || photoLayout === 'none') && (
+              <p className="certificate__details">{details}</p>
             )}
           </div>
 

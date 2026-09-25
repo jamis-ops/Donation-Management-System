@@ -215,13 +215,76 @@ export function printCertificate(cert) {
     max-height: 22mm; max-width: 45mm; object-fit: cover; border-radius: 4px; border: 1px solid var(--c-gold);
   }
 
-  .side-grid { display: grid; grid-template-columns: auto 1fr; align-items: center; gap: 4mm; text-align: left; }
-  .side-grid img { width: 34mm; max-height: 24mm; object-fit: cover; border-radius: 4px; border: 1px solid var(--c-gold); }
-  .side-grid .details-text { text-align: left; }
+  /* Backdrop photo layer */
+  .backdrop-layer {
+    position: absolute;
+    inset: 0;
+    z-index: 1;
+    overflow: hidden;
+  }
+  .backdrop-layer img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    opacity: 0.32;
+    filter: saturate(1.15);
+  }
+  .backdrop-scrim {
+    position: absolute;
+    inset: 0;
+    background: radial-gradient(ellipse 95% 85% at 50% 50%, rgba(255, 254, 251, 0.76) 20%, rgba(255, 253, 248, 0.90) 80%);
+  }
 
-  .photo-card { display: inline-flex; flex-direction: column; align-items: center; background: rgba(201, 162, 39, 0.05); border: 1px solid rgba(201, 162, 39, 0.4); border-radius: 4px; padding: 2px; margin-top: 1.5mm; }
-  .photo-card img { max-height: 20mm; max-width: 42mm; object-fit: cover; border-radius: 3px; }
-  .photo-card span { font-family: 'DM Sans', system-ui, sans-serif; font-size: 5pt; font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase; color: var(--c-crimson-dark); margin-top: 1px; }
+  .caption-plaque {
+    background: rgba(255, 255, 255, 0.85);
+    border: 1px solid rgba(201, 162, 39, 0.45);
+    border-radius: 6px;
+    padding: 3.5mm 8mm;
+    margin: 0 auto;
+    max-width: 175mm;
+  }
+
+  /* Featured photo showcase */
+  .photo-showcase {
+    width: 145mm;
+    margin: 2mm auto 2.5mm;
+    display: flex;
+    justify-content: center;
+  }
+  .photo-showcase img {
+    width: 100%;
+    max-height: 42mm;
+    object-fit: cover;
+    border-radius: 6px;
+    border: 1.5px solid var(--c-gold);
+    box-shadow: 0 4px 15px rgba(0,0,0,0.14);
+  }
+
+  /* Glassmorphic Panel wrap */
+  .photo-panel-wrap {
+    position: relative;
+    width: 155mm;
+    margin: 2mm auto;
+    border-radius: 6px;
+    overflow: hidden;
+    border: 1.5px solid var(--c-gold);
+  }
+  .photo-panel-wrap img {
+    width: 100%;
+    height: 38mm;
+    object-fit: cover;
+    display: block;
+  }
+  .photo-panel-overlay {
+    position: absolute;
+    bottom: 0; left: 0; right: 0;
+    background: linear-gradient(to top, rgba(255, 255, 255, 0.96) 0%, rgba(255, 255, 255, 0.86) 80%, rgba(255, 255, 255, 0) 100%);
+    padding: 2.5mm 6mm 1.5mm;
+  }
+
+  .side-grid { display: grid; grid-template-columns: auto 1fr; align-items: center; gap: 4mm; text-align: left; }
+  .side-grid img { width: 44mm; max-height: 30mm; object-fit: cover; border-radius: 4px; border: 1px solid var(--c-gold); }
+  .side-grid .details-text { text-align: left; }
 
   /* Meta */
   .meta {
@@ -257,6 +320,14 @@ export function printCertificate(cert) {
   <div class="certificate certificate--${templateId}">
     <div class="frame">
       <div class="inner">
+        ${photoUrl && photoLayout === 'backdrop'
+          ? `<div class="backdrop-layer">
+               <img src="${photoUrl}" alt="" />
+               <div class="backdrop-scrim"></div>
+             </div>`
+          : ''
+        }
+
         <div class="watermark"><img src="${sealRoundUrl}" alt="" /></div>
 
         <div class="corner corner--tl"></div>
@@ -294,8 +365,24 @@ export function printCertificate(cert) {
         </div>
 
         <div class="body">
+          ${photoUrl && photoLayout === 'backdrop'
+            ? `<div class="caption-plaque"><div class="details-text">${escapeHtml(details)}</div></div>`
+            : ''
+          }
+
           ${photoUrl && photoLayout === 'featured'
-            ? `<div class="photo-featured"><img src="${photoUrl}" alt="Contribution" /></div>`
+            ? `<div class="photo-showcase"><img src="${photoUrl}" alt="Contribution" /></div>
+               <div class="details-text">${escapeHtml(details)}</div>`
+            : ''
+          }
+
+          ${photoUrl && photoLayout === 'panel'
+            ? `<div class="photo-panel-wrap">
+                 <img src="${photoUrl}" alt="Contribution" />
+                 <div class="photo-panel-overlay">
+                   <div class="details-text" style="font-weight: 600; color: #1a1512;">${escapeHtml(details)}</div>
+                 </div>
+               </div>`
             : ''
           }
 
@@ -304,11 +391,11 @@ export function printCertificate(cert) {
                  <img src="${photoUrl}" alt="Contribution" />
                  <div class="details-text">${escapeHtml(details)}</div>
                </div>`
-            : `<div class="details-text">${escapeHtml(details)}</div>`
+            : ''
           }
 
-          ${photoUrl && photoLayout === 'card'
-            ? `<div class="photo-card"><img src="${photoUrl}" alt="Contribution" /><span>Official Contribution Record</span></div>`
+          ${(!photoUrl || photoLayout === 'none')
+            ? `<div class="details-text">${escapeHtml(details)}</div>`
             : ''
           }
         </div>

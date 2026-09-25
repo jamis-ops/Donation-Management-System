@@ -33,24 +33,34 @@ export const CERTIFICATE_TEMPLATES = [
 
 export const PHOTO_LAYOUTS = [
   {
-    id: 'none',
-    name: 'No Photo',
-    description: 'Spacious, text-focused certificate with maximum whitespace',
+    id: 'backdrop',
+    name: 'Full Background',
+    badge: 'Hero Backdrop',
+    description: 'Expansive full-width background photo with elegant readability scrim',
   },
   {
     id: 'featured',
-    name: 'Featured Photo',
-    description: 'Centered medium-sized photo with soft rounded corners and subtle shadow',
+    name: 'Large Centerpiece',
+    badge: 'Prominent',
+    description: 'Prominent large showcase photo between recipient and recognition copy',
+  },
+  {
+    id: 'panel',
+    name: 'Glassmorphic Banner',
+    badge: 'Overlay Plaque',
+    description: 'Wide mission photo banner with frosted glass caption overlay',
   },
   {
     id: 'side',
-    name: 'Side Photo',
+    name: 'Side-by-Side',
+    badge: 'Balanced',
     description: 'Photo placed beside recognition copy for a balanced two-column flow',
   },
   {
-    id: 'card',
-    name: 'Photo Card',
-    description: 'Framed card container with a subtle contribution highlight label',
+    id: 'none',
+    name: 'No Photo',
+    badge: 'Classic',
+    description: 'Text-focused official certificate with traditional parchment layout',
   },
 ]
 
