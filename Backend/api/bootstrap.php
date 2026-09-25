@@ -1764,22 +1764,23 @@ function get_standard_item_unit_cost(string $itemName, ?string $category = null,
 }
 
 /**
- * Dynamically calculates total required cost, cost per family, funding received,
- * remaining cost, and remaining families for a relief request from system data.
+ * Builds the current request-item balance from request needs and procurement records.
+ * This is the shared source of truth for suggested funding, family coverage, and validation.
  */
 function calculate_relief_request_finances(PDO $pdo, array $row): array
 {
   $reqId = (int) ($row['id'] ?? 0);
-  $requestedFamilies = max(1, (int) ($row['affected_families'] ?? 0));
-  if ($requestedFamilies <= 1 && !empty($row['notes'])) {
+  $requestedFamilies = max(0, (int) ($row['affected_families'] ?? 0));
+  if ($requestedFamilies <= 0 && !empty($row['notes'])) {
     if (preg_match('/Families\s*Affected\s*:\s*(\d+)/i', (string) $row['notes'], $m)) {
-      $requestedFamilies = max(1, (int) $m[1]);
+      $requestedFamilies = max(0, (int) $m[1]);
     } elseif (preg_match('/(\d+)\s*families/i', (string) $row['notes'], $m)) {
-      $requestedFamilies = max(1, (int) $m[1]);
+      $requestedFamilies = max(0, (int) $m[1]);
     }
   }
 
-  // Parse needs_json
+  // Request forms currently persist item names. Structured legacy rows with an
+  // explicit quantity are kept as-is; plain item names mean one pack per family.
   $needs = [];
   if (!empty($row['needs_json'])) {
     $decoded = json_decode((string) $row['needs_json'], true);
@@ -1788,112 +1789,149 @@ function calculate_relief_request_finances(PDO $pdo, array $row): array
     }
   }
 
-  $itemizedPlan = [];
-  $totalCalculatedCost = 0.0;
-
-  if (!empty($needs)) {
-    $isObjectArray = is_array($needs[0] ?? null);
-    if ($isObjectArray) {
-      foreach ($needs as $itemObj) {
-        $name = trim((string) ($itemObj['item'] ?? $itemObj['name'] ?? ''));
-        if ($name === '') continue;
-        $qty = max(1, (int) ($itemObj['quantity'] ?? 1));
-        $unit = trim((string) ($itemObj['unit'] ?? 'units'));
-        $unitCost = isset($itemObj['unitCost']) && (float)$itemObj['unitCost'] > 0
-          ? (float) $itemObj['unitCost']
-          : get_standard_item_unit_cost($name, null, $pdo);
-
-        $lineCost = $qty * $unitCost;
-        $totalCalculatedCost += $lineCost;
-        $itemizedPlan[] = [
-          'item' => $name,
-          'quantity' => $qty,
-          'unit' => $unit,
-          'unitCost' => $unitCost,
-          'totalCost' => $lineCost,
-        ];
-      }
-    } else {
-      $perFamilyCost = 0.0;
-      foreach ($needs as $strItem) {
-        $name = trim((string) $strItem);
-        if ($name === '') continue;
-        $unitCost = get_standard_item_unit_cost($name, null, $pdo);
-        $perFamilyCost += $unitCost;
-        $qty = $requestedFamilies;
-        $lineCost = $qty * $unitCost;
-        $itemizedPlan[] = [
-          'item' => $name,
-          'quantity' => $qty,
-          'unit' => 'packs',
-          'unitCost' => $unitCost,
-          'totalCost' => $lineCost,
-        ];
-      }
-      $totalCalculatedCost = $perFamilyCost * $requestedFamilies;
-    }
+  if (!$needs && !empty($row['notes']) && preg_match('/(?:Type of Needs|Goods Required):\s*([^\r\n]+)/i', (string) $row['notes'], $m)) {
+    $needs = array_filter(array_map('trim', explode(',', $m[1])));
+  }
+  if (!$needs && !empty($row['assistance_type'])) {
+    $needs = array_filter(array_map('trim', explode(',', (string) $row['assistance_type'])));
   }
 
-  // Fallback if no items extracted: use assistance_type or notes
-  if ($totalCalculatedCost <= 0.01) {
-    $typeStr = (string) ($row['assistance_type'] ?? 'Disaster Relief Goods');
-    $parts = array_filter(array_map('trim', explode(',', $typeStr)));
-    if (empty($parts)) $parts = ['Family Emergency Relief Pack'];
-
-    $perFamilyCost = 0.0;
-    foreach ($parts as $p) {
-      $unitCost = get_standard_item_unit_cost($p, null, $pdo);
-      $perFamilyCost += $unitCost;
-      $itemizedPlan[] = [
-        'item' => $p,
-        'quantity' => $requestedFamilies,
-        'unit' => 'packs',
+  $requestedItemsByKey = [];
+  foreach ($needs as $need) {
+    $isStructured = is_array($need);
+    $name = trim((string) ($isStructured ? ($need['item'] ?? $need['name'] ?? '') : $need));
+    if ($name === '') continue;
+    $quantity = $isStructured
+      ? max(0, (int) ($need['quantity'] ?? 0))
+      : $requestedFamilies;
+    if ($quantity <= 0) continue;
+    $unit = trim((string) ($isStructured ? ($need['unit'] ?? 'units') : 'packs')) ?: 'units';
+    $unitCost = round(get_standard_item_unit_cost($name, null, $pdo), 2);
+    if ($unitCost <= 0) continue;
+    $key = strtolower($name) . "\0" . strtolower($unit);
+    if (!isset($requestedItemsByKey[$key])) {
+      $requestedItemsByKey[$key] = [
+        'item' => $name,
+        'unit' => $unit,
         'unitCost' => $unitCost,
-        'totalCost' => $requestedFamilies * $unitCost,
+        'quantity' => 0,
       ];
     }
-    $totalCalculatedCost = max(200.0 * $requestedFamilies, $perFamilyCost * $requestedFamilies);
+    $requestedItemsByKey[$key]['quantity'] += $quantity;
   }
 
-  $costPerFamily = round($totalCalculatedCost / $requestedFamilies, 2);
-
-  // Calculate cumulative funding and family coverage from the persisted ledger.
+  // Parse past procurement line quantities, rather than inferring goods from
+  // cash spent. This prevents a repeated plan from funding the same need twice.
   $alreadyFundedAmount = 0.0;
-  $alreadySupportedFamilies = 0;
+  $allocatedQuantities = [];
   if ($reqId > 0) {
     try {
+      $lockRows = $pdo->inTransaction() ? ' FOR UPDATE' : '';
       $stmt = $pdo->prepare('
-        SELECT COALESCE(SUM(total_amount), 0) AS total_funded,
-               COALESCE(SUM(families_supported), 0) AS recorded_families
+        SELECT total_amount, items_json
         FROM donation_procurements
         WHERE assistance_request_id = ?
-      ');
+      ' . $lockRows);
       $stmt->execute([$reqId]);
-      $fundingRow = $stmt->fetch();
-      if ($fundingRow) {
-        $alreadyFundedAmount = (float) $fundingRow['total_funded'];
-         $recordedFamilies = (int) $fundingRow['recorded_families'];
-         $familiesByCumulativeFunding = $costPerFamily > 0
-           ? (int) floor(($alreadyFundedAmount + 0.00001) / $costPerFamily)
-           : 0;
-         $alreadySupportedFamilies = min($requestedFamilies, max($recordedFamilies, $familiesByCumulativeFunding));
+      foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $procurement) {
+        $procurementAmount = (float) ($procurement['total_amount'] ?? 0);
+        if ($procurementAmount <= 0) continue;
+        $alreadyFundedAmount += $procurementAmount;
+        $allocatedItems = json_decode((string) ($procurement['items_json'] ?? ''), true);
+        if (!is_array($allocatedItems)) continue;
+        foreach ($allocatedItems as $allocatedItem) {
+          if (!is_array($allocatedItem)) continue;
+          $name = trim((string) ($allocatedItem['item'] ?? $allocatedItem['name'] ?? ''));
+          $unit = trim((string) ($allocatedItem['unit'] ?? 'units')) ?: 'units';
+          $quantity = max(0, (int) ($allocatedItem['quantity'] ?? 0));
+          $key = strtolower($name) . "\0" . strtolower($unit);
+          if ($name !== '' && $quantity > 0 && isset($requestedItemsByKey[$key])) {
+            $allocatedQuantities[$key] = ($allocatedQuantities[$key] ?? 0) + $quantity;
+          }
+        }
+      }
+    } catch (Throwable $e) {}
+
+    // Inventory-backed relief allocations also fulfill these same request needs.
+    // Monetary allocation rows are excluded because their quantities are already
+    // represented in donation_procurements.items_json.
+    try {
+      $allocationStmt = $pdo->prepare("
+        SELECT a.resource_name, a.quantity, a.unit
+        FROM allocations a
+        WHERE a.assistance_request_id = ?
+          AND a.status IN ('Reserved', 'Allocated', 'In Distribution', 'Delivered', 'Completed')
+          AND NOT EXISTS (
+            SELECT 1 FROM donation_procurements dp WHERE dp.allocation_id = a.id
+          )
+      " . $lockRows);
+      $allocationStmt->execute([$reqId]);
+      foreach ($allocationStmt->fetchAll(PDO::FETCH_ASSOC) as $allocation) {
+        $name = trim((string) ($allocation['resource_name'] ?? ''));
+        $unit = trim((string) ($allocation['unit'] ?? ''));
+        $quantity = max(0, (int) ($allocation['quantity'] ?? 0));
+        if ($name === '' || $unit === '' || $quantity <= 0) continue;
+        $key = strtolower($name) . "\0" . strtolower($unit);
+        if (isset($requestedItemsByKey[$key])) {
+          $allocatedQuantities[$key] = ($allocatedQuantities[$key] ?? 0) + $quantity;
+        }
       }
     } catch (Throwable $e) {}
   }
 
-  $remainingCost = max(0.0, round($totalCalculatedCost - $alreadyFundedAmount, 2));
+  $requestedItems = [];
+  $remainingItems = [];
+  $totalCalculatedCost = 0.0;
+  $remainingCost = 0.0;
+  $coverageRatio = 1.0;
+  foreach ($requestedItemsByKey as $key => $item) {
+    $requiredQuantity = (int) $item['quantity'];
+    $allocatedQuantity = min($requiredQuantity, (int) ($allocatedQuantities[$key] ?? 0));
+    $remainingQuantity = max(0, $requiredQuantity - $allocatedQuantity);
+    $lineCost = round($requiredQuantity * $item['unitCost'], 2);
+    $remainingLineCost = round($remainingQuantity * $item['unitCost'], 2);
+    $totalCalculatedCost += $lineCost;
+    $remainingCost += $remainingLineCost;
+    if ($requiredQuantity > 0) {
+      $coverageRatio = min($coverageRatio, $allocatedQuantity / $requiredQuantity);
+    }
+    $requestedItems[] = array_merge($item, [
+      'requestedQuantity' => $requiredQuantity,
+      'allocatedQuantity' => $allocatedQuantity,
+      'remainingQuantity' => $remainingQuantity,
+      'totalCost' => $lineCost,
+    ]);
+    if ($remainingQuantity > 0) {
+      $remainingItems[] = array_merge($item, [
+        'requestedQuantity' => $requiredQuantity,
+        'allocatedQuantity' => $allocatedQuantity,
+        'remainingQuantity' => $remainingQuantity,
+        'quantity' => $remainingQuantity,
+        'totalCost' => $remainingLineCost,
+      ]);
+    }
+  }
+
+  $alreadySupportedFamilies = $requestedItems && $requestedFamilies > 0
+    ? min($requestedFamilies, (int) floor(($coverageRatio * $requestedFamilies) + 0.00001))
+    : 0;
   $remainingFamilies = max(0, $requestedFamilies - $alreadySupportedFamilies);
+  $totalCalculatedCost = round($totalCalculatedCost, 2);
+  $remainingCost = round($remainingCost, 2);
 
   return [
     'requestedFamilies' => $requestedFamilies,
+    'affectedFamilies' => $requestedFamilies,
     'totalCost' => $totalCalculatedCost,
-    'costPerFamily' => $costPerFamily,
     'alreadyFundedAmount' => $alreadyFundedAmount,
     'alreadySupportedFamilies' => $alreadySupportedFamilies,
     'remainingCost' => $remainingCost,
     'remainingFamilies' => $remainingFamilies,
-    'isFullyFunded' => ($remainingCost <= 0.01 || $remainingFamilies <= 0),
-    'items' => $itemizedPlan,
+    'familiesStillNeedingSupport' => $remainingFamilies,
+    'isFullyFunded' => empty($remainingItems),
+    'items' => $requestedItems,
+    'requestedItems' => $requestedItems,
+    'remainingItems' => $remainingItems,
   ];
 }
 

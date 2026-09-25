@@ -285,6 +285,10 @@ if ($method === 'POST') {
     $addToInventory = !empty($body['addToInventory']);
     $mode = trim((string) ($body['mode'] ?? 'Relief Allocation'));
 
+    // Complete legacy schema upgrades before opening the allocation transaction.
+    ensure_allocation_inventory_schema($pdo);
+    ensure_column($pdo, 'inventory_items', 'cost_per_unit', 'DECIMAL(10,2) NULL AFTER unit');
+
     // Begin database transaction for strict integrity and anti-double-spend
     $pdo->beginTransaction();
     try {
@@ -313,11 +317,11 @@ if ($method === 'POST') {
       }
 
       // Check requested allocation does not exceed donor's available balance
-      if ($requestedAmount > $availableBalance + 0.01) {
+      if ($requestedAmount > $availableBalance + 0.009) {
         throw new Exception("Allocation amount (₱" . number_format($requestedAmount, 2) . ") exceeds donor's available balance (₱" . number_format($availableBalance, 2) . ").");
       }
 
-      $allocatedAmount = min($requestedAmount, $availableBalance);
+      $allocatedAmount = $requestedAmount;
 
       // 2. Validate beneficiary & assistance request
       $beneficiary = null;
@@ -335,7 +339,6 @@ if ($method === 'POST') {
       $assistanceRequest = null;
       $fin = null;
       $familiesSupported = 0;
-      $costPerFamily = 0.0;
 
       if ($assistanceRequestId > 0) {
         // Lock assistance request row FOR UPDATE
@@ -356,58 +359,117 @@ if ($method === 'POST') {
           throw new Exception("This relief request is already in status '{$assistanceRequest['status']}' and cannot accept further allocations.");
         }
 
-        // Calculate dynamic finances
+        // Rebuild the request-item balance from persisted request needs and
+        // previous procurement line quantities. Never trust a stale client plan.
         $fin = calculate_relief_request_finances($pdo, $assistanceRequest);
-        if ($fin['remainingFamilies'] <= 0 || $fin['remainingCost'] <= 0.009) {
+        if ($fin['requestedFamilies'] <= 0 || empty($fin['requestedItems'])) {
+          throw new Exception('This relief request is missing an affected-family count or priced requested items.');
+        }
+        $expectedAffectedFamilies = (int) ($body['affectedFamilies'] ?? $body['affected_families'] ?? 0);
+        if ($expectedAffectedFamilies > 0 && $expectedAffectedFamilies !== $fin['affectedFamilies']) {
+          throw new Exception('The affected-family count changed. Refresh the request details and suggested plan.');
+        }
+        if (empty($fin['remainingItems'])) {
           throw new Exception('This relief request is already fully funded.');
         }
 
-        // Reject stale amounts instead of silently charging a different value than shown.
-        if ($allocatedAmount > $fin['remainingCost'] + 0.009) {
-          throw new Exception("Allocation amount exceeds this request's remaining requirement (₱" . number_format($fin['remainingCost'], 2) . '). Refresh the allocation plan and try again.');
+        $remainingByKey = [];
+        foreach ($fin['remainingItems'] as $remainingItem) {
+          $key = strtolower(trim((string) $remainingItem['item'])) . "\0" . strtolower(trim((string) $remainingItem['unit']));
+          $remainingByKey[$key] = $remainingItem;
         }
 
-        $costPerFamily = $fin['costPerFamily'];
-
-        // Count newly covered families from cumulative persisted funding. This allows
-        // several smaller allocations to combine into a complete family package.
-        if ($costPerFamily > 0) {
-          $fundedAfterThisAllocation = $fin['alreadyFundedAmount'] + $allocatedAmount;
-          $familiesFundedAfter = min(
-            $fin['requestedFamilies'],
-            max($fin['alreadySupportedFamilies'], (int) floor(($fundedAfterThisAllocation + 0.00001) / $costPerFamily))
-          );
-          $familiesSupported = max(0, $familiesFundedAfter - $fin['alreadySupportedFamilies']);
-        } else {
-          $familiesSupported = 0;
-        }
-
-        // If items were not manually specified, build from the request's calculated items
-        if (empty($items) && !empty($fin['items'])) {
-          $items = $fin['items'];
-        }
-
-        // The distribution-ready allocation must describe only the portion funded now.
-        // Keep finance coverage authoritative and scale the request plan to those families.
-        $allocationItems = [];
-        if ($familiesSupported > 0 && $fin['requestedFamilies'] > 0) {
-          $coverageRatio = min(1, $familiesSupported / $fin['requestedFamilies']);
-          foreach ($items as $item) {
-            if (!is_array($item)) continue;
-            $itemName = trim((string) ($item['item'] ?? $item['name'] ?? ''));
-            if ($itemName === '') continue;
-            $requestedQuantity = max(1, (int) ($item['quantity'] ?? 1));
-            $coveredQuantity = min($requestedQuantity, (int) floor(($requestedQuantity * $coverageRatio) + 0.5));
-            if ($coveredQuantity <= 0) continue;
-            $item['item'] = $itemName;
-            $item['quantity'] = $coveredQuantity;
-            $item['unit'] = trim((string) ($item['unit'] ?? 'packs')) ?: 'packs';
-            $item['unitCost'] = max(0, (float) ($item['unitCost'] ?? 0));
-            $item['totalCost'] = round($coveredQuantity * $item['unitCost'], 2);
-            $allocationItems[] = $item;
+        $validatedItems = [];
+        $selectedKeys = [];
+        $itemTotalCents = 0;
+        foreach ($items as $requestedItem) {
+          if (!is_array($requestedItem)) {
+            throw new Exception('The suggested plan contains an invalid requested-item row. Refresh the plan and try again.');
           }
+          $itemName = trim((string) ($requestedItem['item'] ?? $requestedItem['name'] ?? ''));
+          $itemUnit = trim((string) ($requestedItem['unit'] ?? 'units')) ?: 'units';
+          $itemQuantity = (int) ($requestedItem['quantity'] ?? 0);
+          $itemKey = strtolower($itemName) . "\0" . strtolower($itemUnit);
+          if ($itemName === '' || $itemQuantity <= 0 || !isset($remainingByKey[$itemKey])) {
+            throw new Exception('The suggested plan contains an item or quantity that is not currently requested. Refresh the plan and try again.');
+          }
+          if (isset($selectedKeys[$itemKey])) {
+            throw new Exception('The suggested plan contains a duplicate item. Refresh the plan and try again.');
+          }
+          $selectedKeys[$itemKey] = true;
+          $remainingItem = $remainingByKey[$itemKey];
+          if ($itemQuantity > (int) $remainingItem['remainingQuantity']) {
+            throw new Exception("Requested quantity for {$itemName} exceeds its remaining need.");
+          }
+
+          // Unit price is recalculated from the current server catalog/rate table.
+          $unitCost = round((float) $remainingItem['unitCost'], 2);
+          $submittedUnitCost = round((float) ($requestedItem['unitCost'] ?? 0), 2);
+          if ($submittedUnitCost <= 0 || abs($submittedUnitCost - $unitCost) > 0.009) {
+            throw new Exception("The current unit price for {$itemName} changed. Refresh the suggested plan and try again.");
+          }
+          $lineTotalCents = $itemQuantity * (int) round($unitCost * 100);
+          $itemTotalCents += $lineTotalCents;
+          $validatedItems[] = [
+            'item' => (string) $remainingItem['item'],
+            'quantity' => $itemQuantity,
+            'unit' => (string) $remainingItem['unit'],
+            'unitCost' => $unitCost,
+            'totalCost' => $lineTotalCents / 100,
+          ];
         }
-        $items = $allocationItems;
+        $items = $validatedItems;
+        if (!$items) {
+          throw new Exception('The suggested plan has no requested items within the available donation balance.');
+        }
+
+        $validatedAmount = $itemTotalCents / 100;
+        if (abs($requestedAmount - $validatedAmount) > 0.009) {
+          throw new Exception('Allocation amount does not match the current requested-item totals. Refresh the plan and try again.');
+        }
+        if ($validatedAmount > $availableBalance + 0.001) {
+          throw new Exception("Suggested item totals exceed the available donation balance (₱" . number_format($availableBalance, 2) . ').');
+        }
+        $allocatedAmount = $validatedAmount;
+
+        // Count fully covered families from item quantities, not an invented
+        // cost-per-family estimate. Every requested item contributes to coverage.
+        $coverageRatioAfter = 1.0;
+        foreach ($fin['requestedItems'] as $requestedItem) {
+          $key = strtolower(trim((string) $requestedItem['item'])) . "\0" . strtolower(trim((string) $requestedItem['unit']));
+          $requestedQuantity = max(1, (int) $requestedItem['requestedQuantity']);
+          $allocatedBefore = (int) $requestedItem['allocatedQuantity'];
+          $allocatedNow = 0;
+          foreach ($items as $validatedItem) {
+            $validatedKey = strtolower(trim((string) $validatedItem['item'])) . "\0" . strtolower(trim((string) $validatedItem['unit']));
+            if ($validatedKey === $key) {
+              $allocatedNow = (int) $validatedItem['quantity'];
+              break;
+            }
+          }
+          $coverageRatioAfter = min($coverageRatioAfter, min($requestedQuantity, $allocatedBefore + $allocatedNow) / $requestedQuantity);
+        }
+        $familiesAfter = min($fin['affectedFamilies'], (int) floor(($coverageRatioAfter * $fin['affectedFamilies']) + 0.00001));
+        $familiesSupported = max(0, $familiesAfter - $fin['alreadySupportedFamilies']);
+
+        $remainingQuantitiesAfter = [];
+        foreach ($fin['remainingItems'] as $remainingItem) {
+          $key = strtolower(trim((string) $remainingItem['item'])) . "\0" . strtolower(trim((string) $remainingItem['unit']));
+          $remainingQuantitiesAfter[$key] = (int) $remainingItem['remainingQuantity'];
+        }
+        foreach ($items as $validatedItem) {
+          $key = strtolower(trim((string) $validatedItem['item'])) . "\0" . strtolower(trim((string) $validatedItem['unit']));
+          $remainingQuantitiesAfter[$key] = max(0, ($remainingQuantitiesAfter[$key] ?? 0) - (int) $validatedItem['quantity']);
+        }
+        $remainingItemCount = array_sum($remainingQuantitiesAfter);
+        $remainingRequestCostAfter = 0.0;
+        foreach ($fin['remainingItems'] as $remainingItem) {
+          $key = strtolower(trim((string) $remainingItem['item'])) . "\0" . strtolower(trim((string) $remainingItem['unit']));
+          $remainingRequestCostAfter += ($remainingQuantitiesAfter[$key] ?? 0) * (float) $remainingItem['unitCost'];
+        }
+        $newReqStatus = $remainingItemCount === 0
+          ? 'Allocated'
+          : ($familiesAfter > $fin['alreadySupportedFamilies'] ? 'Partially Allocated' : 'Partially Funded');
       } else {
         throw new Exception('A valid relief request is required for monetary fund allocation.');
       }
@@ -424,9 +486,9 @@ if ($method === 'POST') {
       }
       $itemsSummary = !empty($summaryParts) ? implode(', ', $summaryParts) : "Relief Aid (₱" . number_format($allocatedAmount, 2) . ")";
 
-      // 3. Create Allocation in allocations table only if families supported > 0 or goods procured
+      // 3. Create an allocation row for the exact purchased request items.
       $allocationId = null;
-      if ($beneficiaryId > 0 && $familiesSupported > 0) {
+      if ($beneficiaryId > 0 && !empty($items)) {
         $alcCode = generate_code('ALC');
         $alcStmt = $pdo->prepare('
           INSERT INTO allocations (code, resource_name, quantity, program, beneficiary_target, beneficiary_id, assistance_request_id, status, priority, allocation_date, notes)
@@ -475,18 +537,8 @@ if ($method === 'POST') {
       // 5. Insert Procurement Record
       $newTotalUtilized = $totalUtilized + $allocatedAmount;
       $newRemainingBalance = max(0.0, round((float) $donation['amount'] - $newTotalUtilized, 2));
-      $newTotalFunded = $fin['alreadyFundedAmount'] + $allocatedAmount;
-      $newTotalFamilies = min(
-        $fin['requestedFamilies'],
-        max($fin['alreadySupportedFamilies'], $fin['costPerFamily'] > 0
-          ? (int) floor((($fin['alreadyFundedAmount'] + $allocatedAmount + 0.00001) / $fin['costPerFamily']))
-          : 0)
-      );
-      $newRemainingFamilies = max(0, $fin['requestedFamilies'] - $newTotalFamilies);
-      $newRemainingRequestCost = max(0.0, round($fin['totalCost'] - $newTotalFunded, 2));
-      $newReqStatus = $newRemainingFamilies <= 0 || $newRemainingRequestCost <= 0.01
-        ? 'Allocated'
-        : ($newTotalFamilies > 0 ? 'Partially Allocated' : 'Partially Funded');
+      $newRemainingFamilies = max(0, $fin['affectedFamilies'] - $familiesAfter);
+      $newRemainingRequestCost = round($remainingRequestCostAfter, 2);
       $allocationSnapshot = [
         'allocationId' => $allocationId,
         'requestReferenceCode' => $assistanceRequest['reference_code'],
@@ -541,7 +593,7 @@ if ($method === 'POST') {
       ');
       $updStmt->execute([
         $donationId,
-        'Scheduled for Distribution',
+        $newReqStatus === 'Allocated' ? 'Scheduled for Distribution' : 'Partially Allocated',
         $timelineNote,
         (int) $user['id'],
         (string) ($user['name'] ?? 'Staff'),

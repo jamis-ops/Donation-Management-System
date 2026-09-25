@@ -144,6 +144,235 @@
   font-size: 0.82rem;
 }
 
+.fund-allocation-donor-summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 0.85rem 1.25rem;
+  padding: 0.85rem 1.25rem;
+  border-bottom: 1px solid #e2e8f0;
+  background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
+}
+
+.fund-allocation-donor {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.35rem 0.65rem;
+}
+
+.fund-allocation-donor > span,
+.fund-allocation-totals span,
+.fund-allocation-family-summary span,
+.fund-allocation-plan-summary span {
+  color: #64748b;
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.025em;
+}
+
+.fund-allocation-donor > span { flex-basis: 100%; }
+.fund-allocation-donor > strong { color: #0f172a; font-size: 1rem; }
+.fund-allocation-donor > small {
+  padding: 0.18rem 0.5rem;
+  border-radius: 5px;
+  background: #e2e8f0;
+  color: #475569;
+  font-size: 0.75rem;
+}
+
+.fund-allocation-totals > div,
+.fund-allocation-family-summary > div,
+.fund-allocation-plan-summary > div {
+  display: grid;
+  gap: 0.2rem;
+}
+
+.fund-allocation-totals > div { text-align: right; }
+.fund-allocation-totals strong { color: #334155; font-size: 1.05rem; }
+.fund-allocation-totals .fund-allocation-available {
+  padding: 0.45rem 0.8rem;
+  border: 1px solid #86efac;
+  border-radius: 9px;
+  background: #f0fdf4;
+}
+.fund-allocation-available span,
+.fund-allocation-available strong { color: #15803d; }
+
+.fund-allocation-form {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.fund-allocation-section {
+  min-width: 0;
+  padding: 0.95rem 1rem;
+  border: 1px solid #e2e8f0;
+  border-radius: 11px;
+  background: #fff;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.025);
+}
+
+.fund-allocation-section > h3,
+.fund-allocation-section-title h3 {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin: 0 0 0.75rem;
+  color: #1e293b;
+  font-size: 0.9rem;
+  font-weight: 700;
+}
+
+.fund-allocation-section > h3 svg,
+.fund-allocation-section-title h3 svg { color: #af101a; }
+
+.fund-allocation-selection-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 280px), 1fr));
+  gap: 0.8rem;
+}
+
+.fund-allocation-selection-grid label,
+.fund-allocation-notes {
+  display: grid;
+  gap: 0.35rem;
+  color: #334155;
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+.fund-allocation-selection-grid label > span { color: #af101a; }
+.fund-allocation-selection-grid select,
+.fund-allocation-notes textarea {
+  width: 100%;
+  min-width: 0;
+  padding: 0.58rem 0.7rem;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  background: #fff;
+  color: #0f172a;
+  font-size: 0.84rem;
+  font-weight: 500;
+}
+
+.fund-allocation-section-title {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 0.4rem 1rem;
+}
+
+.fund-allocation-section-title h3 { margin-bottom: 0.15rem; }
+.fund-allocation-section-title p { margin: 0; color: #64748b; font-size: 0.78rem; }
+.fund-allocation-section-title .fund-allocation-request-id { color: #475569; font-weight: 700; }
+
+.fund-allocation-family-summary {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.55rem;
+  margin: 0.75rem 0;
+}
+
+.fund-allocation-family-summary > div {
+  padding: 0.6rem 0.7rem;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  background: #f8fafc;
+}
+
+.fund-allocation-family-summary strong { color: #0f172a; font-size: 1rem; }
+.fund-allocation-needs-wrap h4 { margin: 0 0 0.4rem; color: #334155; font-size: 0.78rem; }
+.fund-allocation-needs-table,
+.fund-allocation-plan-table { width: 100%; overflow-x: auto; }
+
+.fund-allocation-needs-row,
+.fund-allocation-plan-row {
+  display: grid;
+  align-items: center;
+  gap: 0.55rem;
+  min-width: 650px;
+  padding: 0.48rem 0.55rem;
+  border-bottom: 1px solid #edf1f5;
+  color: #334155;
+  font-size: 0.76rem;
+}
+
+.fund-allocation-needs-row { grid-template-columns: minmax(175px, 2fr) repeat(4, minmax(85px, 1fr)); }
+.fund-allocation-plan-row { grid-template-columns: minmax(190px, 2fr) repeat(3, minmax(100px, 1fr)); }
+.fund-allocation-needs-row--head,
+.fund-allocation-plan-row--head {
+  border-radius: 6px;
+  background: #f8fafc;
+  color: #64748b;
+  font-size: 0.66rem;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.fund-allocation-plan-row strong { color: #0f172a; }
+.fund-allocation-plan-summary {
+  display: flex;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 0.7rem;
+  margin-top: 0.65rem;
+}
+
+.fund-allocation-plan-summary > div {
+  min-width: 180px;
+  padding: 0.55rem 0.7rem;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  background: #f8fafc;
+}
+
+.fund-allocation-plan-summary > div:first-child { border-color: #fecaca; background: #fef2f2; }
+.fund-allocation-plan-summary > div:first-child strong { color: #af101a; }
+.fund-allocation-plan-summary strong { color: #0f172a; font-size: 0.96rem; }
+
+.fund-allocation-inline-message,
+.fund-allocation-error {
+  margin: 0.55rem 0 0;
+  color: #64748b;
+  font-size: 0.78rem;
+}
+
+.fund-allocation-error { color: #b91c1c; }
+.fund-allocation-notes textarea { resize: vertical; }
+
+.fund-allocation-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-shrink: 0;
+  padding: 0.85rem 1.25rem;
+  border-top: 1px solid #e2e8f0;
+  background: #fff;
+}
+
+.fund-allocation-footer button {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  min-height: 42px;
+  padding: 0.58rem 1rem;
+  border-radius: 8px;
+  font-size: 0.86rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.fund-allocation-cancel { border: 1px solid #cbd5e1; background: #fff; color: #475569; }
+.fund-allocation-confirm { border: 1px solid #af101a; background: #af101a; color: #fff; box-shadow: 0 4px 8px rgba(175, 16, 26, 0.18); }
+.fund-allocation-confirm:disabled { border-color: #94a3b8; background: #94a3b8; cursor: not-allowed; box-shadow: none; }
+
 .fund-allocation-selection-grid {
   grid-template-columns: repeat(auto-fit, minmax(min(100%, 280px), 1fr)) !important;
 }

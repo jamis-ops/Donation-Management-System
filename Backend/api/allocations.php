@@ -459,6 +459,18 @@ if ($method === 'POST') {
   // Start transaction for atomic inventory deduction and allocation creation
   $pdo->beginTransaction();
   try {
+    if ($assistanceRequestId) {
+      $requestLock = $pdo->prepare('SELECT status FROM assistance_requests WHERE id = ? FOR UPDATE');
+      $requestLock->execute([$assistanceRequestId]);
+      $lockedRequestStatus = $requestLock->fetchColumn();
+      if ($lockedRequestStatus === false) {
+        throw new RuntimeException('Linked relief request no longer exists.');
+      }
+      if (in_array($lockedRequestStatus, ['In Distribution', 'Completed', 'Rejected', 'Cancelled', 'Closed', 'Fulfilled'], true)) {
+        throw new RuntimeException("Relief request is {$lockedRequestStatus} and no longer accepts allocations.");
+      }
+    }
+
     foreach ($linesToProcess as $line) {
       $qty = (int) $line['quantity'];
       $invId = $line['inventoryItemId'] ? (int) $line['inventoryItemId'] : null;

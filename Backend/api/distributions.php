@@ -856,8 +856,10 @@ if ($method === 'POST') {
     $fundingStmt = $pdo->prepare('SELECT COUNT(*) FROM donation_procurements WHERE assistance_request_id = ?');
     $fundingStmt->execute([(int) $requestId]);
     if ((int) $fundingStmt->fetchColumn() > 0) {
+      ensure_allocation_inventory_schema($pdo);
+      ensure_column($pdo, 'inventory_items', 'cost_per_unit', 'DECIMAL(10,2) NULL AFTER unit');
       $requestFinances = calculate_relief_request_finances($pdo, $linkedRequest);
-      if ($requestFinances['remainingFamilies'] > 0 && $requestFinances['remainingCost'] > 0.01) {
+      if (!empty($requestFinances['remainingItems'])) {
         json_response(['ok' => false, 'error' => 'This relief request still has an unmet funding requirement and cannot enter distribution yet.'], 409);
       }
       if (!in_array($linkedRequest['status'], ['Allocated', 'In Distribution'], true)) {

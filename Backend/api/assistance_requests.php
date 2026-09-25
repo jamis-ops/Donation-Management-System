@@ -257,6 +257,8 @@ if ($method === 'GET') {
     require_auth(['Admin', 'Staff']);
     ensure_request_columns($pdo);
     ensure_procurement_table($pdo);
+    ensure_allocation_inventory_schema($pdo);
+    ensure_column($pdo, 'inventory_items', 'cost_per_unit', 'DECIMAL(10,2) NULL AFTER unit');
 
     // Only approved requests in a funding stage may receive monetary allocations.
     // Include Allocated here only so stale statuses can be repaired from persisted finance data.
@@ -281,8 +283,12 @@ if ($method === 'GET') {
     foreach ($candidates as $row) {
       $fin = calculate_relief_request_finances($pdo, $row);
 
-      // A request is not eligible as soon as either its family or cost requirement is met.
-      if ($fin['remainingFamilies'] <= 0 || $fin['remainingCost'] <= 0.009) {
+      if ($fin['requestedFamilies'] <= 0 || empty($fin['requestedItems'])) {
+        continue;
+      }
+
+      // Fully covered requests stay out of the funding selector.
+      if (empty($fin['remainingItems'])) {
         if ($row['status'] !== 'Allocated') {
           try {
             $pdo->prepare("UPDATE assistance_requests SET status = 'Allocated' WHERE id = ?")->execute([$row['id']]);
@@ -336,13 +342,17 @@ if ($method === 'GET') {
         'priority' => $row['priority'],
         'status' => $properStatus,
         'requestedFamilies' => $fin['requestedFamilies'],
+        'affectedFamilies' => $fin['affectedFamilies'],
         'alreadySupportedFamilies' => $fin['alreadySupportedFamilies'],
+        'familiesAlreadyCovered' => $fin['alreadySupportedFamilies'],
         'remainingFamilies' => $fin['remainingFamilies'],
+        'familiesStillNeedingSupport' => $fin['familiesStillNeedingSupport'],
         'totalCost' => $fin['totalCost'],
-        'costPerFamily' => $fin['costPerFamily'],
         'alreadyFundedAmount' => $fin['alreadyFundedAmount'],
         'remainingCost' => $fin['remainingCost'],
         'items' => $fin['items'],
+        'requestedItems' => $fin['requestedItems'],
+        'remainingItems' => $fin['remainingItems'],
         'notes' => $row['notes'],
       ];
 
