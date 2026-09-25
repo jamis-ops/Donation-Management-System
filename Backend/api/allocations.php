@@ -408,6 +408,10 @@ if ($method === 'POST') {
     if (!$arRow) {
       json_response(['ok' => false, 'error' => 'Linked relief request not found.'], 404);
     }
+    $allocatableRequestStatuses = ['Approved', 'Partially Funded', 'Partially Allocated'];
+    if (!in_array((string) ($arRow['status'] ?? ''), $allocatableRequestStatuses, true)) {
+      json_response(['ok' => false, 'error' => "Relief request is {$arRow['status']} and is not open for inventory allocation."], 409);
+    }
     // Target Barangay MUST come from the Relief Request and cannot be changed
     $beneficiaryId = (int) $arRow['beneficiary_id'];
     $beneficiary = $arRow['beneficiary_name'] ?: ($arRow['barangay'] ?: 'Beneficiary');
@@ -466,8 +470,8 @@ if ($method === 'POST') {
       if ($lockedRequestStatus === false) {
         throw new RuntimeException('Linked relief request no longer exists.');
       }
-      if (in_array($lockedRequestStatus, ['In Distribution', 'Completed', 'Rejected', 'Cancelled', 'Closed', 'Fulfilled'], true)) {
-        throw new RuntimeException("Relief request is {$lockedRequestStatus} and no longer accepts allocations.");
+      if (!in_array((string) $lockedRequestStatus, $allocatableRequestStatuses, true)) {
+        throw new RuntimeException("Relief request is {$lockedRequestStatus} and is no longer open for inventory allocation.");
       }
     }
 
