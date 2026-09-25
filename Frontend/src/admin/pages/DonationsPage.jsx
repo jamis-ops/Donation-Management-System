@@ -2,14 +2,13 @@ import { useState, useMemo, useEffect } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { 
   Eye, CheckCircle2, Download, FileText, Check, Clock, Package, 
-  TrendingUp, Users, MapPin, FileCheck, Send, Printer, Heart,
-  Calendar, Mail, Phone, Award, BarChart3, Coins, CreditCard,
-  Banknote, Gift, ShieldAlert, ShieldCheck, Sparkles, Filter, Layers, DollarSign,
-  Trash2, Settings2, ExternalLink, ShoppingCart, XCircle, Copy,
-  ZoomIn, ZoomOut, RotateCcw, Maximize2, AlertCircle, X
+  TrendingUp, Users, MapPin, FileCheck, Printer,
+  Calendar, Mail, Award, Coins, CreditCard, ShieldCheck,
+  Trash2, ExternalLink, ShoppingCart, XCircle, Copy,
+  ZoomIn, ZoomOut, RotateCcw, AlertCircle, X
 } from 'lucide-react'
 import { donationsApi, beneficiariesApi, assistanceRequestsApi, paymentMethodsApi } from '../../api/resources'
-import { getAuthenticatedFileUrl, apiUrl } from '../../api/auth'
+import { getAuthenticatedFileUrl } from '../../api/auth'
 import ProcurementModal from '../components/donations/ProcurementModal'
 import InKindIntakeModal from '../components/shared/InKindIntakeModal'
 import { useApiList } from '../../hooks/useApiList'
@@ -20,23 +19,12 @@ import StatusBadge from '../components/shared/StatusBadge'
 import ApiState from '../components/shared/ApiState'
 import FilterBar from '../components/shared/FilterBar'
 import ModalHeader from '../components/shared/ModalHeader'
-import DonationUpdatesTimeline from '../../components/shared/DonationUpdatesTimeline'
 import { useBulkSelection } from '../../hooks/useBulkSelection'
 import { notify, confirmAction, showSuccessModal } from '../../utils/confirm'
 import { notifyBadgesChanged } from '../../utils/badgeSync'
 import { useLoading } from '../../context/LoadingContext'
 import { printDonationReceipt } from '../../components/shared/printDonationReceipt'
 import { DONATION_STATUSES } from '../../constants/options'
-
-const IN_KIND_LIFECYCLE = [
-  'Submission', 'Tracking Code', 'Verification', 'Inventory Intake',
-  'Repacking', 'Allocation', 'Distribution', 'Completion',
-]
-
-const MONETARY_LIFECYCLE = [
-  'Submission', 'Tracking Code', 'Proof Verification', 'Fund Allocation',
-  'Official Receipt / Certificate', 'Completed',
-]
 
 const IN_KIND_CATEGORIES = [
   'Food',
@@ -130,7 +118,6 @@ export default function DonationsPage() {
   const [form, setForm] = useState(emptyForm)
   const [saving, setSaving] = useState(false)
   const [modalTab, setModalTab] = useState('details')
-  const [showInlineTimeline, setShowInlineTimeline] = useState(false)
   const [actionLoading, setActionLoading] = useState(false)
   const [actionStatus, setActionStatus] = useState('')
   const [paymentMethodOptions, setPaymentMethodOptions] = useState(PAYMENT_METHODS)
@@ -141,7 +128,6 @@ export default function DonationsPage() {
   const handleSelectDonation = (donation) => {
     setSelected(donation)
     setModalTab('details')
-    setShowInlineTimeline(false)
     setProofZoomModal(false)
     setZoomLevel(1)
     setProofImgError(false)
@@ -278,14 +264,6 @@ export default function DonationsPage() {
     }))
   }
 
-  // Get related donations for selected donor
-  const getRelatedDonations = (donation) => {
-    if (!donation) return []
-    return donations
-      .filter(d => d.dbId !== donation.dbId && d.donorEmail && d.donorEmail === donation.donorEmail)
-      .slice(0, 3)
-  }
-
   // Get donor stats
   const getDonorStats = (donation) => {
     if (!donation) return { totalDonations: 0, totalAmount: 0, lastDonation: '-' }
@@ -317,6 +295,7 @@ export default function DonationsPage() {
     })
     if (!confirmed) return
 
+    setActionLoading(true)
     showLoading('Verifying donation…')
     try {
       const res = await donationsApi.update(row.dbId, { status: 'Verified' })
@@ -335,6 +314,7 @@ export default function DonationsPage() {
       notify.error(err.message || 'Failed to verify donation')
     } finally {
       hideLoading()
+      setActionLoading(false)
     }
   }
 
@@ -435,6 +415,7 @@ export default function DonationsPage() {
     })
     if (!ok) return
 
+    setActionLoading(true)
     showLoading('Updating status…')
     try {
       const res = await donationsApi.update(row.dbId, { status: newStatus })
@@ -450,6 +431,7 @@ export default function DonationsPage() {
       notify.error(err.message || 'Failed to update status')
     } finally {
       hideLoading()
+      setActionLoading(false)
     }
   }
 
@@ -1378,6 +1360,119 @@ export default function DonationsPage() {
                   </div>
                 </div>
 
+                <hr className="donation-section-divider" />
+
+                <div className="donation-actions-section">
+                  {/* Primary workflow actions stay first and prominent. */}
+                  <div className="donation-actions-primary-group">
+                    {selected.status === 'Pending Verification' ? (
+                      <>
+                        <button
+                          type="button"
+                          className="btn btn--primary"
+                          onClick={() => handleVerify(selected)}
+                          disabled={actionLoading}
+                          title={selected.type === 'In-Kind' ? 'Verify & Post to Inventory' : 'Verify & Confirm Funds'}
+                        >
+                          <CheckCircle2 size={16} />
+                          {selected.type === 'In-Kind' ? 'Verify & Post to Inventory' : 'Verify & Confirm Funds'}
+                        </button>
+
+                        <button
+                          type="button"
+                          className="btn btn--danger-outline"
+                          disabled={actionLoading}
+                          onClick={() => {
+                            if (window.confirm(`Are you sure you want to mark donation ${selected.trackingCode} as Rejected?`)) {
+                              handleUpdateStatus(selected, 'Rejected')
+                            }
+                          }}
+                        >
+                          <XCircle size={15} /> Reject Donation
+                        </button>
+                      </>
+                    ) : (
+                      selected.type === 'Monetary' && !['Rejected', 'Cancelled'].includes(selected.status) ? (
+                        <button
+                          type="button"
+                          className="btn btn--primary"
+                          onClick={() => setProcuringDonation(selected)}
+                        >
+                          <ShoppingCart size={16} /> Allocate Funds / Procure Goods
+                        </button>
+                      ) : (
+                        <div className="donation-actions-complete">
+                          <CheckCircle2 size={16} /> Verification & Intake Completed
+                        </div>
+                      )
+                    )}
+                  </div>
+
+                  {/* Status is grouped beneath, but kept visually separate from, the primary decisions. */}
+                  <div className="donation-status-row">
+                    <div className="donation-status-current">
+                      <span>Current Status</span>
+                      <StatusBadge status={selected.status} />
+                    </div>
+
+                    <div className="donation-status-quick-transition">
+                      <label htmlFor="donation-status-select">Status</label>
+                      <select
+                        id="donation-status-select"
+                        value={actionStatus || selected.status}
+                        onChange={(e) => setActionStatus(e.target.value)}
+                        disabled={actionLoading}
+                        title="Change operational status"
+                      >
+                        {DONATION_STATUSES.map((st) => (
+                          <option key={st} value={st}>{st}</option>
+                        ))}
+                      </select>
+                      <button
+                        type="button"
+                        className="btn btn--outline btn--sm"
+                        disabled={(actionStatus || selected.status) === selected.status || actionLoading}
+                        onClick={() => handleUpdateStatus(selected, actionStatus || selected.status)}
+                      >
+                        Update
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="donation-actions-secondary-row">
+                    <div className="donation-actions-secondary-group">
+                      <button
+                        type="button"
+                        className="btn btn--outline btn--sm"
+                        onClick={() => printDonationReceipt(selected)}
+                        disabled={selected.status === 'Rejected' || selected.status === 'Cancelled'}
+                        title="Generate official acknowledgment receipt"
+                      >
+                        <Printer size={14} /> Print Receipt
+                      </button>
+
+                      {selected.hasProof && (
+                        <button
+                          type="button"
+                          className="btn btn--ghost btn--sm"
+                          onClick={() => setModalTab('proof')}
+                        >
+                          <FileCheck size={14} /> Inspect Proof File
+                        </button>
+                      )}
+                    </div>
+
+                    <button
+                      type="button"
+                      className="btn btn--ghost btn--sm donation-delete-action"
+                      onClick={() => handleDelete(selected)}
+                      title="Permanently remove donation record"
+                    >
+                      <Trash2 size={14} /> Delete Record
+                    </button>
+                  </div>
+                </div>
+
                 {/* Monetary Procurement Breakdown (if active and items recorded) */}
                 {selected.type === 'Monetary' && selected.status !== 'Pending Verification' && selected.procurements && selected.procurements.length > 0 && (
                   <div className="donation-procurement-card" style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '8px', padding: '0.85rem 1rem', marginBottom: '1rem' }}>
@@ -1448,139 +1543,6 @@ export default function DonationsPage() {
                   </div>
                 )}
 
-                <hr className="donation-section-divider" />
-
-                {/* 3. Available Actions & Operations (Clean Hierarchy) */}
-                <div className="donation-actions-section">
-                  <h4 className="donation-actions-section__title">
-                    <Settings2 size={15} /> Available Actions & Operations
-                  </h4>
-
-                  {/* Primary Workflow Actions Row */}
-                  <div className="donation-actions-primary-row">
-                    <div className="donation-actions-primary-group">
-                      {selected.status === 'Pending Verification' ? (
-                        <>
-                          <button
-                            type="button"
-                            className="btn btn--primary"
-                            onClick={() => handleVerify(selected)}
-                            disabled={actionLoading}
-                            title={selected.type === 'In-Kind' ? 'Verify & Post to Inventory' : 'Verify & Confirm Funds'}
-                          >
-                            <CheckCircle2 size={16} />
-                            {selected.type === 'In-Kind' ? 'Verify & Post to Inventory' : 'Verify & Confirm Funds'}
-                          </button>
-
-                          <button
-                            type="button"
-                            className="btn btn--danger-outline"
-                            disabled={actionLoading}
-                            onClick={() => {
-                              if (window.confirm(`Are you sure you want to mark donation ${selected.trackingCode} as Rejected?`)) {
-                                handleUpdateStatus(selected, 'Rejected')
-                              }
-                            }}
-                          >
-                            <XCircle size={15} /> Reject Donation
-                          </button>
-                        </>
-                      ) : (
-                        selected.type === 'Monetary' && !['Rejected', 'Cancelled'].includes(selected.status) ? (
-                          <button
-                            type="button"
-                            className="btn btn--primary"
-                            onClick={() => setProcuringDonation(selected)}
-                          >
-                            <ShoppingCart size={16} /> Allocate Funds / Procure Goods
-                          </button>
-                        ) : (
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', color: '#047857', fontWeight: 600, fontSize: '0.84rem' }}>
-                            <CheckCircle2 size={16} /> Verification & Intake Completed
-                          </div>
-                        )
-                      )}
-                    </div>
-
-                    {/* Quick Status Selector */}
-                    <div className="donation-status-quick-transition">
-                      <span style={{ fontSize: '0.72rem', color: '#64748b', fontWeight: 600, textTransform: 'uppercase' }}>Status:</span>
-                      <select
-                        value={actionStatus || selected.status}
-                        onChange={(e) => setActionStatus(e.target.value)}
-                        disabled={actionLoading}
-                        title="Change operational status"
-                      >
-                        {DONATION_STATUSES.map((st) => (
-                          <option key={st} value={st}>{st}</option>
-                        ))}
-                      </select>
-                      <button
-                        type="button"
-                        className="btn btn--outline btn--sm"
-                        disabled={(actionStatus || selected.status) === selected.status || actionLoading}
-                        onClick={() => handleUpdateStatus(selected, actionStatus || selected.status)}
-                      >
-                        Update
-                      </button>
-                    </div>
-                  </div>
-
-                  {/* Secondary Actions Toolbar */}
-                  <div className="donation-actions-secondary-row">
-                    <div className="donation-actions-secondary-group">
-                      <button
-                        type="button"
-                        className="btn btn--outline btn--sm"
-                        onClick={() => printDonationReceipt(selected)}
-                        disabled={selected.status === 'Rejected' || selected.status === 'Cancelled'}
-                        title="Generate official acknowledgment receipt"
-                      >
-                        <Printer size={14} /> Print Receipt
-                      </button>
-
-                      <button
-                        type="button"
-                        className={`btn btn--sm ${showInlineTimeline ? 'btn--primary' : 'btn--outline'}`}
-                        onClick={() => setShowInlineTimeline(!showInlineTimeline)}
-                      >
-                        <Clock size={14} /> {showInlineTimeline ? 'Hide Updates' : 'Timeline & Updates'}
-                      </button>
-
-                      {selected.hasProof && (
-                        <button
-                          type="button"
-                          className="btn btn--ghost btn--sm"
-                          onClick={() => setModalTab('proof')}
-                        >
-                          <FileCheck size={14} /> Inspect Proof File
-                        </button>
-                      )}
-                    </div>
-
-                    {/* Destructive Record Removal */}
-                    <button
-                      type="button"
-                      className="btn btn--ghost btn--sm"
-                      style={{ color: '#b91c1c' }}
-                      onClick={() => handleDelete(selected)}
-                      title="Permanently remove donation record"
-                    >
-                      <Trash2 size={14} /> Delete Record
-                    </button>
-                  </div>
-
-                  {/* Inline Timeline & Progress Updates */}
-                  {showInlineTimeline && (
-                    <div style={{ marginTop: '1rem', borderTop: '1px solid #e2e8f0', paddingTop: '1rem' }}>
-                      <DonationUpdatesTimeline
-                        donationId={selected.dbId}
-                        canPost
-                        onPosted={reload}
-                      />
-                    </div>
-                  )}
-                </div>
               </div>
             )}
 
@@ -1611,6 +1573,37 @@ export default function DonationsPage() {
                       {selected.aiVerificationStatus === 'verified' ? '✓ AI Verified' : (selected.aiVerificationStatus === 'needs_review' ? '⚠ Needs Review' : '✕ Invalid Proof')}
                     </span>
                   )}
+                </div>
+
+                {selected.status === 'Pending Verification' && (
+                  <div className="proof-primary-actions">
+                    <button
+                      type="button"
+                      className="btn btn--primary"
+                      onClick={() => handleVerify(selected)}
+                      disabled={actionLoading}
+                    >
+                      <CheckCircle2 size={16} />
+                      {selected.type === 'In-Kind' ? 'Verify & Post to Inventory' : 'Verify & Confirm Funds'}
+                    </button>
+                    <button
+                      type="button"
+                      className="btn btn--danger-outline"
+                      disabled={actionLoading}
+                      onClick={() => {
+                        if (window.confirm(`Are you sure you want to mark donation ${selected.trackingCode} as Rejected?`)) {
+                          handleUpdateStatus(selected, 'Rejected')
+                        }
+                      }}
+                    >
+                      <XCircle size={15} /> Reject Donation
+                    </button>
+                  </div>
+                )}
+
+                <div className="proof-status-row">
+                  <span>Donation Status</span>
+                  <StatusBadge status={selected.status} />
                 </div>
 
                 {/* Preview Frame: Image or PDF */}
@@ -1699,18 +1692,8 @@ export default function DonationsPage() {
                   </div>
                 )}
 
-                {/* Proof Actions Toolbar */}
-                <div style={{ marginTop: '0.85rem', display: 'flex', alignItems: 'center', gap: '0.65rem', flexWrap: 'wrap' }}>
-                  {selected.status === 'Pending Verification' && (
-                    <button
-                      type="button"
-                      className="btn btn--primary"
-                      onClick={() => handleVerify(selected)}
-                    >
-                      <CheckCircle2 size={16} />
-                      {selected.type === 'In-Kind' ? 'Verify & Post to Inventory' : 'Verify & Confirm Funds'}
-                    </button>
-                  )}
+                {/* Proof file controls */}
+                <div className="proof-file-actions">
                   <button
                     type="button"
                     className="btn btn--outline"
@@ -1737,8 +1720,8 @@ export default function DonationsPage() {
               </div>
             )}
 
-            {/* Modal Footer: Clean & Non-Duplicative */}
-            <div className="admin-modal__actions admin-modal__actions--split" style={{ marginTop: '1.25rem' }}>
+            {/* Modal Footer */}
+            <div className="admin-modal__actions donation-modal-footer">
               <button 
                 type="button" 
                 className="btn btn--ghost" 
@@ -1746,10 +1729,6 @@ export default function DonationsPage() {
               >
                 Close Window
               </button>
-              <div style={{ fontSize: '0.82rem', color: '#64748b', display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
-                <span>Current Status:</span>
-                <StatusBadge status={selected.status} />
-              </div>
             </div>
           </div>
         </div>
