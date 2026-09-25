@@ -61,7 +61,7 @@ const filterConfig = {
 
 const emptyGeneralTaskForm = {
   title: '',
-  priority: 'Medium',
+  priority: 'Low',
   dueDate: '',
   module: '',
   requiredSkills: [],
@@ -70,7 +70,7 @@ const emptyGeneralTaskForm = {
 
 const emptyDirectTaskForm = {
   title: '',
-  priority: 'Medium',
+  priority: 'Low',
   dueDate: '',
   dutyStart: '',
   dutyEnd: '',
@@ -2053,10 +2053,10 @@ export default function VolunteersPage() {
 
                               <div className="form-row">
                                 <label>
-                                  Priority
+                                  <span>Priority</span>
                                   <select
                                     disabled={saving || ['Completed', 'Rejected'].includes(selected.status)}
-                                    value={directTaskForm.priority}
+                                    value={directTaskForm.priority || 'Low'}
                                     onChange={(e) => setDirectTaskForm({ ...directTaskForm, priority: e.target.value })}
                                   >
                                     <option>Low</option>
@@ -2066,7 +2066,7 @@ export default function VolunteersPage() {
                                   </select>
                                 </label>
                                 <label>
-                                  Due Date
+                                  <span>Due Date</span>
                                   <input
                                     type="date"
                                     min={getTodayDateString()}
@@ -2836,9 +2836,9 @@ export default function VolunteersPage() {
 
                     <div className="form-row">
                       <label>
-                        Priority
+                        <span>Priority</span>
                         <select
-                          value={generalTaskForm.priority}
+                          value={generalTaskForm.priority || 'Low'}
                           onChange={(e) => setGeneralTaskForm({ ...generalTaskForm, priority: e.target.value })}
                         >
                           <option>Low</option>
@@ -2846,9 +2846,12 @@ export default function VolunteersPage() {
                           <option>High</option>
                           <option>Critical</option>
                         </select>
+                        <span style={{ fontSize: '0.74rem', color: '#64748b', marginTop: '0.2rem', display: 'block' }}>
+                          Initial urgency level (defaults to Low).
+                        </span>
                       </label>
                       <label>
-                        Due Date
+                        <span>Due Date</span>
                         <input
                           type="date"
                           min={getTodayDateString()}
@@ -3064,8 +3067,8 @@ export default function VolunteersPage() {
                           <div className="task-review-field">
                             <span className="task-review-field__label">Priority</span>
                             <div>
-                              <span className={`task-priority-pill task-priority-pill--${(generalTaskForm.priority || 'medium').toLowerCase()}`}>
-                                {generalTaskForm.priority}
+                              <span className={`task-priority-pill task-priority-pill--${(generalTaskForm.priority || 'low').toLowerCase()}`}>
+                                {generalTaskForm.priority || 'Low'}
                               </span>
                             </div>
                           </div>
@@ -3321,9 +3324,9 @@ export default function VolunteersPage() {
 
               <div className="form-row">
                 <label>
-                  Priority
+                  <span>Priority</span>
                   <select
-                    value={directTaskForm.priority}
+                    value={directTaskForm.priority || 'Low'}
                     onChange={(e) => setDirectTaskForm({ ...directTaskForm, priority: e.target.value })}
                   >
                     <option>Low</option>
@@ -3333,7 +3336,7 @@ export default function VolunteersPage() {
                   </select>
                 </label>
                 <label>
-                  Due Date
+                  <span>Due Date</span>
                   <input
                     type="date"
                     min={getTodayDateString()}

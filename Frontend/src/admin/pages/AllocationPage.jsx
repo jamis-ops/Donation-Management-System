@@ -52,7 +52,7 @@ const emptyForm = {
   beneficiaryId: '',
   assistanceRequestId: '',
   status: 'Allocated',
-  priority: 'Medium',
+  priority: 'Low',
   notes: '',
 }
 

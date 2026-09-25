@@ -362,7 +362,7 @@ $body = read_json_body();
 
 if ($method === 'POST') {
   $status = 'Allocated'; // Enforce Allocated status
-  $priority = in_array($body['priority'] ?? 'Medium', ['Low', 'Medium', 'High', 'Critical'], true) ? $body['priority'] : 'Medium';
+  $priority = in_array($body['priority'] ?? 'Low', ['Low', 'Medium', 'High', 'Critical'], true) ? $body['priority'] : 'Low';
   $assistanceRequestId = !empty($body['assistanceRequestId']) ? (int) $body['assistanceRequestId'] : null;
   $beneficiaryId = !empty($body['beneficiaryId']) ? (int) $body['beneficiaryId'] : null;
   $beneficiary = trim((string) ($body['beneficiary'] ?? ''));

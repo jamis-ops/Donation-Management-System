@@ -42,7 +42,7 @@ const emptyForm = {
   customCalamity: '',
   selectedNeeds: [],
   familiesAffected: '',
-  priority: 'Medium',
+  priority: 'Low',
   notes: '',
 }
 

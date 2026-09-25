@@ -610,7 +610,7 @@ if ($method === 'POST') {
 
   $notes = $body['notes'] ?? $body['description'] ?? null;
   $ref = generate_code('AST');
-  $priority = in_array($body['priority'] ?? 'Medium', ['Low', 'Medium', 'High', 'Critical'], true) ? $body['priority'] : 'Medium';
+  $priority = in_array($body['priority'] ?? 'Low', ['Low', 'Medium', 'High', 'Critical'], true) ? $body['priority'] : 'Low';
 
   // Compute SLA deadline
   $slaHours = ['Critical' => 4, 'High' => 24, 'Medium' => 72, 'Low' => 168];

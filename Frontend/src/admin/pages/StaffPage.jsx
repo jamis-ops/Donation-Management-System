@@ -62,7 +62,7 @@ const emptyForm = {
 
 const emptyTaskForm = {
   title: '',
-  priority: 'Medium',
+  priority: 'Low',
   dueDate: '',
   module: 'Operations',
 }
@@ -1068,15 +1068,16 @@ export default function StaffPage() {
 
               <div className="form-row">
                 <label>
-                  Priority
-                  <select value={taskForm.priority} onChange={(e) => setTaskForm({ ...taskForm, priority: e.target.value })}>
+                  <span>Priority</span>
+                  <select value={taskForm.priority || 'Low'} onChange={(e) => setTaskForm({ ...taskForm, priority: e.target.value })}>
                     <option>Low</option>
                     <option>Medium</option>
                     <option>High</option>
+                    <option>Critical</option>
                   </select>
                 </label>
                 <label>
-                  Due Date
+                  <span>Due Date</span>
                   <input
                     type="date"
                     min={getTodayDateString()}
