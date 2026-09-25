@@ -158,61 +158,61 @@ export function printCertificate(cert) {
 
   /* Brand Header */
   .brand { position: relative; z-index: 2; display: flex; flex-direction: column; align-items: center; }
-  .brand-row { display: flex; align-items: center; gap: 3.5mm; }
-  .brand-logo { width: 16mm; height: 16mm; object-fit: contain; border-radius: 50%; }
+  .brand-row { display: flex; align-items: center; gap: 4.5mm; }
+  .brand-logo { width: 20mm; height: 20mm; object-fit: contain; border-radius: 50%; }
   .brand-text { text-align: left; }
   .brand-org {
     font-family: 'Cinzel', 'Cormorant Garamond', Georgia, serif;
-    font-size: 11pt; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; color: var(--c-crimson-dark);
+    font-size: 13pt; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; color: var(--c-crimson-dark);
   }
   .brand-sub {
     font-family: 'DM Sans', system-ui, sans-serif;
-    font-size: 6pt; letter-spacing: 0.18em; text-transform: uppercase; color: var(--c-muted); margin-top: 0.5mm;
+    font-size: 7pt; letter-spacing: 0.18em; text-transform: uppercase; color: var(--c-muted); margin-top: 0.6mm;
   }
-  .banner-wrap { width: 75mm; }
+  .banner-wrap { width: 125mm; }
   .banner-wrap img { width: 100%; height: auto; display: block; }
 
   /* Title */
-  .heading { position: relative; z-index: 2; margin-top: 2.5mm; }
+  .heading { position: relative; z-index: 2; margin-top: 2mm; }
   .main-title {
     font-family: 'Cinzel', 'Cormorant Garamond', Georgia, serif;
-    font-size: 26pt; font-weight: 700; letter-spacing: 0.1em; color: var(--c-ink); line-height: 1;
+    font-size: 28pt; font-weight: 700; letter-spacing: 0.1em; color: var(--c-ink); line-height: 1.05;
   }
   .sub-title {
     font-family: 'DM Sans', system-ui, sans-serif;
-    font-size: 8.5pt; font-weight: 600; letter-spacing: 0.36em; color: var(--c-gold); text-transform: uppercase; margin-top: 1.5mm;
+    font-size: 10pt; font-weight: 600; letter-spacing: 0.36em; color: var(--c-gold); text-transform: uppercase; margin-top: 1.5mm;
   }
   .ornament {
     position: relative; z-index: 2; display: flex; align-items: center; justify-content: center;
-    gap: 3mm; width: 55mm; margin: 2mm 0;
+    gap: 3mm; width: 65mm; margin: 2mm 0;
   }
-  .ornament-line { flex: 1; height: 1px; background: linear-gradient(90deg, transparent, var(--c-gold), transparent); }
-  .ornament-star { color: var(--c-crimson); font-size: 8pt; line-height: 1; }
+  .ornament-line { flex: 1; height: 1.5px; background: linear-gradient(90deg, transparent, var(--c-gold), transparent); }
+  .ornament-star { color: var(--c-crimson); font-size: 9pt; line-height: 1; }
 
   /* Recipient */
   .presentation { position: relative; z-index: 2; }
   .presented-line {
     font-family: 'DM Sans', system-ui, sans-serif;
-    font-size: 6.5pt; font-weight: 600; letter-spacing: 0.22em; color: var(--c-muted); text-transform: uppercase;
+    font-size: 7.5pt; font-weight: 600; letter-spacing: 0.22em; color: var(--c-muted); text-transform: uppercase;
   }
   .recipient-name {
     font-family: 'Great Vibes', 'Alex Brush', cursive;
-    font-size: 34pt; color: var(--c-crimson-dark); line-height: 1.15; margin-top: 1mm;
+    font-size: 38pt; color: var(--c-crimson-dark); line-height: 1.15; margin-top: 1mm;
   }
   .certificate--clean_minimalist .recipient-name {
-    font-family: 'Cinzel', 'Cormorant Garamond', Georgia, serif; font-size: 22pt; color: #1a1512; font-weight: 700;
+    font-family: 'Cinzel', 'Cormorant Garamond', Georgia, serif; font-size: 24pt; color: #1a1512; font-weight: 700;
   }
 
   /* Body & Photos */
-  .body { position: relative; z-index: 2; width: 100%; max-width: 185mm; margin: 2mm auto 0; }
+  .body { position: relative; z-index: 2; width: 100%; max-width: 215mm; margin: 2.5mm auto 0; }
   .details-text {
     font-family: 'Cormorant Garamond', Georgia, serif;
-    font-size: 10pt; font-weight: 500; line-height: 1.55; color: #38322c; max-width: 175mm; margin: 0 auto;
+    font-size: 11pt; font-weight: 500; line-height: 1.55; color: #26201a; max-width: 205mm; margin: 0 auto;
   }
 
   .photo-featured { margin-bottom: 2mm; display: flex; justify-content: center; }
   .photo-featured img {
-    max-height: 22mm; max-width: 45mm; object-fit: cover; border-radius: 4px; border: 1px solid var(--c-gold);
+    max-height: 25mm; max-width: 55mm; object-fit: cover; border-radius: 4px; border: 1px solid var(--c-gold);
   }
 
   /* Backdrop photo layer */
@@ -226,89 +226,89 @@ export function printCertificate(cert) {
     width: 100%;
     height: 100%;
     object-fit: cover;
-    opacity: 0.32;
+    opacity: 0.35;
     filter: saturate(1.15);
   }
   .backdrop-scrim {
     position: absolute;
     inset: 0;
-    background: radial-gradient(ellipse 95% 85% at 50% 50%, rgba(255, 254, 251, 0.76) 20%, rgba(255, 253, 248, 0.90) 80%);
+    background: radial-gradient(ellipse 95% 85% at 50% 50%, rgba(255, 254, 251, 0.74) 20%, rgba(255, 253, 248, 0.88) 80%);
   }
 
   .caption-plaque {
-    background: rgba(255, 255, 255, 0.85);
-    border: 1px solid rgba(201, 162, 39, 0.45);
+    background: rgba(255, 255, 255, 0.88);
+    border: 1.5px solid rgba(201, 162, 39, 0.5);
     border-radius: 6px;
-    padding: 3.5mm 8mm;
+    padding: 3.5mm 10mm;
     margin: 0 auto;
-    max-width: 175mm;
+    max-width: 195mm;
   }
 
   /* Featured photo showcase */
   .photo-showcase {
-    width: 145mm;
+    width: 165mm;
     margin: 2mm auto 2.5mm;
     display: flex;
     justify-content: center;
   }
   .photo-showcase img {
     width: 100%;
-    max-height: 42mm;
+    max-height: 48mm;
     object-fit: cover;
     border-radius: 6px;
-    border: 1.5px solid var(--c-gold);
+    border: 2px solid var(--c-gold);
     box-shadow: 0 4px 15px rgba(0,0,0,0.14);
   }
 
   /* Glassmorphic Panel wrap */
   .photo-panel-wrap {
     position: relative;
-    width: 155mm;
+    width: 175mm;
     margin: 2mm auto;
     border-radius: 6px;
     overflow: hidden;
-    border: 1.5px solid var(--c-gold);
+    border: 2px solid var(--c-gold);
   }
   .photo-panel-wrap img {
     width: 100%;
-    height: 38mm;
+    height: 44mm;
     object-fit: cover;
     display: block;
   }
   .photo-panel-overlay {
     position: absolute;
     bottom: 0; left: 0; right: 0;
-    background: linear-gradient(to top, rgba(255, 255, 255, 0.96) 0%, rgba(255, 255, 255, 0.86) 80%, rgba(255, 255, 255, 0) 100%);
-    padding: 2.5mm 6mm 1.5mm;
+    background: linear-gradient(to top, rgba(255, 255, 255, 0.98) 0%, rgba(255, 255, 255, 0.88) 80%, rgba(255, 255, 255, 0) 100%);
+    padding: 2.5mm 8mm 1.5mm;
   }
 
-  .side-grid { display: grid; grid-template-columns: auto 1fr; align-items: center; gap: 4mm; text-align: left; }
-  .side-grid img { width: 44mm; max-height: 30mm; object-fit: cover; border-radius: 4px; border: 1px solid var(--c-gold); }
+  .side-grid { display: grid; grid-template-columns: auto 1fr; align-items: center; gap: 5mm; text-align: left; }
+  .side-grid img { width: 50mm; max-height: 35mm; object-fit: cover; border-radius: 4px; border: 1.5px solid var(--c-gold); }
   .side-grid .details-text { text-align: left; }
 
   /* Meta */
   .meta {
     position: relative; z-index: 2; display: flex; justify-content: center; align-items: center;
-    gap: 8mm; width: 160mm; margin: 2.5mm auto 0; padding-top: 2mm;
+    gap: 10mm; width: 190mm; margin: 2.5mm auto 0; padding-top: 2mm;
     border-top: 1px solid rgba(201, 162, 39, 0.45);
   }
-  .meta-item { display: flex; flex-direction: column; gap: 0.5mm; min-width: 22mm; }
-  .meta-label { font-family: 'DM Sans', system-ui, sans-serif; font-size: 5.5pt; letter-spacing: 0.15em; text-transform: uppercase; color: var(--c-muted); }
-  .meta-val { font-family: 'Cormorant Garamond', Georgia, serif; font-size: 9.5pt; font-weight: 700; color: var(--c-ink); }
+  .meta-item { display: flex; flex-direction: column; gap: 0.5mm; min-width: 24mm; }
+  .meta-label { font-family: 'DM Sans', system-ui, sans-serif; font-size: 6.5pt; letter-spacing: 0.15em; text-transform: uppercase; color: var(--c-muted); }
+  .meta-val { font-family: 'Cormorant Garamond', Georgia, serif; font-size: 10.5pt; font-weight: 700; color: var(--c-ink); }
 
   /* Footer & Signatures */
   .footer {
     position: relative; z-index: 2; display: grid; grid-template-columns: 1fr auto 1fr;
-    align-items: flex-end; gap: 5mm; width: 100%; max-width: 180mm; margin-top: auto; padding-top: 2.5mm;
+    align-items: flex-end; gap: 6mm; width: 100%; max-width: 215mm; margin-top: auto; padding-top: 3mm;
   }
   .sign { display: flex; flex-direction: column; align-items: center; }
-  .sig-img-wrap { height: 12mm; display: flex; align-items: flex-end; justify-content: center; margin-bottom: 1mm; }
-  .sig-img { max-height: 100%; max-width: 42mm; object-fit: contain; }
-  .sign-line { width: 44mm; margin: 0 auto 1.5mm; border-bottom: 1.5px solid var(--c-gold); }
-  .sign-name { font-family: 'Cormorant Garamond', Georgia, serif; font-size: 9.5pt; font-weight: 700; color: var(--c-ink); }
-  .sign-title { font-family: 'DM Sans', system-ui, sans-serif; font-size: 6pt; letter-spacing: 0.08em; text-transform: uppercase; color: var(--c-gold); font-weight: 600; margin-top: 0.5mm; }
-  .sign-org { font-family: 'DM Sans', system-ui, sans-serif; font-size: 5pt; color: var(--c-muted); margin-top: 0.5mm; }
-  .seal-img { width: 18mm; height: 18mm; object-fit: contain; }
+  .sig-img-wrap { height: 15mm; display: flex; align-items: flex-end; justify-content: center; margin-bottom: 1mm; }
+  .sig-img { max-height: 100%; max-width: 50mm; object-fit: contain; }
+  .sign-line { width: 52mm; margin: 0 auto 1.5mm; border-bottom: 1.5px solid var(--c-gold); }
+  .sign-name { font-family: 'Cormorant Garamond', Georgia, serif; font-size: 11pt; font-weight: 700; color: var(--c-ink); }
+  .sign-title { font-family: 'DM Sans', system-ui, sans-serif; font-size: 7.2pt; letter-spacing: 0.08em; text-transform: uppercase; color: var(--c-gold); font-weight: 600; margin-top: 0.5mm; }
+  .sign-org { font-family: 'DM Sans', system-ui, sans-serif; font-size: 6pt; color: var(--c-muted); margin-top: 0.5mm; }
+  .seal-img { width: 24mm; height: 24mm; object-fit: contain; }
 
   @media print {
     body { background: #fff !important; padding: 0 !important; margin: 0 !important; }
