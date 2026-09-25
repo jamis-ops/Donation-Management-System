@@ -123,8 +123,13 @@ export const VOLUNTEER_BRANCHES = {
 }
 
 // ── 7. Certificates Workflow ──
-export const CERTIFICATE_WORKFLOW = ['Requested', 'Pending', 'Generated', 'Released']
-export const CERTIFICATE_TERMINAL = ['Released']
+export const CERTIFICATE_WORKFLOW = ['Requested', 'Pending', 'Approved', 'Generated', 'Released']
+export const CERTIFICATE_TERMINAL = ['Released', 'Rejected']
+export const CERTIFICATE_BRANCHES = {
+  Requested: ['Approved', 'Rejected'],
+  Pending: ['Approved', 'Rejected'],
+  Approved: ['Generated', 'Rejected'],
+}
 
 /**
  * Returns whether a status is a final/completed terminal status.

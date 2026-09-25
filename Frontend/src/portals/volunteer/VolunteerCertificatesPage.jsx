@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
 import { Award, Download, Eye, Printer, Share2, BadgeCheck, FileText, X } from 'lucide-react'
 import StatusBadge from '../../admin/components/shared/StatusBadge'
 import ApiState from '../../admin/components/shared/ApiState'
@@ -9,7 +9,7 @@ import { useApiList } from '../../hooks/useApiList'
 import { usePagination, DEFAULT_PAGE_SIZE } from '../../hooks/usePagination'
 import Pagination from '../../admin/components/shared/Pagination'
 import ModalHeader from '../../admin/components/shared/ModalHeader'
-import { notify } from '../../utils/confirm'
+import { notify, showSuccessModal } from '../../utils/confirm'
 import { useLoading } from '../../context/LoadingContext'
 
 const CERTIFICATE_TYPE_CONFIG = {
@@ -61,10 +61,17 @@ export default function VolunteerCertificatesPage() {
 
   const tasksList = Array.isArray(rawTasks) ? rawTasks : []
 
+  const isTaskCompleted = (t) =>
+    Boolean(t && (t.isDone || t.boardColumn === 'done' || t.status === 'Done' || t.status === 'Completed'))
+
+  const completedTasks = useMemo(() => {
+    return tasksList.filter(isTaskCompleted)
+  }, [tasksList])
+
   const filteredCertificates = data.filter((cert) => {
     if (statusFilter === 'All') return true
     if (statusFilter === 'Processing') {
-      return ['Requested', 'Pending', 'Processing'].includes(cert.status)
+      return ['Requested', 'Pending', 'Approved', 'Processing'].includes(cert.status)
     }
     if (statusFilter === 'Generated') {
       return cert.status === 'Generated' || cert.status === 'Released'
@@ -77,27 +84,33 @@ export default function VolunteerCertificatesPage() {
   const statusCounts = {
     All: data.length,
     Generated: data.filter((c) => c.status === 'Generated' || c.status === 'Released').length,
-    Processing: data.filter((c) => ['Requested', 'Pending', 'Processing'].includes(c.status)).length,
+    Processing: data.filter((c) => ['Requested', 'Pending', 'Approved', 'Processing'].includes(c.status)).length,
   }
 
   const handleRequest = async (e) => {
     e.preventDefault()
+    if (!form.reference) {
+      notify.warning('Please select a completed duty or activity.')
+      return
+    }
     setBusy(true)
-    showLoading('Sending…')
+    showLoading('Sending request…')
     try {
-      await certificatesApi.create({
+      const res = await certificatesApi.create({
         type: form.type,
-        reference: form.reference || undefined,
+        reference: form.reference,
         details: form.details ? form.details.trim() : undefined,
       })
       setShowRequest(false)
       setForm({
         type: 'Certificate of Volunteer Service',
-        reference: '',
+        reference: completedTasks[0]?.id || completedTasks[0]?.code || '',
         details: '',
       })
-      setNotice('Your certificate request has been submitted. You will be notified once it is approved and issued.')
-      notify.success('Certificate request submitted successfully!')
+      const successMsg = res?.message || 'Certificate request sent successfully.'
+      setNotice(successMsg)
+      notify.success(successMsg)
+      showSuccessModal(successMsg, 'Certificate Request Sent')
       reload()
     } catch (err) {
       notify.error(err.message || 'Failed to submit certificate request')
@@ -191,13 +204,21 @@ export default function VolunteerCertificatesPage() {
               View earned certificates, download PDFs, or request new certificates for completed volunteer services.
             </p>
           </div>
-          <button
-            type="button"
-            className="btn btn--sm btn--primary"
-            onClick={() => setShowRequest(true)}
-          >
-            + Request Certificate
-          </button>
+          {completedTasks.length > 0 && (
+            <button
+              type="button"
+              className="btn btn--sm btn--primary"
+              onClick={() => {
+                setForm((prev) => ({
+                  ...prev,
+                  reference: prev.reference || completedTasks[0]?.id || completedTasks[0]?.code || '',
+                }))
+                setShowRequest(true)
+              }}
+            >
+              + Request Certificate
+            </button>
+          )}
         </div>
 
         {/* Filter Bar */}
@@ -221,14 +242,22 @@ export default function VolunteerCertificatesPage() {
             <p>
               {statusFilter !== 'All' 
                 ? `No ${statusFilter.toLowerCase()} certificates` 
-                : 'No certificates yet. You can request one for your volunteer activities and service.'}
+                : completedTasks.length > 0
+                  ? 'No certificates issued yet. You can request a certificate for your completed volunteer activities.'
+                  : 'No certificates yet. Complete assigned tasks and duties to earn and request volunteer certificates.'}
             </p>
-            {statusFilter === 'All' && (
+            {statusFilter === 'All' && completedTasks.length > 0 && (
               <button
                 type="button"
                 className="btn btn--sm btn--primary"
                 style={{ marginTop: '0.75rem' }}
-                onClick={() => setShowRequest(true)}
+                onClick={() => {
+                  setForm((prev) => ({
+                    ...prev,
+                    reference: prev.reference || completedTasks[0]?.id || completedTasks[0]?.code || '',
+                  }))
+                  setShowRequest(true)
+                }}
               >
                 Request Certificate Now
               </button>
@@ -330,17 +359,23 @@ export default function VolunteerCertificatesPage() {
                 </label>
 
                 <label>
-                  For Duty / Activity (Optional)
+                  For Duty / Activity <span style={{ color: '#dc2626' }}>*</span>
                   <select
+                    required
                     value={form.reference}
                     onChange={(e) => setForm({ ...form, reference: e.target.value })}
                   >
-                    <option value="">General Volunteer Service</option>
-                    {tasksList.map((t) => (
-                      <option key={t.dbId || t.id} value={t.id || t.title}>
-                        {t.id ? `${t.id} — ` : ''}{t.title} ({t.category || t.module || 'Duty'})
-                      </option>
-                    ))}
+                    <option value="" disabled>-- Select Completed Duty / Activity --</option>
+                    {completedTasks.map((t) => {
+                      const code = t.id || t.code
+                      const title = t.title || 'Volunteer Duty'
+                      const mod = t.module || t.category || t.program || 'Duty'
+                      return (
+                        <option key={t.dbId || t.id} value={code}>
+                          {code ? `${code} — ` : ''}{title} ({mod})
+                        </option>
+                      )
+                    })}
                   </select>
                 </label>
 

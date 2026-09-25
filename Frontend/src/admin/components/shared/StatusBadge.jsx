@@ -29,6 +29,7 @@ const statusMap = {
   Low: 'success', // For Priority: Low is non-critical / calm green
 
   // Amber / Warning / Pending
+  Requested: 'pending',
   Moderate: 'warning',
   moderate: 'warning',
   'Medium Stock': 'warning',

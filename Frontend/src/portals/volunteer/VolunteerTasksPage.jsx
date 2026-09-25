@@ -493,7 +493,11 @@ export default function VolunteerTasksPage() {
                       : 'vtask-timeline__step--current'
                   }`}>
                     <div className="vtask-timeline__icon-circle">
-                      <Clock size={13} />
+                      {getVolunteerTaskStatus(selectedTask) === 'Completed' ? (
+                        <Check size={14} />
+                      ) : (
+                        <Clock size={13} />
+                      )}
                     </div>
                     <span className="vtask-timeline__label">Duty Scheduled</span>
                   </div>
@@ -503,9 +507,15 @@ export default function VolunteerTasksPage() {
                       : 'vtask-timeline__step--pending'
                   }`}>
                     <div className="vtask-timeline__icon-circle">
-                      <ShieldCheck size={13} />
+                      {getVolunteerTaskStatus(selectedTask) === 'Completed' ? (
+                        <Check size={14} />
+                      ) : (
+                        <ShieldCheck size={13} />
+                      )}
                     </div>
-                    <span className="vtask-timeline__label">Admin Verified</span>
+                    <span className="vtask-timeline__label">
+                      {getVolunteerTaskStatus(selectedTask) === 'Completed' ? 'Completed' : 'Admin Verified'}
+                    </span>
                   </div>
                 </div>
               )}

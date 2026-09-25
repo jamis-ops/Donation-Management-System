@@ -236,8 +236,8 @@ if ($method === 'POST') {
     json_response(['ok' => true, 'data' => map_certificate($stmt->fetch())], 201);
   }
 
-  // Volunteers may request a certificate for their volunteer service.
-  if ($user['role'] === 'Volunteer') {
+  // Volunteers and Interns may request a certificate for their completed volunteer duties/activities.
+  if (strcasecmp((string)($user['role'] ?? ''), 'Volunteer') === 0 || strcasecmp((string)($user['role'] ?? ''), 'Intern') === 0) {
     $certType = trim((string) ($body['type'] ?? 'Certificate of Volunteer Service'));
     $allowedTypes = [
       'Certificate of Volunteer Service',
@@ -254,12 +254,32 @@ if ($method === 'POST') {
 
     $reference = trim((string) ($body['reference'] ?? ''));
     if ($reference === '') {
-      $vStmt = $pdo->prepare('SELECT code FROM volunteers WHERE user_id = ? OR email = ? LIMIT 1');
-      $vStmt->execute([$user['id'], $user['email']]);
-      $vCode = $vStmt->fetchColumn();
-      if ($vCode) {
-        $reference = (string) $vCode;
-      }
+      json_response(['ok' => false, 'error' => 'For Duty / Activity is required. Please select a completed duty or activity.'], 400);
+    }
+
+    // Lookup task in tasks table to ensure it exists and is Completed
+    $taskStmt = $pdo->prepare('SELECT * FROM tasks WHERE code = ? OR id = ? LIMIT 1');
+    $taskStmt->execute([$reference, is_numeric($reference) ? (int)$reference : 0]);
+    $taskRow = $taskStmt->fetch(PDO::FETCH_ASSOC);
+
+    if (!$taskRow) {
+      json_response(['ok' => false, 'error' => 'The selected task or activity could not be found in system records.'], 400);
+    }
+
+    $isCompleted = ($taskRow['board_column'] ?? '') === 'done'
+      || in_array(strtolower((string)($taskRow['status'] ?? '')), ['done', 'completed'], true);
+
+    if (!$isCompleted) {
+      json_response(['ok' => false, 'error' => 'Certificates can only be requested for tasks that are already Completed.'], 400);
+    }
+
+    $taskCode = (string)($taskRow['code'] ?? $reference);
+    $taskTitle = (string)($taskRow['title'] ?? 'Volunteer Duty');
+    $taskModule = (string)($taskRow['module'] ?? 'Volunteer Program');
+
+    $details = trim((string) ($body['details'] ?? ''));
+    if ($details === '') {
+      $details = "In recognition of outstanding volunteer service and completion of duty: {$taskTitle} ({$taskModule}).";
     }
 
     $code = generate_code('CERT');
@@ -273,16 +293,20 @@ if ($method === 'POST') {
       'modern_classic',
       'Volunteer',
       $user['name'],
-      $reference ?: null,
-      trim((string) ($body['details'] ?? '')) ?: null,
+      $taskCode,
+      $details,
       date('Y-m-d'),
       'Requested',
     ]);
-    notify_admins($pdo, 'certificate', 'Certificate requested', "{$user['name']} requested a {$certType}" . ($reference ? " ({$reference})" : ''), '/admin/certificates');
-    audit_log($pdo, 'request', 'certificate', $code, "{$user['name']} requested a {$certType}");
+    notify_admins($pdo, 'certificate', 'Certificate requested', "{$user['name']} requested a {$certType} for completed duty {$taskCode} ({$taskTitle})", '/admin/certificates');
+    audit_log($pdo, 'request', 'certificate', $code, "{$user['name']} requested a {$certType} for duty {$taskCode}");
     $stmt = $pdo->prepare('SELECT * FROM certificates WHERE id = ?');
     $stmt->execute([(int) $pdo->lastInsertId()]);
-    json_response(['ok' => true, 'data' => map_certificate($stmt->fetch())], 201);
+    json_response([
+      'ok' => true,
+      'data' => map_certificate($stmt->fetch()),
+      'message' => 'Certificate request sent successfully.',
+    ], 201);
   }
 
   if (!in_array($user['role'], ['Admin', 'Staff'], true)) {
@@ -299,15 +323,29 @@ if ($method === 'POST') {
     json_response(['ok' => false, 'error' => 'Official Receipt module is not available yet. Use Certificate of Donation.'], 400);
   }
 
+  // Validate reference for donations or volunteer tasks
   if (!empty($body['reference'])) {
     $ref = trim((string) $body['reference']);
-    $d = $pdo->prepare('SELECT status FROM donations WHERE tracking_code = ? LIMIT 1');
-    $d->execute([$ref]);
-    $dRow = $d->fetch();
-    if ($dRow) {
-      $allowed = ['Verified', 'Allocated', 'Distributed', 'Completed', 'In Inventory', 'Certificate / Official Receipt'];
-      if (!in_array($dRow['status'], $allowed, true)) {
-        json_response(['ok' => false, 'error' => 'Donation must be verified before generating a certificate'], 400);
+    $recType = $body['recipientType'] ?? 'Donor';
+    if ($recType === 'Donor') {
+      $d = $pdo->prepare('SELECT status FROM donations WHERE tracking_code = ? LIMIT 1');
+      $d->execute([$ref]);
+      $dRow = $d->fetch();
+      if ($dRow) {
+        $allowed = ['Verified', 'Allocated', 'Distributed', 'Completed', 'In Inventory', 'Certificate / Official Receipt'];
+        if (!in_array($dRow['status'], $allowed, true)) {
+          json_response(['ok' => false, 'error' => 'Donation must be verified before generating a certificate'], 400);
+        }
+      }
+    } elseif ($recType === 'Volunteer') {
+      $tStmt = $pdo->prepare('SELECT board_column, status FROM tasks WHERE code = ? OR id = ? LIMIT 1');
+      $tStmt->execute([$ref, is_numeric($ref) ? (int)$ref : 0]);
+      $tRow = $tStmt->fetch();
+      if ($tRow) {
+        $isDone = ($tRow['board_column'] ?? '') === 'done' || in_array(strtolower((string)($tRow['status'] ?? '')), ['done', 'completed'], true);
+        if (!$isDone) {
+          json_response(['ok' => false, 'error' => 'Cannot create certificate: The referenced volunteer task is not completed yet.'], 400);
+        }
       }
     }
   }
@@ -430,7 +468,8 @@ if ($method === 'PUT') {
     (string) ($existing['status'] ?? 'Requested'),
     (string) $newStatus,
     WORKFLOW_CERTIFICATE_STEPS,
-    WORKFLOW_CERTIFICATE_TERMINAL
+    WORKFLOW_CERTIFICATE_TERMINAL,
+    WORKFLOW_CERTIFICATE_BRANCHES
   );
 
   $signatoryId = array_key_exists('signatoryId', $body) 
@@ -508,6 +547,16 @@ if ($method === 'PUT') {
     $newStatus,
     $id,
   ]);
+
+  if ($newStatus === 'Approved' && $existing['status'] !== 'Approved') {
+    $findUser = $pdo->prepare('SELECT id FROM users WHERE full_name = ? LIMIT 1');
+    $findUser->execute([$existing['recipient_name']]);
+    $recipientUserId = $findUser->fetchColumn();
+    if ($recipientUserId) {
+      $link = ($existing['recipient_type'] ?? 'Donor') === 'Volunteer' ? '/volunteer-portal/certificates' : '/donor/certificates';
+      create_notification($pdo, 'certificate', 'Certificate Request Approved', "Your request for {$existing['cert_type']} ({$existing['code']}) has been approved.", $link, (int) $recipientUserId);
+    }
+  }
 
   if ($newStatus === 'Generated' && $existing['status'] !== 'Generated') {
     $findUser = $pdo->prepare('SELECT id, email FROM users WHERE full_name = ? LIMIT 1');

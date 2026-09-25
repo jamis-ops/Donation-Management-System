@@ -1,5 +1,18 @@
 import { useEffect, useMemo, useState } from 'react'
-import { ChevronLeft, ChevronRight, Calendar as CalendarIcon, MapPin, Clock, Users } from 'lucide-react'
+import { useNavigate } from 'react-router-dom'
+import {
+  ChevronLeft,
+  ChevronRight,
+  Calendar as CalendarIcon,
+  MapPin,
+  Clock,
+  Users,
+  Tag,
+  ShieldCheck,
+  Check,
+  ExternalLink,
+  Briefcase,
+} from 'lucide-react'
 import StatusBadge from '../../admin/components/shared/StatusBadge'
 import ModalHeader from '../../admin/components/shared/ModalHeader'
 import ApiState from '../../admin/components/shared/ApiState'
@@ -38,13 +51,62 @@ function parseLocalDate(value) {
 }
 
 export default function VolunteerSchedulePage() {
+  const navigate = useNavigate()
   const { data, loading, error, reload } = useApiObject(() => getPortalData())
   const [currentDate, setCurrentDate] = useState(() => new Date())
   const [viewMode, setViewMode] = useState('month')
   const [selectedEvent, setSelectedEvent] = useState(null)
   const [didJump, setDidJump] = useState(false)
   const todayKey = dateKey(new Date())
-  const schedule = data?.schedule || []
+
+  // Consolidate both scheduled duties and assigned tasks into unified schedule
+  const schedule = useMemo(() => {
+    const list = [...(data?.schedule || [])]
+    const existingCodes = new Set(list.map((e) => String(e.code || e.id || '')))
+
+    if (Array.isArray(data?.tasks)) {
+      data.tasks.forEach((t) => {
+        const taskId = String(t.code || t.id || '')
+        const targetDate = t.dueDate || t.due_date || t.due || t.target_date
+        if (taskId && !existingCodes.has(taskId) && targetDate && targetDate !== '—') {
+          const mod = t.module || t.category || t.program || 'Volunteer Program'
+          const lower = `${mod} ${t.title || ''}`.toLowerCase()
+          let type = 'Community'
+          if (lower.includes('distribut') || lower.includes('relief') || lower.includes('repack')) type = 'Distribution'
+          else if (lower.includes('inventor') || lower.includes('warehouse')) type = 'Inventory'
+          else if (lower.includes('feed') || lower.includes('program') || lower.includes('mission')) type = 'Programs'
+          else if (lower.includes('train') || lower.includes('orient')) type = 'Training'
+
+          const isTaskDone = Boolean(t.isDone || t.boardColumn === 'done' || t.status === 'Done' || t.status === 'Completed')
+
+          const timeStr = t.dutyStart && t.dutyEnd
+            ? `${t.dutyStart} - ${t.dutyEnd}`
+            : (t.dutyHours ? `${t.dutyHours} hrs` : (t.duty_hours ? `${t.duty_hours} hrs` : 'Scheduled Duty'))
+
+          list.push({
+            id: taskId,
+            code: taskId,
+            date: targetDate,
+            rawDate: targetDate,
+            event: t.title || 'Assigned Duty',
+            time: timeStr,
+            location: t.location || 'Rise Above Foundation Cebu',
+            type,
+            status: isTaskDone ? 'Completed' : 'Scheduled',
+            priority: t.priority || 'Low',
+            module: mod,
+            description: t.description || t.instructions || `Operational volunteer duty assigned under ${mod}.`,
+            isTask: true,
+            attendees: 1,
+            rawTask: t,
+          })
+          existingCodes.add(taskId)
+        }
+      })
+    }
+    return list
+  }, [data?.schedule, data?.tasks])
+
   const sortedEvents = useMemo(
     () => [...schedule].sort((a, b) => dateKey(a.date).localeCompare(dateKey(b.date))),
     [schedule],
@@ -114,19 +176,33 @@ export default function VolunteerSchedulePage() {
         >
           <div className="portal-calendar-day__number">{day}</div>
           <div className="portal-calendar-day__events">
-            {events.slice(0, 2).map((event) => (
+            {events.slice(0, 3).map((event) => (
               <button
                 key={event.id || `${event.event}-${event.date}`}
                 type="button"
                 className={`portal-calendar-event portal-calendar-event--${typeColor(event.type)}`}
                 onClick={() => setSelectedEvent(event)}
+                title={`${event.code ? `[${event.code}] ` : ''}${event.event} • ${event.time || 'Scheduled'}`}
               >
-                <span className="portal-calendar-event__time">{(event.time || 'TBD').split(' - ')[0]}</span>
-                <span className="portal-calendar-event__title">{event.event}</span>
+                <div className="portal-calendar-event__top">
+                  <span className="portal-calendar-event__time">
+                    <Clock size={10} style={{ display: 'inline', verticalAlign: '-1px', marginRight: '3px' }} />
+                    {(event.time || 'Duty').split(' - ')[0]}
+                  </span>
+                  {event.status === 'Completed' ? (
+                    <span className="portal-calendar-event__badge portal-calendar-event__badge--completed">Done</span>
+                  ) : (
+                    <span className="portal-calendar-event__badge portal-calendar-event__badge--scheduled">Assigned</span>
+                  )}
+                </div>
+                <strong className="portal-calendar-event__title">{event.event}</strong>
+                {event.module && (
+                  <span className="portal-calendar-event__sub">{event.module}</span>
+                )}
               </button>
             ))}
-            {events.length > 2 && (
-              <div className="portal-calendar-event__more">+{events.length - 2} more</div>
+            {events.length > 3 && (
+              <div className="portal-calendar-event__more">+{events.length - 3} more</div>
             )}
           </div>
         </div>
@@ -283,17 +359,39 @@ export default function VolunteerSchedulePage() {
             />
             <div className="admin-modal__body">
               <div className="portal-event-detail">
-                <div className="portal-event-detail__header">
-                  {selectedEvent.type && (
-                    <span className={`portal-event-type-badge portal-event-type-badge--${EVENT_TYPE_COLORS[selectedEvent.type] || 'crimson'}`}>
-                      {selectedEvent.type}
-                    </span>
-                  )}
+                <div className="portal-event-detail__header" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap', justifyContent: 'space-between' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', flexWrap: 'wrap' }}>
+                    {selectedEvent.code && (
+                      <span style={{ fontSize: '0.74rem', fontWeight: 700, padding: '2px 8px', borderRadius: '4px', background: '#f1f5f9', color: '#334155', border: '1px solid #cbd5e1' }}>
+                        {selectedEvent.code}
+                      </span>
+                    )}
+                    {selectedEvent.type && (
+                      <span className={`portal-event-type-badge portal-event-type-badge--${EVENT_TYPE_COLORS[selectedEvent.type] || 'crimson'}`}>
+                        {selectedEvent.type}
+                      </span>
+                    )}
+                    {selectedEvent.priority && (
+                      <span style={{ fontSize: '0.72rem', fontWeight: 600, padding: '2px 7px', borderRadius: '4px', background: '#fffbeb', color: '#b45309', border: '1px solid #fde68a' }}>
+                        <Tag size={11} style={{ display: 'inline', marginRight: '3px', verticalAlign: '-1px' }} />
+                        {selectedEvent.priority} Priority
+                      </span>
+                    )}
+                  </div>
                   <StatusBadge status={selectedEvent.status || 'Scheduled'} />
                 </div>
 
+                {selectedEvent.module && (
+                  <div className="portal-event-detail__section" style={{ marginTop: '0.5rem' }}>
+                    <h4>Program / Foundation Module</h4>
+                    <p style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontWeight: 600, color: '#0f766e' }}>
+                      <Briefcase size={16} /> {selectedEvent.module}
+                    </p>
+                  </div>
+                )}
+
                 <div className="portal-event-detail__section">
-                  <h4>Date & Time</h4>
+                  <h4>Schedule & Timing</h4>
                   <p>
                     <Clock size={16} />{' '}
                     {parseLocalDate(selectedEvent.date)?.toLocaleDateString('en-US', {
@@ -303,7 +401,7 @@ export default function VolunteerSchedulePage() {
                       day: 'numeric',
                     }) || selectedEvent.date}
                     <br />
-                    {selectedEvent.time || 'TBD'}
+                    <strong>Duty Hours:</strong> {selectedEvent.time || 'Scheduled Operation'}
                   </p>
                 </div>
 
@@ -316,28 +414,50 @@ export default function VolunteerSchedulePage() {
                   </div>
                 )}
 
-                {typeof selectedEvent.attendees === 'number' && selectedEvent.attendees > 0 && (
+                {selectedEvent.rawTask?.requiredSkills && selectedEvent.rawTask.requiredSkills.length > 0 && (
                   <div className="portal-event-detail__section">
-                    <h4>Attendance</h4>
-                    <p>
-                      <Users size={16} />{' '}
-                      {selectedEvent.attendees} volunteer{selectedEvent.attendees !== 1 ? 's' : ''} registered
-                    </p>
+                    <h4>Required Skills & Focus</h4>
+                    <div style={{ display: 'flex', gap: '0.35rem', flexWrap: 'wrap', marginTop: '0.25rem' }}>
+                      {selectedEvent.rawTask.requiredSkills.map((sk) => (
+                        <span key={sk} style={{ display: 'inline-flex', alignItems: 'center', gap: '0.25rem', fontSize: '0.72rem', background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '4px', padding: '2px 7px', color: '#475569' }}>
+                          <Check size={11} color="#16a34a" /> {sk}
+                        </span>
+                      ))}
+                    </div>
                   </div>
                 )}
 
                 {selectedEvent.description && (
                   <div className="portal-event-detail__section">
-                    <h4>Description</h4>
-                    <p>{selectedEvent.description}</p>
+                    <h4>Activity Instructions & Details</h4>
+                    <p style={{ lineHeight: 1.5 }}>{selectedEvent.description}</p>
                   </div>
                 )}
+
+                {selectedEvent.status === 'Completed' ? (
+                  <div style={{ marginTop: '0.75rem', padding: '0.65rem 0.85rem', background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: '6px', fontSize: '0.8rem', color: '#166534', display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
+                    <ShieldCheck size={16} color="#16a34a" />
+                    <span><strong>Duty Verified & Completed:</strong> This volunteer service is completed and eligible for certificate request.</span>
+                  </div>
+                ) : null}
               </div>
             </div>
-            <div className="admin-modal__footer">
+            <div className="admin-modal__footer" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <button type="button" className="btn btn--outline" onClick={() => setSelectedEvent(null)}>
                 Close
               </button>
+              {selectedEvent.isTask && (
+                <button
+                  type="button"
+                  className="btn btn--primary"
+                  onClick={() => {
+                    setSelectedEvent(null)
+                    navigate('/volunteer-portal/tasks')
+                  }}
+                >
+                  <ExternalLink size={14} /> View in My Tasks
+                </button>
+              )}
             </div>
           </div>
         </div>

@@ -2039,8 +2039,13 @@ const WORKFLOW_VOLUNTEER_BRANCHES = [
   'Pending Review' => ['Rejected'],
 ];
 
-const WORKFLOW_CERTIFICATE_STEPS = ['Requested', 'Pending', 'Generated', 'Released'];
-const WORKFLOW_CERTIFICATE_TERMINAL = ['Released'];
+const WORKFLOW_CERTIFICATE_STEPS = ['Requested', 'Pending', 'Approved', 'Generated', 'Released'];
+const WORKFLOW_CERTIFICATE_TERMINAL = ['Released', 'Rejected'];
+const WORKFLOW_CERTIFICATE_BRANCHES = [
+  'Requested' => ['Approved', 'Rejected'],
+  'Pending' => ['Approved', 'Rejected'],
+  'Approved' => ['Generated', 'Rejected'],
+];
 
 /**
  * Enforce one-way status workflows and lock finalized states.

@@ -517,13 +517,53 @@ switch ($user['role']) {
           'date' => format_date($s['event_date']),
           'event' => $title,
           'time' => $s['event_time'] ?: 'TBD',
-          'location' => 'Rise Against Hunger Cebu',
+          'location' => 'Rise Above Foundation Cebu',
           'type' => $type,
           'status' => 'Scheduled',
           'attendees' => 0,
           'description' => '',
         ];
       }, $sched->fetchAll());
+    }
+
+    // Integrate volunteer's assigned tasks into schedule
+    foreach ($taskRows as $t) {
+      if (empty($t['due_date'])) continue;
+      $mod = (string) ($t['module'] ?? '');
+      $type = 'Community';
+      $lower = strtolower($mod . ' ' . $t['title']);
+      if (strpos($lower, 'distribut') !== false || strpos($lower, 'relief') !== false || strpos($lower, 'repack') !== false) {
+        $type = 'Distribution';
+      } elseif (strpos($lower, 'inventor') !== false || strpos($lower, 'warehouse') !== false) {
+        $type = 'Inventory';
+      } elseif (strpos($lower, 'feed') !== false || strpos($lower, 'program') !== false || strpos($lower, 'mission') !== false) {
+        $type = 'Programs';
+      } elseif (strpos($lower, 'train') !== false || strpos($lower, 'orient') !== false) {
+        $type = 'Training';
+      }
+
+      $timeStr = !empty($t['duty_start']) 
+        ? (!empty($t['duty_end']) ? "{$t['duty_start']} - {$t['duty_end']}" : $t['duty_start'])
+        : 'Scheduled Duty';
+
+      $isTaskDone = ($t['board_column'] ?? '') === 'done' || strtolower((string)($t['status'] ?? '')) === 'completed';
+
+      $schedule[] = [
+        'id' => $t['code'],
+        'date' => format_date($t['due_date']),
+        'rawDate' => $t['due_date'],
+        'event' => $t['title'],
+        'time' => $timeStr,
+        'location' => 'Rise Above Foundation Cebu',
+        'type' => $type,
+        'status' => $isTaskDone ? 'Completed' : 'Scheduled',
+        'priority' => $t['priority'] ?? 'Low',
+        'module' => $mod ?: 'Volunteer Program',
+        'isTask' => true,
+        'code' => $t['code'],
+        'description' => "Duty task assigned under {$mod}. Status: " . ($isTaskDone ? 'Completed' : 'Ongoing') . '.',
+        'attendees' => 1,
+      ];
     }
 
     $certCount = 0;
