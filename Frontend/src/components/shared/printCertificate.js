@@ -4,17 +4,25 @@ import {
   certGoldSeal,
   certSigFlemming,
 } from '../../assets'
+import { apiUrl } from '../../api/resources'
 import { notify } from '../../utils/confirm'
 import {
   defaultCertDetails,
   escapeHtml,
   presentedLine,
   splitCertTitle,
+  resolveCertPhotoUrl,
+  resolveCertSignatureUrl,
+  CONTRIBUTION_PLACEHOLDER_SVG,
 } from './certificateHelpers'
 
 function toAbsoluteUrl(src) {
   if (!src) return ''
   if (src.startsWith('data:') || src.startsWith('blob:')) return src
+  if (/^https?:\/\//i.test(src)) return src
+  if (src.startsWith('/api/') || src.startsWith('api/')) {
+    return apiUrl(src)
+  }
   try {
     return new URL(src, window.location.origin).href
   } catch {
@@ -42,16 +50,11 @@ export function printCertificate(cert) {
   const sealRoundUrl = toAbsoluteUrl(certSealRound)
   const sealGoldUrl = toAbsoluteUrl(certGoldSeal)
 
-  let sigUrl = cert?.signatureDisplayUrl || cert?.signatureUrl || null
-  if (!sigUrl || String(signName).toLowerCase().includes('flemming')) {
-    sigUrl = certSigFlemming
-  } else if (sigUrl && !sigUrl.startsWith('http') && !sigUrl.startsWith('data:') && !sigUrl.startsWith('/')) {
-    sigUrl = `/api/file.php?kind=certificates&name=${encodeURIComponent(sigUrl)}`
-  }
-  const signatureUrl = toAbsoluteUrl(sigUrl)
+  const signatureUrl = toAbsoluteUrl(resolveCertSignatureUrl(cert, toAbsoluteUrl(certSigFlemming)))
 
-  const photoRaw = cert?.photoDisplayUrl || cert?.photoUrl || null
-  const photoUrl = (photoLayout !== 'none' && photoRaw) ? toAbsoluteUrl(photoRaw) : null
+  const photoRaw = resolveCertPhotoUrl(cert)
+  const hasPhotoLayout = photoLayout !== 'none'
+  const finalPhotoUrl = (hasPhotoLayout && photoRaw) ? toAbsoluteUrl(photoRaw) : CONTRIBUTION_PLACEHOLDER_SVG
 
   // Chosen Seal for bottom
   const bottomSealUrl = (templateId === 'royal_crimson' || templateId === 'distinguished_heritage')
@@ -246,18 +249,27 @@ export function printCertificate(cert) {
 
   /* Featured photo showcase */
   .photo-showcase {
-    width: 125mm;
+    width: auto;
+    max-width: 120mm;
     margin: 1.5mm auto;
     display: flex;
     justify-content: center;
+    align-items: center;
   }
   .photo-showcase img {
-    width: 100%;
-    max-height: 28mm;
+    max-width: 100%;
+    max-height: 27mm;
     object-fit: cover;
     border-radius: 5px;
     border: 1.5px solid var(--c-gold);
     box-shadow: 0 3px 12px rgba(0,0,0,0.12);
+  }
+  .photo-showcase img[src^="data:image/svg"],
+  .photo-panel-wrap img[src^="data:image/svg"],
+  .side-grid img[src^="data:image/svg"],
+  .backdrop-layer img[src^="data:image/svg"] {
+    border: none !important;
+    box-shadow: none !important;
   }
 
   /* Glassmorphic Panel wrap */
@@ -342,9 +354,9 @@ export function printCertificate(cert) {
   <div class="certificate certificate--${templateId}">
     <div class="frame">
       <div class="inner">
-        ${photoUrl && photoLayout === 'backdrop'
+        ${hasPhotoLayout && photoLayout === 'backdrop'
           ? `<div class="backdrop-layer">
-               <img src="${photoUrl}" alt="" />
+               <img src="${finalPhotoUrl}" alt="" onerror="this.onerror=null; this.src='${CONTRIBUTION_PLACEHOLDER_SVG}';" />
                <div class="backdrop-scrim"></div>
              </div>`
           : ''
@@ -387,20 +399,22 @@ export function printCertificate(cert) {
         </div>
 
         <div class="body">
-          ${photoUrl && photoLayout === 'backdrop'
+          ${hasPhotoLayout && photoLayout === 'backdrop'
             ? `<div class="caption-plaque"><div class="details-text">${escapeHtml(details)}</div></div>`
             : ''
           }
 
-          ${photoUrl && photoLayout === 'featured'
-            ? `<div class="photo-showcase"><img src="${photoUrl}" alt="Contribution" /></div>
+          ${hasPhotoLayout && photoLayout === 'featured'
+            ? `<div class="photo-showcase">
+                 <img src="${finalPhotoUrl}" alt="Contribution Activity" onerror="this.onerror=null; this.src='${CONTRIBUTION_PLACEHOLDER_SVG}';" />
+               </div>
                <div class="details-text">${escapeHtml(details)}</div>`
             : ''
           }
 
-          ${photoUrl && photoLayout === 'panel'
+          ${hasPhotoLayout && photoLayout === 'panel'
             ? `<div class="photo-panel-wrap">
-                 <img src="${photoUrl}" alt="Contribution" />
+                 <img src="${finalPhotoUrl}" alt="Contribution Activity" onerror="this.onerror=null; this.src='${CONTRIBUTION_PLACEHOLDER_SVG}';" />
                  <div class="photo-panel-overlay">
                    <div class="details-text" style="font-weight: 600; color: #1a1512;">${escapeHtml(details)}</div>
                  </div>
@@ -408,15 +422,15 @@ export function printCertificate(cert) {
             : ''
           }
 
-          ${photoUrl && photoLayout === 'side'
+          ${hasPhotoLayout && photoLayout === 'side'
             ? `<div class="side-grid">
-                 <img src="${photoUrl}" alt="Contribution" />
+                 <img src="${finalPhotoUrl}" alt="Contribution Activity" onerror="this.onerror=null; this.src='${CONTRIBUTION_PLACEHOLDER_SVG}';" />
                  <div class="details-text">${escapeHtml(details)}</div>
                </div>`
             : ''
           }
 
-          ${(!photoUrl || photoLayout === 'none')
+          ${(!hasPhotoLayout || photoLayout === 'none')
             ? `<div class="details-text">${escapeHtml(details)}</div>`
             : ''
           }

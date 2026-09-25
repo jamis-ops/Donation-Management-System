@@ -28,8 +28,11 @@ function ensure_certificates_schema(PDO $pdo): void
     if (!in_array('photo_url', $colList, true)) {
       $pdo->exec("ALTER TABLE certificates ADD COLUMN photo_url VARCHAR(255) NULL AFTER signature_url");
     }
+    if (!in_array('photo_data', $colList, true)) {
+      $pdo->exec("ALTER TABLE certificates ADD COLUMN photo_data LONGTEXT NULL AFTER photo_url");
+    }
     if (!in_array('photo_layout', $colList, true)) {
-      $pdo->exec("ALTER TABLE certificates ADD COLUMN photo_layout VARCHAR(50) NOT NULL DEFAULT 'none' AFTER photo_url");
+      $pdo->exec("ALTER TABLE certificates ADD COLUMN photo_layout VARCHAR(50) NOT NULL DEFAULT 'none' AFTER photo_data");
     }
     if (!in_array('contribution_details', $colList, true)) {
       $pdo->exec("ALTER TABLE certificates ADD COLUMN contribution_details TEXT NULL AFTER photo_layout");
@@ -37,6 +40,9 @@ function ensure_certificates_schema(PDO $pdo): void
     if (!in_array('location', $colList, true)) {
       $pdo->exec("ALTER TABLE certificates ADD COLUMN location VARCHAR(150) NOT NULL DEFAULT 'Cebu City, Philippines' AFTER cert_date");
     }
+
+    // Repair any corrupted photo_url filenames
+    $pdo->exec("UPDATE certificates SET photo_url = SUBSTRING_INDEX(photo_url, 'name=', -1) WHERE photo_url LIKE '%name=%'");
   } catch (Throwable) {}
 }
 
@@ -45,7 +51,17 @@ ensure_certificates_schema($pdo);
 function resolve_file_url(?string $path, string $kind = 'certificates'): string
 {
   if (!$path) return '';
+  $path = trim($path);
+  if ($path === '' || $path === 'null' || $path === 'undefined') return '';
   if (str_starts_with($path, 'data:') || str_starts_with($path, 'http://') || str_starts_with($path, 'https://')) {
+    return $path;
+  }
+  // Prevent double-encoding if already a /api/file.php URL
+  if (str_contains($path, 'file.php')) {
+    if (preg_match('/name=([^&]+)/', $path, $m)) {
+      $cleanName = rawurldecode($m[1]);
+      return '/api/file.php?kind=' . $kind . '&name=' . rawurlencode(basename($cleanName));
+    }
     return $path;
   }
   return '/api/file.php?kind=' . $kind . '&name=' . rawurlencode(basename($path));
@@ -56,6 +72,13 @@ function map_certificate(array $row): array
   $sigImage = $row['signature_url'] ?? '';
   if (empty($sigImage) && strcasecmp((string)($row['signatory_name'] ?? ''), 'Flemming Hansen') === 0) {
     $sigImage = 'sig_flemming_hansen.png';
+  }
+
+  $photoUrl = $row['photo_url'] ?? '';
+  $photoData = $row['photo_data'] ?? null;
+  $photoDisplay = resolve_file_url($photoUrl, 'certificates');
+  if (empty($photoDisplay) && !empty($photoData) && str_starts_with($photoData, 'data:image/')) {
+    $photoDisplay = $photoData;
   }
 
   return [
@@ -72,8 +95,9 @@ function map_certificate(array $row): array
     'signatoryTitle' => $row['signatory_title'] ?? 'CEO and Co-Founder',
     'signatureUrl' => $sigImage,
     'signatureDisplayUrl' => resolve_file_url($sigImage, 'certificates'),
-    'photoUrl' => $row['photo_url'] ?? '',
-    'photoDisplayUrl' => resolve_file_url($row['photo_url'] ?? '', 'certificates'),
+    'photoUrl' => $photoUrl,
+    'photoDisplayUrl' => $photoDisplay,
+    'photoData' => $photoData,
     'photoLayout' => $row['photo_layout'] ?? 'none',
     'contributionDetails' => $row['contribution_details'] ?? '',
     'date' => format_date($row['cert_date']),
@@ -83,12 +107,17 @@ function map_certificate(array $row): array
   ];
 }
 
-function save_certificate_photo_payload(?string $raw): ?string
+function process_certificate_photo(?string $raw, ?string $existingUrl = null, ?string $existingData = null): array
 {
-  if (!$raw) return null;
+  if ($raw === null) {
+    return [$existingUrl, $existingData];
+  }
   $raw = trim($raw);
-  if ($raw === '') return null;
+  if ($raw === '' || $raw === 'null' || $raw === 'undefined') {
+    return [null, null];
+  }
 
+  // Handle uploaded data URL (base64 image)
   if (str_starts_with($raw, 'data:image/')) {
     if (preg_match('/^data:image\/(\w+);base64,(.+)$/', $raw, $matches)) {
       $ext = $matches[1] === 'jpeg' ? 'jpg' : $matches[1];
@@ -97,13 +126,28 @@ function save_certificate_photo_payload(?string $raw): ?string
         $dir = __DIR__ . '/uploads/certificates';
         if (!is_dir($dir)) @mkdir($dir, 0755, true);
         $safeName = 'cert_photo_' . time() . '_' . bin2hex(random_bytes(4)) . '.' . $ext;
-        file_put_contents($dir . '/' . $safeName, $binary);
-        return $safeName;
+        @file_put_contents($dir . '/' . $safeName, $binary);
+        return [$safeName, $raw];
       }
+    }
+    return [null, $raw];
+  }
+
+  // If already an API URL e.g. /api/file.php?kind=certificates&name=...
+  if (str_contains($raw, 'name=')) {
+    parse_str(parse_url($raw, PHP_URL_QUERY) ?? '', $query);
+    if (!empty($query['name'])) {
+      $fn = basename($query['name']);
+      return [$fn, $existingData];
     }
   }
 
-  return basename($raw);
+  if (preg_match('#^https?://#i', $raw)) {
+    return [$raw, $existingData];
+  }
+
+  $clean = basename($raw);
+  return [$clean ?: null, $existingData];
 }
 
 $user = require_auth(['Admin', 'Staff', 'Donor', 'Volunteer']);
@@ -298,8 +342,9 @@ if ($method === 'POST') {
     }
   }
 
-  $photoUrl = save_certificate_photo_payload($body['photoUrl'] ?? null);
-  $photoLayout = in_array(($body['photoLayout'] ?? 'none'), ['none', 'featured', 'side', 'card'], true) 
+  [$photoUrl, $photoData] = process_certificate_photo($body['photoUrl'] ?? null);
+  $validLayouts = ['none', 'featured', 'side', 'panel', 'backdrop', 'card'];
+  $photoLayout = in_array(($body['photoLayout'] ?? 'none'), $validLayouts, true) 
     ? ($body['photoLayout'] ?? 'none') 
     : 'none';
 
@@ -312,8 +357,8 @@ if ($method === 'POST') {
     INSERT INTO certificates (
       code, cert_type, template_id, recipient_type, recipient_name, reference_code, 
       details, signatory_id, signatory_name, signatory_title, signature_url, 
-      photo_url, photo_layout, contribution_details, cert_date, location, status
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      photo_url, photo_data, photo_layout, contribution_details, cert_date, location, status
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   ');
   $stmt->execute([
     $code,
@@ -328,6 +373,7 @@ if ($method === 'POST') {
     $signatoryTitle ?: null,
     $signatureUrl ?: null,
     $photoUrl,
+    $photoData,
     $photoLayout,
     $contributionDetails ?: null,
     $body['certDate'] ?? date('Y-m-d'),
@@ -414,12 +460,13 @@ if ($method === 'PUT') {
     }
   }
 
-  $photoUrl = array_key_exists('photoUrl', $body)
-    ? save_certificate_photo_payload($body['photoUrl'])
-    : ($existing['photo_url'] ?? null);
+  [$photoUrl, $photoData] = array_key_exists('photoUrl', $body)
+    ? process_certificate_photo($body['photoUrl'], $existing['photo_url'] ?? null, $existing['photo_data'] ?? null)
+    : [$existing['photo_url'] ?? null, $existing['photo_data'] ?? null];
 
+  $validLayouts = ['none', 'featured', 'side', 'panel', 'backdrop', 'card'];
   $photoLayout = array_key_exists('photoLayout', $body)
-    ? (in_array($body['photoLayout'], ['none', 'featured', 'side', 'card'], true) ? $body['photoLayout'] : 'none')
+    ? (in_array($body['photoLayout'], $validLayouts, true) ? $body['photoLayout'] : 'none')
     : ($existing['photo_layout'] ?? 'none');
 
   $templateId = array_key_exists('templateId', $body)
@@ -438,7 +485,7 @@ if ($method === 'PUT') {
     UPDATE certificates 
     SET cert_type = ?, template_id = ?, recipient_type = ?, recipient_name = ?, reference_code = ?, 
         details = ?, signatory_id = ?, signatory_name = ?, signatory_title = ?, signature_url = ?, 
-        photo_url = ?, photo_layout = ?, contribution_details = ?, cert_date = ?, location = ?, status = ? 
+        photo_url = ?, photo_data = ?, photo_layout = ?, contribution_details = ?, cert_date = ?, location = ?, status = ? 
     WHERE id = ?
   ');
   $update->execute([
@@ -453,6 +500,7 @@ if ($method === 'PUT') {
     $signatoryTitle ?: null,
     $signatureUrl ?: null,
     $photoUrl,
+    $photoData,
     $photoLayout,
     $contributionDetails ?: null,
     $body['certDate'] ?? $existing['cert_date'],

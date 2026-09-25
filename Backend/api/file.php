@@ -28,6 +28,57 @@ if (in_array($kind, ['certificates', 'partners', 'payment_methods'], true)) {
     readfile($path);
     exit;
   }
+
+  // Database fallback for certificate images & photos (restores from DB if disk storage was wiped)
+  if ($kind === 'certificates') {
+    try {
+      $pdo = db();
+      $stmt = $pdo->prepare('SELECT photo_data FROM certificates WHERE photo_url = ? OR photo_url LIKE ? LIMIT 1');
+      $stmt->execute([$name, '%' . $name . '%']);
+      $photoData = $stmt->fetchColumn();
+
+      if ($photoData && str_starts_with($photoData, 'data:image/')) {
+        if (preg_match('/^data:(image\/[a-zA-Z0-9\+\-\.]+);base64,(.+)$/', $photoData, $m)) {
+          $mime = $m[1];
+          $binary = base64_decode($m[2]);
+          if ($binary !== false) {
+            if (!is_dir($dir)) @mkdir($dir, 0755, true);
+            @file_put_contents($path, $binary);
+            header('Content-Type: ' . $mime);
+            header('Content-Length: ' . (string) strlen($binary));
+            header('Content-Disposition: inline; filename="' . rawurlencode($name) . '"');
+            header('X-Content-Type-Options: nosniff');
+            header('Cache-Control: public, max-age=86400');
+            echo $binary;
+            exit;
+          }
+        }
+      }
+
+      // Check signatories table if a signatory signature was requested
+      $sigStmt = $pdo->prepare('SELECT signature_image FROM certificate_signatories WHERE signature_image = ? OR signature_image LIKE ? LIMIT 1');
+      $sigStmt->execute([$name, '%' . $name . '%']);
+      $sigData = $sigStmt->fetchColumn();
+      if ($sigData && str_starts_with($sigData, 'data:image/')) {
+        if (preg_match('/^data:(image\/[a-zA-Z0-9\+\-\.]+);base64,(.+)$/', $sigData, $m)) {
+          $mime = $m[1];
+          $binary = base64_decode($m[2]);
+          if ($binary !== false) {
+            if (!is_dir($dir)) @mkdir($dir, 0755, true);
+            @file_put_contents($path, $binary);
+            header('Content-Type: ' . $mime);
+            header('Content-Length: ' . (string) strlen($binary));
+            header('Content-Disposition: inline; filename="' . rawurlencode($name) . '"');
+            header('X-Content-Type-Options: nosniff');
+            header('Cache-Control: public, max-age=86400');
+            echo $binary;
+            exit;
+          }
+        }
+      }
+    } catch (Throwable) {}
+  }
+
   json_response(['ok' => false, 'error' => "Asset not found in {$kind}"], 404);
 }
 

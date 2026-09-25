@@ -1,4 +1,80 @@
+import { apiUrl } from '../../api/resources'
+
 /** Shared copy/layout helpers for on-screen + print certificates. */
+
+export const CONTRIBUTION_PLACEHOLDER_SVG = `data:image/svg+xml;utf8,${encodeURIComponent(`
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 540 130" width="100%" height="100%">
+  <defs>
+    <linearGradient id="certBg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#fffefb"/>
+      <stop offset="50%" stop-color="#fdfbf5"/>
+      <stop offset="100%" stop-color="#f7f2e4"/>
+    </linearGradient>
+    <linearGradient id="certGold" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#9a7b1c"/>
+      <stop offset="50%" stop-color="#d4af37"/>
+      <stop offset="100%" stop-color="#9a7b1c"/>
+    </linearGradient>
+  </defs>
+  <rect x="3" y="3" width="534" height="124" rx="6" fill="url(#certBg)" stroke="url(#certGold)" stroke-width="1.2"/>
+  <rect x="7" y="7" width="526" height="116" rx="4" fill="none" stroke="#d4af37" stroke-width="0.7" stroke-dasharray="4 3" opacity="0.6"/>
+  <g transform="translate(270, 32)" text-anchor="middle">
+    <circle cx="0" cy="0" r="12" fill="#af101a" opacity="0.08"/>
+    <path d="M-5,1 C-5,-3 0,-6 0,-6 C0,-6 5,-3 5,1 C5,4 1,7 0,8 C-1,7 -5,4 -5,1 Z" fill="#af101a"/>
+    <circle cx="-24" cy="0" r="1.5" fill="#c9a227"/>
+    <line x1="-20" y1="0" x2="-8" y2="0" stroke="#c9a227" stroke-width="0.8"/>
+    <circle cx="24" cy="0" r="1.5" fill="#c9a227"/>
+    <line x1="8" y1="0" x2="20" y2="0" stroke="#c9a227" stroke-width="0.8"/>
+  </g>
+  <text x="270" y="65" font-family="'Cinzel', Georgia, serif" font-size="11" font-weight="700" fill="#7a0b12" text-anchor="middle" letter-spacing="2">RISE ABOVE FOUNDATION CEBU</text>
+  <text x="270" y="84" font-family="'DM Sans', system-ui, sans-serif" font-size="9" font-weight="600" fill="#9a7b1c" text-anchor="middle" letter-spacing="1">OFFICIAL CONTRIBUTION &amp; SERVICE RECORD</text>
+  <text x="270" y="104" font-family="'Cormorant Garamond', Georgia, serif" font-size="10.5" font-style="italic" fill="#5e564d" text-anchor="middle">Honoring dedicated community service and humanitarian outreach</text>
+</svg>
+`)}`
+
+export function resolveCertPhotoUrl(cert) {
+  const photo = cert?.photoDisplayUrl || cert?.photoUrl || cert?.photo_url || cert?.photoData || null
+  if (!photo) return null
+  const str = String(photo).trim()
+  if (!str || str === 'null' || str === 'undefined') return null
+
+  // If base64, blob, or full http/https URL
+  if (/^(data:|blob:|https?:\/\/)/i.test(str)) {
+    return str
+  }
+
+  // If already an API path: /api/file.php... or api/file.php...
+  if (str.startsWith('/api/') || str.startsWith('api/')) {
+    return apiUrl(str)
+  }
+
+  // If it's just a file name (e.g. cert_photo_xxx.jpg)
+  return apiUrl(`/api/file.php?kind=certificates&name=${encodeURIComponent(str)}`)
+}
+
+export function resolveCertSignatureUrl(cert, defaultFlemmingSig) {
+  const signName = cert?.signatoryName || cert?.signatory_name || 'Flemming Hansen'
+  let sig = cert?.signatureDisplayUrl || cert?.signatureUrl || cert?.signature_url || null
+
+  if (!sig || String(signName).toLowerCase().includes('flemming')) {
+    return defaultFlemmingSig
+  }
+
+  const str = String(sig).trim()
+  if (!str || str === 'null' || str === 'undefined') {
+    return defaultFlemmingSig
+  }
+
+  if (/^(data:|blob:|https?:\/\/)/i.test(str)) {
+    return str
+  }
+
+  if (str.startsWith('/api/') || str.startsWith('api/')) {
+    return apiUrl(str)
+  }
+
+  return apiUrl(`/api/file.php?kind=certificates&name=${encodeURIComponent(str)}`)
+}
 
 export const CERTIFICATE_TEMPLATES = [
   {

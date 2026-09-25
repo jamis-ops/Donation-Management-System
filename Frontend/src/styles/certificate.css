@@ -381,21 +381,32 @@
 
 /* 2. Large Showcase Centerpiece Photo */
 .certificate__photo-showcase {
-  width: min(88%, 480px);
+  width: auto;
+  max-width: min(88%, 460px);
   margin: clamp(0.12rem, 0.35cqi, 0.3rem) auto;
   display: flex;
   justify-content: center;
+  align-items: center;
   position: relative;
   z-index: 2;
 }
 
 .certificate__photo-showcase-img {
-  width: 100%;
-  max-height: clamp(65px, 14cqi, 120px);
+  max-width: 100%;
+  max-height: clamp(65px, 13cqi, 110px);
   object-fit: cover;
   border-radius: 6px;
-  border: 2px solid var(--c-gold);
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.14);
+  border: 1.5px solid var(--c-gold);
+  box-shadow: 0 3px 12px rgba(0, 0, 0, 0.12);
+}
+
+.certificate__photo-showcase-img[src^="data:image/svg"],
+.certificate__photo-panel-bg[src^="data:image/svg"],
+.certificate__photo-container--side .certificate__photo[src^="data:image/svg"],
+.certificate__backdrop-img[src^="data:image/svg"] {
+  border: none !important;
+  box-shadow: none !important;
+  background: transparent !important;
 }
 
 .certificate--layout-featured .certificate__recipient {

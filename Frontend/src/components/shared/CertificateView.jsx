@@ -9,6 +9,9 @@ import {
   defaultCertDetails,
   presentedLine,
   splitCertTitle,
+  resolveCertPhotoUrl,
+  resolveCertSignatureUrl,
+  CONTRIBUTION_PLACEHOLDER_SVG,
 } from './certificateHelpers'
 
 export default function CertificateView({ cert }) {
@@ -21,17 +24,19 @@ export default function CertificateView({ cert }) {
   const location = cert?.location || 'Cebu City, Philippines'
   const certDate = cert?.date || cert?.certDate || 'September 25, 2026'
 
-  // Resolve photo URL
-  const photoSrc = cert?.photoDisplayUrl || cert?.photoUrl || null
-  const showPhoto = photoLayout !== 'none' && photoSrc
+  // Resolve photo URL and fallback placeholder
+  const rawPhotoSrc = resolveCertPhotoUrl(cert)
+  const [photoError, setPhotoError] = React.useState(false)
+
+  React.useEffect(() => {
+    setPhotoError(false)
+  }, [cert?.id, cert?.photoUrl, cert?.photoDisplayUrl])
+
+  const showPhoto = photoLayout !== 'none'
+  const photoSrc = (!photoError && rawPhotoSrc) ? rawPhotoSrc : CONTRIBUTION_PLACEHOLDER_SVG
 
   // Resolve signature URL
-  let signatureSrc = cert?.signatureDisplayUrl || cert?.signatureUrl || null
-  if (!signatureSrc || String(signName).toLowerCase().includes('flemming')) {
-    signatureSrc = certSigFlemming
-  } else if (signatureSrc && !signatureSrc.startsWith('http') && !signatureSrc.startsWith('data:') && !signatureSrc.startsWith('/')) {
-    signatureSrc = `/api/file.php?kind=certificates&name=${encodeURIComponent(signatureSrc)}`
-  }
+  const signatureSrc = resolveCertSignatureUrl(cert, certSigFlemming)
 
   return (
     <div className={`certificate certificate--${templateId} ${showPhoto ? `certificate--has-photo certificate--layout-${photoLayout}` : ''}`}>
@@ -40,7 +45,12 @@ export default function CertificateView({ cert }) {
           {/* Full-Width Background Photo Layer with Glass Scrim for 'backdrop' layout */}
           {showPhoto && photoLayout === 'backdrop' && (
             <div className="certificate__backdrop-layer" aria-hidden="true">
-              <img src={photoSrc} alt="" className="certificate__backdrop-img" />
+              <img
+                src={photoSrc}
+                alt=""
+                className="certificate__backdrop-img"
+                onError={() => setPhotoError(true)}
+              />
               <div className="certificate__backdrop-scrim" />
             </div>
           )}
@@ -116,7 +126,12 @@ export default function CertificateView({ cert }) {
             {showPhoto && photoLayout === 'featured' && (
               <>
                 <div className="certificate__photo-showcase">
-                  <img src={photoSrc} alt="Contribution Activity" className="certificate__photo-showcase-img" />
+                  <img
+                    src={photoSrc}
+                    alt="Contribution Activity"
+                    className="certificate__photo-showcase-img"
+                    onError={() => setPhotoError(true)}
+                  />
                 </div>
                 <p className="certificate__details">{details}</p>
               </>
@@ -124,7 +139,12 @@ export default function CertificateView({ cert }) {
 
             {showPhoto && photoLayout === 'panel' && (
               <div className="certificate__photo-panel-wrap">
-                <img src={photoSrc} alt="Contribution Activity" className="certificate__photo-panel-bg" />
+                <img
+                  src={photoSrc}
+                  alt="Contribution Activity"
+                  className="certificate__photo-panel-bg"
+                  onError={() => setPhotoError(true)}
+                />
                 <div className="certificate__photo-panel-content">
                   <p className="certificate__details certificate__details--panel">{details}</p>
                 </div>
@@ -134,7 +154,12 @@ export default function CertificateView({ cert }) {
             {showPhoto && photoLayout === 'side' && (
               <div className="certificate__side-grid">
                 <div className="certificate__photo-container certificate__photo-container--side">
-                  <img src={photoSrc} alt="Contribution Activity" className="certificate__photo" />
+                  <img
+                    src={photoSrc}
+                    alt="Contribution Activity"
+                    className="certificate__photo"
+                    onError={() => setPhotoError(true)}
+                  />
                 </div>
                 <div className="certificate__side-copy">
                   <p className="certificate__details">{details}</p>
