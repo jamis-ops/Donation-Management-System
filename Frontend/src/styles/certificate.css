@@ -381,9 +381,8 @@
 
 /* 2. Large Showcase Centerpiece Photo */
 .certificate__photo-showcase {
-  width: auto;
-  max-width: min(88%, 460px);
-  margin: clamp(0.12rem, 0.35cqi, 0.3rem) auto;
+  width: 100%;
+  margin: clamp(0.35rem, 0.8cqi, 0.65rem) auto;
   display: flex;
   justify-content: center;
   align-items: center;
@@ -392,12 +391,13 @@
 }
 
 .certificate__photo-showcase-img {
-  max-width: 100%;
-  max-height: clamp(65px, 13cqi, 110px);
+  width: auto;
+  max-width: min(85%, 330px);
+  max-height: clamp(95px, 17cqi, 140px);
   object-fit: cover;
-  border-radius: 6px;
-  border: 1.5px solid var(--c-gold);
-  box-shadow: 0 3px 12px rgba(0, 0, 0, 0.12);
+  border-radius: 7px;
+  border: 1.8px solid var(--c-gold);
+  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.14);
 }
 
 .certificate__photo-showcase-img[src^="data:image/svg"],
@@ -410,12 +410,12 @@
 }
 
 .certificate--layout-featured .certificate__recipient {
-  margin-bottom: 0.02rem;
-  font-size: clamp(1.5rem, 4.2cqi, 3rem);
+  margin-bottom: clamp(0.12rem, 0.35cqi, 0.3rem);
+  font-size: clamp(1.4rem, 4cqi, 2.85rem);
 }
 
 .certificate--layout-featured .certificate__details {
-  margin-top: clamp(0.12rem, 0.35cqi, 0.3rem);
+  margin-top: clamp(0.3rem, 0.7cqi, 0.55rem);
   font-size: clamp(0.62rem, 1.25cqi, 0.94rem);
   line-height: 1.42;
   max-width: 54rem;

@@ -249,19 +249,19 @@ export function printCertificate(cert) {
 
   /* Featured photo showcase */
   .photo-showcase {
-    width: auto;
-    max-width: 120mm;
-    margin: 1.5mm auto;
+    width: 100%;
+    margin: 2.5mm auto;
     display: flex;
     justify-content: center;
     align-items: center;
   }
   .photo-showcase img {
-    max-width: 100%;
-    max-height: 27mm;
+    width: auto;
+    max-width: 86mm;
+    max-height: 38mm;
     object-fit: cover;
-    border-radius: 5px;
-    border: 1.5px solid var(--c-gold);
+    border-radius: 6px;
+    border: 1.6px solid var(--c-gold);
     box-shadow: 0 3px 12px rgba(0,0,0,0.12);
   }
   .photo-showcase img[src^="data:image/svg"],
