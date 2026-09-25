@@ -3,7 +3,7 @@ import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import {
   ArrowLeft, Mail, Trash2, FileText, Truck, Package,
   User, Calendar, Check, Eye, X, Shield, Upload, CheckCircle2, XCircle,
-  Building, Phone, UserCheck, HeartHandshake, MapPin, Clock, Users, Activity, Pencil, Tag
+  Building, Phone, UserCheck, HeartHandshake, MapPin, Clock, Users, Activity, Tag
 } from 'lucide-react'
 import {
   beneficiariesApi,
@@ -551,13 +551,6 @@ export default function BarangayDetailsPage() {
           </div>
 
           <div className="barangay-details__actions">
-            <button 
-              type="button" 
-              className="btn btn--outline btn--sm"
-              onClick={() => setIsEditModalOpen(true)}
-            >
-              <Pencil size={14} /> Edit Barangay
-            </button>
             {canInviteBarangay(beneficiary) && (
               <button type="button" className="btn btn--outline btn--sm" onClick={handleSendInvite}>
                 <Mail size={14} /> Resend Invite
@@ -707,32 +700,6 @@ export default function BarangayDetailsPage() {
                   <span className="barangay-info-label">Address</span>
                   <span className="barangay-info-value">{beneficiary.address || '—'}</span>
                 </div>
-              </div>
-            </div>
-
-            {/* Card 3: Relief Needs & Notes */}
-            <div className="barangay-overview-card">
-              <div className="barangay-overview-card__header">
-                <HeartHandshake size={16} className="barangay-overview-card__icon" />
-                <h3>Relief Profile & Needs</h3>
-              </div>
-              <div className="barangay-overview-card__body">
-                <div className="barangay-info-group">
-                  <span className="barangay-info-label">Types of Needs</span>
-                  {needs.length > 0 ? (
-                    <div className="barangay-pills">
-                      {needs.map((n) => <span key={n} className="barangay-pill">{n}</span>)}
-                    </div>
-                  ) : (
-                    <span className="barangay-info-value text-muted">No specific needs listed</span>
-                  )}
-                </div>
-                {beneficiary.notes && (
-                  <div className="barangay-info-group barangay-notes-box">
-                    <span className="barangay-info-label">Notes & Instructions</span>
-                    <p className="barangay-notes-text">{beneficiary.notes}</p>
-                  </div>
-                )}
               </div>
             </div>
           </div>

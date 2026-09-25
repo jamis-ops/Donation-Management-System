@@ -267,9 +267,18 @@
 
 /* ── Overview Card Grid Improvements (Modal) ── */
 .barangay-overview-grid {
+  display: grid !important;
+  grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
   gap: 1.25rem !important; /* Increased from 1rem */
   margin-top: 1.25rem !important;
   margin-bottom: 0.25rem !important;
+  align-items: stretch !important;
+}
+
+@media (max-width: 768px) {
+  .barangay-overview-grid {
+    grid-template-columns: 1fr !important;
+  }
 }
 
 .barangay-overview-card {
