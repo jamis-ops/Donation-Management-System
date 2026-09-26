@@ -1105,7 +1105,7 @@ export default function BeneficiariesPage() {
       {/* ── Submission Details Modal ── */}
       {viewingSubmission && (
         <div className="admin-modal-overlay" onClick={() => setViewingSubmission(null)}>
-          <div className="admin-modal admin-modal--extra-wide admin-modal--structured barangay-submission-modal" onClick={(e) => e.stopPropagation()}>
+          <div className="admin-modal admin-modal--extra-wide barangay-submission-modal" onClick={(e) => e.stopPropagation()}>
             <ModalHeader
               title="Barangay Registration Submission Review"
               onClose={() => setViewingSubmission(null)}
@@ -1126,28 +1126,55 @@ export default function BeneficiariesPage() {
                   </div>
                 </div>
                 <div className="barangay-submission-modal__status-section">
-                  <div className="barangay-submission-modal__status-actions">
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
                     <StatusBadge status="Pending Approval" />
-                    <div className="barangay-submission-modal__action-group">
+                    <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.45rem' }}>
                       <button
                         type="button"
-                        className="btn btn--sm btn--outline-danger barangay-submission-modal__action-btn"
+                        className="btn btn--sm approval-overlay__btn-reject"
                         onClick={() => {
                           setViewingSubmission(null)
                           handleReject(null, viewingSubmission)
                         }}
                         disabled={actionBusyId === viewingSubmission.dbId}
+                        style={{
+                          background: 'rgba(220, 38, 38, 0.95)',
+                          color: '#ffffff',
+                          border: '1px solid #dc2626',
+                          fontSize: '0.82rem',
+                          padding: '0.4rem 0.85rem',
+                          borderRadius: '7px',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '0.35rem',
+                          fontWeight: 650,
+                          cursor: 'pointer'
+                        }}
                       >
                         <XCircle size={15} /> Reject Application
                       </button>
                       <button
                         type="button"
-                        className="btn btn--sm approval-overlay__btn-approve barangay-submission-modal__action-btn"
+                        className="btn btn--sm approval-overlay__btn-approve"
                         onClick={() => {
                           setViewingSubmission(null)
                           handleApprove(null, viewingSubmission)
                         }}
                         disabled={actionBusyId === viewingSubmission.dbId}
+                        style={{
+                          background: '#16a34a',
+                          color: '#ffffff',
+                          border: '1px solid #15803d',
+                          fontSize: '0.82rem',
+                          padding: '0.4rem 0.95rem',
+                          borderRadius: '7px',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '0.35rem',
+                          fontWeight: 650,
+                          cursor: 'pointer',
+                          boxShadow: '0 2px 6px rgba(0,0,0,0.18)'
+                        }}
                       >
                         <CheckCircle2 size={15} /> Approve & Send Credentials
                       </button>
@@ -1302,17 +1329,17 @@ export default function BeneficiariesPage() {
                   )}
                 </div>
               </div>
-            </div>
 
-            {/* Modal Footer / Secondary Actions */}
-            <div className="barangay-submission-modal__actions">
-              <button
-                type="button"
-                className="btn btn--lg btn--ghost"
-                onClick={() => setViewingSubmission(null)}
-              >
-                Close
-              </button>
+              {/* Modal Footer / Secondary Actions */}
+              <div className="barangay-submission-modal__actions" style={{ justifyContent: 'flex-end' }}>
+                <button
+                  type="button"
+                  className="btn btn--lg btn--ghost"
+                  onClick={() => setViewingSubmission(null)}
+                >
+                  Close
+                </button>
+              </div>
             </div>
           </div>
         </div>

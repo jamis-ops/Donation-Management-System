@@ -1098,68 +1098,67 @@ export default function StaffPage() {
 
       {showForm && (
         <div className="admin-modal-overlay" onClick={() => setShowForm(false)}>
-          <div className="admin-modal admin-modal--wide admin-modal--structured staff-account-modal" onClick={(e) => e.stopPropagation()}>
+          <div className="admin-modal admin-modal--wide" onClick={(e) => e.stopPropagation()}>
             <ModalHeader title="Create Staff Account" onClose={() => setShowForm(false)} />
-            <form className="staff-account-form" onSubmit={handleSave}>
-              <div className="staff-account-form__content">
-                <NameFields
-                  value={form}
-                  onChange={(parts) => setForm({ ...form, ...parts })}
-                />
-                <div className="form-row">
-                  <label>
-                    <span className="staff-account-form__label"><Req required>Email</Req></span>
-                    <input type="email" required value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} placeholder="staff@email.com" />
-                  </label>
-                  <label>
-                    <span className="staff-account-form__label">Phone Number</span>
-                    <PhoneInput
-                      allowInternational
-                      value={form.phone}
-                      onChange={(phone) => setForm({ ...form, phone })}
-                    />
-                  </label>
-                </div>
-                <div className="form-row">
-                  <label>
-                    <span className="staff-account-form__label">Date of Birth</span>
-                    <input
-                      type="date"
-                      value={form.birthDate}
-                      onChange={(e) => setForm({ ...form, birthDate: e.target.value })}
-                    />
-                  </label>
-                  <label>
-                    <span className="staff-account-form__label">Address</span>
-                    <input
-                      type="text"
-                      placeholder="e.g., Cebu City, Philippines"
-                      value={form.address}
-                      onChange={(e) => setForm({ ...form, address: e.target.value })}
-                    />
-                  </label>
-                </div>
-                <div className="form-row">
-                  <label>
-                    <span className="staff-account-form__label">Emergency Contact Number</span>
-                    <PhoneInput
-                      allowInternational
-                      value={form.emergencyContactNumber}
-                      onChange={(num) => setForm({ ...form, emergencyContactNumber: num })}
-                    />
-                  </label>
-                  <label>
-                    <span className="staff-account-form__label">Emergency Contact Relation</span>
-                    <input
-                      type="text"
-                      placeholder="e.g., Parent, Spouse, Sibling"
-                      value={form.emergencyContactRelation}
-                      onChange={(e) => setForm({ ...form, emergencyContactRelation: e.target.value })}
-                    />
-                  </label>
-                </div>
+            <form onSubmit={handleSave}>
+              <NameFields
+                value={form}
+                onChange={(parts) => setForm({ ...form, ...parts })}
+              />
+              <div className="form-row">
+                <label>
+                  <Req required>Email</Req>
+                  <input type="email" required value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} placeholder="staff@email.com" />
+                </label>
+                <label>
+                  Phone Number
+                  <PhoneInput
+                    allowInternational
+                    value={form.phone}
+                    onChange={(phone) => setForm({ ...form, phone })}
+                  />
+                </label>
               </div>
-              <div className="admin-modal__actions admin-modal__actions--footer">
+              <div className="form-row">
+                <label>
+                  Date of Birth
+                  <input
+                    type="date"
+                    value={form.birthDate}
+                    onChange={(e) => setForm({ ...form, birthDate: e.target.value })}
+                  />
+                </label>
+                <label>
+                  Address
+                  <input
+                    type="text"
+                    placeholder="e.g., Cebu City, Philippines"
+                    value={form.address}
+                    onChange={(e) => setForm({ ...form, address: e.target.value })}
+                  />
+                </label>
+              </div>
+              <div className="form-row">
+                <label>
+                  Emergency Contact Number
+                  <PhoneInput
+                    allowInternational
+                    value={form.emergencyContactNumber}
+                    onChange={(num) => setForm({ ...form, emergencyContactNumber: num })}
+                  />
+                </label>
+                <label>
+                  Emergency Contact Relation
+                  <input
+                    type="text"
+                    placeholder="e.g., Parent, Spouse, Sibling"
+                    value={form.emergencyContactRelation}
+                    onChange={(e) => setForm({ ...form, emergencyContactRelation: e.target.value })}
+                  />
+                </label>
+              </div>
+
+              <div className="admin-modal__actions" style={{ marginTop: '1.25rem' }}>
                 <button type="button" className="btn btn--ghost" onClick={() => setShowForm(false)}>Cancel</button>
                 <button
                   type="submit"

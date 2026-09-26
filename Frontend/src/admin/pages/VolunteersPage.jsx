@@ -1342,7 +1342,7 @@ export default function VolunteersPage() {
       {/* Volunteer / Intern Manage Modal */}
       {selected && (
         <div className="admin-modal-overlay" onClick={closeVolunteer}>
-          <div className="admin-modal admin-modal--xl admin-modal--structured volunteer-manage-modal" onClick={(e) => e.stopPropagation()}>
+          <div className="admin-modal admin-modal--xl volunteer-manage-modal" onClick={(e) => e.stopPropagation()}>
             <ModalHeader
               title={`${selected.name}`}
               subtitle={`${selected.applicantType === 'Intern' ? (selected.status === 'Pending Review' ? 'Intern Applicant (Pending Review)' : 'Intern') : (selected.status === 'Pending Review' ? 'Volunteer Applicant (Pending Review)' : 'Volunteer')} · ${selected.id} · ${selected.email || 'No email'}${selected.institution ? ` · ${selected.institution}` : ''}`}
@@ -1524,13 +1524,14 @@ export default function VolunteersPage() {
                                 <dd><StatusBadge status={selected.status} /></dd>
                               </div>
                             </div>
-                            <div className="volunteer-availability-section">
-                              <div className="volunteer-availability-section__header">
-                                <dt>Availability & Duty Schedule</dt>
+                            <div style={{ marginTop: '0.85rem' }}>
+                              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.35rem' }}>
+                                <dt style={{ margin: 0, fontWeight: 600 }}>Availability & Duty Schedule</dt>
                                 <button
                                   type="button"
-                                  className="btn btn--sm btn--outline volunteer-availability-section__edit"
+                                  className="btn btn--sm btn--outline"
                                   onClick={() => openEditAvailability(selected)}
+                                  style={{ padding: '0.2rem 0.6rem', fontSize: '0.76rem', gap: '0.35rem' }}
                                 >
                                   <Pencil size={12} /> Edit Availability
                                 </button>
@@ -2310,13 +2311,14 @@ export default function VolunteersPage() {
                             <dd><StatusBadge status={selected.status} /></dd>
                           </div>
                         </div>
-                        <div className="volunteer-availability-section">
-                          <div className="volunteer-availability-section__header">
-                            <dt>Availability & Schedule</dt>
+                        <div style={{ marginTop: '0.85rem' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.35rem' }}>
+                            <dt style={{ margin: 0, fontWeight: 600 }}>Availability & Schedule</dt>
                             <button
                               type="button"
-                              className="btn btn--sm btn--outline volunteer-availability-section__edit"
+                              className="btn btn--sm btn--outline"
                               onClick={() => openEditAvailability(selected)}
+                              style={{ padding: '0.2rem 0.6rem', fontSize: '0.76rem', gap: '0.35rem' }}
                             >
                               <Pencil size={12} /> Edit Availability
                             </button>

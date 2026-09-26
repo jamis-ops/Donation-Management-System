@@ -731,18 +731,13 @@
   margin: 0 !important;
   border-radius: 14px 14px 0 0 !important;
   flex-shrink: 0 !important;
-  position: relative !important;
-  top: auto !important;
-  min-height: 68px;
-  align-items: center;
 }
 
 .cert-creator-body {
   flex: 1 1 auto;
   min-height: 0;
-  display: grid;
-  grid-template-columns: clamp(360px, 31vw, 450px) minmax(0, 1fr);
-  align-items: start;
+  display: flex;
+  flex-direction: row;
   gap: 1.5rem;
   padding: 1.25rem 1.75rem;
   overflow: hidden;
@@ -750,12 +745,12 @@
   background: #f8fafc;
 }
 
-@media (max-width: 900px) {
+@media (max-width: 1024px) {
   .admin-modal.cert-creator-modal {
     height: 96vh !important;
   }
   .cert-creator-body {
-    grid-template-columns: 1fr;
+    flex-direction: column;
     overflow-y: auto;
   }
   .cert-form-column {
@@ -771,7 +766,8 @@
 }
 
 .cert-form-column {
-  width: 100%;
+  width: 440px;
+  flex-shrink: 0;
   height: 100%;
   min-height: 0;
   overflow-y: auto;
@@ -805,7 +801,7 @@
   min-height: 0;
   display: flex;
   flex-direction: column;
-  overflow: hidden;
+  overflow-y: auto;
   overflow-x: hidden;
   box-sizing: border-box;
 }
@@ -820,8 +816,6 @@
   flex-direction: column;
   gap: 0.85rem;
   width: 100%;
-  height: 100%;
-  min-height: 0;
   box-sizing: border-box;
 }
 
@@ -831,8 +825,6 @@
   justify-content: space-between;
   padding-bottom: 0.5rem;
   border-bottom: 1px solid #f1f5f9;
-  gap: 0.75rem;
-  flex-wrap: wrap;
 }
 
 .cert-preview-label {
@@ -858,9 +850,8 @@
 
 .cert-live-canvas-wrap {
   width: 100%;
-  min-height: 0;
-  flex: 1 1 auto;
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
   background: radial-gradient(circle at center, #fbfbfa 0%, #f1f0eb 100%);
@@ -868,14 +859,6 @@
   border-radius: 8px;
   padding: 0.85rem;
   box-sizing: border-box;
-  overflow: auto;
-}
-
-.cert-live-canvas-wrap > .certificate {
-  flex: 0 0 auto;
-  width: min(100%, calc((94vh - 15rem) * 1.4142857));
-  height: auto;
-  aspect-ratio: 297 / 210;
 }
 
 /* Card Sections inside Form */
@@ -1224,51 +1207,6 @@
   display: flex;
   align-items: center;
   gap: 0.6rem;
-}
-
-.cert-creator-footer .btn {
-  min-height: 42px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 0.45rem;
-}
-
-@media (max-width: 900px) {
-  .cert-preview-column,
-  .cert-preview-card {
-    height: auto !important;
-    overflow: visible !important;
-  }
-
-  .cert-live-canvas-wrap > .certificate {
-    width: 100%;
-  }
-}
-
-@media (max-width: 640px) {
-  .admin-modal.cert-creator-modal {
-    width: calc(100vw - 1rem) !important;
-  }
-
-  .cert-creator-body {
-    padding: 1rem;
-  }
-
-  .cert-preview-header {
-    align-items: flex-start;
-  }
-
-  .cert-creator-footer,
-  .cert-creator-footer__group {
-    align-items: stretch;
-    flex-direction: column;
-  }
-
-  .cert-creator-footer__group,
-  .cert-creator-footer .btn {
-    width: 100%;
-  }
 }
 
 /* =========================================================
