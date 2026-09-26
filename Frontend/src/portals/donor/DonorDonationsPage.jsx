@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
-import { Search, Download, TrendingUp, DollarSign, Package, Calendar, Users, MapPin, Heart } from 'lucide-react'
+import { Search, Download, TrendingUp, Coins, Package, Calendar, Users, MapPin, Heart } from 'lucide-react'
 import StatusBadge from '../../admin/components/shared/StatusBadge'
 import ApiState from '../../admin/components/shared/ApiState'
 import { donationsApi, certificatesApi } from '../../api/resources'
@@ -143,7 +143,7 @@ export default function DonorDonationsPage() {
           title="Filter: Monetary Donations"
         >
           <div className="donor-analytics-card__icon">
-            <DollarSign size={20} />
+            <Coins size={20} />
           </div>
           <div className="donor-analytics-card__content">
             <span className="donor-analytics-card__value">₱{totalMonetary.toLocaleString()}</span>
@@ -286,7 +286,7 @@ export default function DonorDonationsPage() {
                   
                   <div className="donor-donation-card__body">
                     <div className="donor-donation-card__amount">
-                      {d.type === 'Monetary' ? <DollarSign size={16} /> : <Package size={16} />}
+                      {d.type === 'In-Kind' && <Package size={16} />}
                       <span>{d.amount}</span>
                     </div>
                     

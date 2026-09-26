@@ -81,6 +81,7 @@ function map_request(array $row, string $beneficiaryName, ?array $extra = null):
     'notes' => $row['notes'],
     'affectedFamilies' => $families,
     'needs' => [],
+    'requestedItems' => [],
     'isEmergency' => !empty($row['is_emergency']),
     'calamityTags' => [],
     'assignedTo' => $row['assigned_to'] ?? null,
@@ -109,26 +110,46 @@ function map_request(array $row, string $beneficiaryName, ?array $extra = null):
     $decodedNeeds = json_decode((string) $row['needs_json'], true);
     if (is_array($decodedNeeds)) {
       $extractedNeeds = [];
+      $requestedItems = [];
       foreach ($decodedNeeds as $item) {
         if (is_string($item)) {
           $val = trim($item);
           if ($val !== '') {
             $extractedNeeds[] = $val;
+            $requestedItems[] = [
+              'item' => $val,
+              'quantity' => null,
+              'unit' => null,
+            ];
           }
         } elseif (is_array($item)) {
           $itemName = trim((string) ($item['item'] ?? $item['name'] ?? ''));
           if ($itemName !== '') {
             $qtyStr = !empty($item['quantity']) ? " ({$item['quantity']}" . (!empty($item['unit']) ? " {$item['unit']}" : '') . ')' : '';
             $extractedNeeds[] = $itemName . $qtyStr;
+            $quantity = isset($item['quantity']) && is_numeric($item['quantity'])
+              ? max(0, (int) $item['quantity'])
+              : null;
+            $requestedItems[] = [
+              'item' => $itemName,
+              'quantity' => $quantity,
+              'unit' => !empty($item['unit']) ? trim((string) $item['unit']) : null,
+            ];
           }
         }
       }
       $mapped['needs'] = array_values(array_unique($extractedNeeds));
+      $mapped['requestedItems'] = $requestedItems;
     }
   }
   if (empty($mapped['needs']) && !empty($row['notes'])) {
     if (preg_match('/(?:Goods Required|Type of Needs):\s*([^\n\r]+)/i', (string) $row['notes'], $m)) {
       $extractedNeeds = array_values(array_filter(array_map('trim', explode(',', $m[1]))));
+      $mapped['requestedItems'] = array_map(fn($item) => [
+        'item' => $item,
+        'quantity' => null,
+        'unit' => null,
+      ], $extractedNeeds);
       if ($extractedNeeds) {
         $mapped['needs'] = $extractedNeeds;
       }

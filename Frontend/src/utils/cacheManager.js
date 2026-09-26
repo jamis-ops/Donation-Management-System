@@ -49,7 +49,7 @@ function getCurrentScope() {
 export const ENDPOINT_TAG_MAP = {
   '/api/inventory.php': ['inventory', 'dashboard', 'reports', 'needs_stock'],
   '/api/inventory_catalog.php': ['inventory_catalog', 'catalogs', 'inventory'],
-  '/api/allocations.php': ['allocations', 'inventory', 'distributions', 'dashboard', 'reports', 'needs_stock'],
+  '/api/allocations.php': ['allocations', 'inventory', 'requests', 'distributions', 'dashboard', 'reports', 'needs_stock'],
   '/api/donations.php': ['donations', 'dashboard', 'reports', 'donors', 'needs_stock'],
   '/api/donation_updates.php': ['donation_updates', 'donations'],
   '/api/donors.php': ['donors', 'dashboard', 'reports'],

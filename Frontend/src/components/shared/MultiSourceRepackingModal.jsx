@@ -1,20 +1,23 @@
 import { useState } from 'react'
-import { FileCheck, ArrowRight, ArrowLeft, Check, AlertCircle } from 'lucide-react'
+import { FileCheck, ArrowRight, ArrowLeft } from 'lucide-react'
 import ModalHeader from '../../admin/components/shared/ModalHeader'
 import BarangayNeedsAnalyzer from './BarangayNeedsAnalyzer'
 import PackContentBuilder from './PackContentBuilder'
 import RepackingSummaryCard from './RepackingSummaryCard'
+import WizardStepper from './WizardStepper'
 import StatusBadge from '../../admin/components/shared/StatusBadge'
 import { notify } from '../../utils/confirm'
 import { useLoading } from '../../context/LoadingContext'
 
 const STEPS = ['barangay', 'builder', 'summary', 'confirmation']
 const STEP_TITLES = {
-  barangay: 'Step 1: Target Barangay',
-  builder: 'Step 2: Pack Builder',
-  summary: 'Step 3: Review & Confirm',
+  barangay: 'Target Barangay',
+  builder: 'Pack Builder',
+  summary: 'Review & Confirm',
   confirmation: 'Batch Created',
 }
+
+const WIZARD_STEPS = STEPS.slice(0, 3).map((id) => ({ id, label: STEP_TITLES[id] }))
 
 const STEP_SUBTITLES = {
   barangay: 'Select target barangay and analyze relief needs against warehouse inventory',
@@ -195,7 +198,6 @@ export default function MultiSourceRepackingModal({
       const result = await onSubmit(batchData)
       setCreatedBatch(result)
       setCurrentStep('confirmation')
-      notify.success('Multi-source repacking batch scheduled successfully!')
     } catch (error) {
       console.error('Failed to create batch:', error)
       notify.error(error.message || 'Failed to create repacking batch')
@@ -203,45 +205,6 @@ export default function MultiSourceRepackingModal({
       hideLoading()
       setLoading(false)
     }
-  }
-
-  const renderStepIndicator = () => {
-    const visibleSteps = STEPS.slice(0, 3)
-    return (
-      <div className="repacking-steps-indicator" role="tablist" aria-label="Repacking Creation Progress">
-        {visibleSteps.map((step, index) => {
-          const isActive = step === currentStep
-          const currentIndex = STEPS.indexOf(currentStep)
-          const isCompleted = currentIndex > index
-          const stepNumber = index + 1
-          const isClickable = index <= currentIndex
-
-          return (
-            <div
-              key={step}
-              className={`step-item ${isActive ? 'active' : ''} ${isCompleted ? 'completed' : ''}`}
-              onClick={() => isClickable && handleStepClick(step)}
-              style={{ cursor: isClickable ? 'pointer' : 'not-allowed' }}
-              role="tab"
-              aria-selected={isActive}
-              tabIndex={isClickable ? 0 : -1}
-              onKeyDown={(e) => {
-                if ((e.key === 'Enter' || e.key === ' ') && isClickable) {
-                  e.preventDefault()
-                  handleStepClick(step)
-                }
-              }}
-            >
-              <div className="step-number" aria-hidden="true">
-                {isCompleted ? <Check size={14} strokeWidth={3} /> : stepNumber}
-              </div>
-              <div className="step-label">{STEP_TITLES[step]}</div>
-              {index < visibleSteps.length - 1 && <div className="step-connector" />}
-            </div>
-          )
-        })}
-      </div>
-    )
   }
 
   const renderStepContent = () => {
@@ -358,13 +321,20 @@ export default function MultiSourceRepackingModal({
           onClose={onClose}
         />
 
-        {currentStep !== 'confirmation' && renderStepIndicator()}
+        {currentStep !== 'confirmation' && (
+          <WizardStepper
+            steps={WIZARD_STEPS}
+            currentStep={currentStep}
+            onStepChange={handleStepClick}
+            ariaLabel="Repacking creation progress"
+          />
+        )}
 
         <div className="repacking-modal-body">{renderStepContent()}</div>
 
         {currentStep !== 'confirmation' && (
           <div className="repacking-modal-actions">
-            {/* Left action: Previous or Cancel */}
+            {/* Left action: Back or Cancel */}
             {currentStep === 'barangay' ? (
               <button
                 type="button"
@@ -382,7 +352,7 @@ export default function MultiSourceRepackingModal({
                 disabled={loading}
               >
                 <ArrowLeft size={14} style={{ marginRight: '0.35rem' }} />
-                Previous
+                Back
               </button>
             )}
 
@@ -414,7 +384,7 @@ export default function MultiSourceRepackingModal({
                     : ''
                 }
               >
-                Next
+                Continue
                 <ArrowRight size={14} style={{ marginLeft: '0.35rem' }} />
               </button>
             )}

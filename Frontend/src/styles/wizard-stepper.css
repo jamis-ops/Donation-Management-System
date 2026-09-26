@@ -1,0 +1,171 @@
+/* Shared, semantic step navigation for modal workflows. */
+.wizard-stepper {
+  flex: 0 0 auto;
+  width: 100%;
+  padding: 0.9rem clamp(1rem, 3vw, 1.75rem);
+  border-bottom: 1px solid var(--admin-border, #e5e7eb);
+  background: #fffdf8;
+}
+
+.wizard-stepper__list {
+  display: flex;
+  align-items: flex-start;
+  width: min(100%, 760px);
+  margin: 0 auto;
+  padding: 0;
+  list-style: none;
+}
+
+.wizard-stepper__item {
+  position: relative;
+  flex: 1 1 0;
+  min-width: 0;
+}
+
+.wizard-stepper__button {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  width: 100%;
+  min-width: 0;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.42rem;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--admin-text-muted, #6b7280);
+  font: inherit;
+  text-align: center;
+  cursor: pointer;
+}
+
+.wizard-stepper__button:disabled {
+  cursor: not-allowed;
+}
+
+.wizard-stepper__item--active .wizard-stepper__button {
+  cursor: default;
+}
+
+.wizard-stepper__button:focus-visible {
+  outline: 3px solid rgba(175, 16, 26, 0.2);
+  outline-offset: 4px;
+  border-radius: 8px;
+}
+
+.wizard-stepper__marker {
+  display: inline-flex;
+  width: 34px;
+  height: 34px;
+  flex: 0 0 34px;
+  align-items: center;
+  justify-content: center;
+  border: 2px solid var(--admin-border-strong, #d1d5db);
+  border-radius: 999px;
+  background: var(--admin-surface, #ffffff);
+  color: var(--admin-text-subtle, #9ca3af);
+  font-size: 0.82rem;
+  font-weight: 750;
+  line-height: 1;
+  transition: border-color 160ms ease, background 160ms ease, color 160ms ease, box-shadow 160ms ease;
+}
+
+.wizard-stepper__label {
+  max-width: 11rem;
+  color: var(--admin-text-muted, #6b7280);
+  font-size: 0.78rem;
+  font-weight: 650;
+  line-height: 1.25;
+  overflow-wrap: anywhere;
+}
+
+.wizard-stepper__connector {
+  position: absolute;
+  z-index: 0;
+  top: 16px;
+  left: calc(50% + 24px);
+  width: calc(100% - 48px);
+  height: 2px;
+  background: var(--admin-border, #e5e7eb);
+  transition: background 160ms ease;
+}
+
+.wizard-stepper__item--active .wizard-stepper__marker {
+  border-color: var(--admin-brand, #af101a);
+  background: var(--admin-brand, #af101a);
+  color: #ffffff;
+  box-shadow: 0 0 0 4px rgba(175, 16, 26, 0.12);
+}
+
+.wizard-stepper__item--active .wizard-stepper__label {
+  color: var(--admin-brand, #af101a);
+  font-weight: 750;
+}
+
+.wizard-stepper__item--completed .wizard-stepper__marker {
+  border-color: var(--admin-pending, #eab308);
+  background: var(--admin-pending, #eab308);
+  color: #ffffff;
+}
+
+.wizard-stepper__item--completed .wizard-stepper__label {
+  color: #854d0e;
+}
+
+.wizard-stepper__item--completed .wizard-stepper__connector {
+  background: var(--admin-pending, #eab308);
+}
+
+.wizard-stepper__item--completed .wizard-stepper__button:hover .wizard-stepper__marker {
+  border-color: #ca8a04;
+  background: #ca8a04;
+  box-shadow: 0 0 0 4px rgba(234, 179, 8, 0.14);
+}
+
+.wizard-stepper__item--locked .wizard-stepper__marker {
+  border-color: var(--admin-border, #e5e7eb);
+  background: #f8fafc;
+  color: var(--admin-text-subtle, #9ca3af);
+}
+
+.wizard-stepper__item--locked .wizard-stepper__label {
+  color: var(--admin-text-subtle, #9ca3af);
+}
+
+@media (max-width: 640px) {
+  .wizard-stepper {
+    padding: 0.72rem 0.65rem;
+  }
+
+  .wizard-stepper__marker {
+    width: 30px;
+    height: 30px;
+    flex-basis: 30px;
+    font-size: 0.75rem;
+  }
+
+  .wizard-stepper__connector {
+    top: 14px;
+    left: calc(50% + 20px);
+    width: calc(100% - 40px);
+  }
+
+  .wizard-stepper__label {
+    max-width: 7.5rem;
+    font-size: 0.68rem;
+  }
+}
+
+@media (max-width: 390px) {
+  .wizard-stepper__label {
+    font-size: 0.63rem;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .wizard-stepper__marker,
+  .wizard-stepper__connector {
+    transition: none;
+  }
+}

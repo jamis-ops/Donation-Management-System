@@ -8,7 +8,7 @@ import {
   Minus,
   Eye,
   CheckCircle2,
-  DollarSign,
+  Coins,
   Boxes,
 } from 'lucide-react'
 import StatusBadge from '../../admin/components/shared/StatusBadge'
@@ -213,7 +213,7 @@ export default function StaffInventoryPage() {
 
           <div className="staff-inventory-summary__card" style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: '8px', padding: '1rem', display: 'flex', alignItems: 'center', gap: '0.85rem' }}>
             <div style={{ width: '42px', height: '42px', borderRadius: '8px', background: '#ecfdf5', color: '#059669', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              <DollarSign size={22} />
+              <Coins size={22} />
             </div>
             <div>
               <span className="staff-inventory-summary__value" style={{ fontSize: '1.3rem', fontWeight: 700, display: 'block', color: '#059669' }}>

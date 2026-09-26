@@ -19,6 +19,7 @@ import ApiState from '../components/shared/ApiState'
 import FilterBar from '../components/shared/FilterBar'
 import ModalHeader from '../components/shared/ModalHeader'
 import SkillTagPicker from '../../components/shared/SkillTagPicker'
+import WizardStepper from '../../components/shared/WizardStepper'
 import RowActionsMenu from '../components/shared/RowActionsMenu'
 import { useSeeMore } from '../../hooks/useSeeMore'
 import { SeeMoreToggle } from '../components/shared/SeeMoreList'
@@ -38,6 +39,11 @@ import { useLoading } from '../../context/LoadingContext'
 
 const WORKFLOW = DISTRIBUTION_WORKFLOW
 const PROOF_STATUS = ['Not Required', 'Awaiting Proof', 'Proof Submitted', 'Proof Verified', 'Proof Rejected']
+const DELIVERY_WIZARD_STEPS = [
+  { id: 'destination', label: 'Destination & Time' },
+  { id: 'logistics', label: 'Cargo & Logistics' },
+  { id: 'requirements', label: 'Status & Notes' },
+]
 
 const DEFAULT_PROGRAMS = [
   'Disaster Relief and House Building Project',
@@ -375,6 +381,20 @@ export default function DistributionsPage() {
     return hasItems && hasCoord && hasVehicles
   }, [form.itemsSummary, form.coordinator, form.type, form.vehicles])
 
+  const completedDeliverySteps = useMemo(() => {
+    const completed = []
+    if (isStep1Complete) completed.push('destination')
+    if (isStep1Complete && isStep2Complete) completed.push('logistics')
+    return completed
+  }, [isStep1Complete, isStep2Complete])
+
+  const lockedDeliverySteps = useMemo(() => {
+    const locked = []
+    if (!isStep1Complete) locked.push('logistics')
+    if (!isStep1Complete || !isStep2Complete) locked.push('requirements')
+    return locked
+  }, [isStep1Complete, isStep2Complete])
+
   const isDistributionProgram = useMemo(() => {
     const prog = (form.program || '').toLowerCase()
     const type = (form.type || '').toLowerCase()
@@ -686,6 +706,7 @@ export default function DistributionsPage() {
 
   const handleSave = async (e) => {
     if (e?.preventDefault) e.preventDefault()
+    const wasEditing = Boolean(editRow)
 
     // Validate Step 1
     const destErrors = validateStep('destination')
@@ -773,8 +794,13 @@ export default function DistributionsPage() {
       setFormTab('destination')
       reload()
       notifyBadgesChanged()
-      notify.success(editRow ? 'Delivery updated successfully.' : 'Delivery scheduled successfully.')
-      showSuccessModal(editRow ? 'Successfully updated delivery.' : 'Successfully scheduled delivery.')
+      await showSuccessModal({
+        title: wasEditing ? 'Delivery Updated' : 'Delivery Scheduled',
+        message: wasEditing
+          ? `${payload.eventName} was updated successfully.`
+          : `${payload.eventName} was scheduled successfully and is ready for logistics preparation.`,
+        confirmText: 'Done',
+      })
     } catch (err) {
       notify.error(err.message)
     } finally {
@@ -1437,46 +1463,15 @@ export default function DistributionsPage() {
                 </div>
               )}
 
-              {/* Stepper Bar for Step-by-Step Flow */}
-              <div className="dist-stepper-bar">
-                <button
-                  type="button"
-                  className={`dist-step-btn ${formTab === 'destination' ? 'dist-step-btn--active' : ''} ${isStep1Complete ? 'dist-step-btn--complete' : ''}`}
-                  onClick={() => handleGoToStep('destination')}
-                >
-                  <span className="dist-step-number">{isStep1Complete && formTab !== 'destination' ? '✓' : '1'}</span>
-                  <span className="dist-step-text">
-                    <strong>1. Destination &amp; Time</strong>
-                    <small>{selectedBarangay ? (selectedBarangay.barangay || selectedBarangay.name) : 'Location, Program & Date'}</small>
-                  </span>
-                </button>
-                <div className={`dist-step-connector ${isStep1Complete ? 'dist-step-connector--complete' : ''}`} />
-                <button
-                  type="button"
-                  className={`dist-step-btn ${formTab === 'logistics' ? 'dist-step-btn--active' : ''} ${isStep2Complete ? 'dist-step-btn--complete' : ''} ${!isStep1Complete ? 'dist-step-btn--disabled' : ''}`}
-                  onClick={() => handleGoToStep('logistics')}
-                  title={!isStep1Complete ? 'Complete Step 1 (Destination & Time) first' : ''}
-                >
-                  <span className="dist-step-number">{isStep2Complete && formTab !== 'logistics' ? '✓' : '2'}</span>
-                  <span className="dist-step-text">
-                    <strong>2. Cargo &amp; Logistics</strong>
-                    <small>{form.coordinator ? `${form.coordinator} · ${assignedVolunteers.length} team` : 'Items, Coordinator & Fleet'}</small>
-                  </span>
-                </button>
-                <div className={`dist-step-connector ${isStep2Complete ? 'dist-step-connector--complete' : ''}`} />
-                <button
-                  type="button"
-                  className={`dist-step-btn ${formTab === 'requirements' ? 'dist-step-btn--active' : ''} ${(!isStep1Complete || !isStep2Complete) ? 'dist-step-btn--disabled' : ''}`}
-                  onClick={() => handleGoToStep('requirements')}
-                  title={(!isStep1Complete || !isStep2Complete) ? 'Complete Steps 1 & 2 first' : ''}
-                >
-                  <span className="dist-step-number">3</span>
-                  <span className="dist-step-text">
-                    <strong>3. Status &amp; Notes</strong>
-                    <small>{form.status === 'Preparing' ? 'Preparing · Review' : (form.status || 'Preparing')}</small>
-                  </span>
-                </button>
-              </div>
+              <WizardStepper
+                steps={DELIVERY_WIZARD_STEPS}
+                currentStep={formTab}
+                completedSteps={completedDeliverySteps}
+                lockedSteps={lockedDeliverySteps}
+                onStepChange={handleGoToStep}
+                ariaLabel="Delivery planning progress"
+                className="dist-delivery-wizard-stepper"
+              />
 
               {/* Validation Alert for Current Step */}
               {stepErrors[formTab] && Object.keys(stepErrors[formTab]).length > 0 && (
@@ -2230,8 +2225,9 @@ export default function DistributionsPage() {
                       type="button"
                       className="btn btn--primary btn--sm"
                       onClick={() => handleGoToStep('logistics')}
+                      disabled={!isStep1Complete || saving}
                     >
-                      Continue to Cargo &amp; Logistics &rarr;
+                      Continue
                     </button>
                   </>
                 )}
@@ -2245,17 +2241,18 @@ export default function DistributionsPage() {
                       <button
                         type="button"
                         className="btn btn--outline btn--sm"
-                        onClick={() => setFormTab('destination')}
+                        onClick={() => handleGoToStep('destination')}
                       >
-                        &larr; Back to Destination
+                        Back
                       </button>
                     </div>
                     <button
                       type="button"
                       className="btn btn--primary btn--sm"
                       onClick={() => handleGoToStep('requirements')}
+                      disabled={!isStep1Complete || !isStep2Complete || saving}
                     >
-                      Continue to Status &amp; Notes &rarr;
+                      Continue
                     </button>
                   </>
                 )}
@@ -2269,13 +2266,17 @@ export default function DistributionsPage() {
                       <button
                         type="button"
                         className="btn btn--outline btn--sm"
-                        onClick={() => setFormTab('logistics')}
+                        onClick={() => handleGoToStep('logistics')}
                       >
-                        &larr; Back to Cargo
+                        Back
                       </button>
                     </div>
-                    <button type="submit" className="btn btn--primary btn--sm" disabled={saving}>
-                      {saving ? 'Saving...' : (editRow ? 'Save Changes' : 'Confirm & Save Delivery')}
+                    <button
+                      type="submit"
+                      className="btn btn--primary btn--sm"
+                      disabled={saving || !isStep1Complete || !isStep2Complete}
+                    >
+                      {saving ? 'Saving...' : 'Confirm & Save Delivery'}
                     </button>
                   </>
                 )}

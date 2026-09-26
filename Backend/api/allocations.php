@@ -233,10 +233,34 @@ function mark_request_allocated(PDO $pdo, ?int $requestId): void
     $fundingStmt->execute([$requestId]);
     $hasMonetaryFunding = (int) $fundingStmt->fetchColumn() > 0;
 
-    // Preserve the established inventory/in-kind allocation workflow. Only
-    // monetary-backed requests derive their allocation stage from the fund ledger.
+    // Inventory-only requests stay eligible when an itemized quantity is only
+    // partially fulfilled. Legacy requests without numeric quantities retain
+    // the established one-allocation completion behavior.
     if (!$hasMonetaryFunding) {
-      $newStatus = 'Allocated';
+      $unmatchedNumericNeeds = 0;
+      $limits = request_inventory_limits($pdo, $request, $unmatchedNumericNeeds);
+      $hasNumericLimits = false;
+      $allNumericLimitsMet = $unmatchedNumericNeeds === 0;
+      $allocatedByItem = [];
+      $allocationRows = $pdo->prepare("SELECT inventory_item_id, resource_name, quantity FROM allocations WHERE assistance_request_id = ? AND status <> 'Cancelled'");
+      $allocationRows->execute([$requestId]);
+      foreach ($allocationRows->fetchAll() as $allocationRow) {
+        $inventoryId = !empty($allocationRow['inventory_item_id']) ? (int) $allocationRow['inventory_item_id'] : null;
+        if (!$inventoryId) {
+          $inventory = find_inventory_item($pdo, null, (string) ($allocationRow['resource_name'] ?? ''));
+          $inventoryId = $inventory ? (int) $inventory['id'] : null;
+        }
+        if (!$inventoryId) continue;
+        $allocatedByItem[$inventoryId] = ($allocatedByItem[$inventoryId] ?? 0) + (int) ($allocationRow['quantity'] ?? 0);
+      }
+      foreach ($limits as $inventoryId => $limit) {
+        if ($limit['requestedQuantity'] === null) continue;
+        $hasNumericLimits = true;
+        if ((int) ($allocatedByItem[$inventoryId] ?? 0) < (int) $limit['requestedQuantity']) {
+          $allNumericLimitsMet = false;
+        }
+      }
+      $newStatus = $hasNumericLimits && !$allNumericLimitsMet ? 'Partially Allocated' : 'Allocated';
     } else {
       $finances = calculate_relief_request_finances($pdo, $request);
       if ($finances['remainingFamilies'] <= 0 || $finances['remainingCost'] <= 0.01) {
@@ -304,6 +328,82 @@ function find_inventory_item(PDO $pdo, ?int $inventoryItemId, string $resourceNa
   $stmt = $pdo->prepare('SELECT * FROM inventory_items WHERE LOWER(item_name) LIKE LOWER(?) OR LOWER(?) LIKE CONCAT("%", LOWER(item_name), "%") ORDER BY LENGTH(item_name) ASC LIMIT 1');
   $stmt->execute(['%' . $cleanName . '%', $cleanName]);
   return $stmt->fetch() ?: null;
+}
+
+/**
+ * Resolve a relief request's itemized needs to warehouse inventory IDs.
+ * A null requestedQuantity means the legacy request named the item but did
+ * not record a numeric cap; the item is still eligible, but stock remains the
+ * authoritative quantity limit.
+ */
+function request_inventory_limits(PDO $pdo, array $request, ?int &$unmatchedNumericNeeds = null): array
+{
+  $unmatchedNumericNeeds = 0;
+  $requestedItems = [];
+  if (!empty($request['needs_json'])) {
+    $decoded = json_decode((string) $request['needs_json'], true);
+    if (is_array($decoded)) {
+      foreach ($decoded as $item) {
+        if (is_string($item)) {
+          $name = trim($item);
+          if ($name !== '') {
+            $requestedItems[] = ['item' => $name, 'quantity' => null, 'unit' => null];
+          }
+          continue;
+        }
+        if (!is_array($item)) continue;
+        $name = trim((string) ($item['item'] ?? $item['name'] ?? ''));
+        if ($name === '') continue;
+        $requestedItems[] = [
+          'item' => $name,
+          'quantity' => isset($item['quantity']) && is_numeric($item['quantity'])
+            ? max(0, (int) $item['quantity'])
+            : null,
+          'unit' => !empty($item['unit']) ? trim((string) $item['unit']) : null,
+        ];
+      }
+    }
+  }
+
+  if (!$requestedItems && !empty($request['notes'])
+      && preg_match('/(?:Goods Required|Type of Needs):\s*([^\n\r]+)/i', (string) $request['notes'], $match)) {
+    foreach (array_filter(array_map('trim', explode(',', $match[1]))) as $name) {
+      $requestedItems[] = ['item' => $name, 'quantity' => null, 'unit' => null];
+    }
+  }
+
+  $limits = [];
+  foreach ($requestedItems as $requested) {
+    $inventory = find_inventory_item($pdo, null, (string) $requested['item']);
+    if (!$inventory) {
+      if ($requested['quantity'] !== null && (int) $requested['quantity'] > 0) {
+        $unmatchedNumericNeeds += 1;
+      }
+      continue;
+    }
+    $inventoryId = (int) $inventory['id'];
+    $quantity = $requested['quantity'];
+
+    if (!isset($limits[$inventoryId])) {
+      $limits[$inventoryId] = [
+        'inventoryItemId' => $inventoryId,
+        'item' => (string) $requested['item'],
+        'requestedQuantity' => $quantity,
+        'unit' => $requested['unit'] ?: ($inventory['unit'] ?? 'units'),
+      ];
+      continue;
+    }
+
+    // If any legacy entry lacks an explicit quantity, retain an open request
+    // cap while still restricting allocation to requested item IDs.
+    if ($limits[$inventoryId]['requestedQuantity'] === null || $quantity === null) {
+      $limits[$inventoryId]['requestedQuantity'] = null;
+    } else {
+      $limits[$inventoryId]['requestedQuantity'] += $quantity;
+    }
+  }
+
+  return $limits;
 }
 
 /**
@@ -395,7 +495,11 @@ if ($method === 'POST') {
   $notes = $body['notes'] ?? null;
   $allocationDate = $body['allocationDate'] ?? date('Y-m-d');
 
-  // Validate Relief Request if provided
+  if (!$assistanceRequestId) {
+    json_response(['ok' => false, 'error' => 'Select an approved relief request before allocating inventory.'], 400);
+  }
+
+  // Validate the required Relief Request.
   if ($assistanceRequestId) {
     $arStmt = $pdo->prepare('
       SELECT ar.*, b.full_name AS beneficiary_name, b.barangay, b.municipality
@@ -435,9 +539,17 @@ if ($method === 'POST') {
   $linesToProcess = [];
   foreach ($rawLines as $l) {
     $resName = trim((string) ($l['resource'] ?? ''));
-    $q = (int) ($l['quantity'] ?? 0);
     $invId = !empty($l['inventoryItemId']) ? (int) $l['inventoryItemId'] : null;
     if ($resName === '' && !$invId) continue;
+    if ($assistanceRequestId && !$invId) {
+      json_response(['ok' => false, 'error' => 'Every requested item must be linked to a valid warehouse inventory item.'], 400);
+    }
+    $rawQuantity = $l['quantity'] ?? 0;
+    if (!is_numeric($rawQuantity) || (float) $rawQuantity <= 0 || floor((float) $rawQuantity) !== (float) $rawQuantity) {
+      $lineLabel = $resName !== '' ? $resName : 'selected item';
+      json_response(['ok' => false, 'error' => "Quantity for '{$lineLabel}' must be a whole number greater than zero."], 400);
+    }
+    $q = (int) $rawQuantity;
     $linesToProcess[] = [
       'resource' => $resName,
       'quantity' => $q,
@@ -457,8 +569,15 @@ if ($method === 'POST') {
     }
   }
 
+  // Lock inventory in a stable order so concurrent batches cannot deadlock by
+  // requesting the same items in a different UI order.
+  usort($linesToProcess, fn(array $left, array $right) => ((int) $left['inventoryItemId']) <=> ((int) $right['inventoryItemId']));
+
   $createdAllocations = [];
   $firstAllocRow = null;
+  $requestItemLimits = [];
+  $requestAllocatedTotals = [];
+  $batchRequestTotals = [];
 
   // Start transaction for atomic inventory deduction and allocation creation
   $pdo->beginTransaction();
@@ -472,6 +591,29 @@ if ($method === 'POST') {
       }
       if (!in_array((string) $lockedRequestStatus, $allocatableRequestStatuses, true)) {
         throw new RuntimeException("Relief request is {$lockedRequestStatus} and is no longer open for inventory allocation.");
+      }
+
+      $requestItemLimits = request_inventory_limits($pdo, $arRow);
+      if (!$requestItemLimits) {
+        throw new RuntimeException('This relief request has no requested goods that match warehouse inventory.');
+      }
+
+      // The request row lock serializes concurrent allocation attempts for the
+      // same request. Lock existing lines too so requested quantities cannot be
+      // over-allocated by a stale or duplicate submission.
+      $existingRequestAllocations = $pdo->prepare("SELECT inventory_item_id, resource_name, quantity FROM allocations WHERE assistance_request_id = ? AND status <> 'Cancelled' FOR UPDATE");
+      $existingRequestAllocations->execute([$assistanceRequestId]);
+      foreach ($existingRequestAllocations->fetchAll() as $existingAllocation) {
+        $existingInventoryId = !empty($existingAllocation['inventory_item_id'])
+          ? (int) $existingAllocation['inventory_item_id']
+          : null;
+        if (!$existingInventoryId) {
+          $existingInventory = find_inventory_item($pdo, null, (string) ($existingAllocation['resource_name'] ?? ''));
+          $existingInventoryId = $existingInventory ? (int) $existingInventory['id'] : null;
+        }
+        if (!$existingInventoryId) continue;
+        $requestAllocatedTotals[$existingInventoryId] = ($requestAllocatedTotals[$existingInventoryId] ?? 0)
+          + (int) ($existingAllocation['quantity'] ?? 0);
       }
     }
 
@@ -490,6 +632,21 @@ if ($method === 'POST') {
       $unit = $invItem['unit'] ?? ($line['unit'] ?? 'packs');
       $resourceClean = $invItem['item_name'];
       $variant = $variant ?: ($invItem['variant'] ?? null);
+
+      if ($assistanceRequestId) {
+        if (!isset($requestItemLimits[$matchedInvId])) {
+          throw new RuntimeException("'{$resourceClean}' is not one of the goods requested on this relief request.");
+        }
+
+        $requestLimit = $requestItemLimits[$matchedInvId]['requestedQuantity'];
+        $alreadyAllocated = (int) ($requestAllocatedTotals[$matchedInvId] ?? 0);
+        $inThisBatch = (int) ($batchRequestTotals[$matchedInvId] ?? 0);
+        if ($requestLimit !== null && ($alreadyAllocated + $inThisBatch + $qty) > (int) $requestLimit) {
+          $remainingRequested = max(0, (int) $requestLimit - $alreadyAllocated - $inThisBatch);
+          throw new RuntimeException("Allocation for '{$resourceClean}' exceeds the request. Remaining requested quantity: {$remainingRequested} {$unit}.");
+        }
+        $batchRequestTotals[$matchedInvId] = $inThisBatch + $qty;
+      }
 
       // Lock inventory row with FOR UPDATE
       $lockStmt = $pdo->prepare('SELECT * FROM inventory_items WHERE id = ? FOR UPDATE');
@@ -612,10 +769,11 @@ if ($method === 'PUT') {
     WORKFLOW_ALLOCATION_BRANCHES
   );
 
-  $newQty = array_key_exists('quantity', $body) ? (int) $body['quantity'] : (int) $existing['quantity'];
-  if ($newQty <= 0) {
-    json_response(['ok' => false, 'error' => 'Quantity must be greater than zero.'], 400);
+  $rawNewQty = array_key_exists('quantity', $body) ? $body['quantity'] : $existing['quantity'];
+  if (!is_numeric($rawNewQty) || (float) $rawNewQty <= 0 || floor((float) $rawNewQty) !== (float) $rawNewQty) {
+    json_response(['ok' => false, 'error' => 'Quantity must be a whole number greater than zero.'], 400);
   }
+  $newQty = (int) $rawNewQty;
 
   $newResource = trim((string) ($body['resource'] ?? $existing['resource_name']));
   $newInvItemId = array_key_exists('inventoryItemId', $body) 
@@ -623,11 +781,63 @@ if ($method === 'PUT') {
     : ($existing['inventory_item_id'] ? (int) $existing['inventory_item_id'] : null);
   $beneficiaryTarget = $body['beneficiary'] ?? $existing['beneficiary_target'];
 
+  $existingInventoryId = !empty($existing['inventory_item_id']) ? (int) $existing['inventory_item_id'] : null;
+  if ((int) ($existing['inventory_deducted'] ?? 0) === 1 && $existingInventoryId && $newInvItemId !== $existingInventoryId) {
+    json_response(['ok' => false, 'error' => 'The warehouse item cannot be changed after stock has been allocated. Cancel this allocation and create a new one instead.'], 409);
+  }
+  if ($existingInventoryId) {
+    $canonicalInventory = find_inventory_item($pdo, $existingInventoryId, $newResource, $existing['variant'] ?? null);
+    if ($canonicalInventory) {
+      $newInvItemId = $existingInventoryId;
+      $newResource = (string) $canonicalInventory['item_name'];
+    }
+  }
+  $existingRequestId = !empty($existing['assistance_request_id']) ? (int) $existing['assistance_request_id'] : null;
+  $newRequestId = array_key_exists('assistanceRequestId', $body)
+    ? (!empty($body['assistanceRequestId']) ? (int) $body['assistanceRequestId'] : null)
+    : $existingRequestId;
+  if ((int) ($existing['inventory_deducted'] ?? 0) === 1 && $existingRequestId !== $newRequestId) {
+    json_response(['ok' => false, 'error' => 'The linked relief request cannot be changed after stock has been allocated.'], 409);
+  }
+
   $pdo->beginTransaction();
   try {
     $invDeducted = (int) ($existing['inventory_deducted'] ?? 0);
     $deductedQty = (int) ($existing['deducted_quantity'] ?? 0);
-    $targetInvId = $existing['inventory_item_id'] ? (int) $existing['inventory_item_id'] : null;
+    $targetInvId = $existing['inventory_item_id'] ? (int) $existing['inventory_item_id'] : $newInvItemId;
+
+    if ($newRequestId && $newStatus !== 'Cancelled') {
+      $requestStmt = $pdo->prepare('SELECT * FROM assistance_requests WHERE id = ? FOR UPDATE');
+      $requestStmt->execute([$newRequestId]);
+      $requestRow = $requestStmt->fetch();
+      if (!$requestRow) {
+        throw new RuntimeException('Linked relief request no longer exists.');
+      }
+      $requestLimits = request_inventory_limits($pdo, $requestRow);
+      if (!$targetInvId || !isset($requestLimits[$targetInvId])) {
+        throw new RuntimeException("'{$newResource}' is not one of the goods requested on the linked relief request.");
+      }
+      $requestLimit = $requestLimits[$targetInvId]['requestedQuantity'];
+      if ($requestLimit !== null) {
+        $otherRowsStmt = $pdo->prepare("SELECT inventory_item_id, resource_name, quantity FROM allocations WHERE assistance_request_id = ? AND id <> ? AND status <> 'Cancelled' FOR UPDATE");
+        $otherRowsStmt->execute([$newRequestId, $id]);
+        $allocatedElsewhere = 0;
+        foreach ($otherRowsStmt->fetchAll() as $otherRow) {
+          $otherInventoryId = !empty($otherRow['inventory_item_id']) ? (int) $otherRow['inventory_item_id'] : null;
+          if (!$otherInventoryId) {
+            $otherInventory = find_inventory_item($pdo, null, (string) ($otherRow['resource_name'] ?? ''));
+            $otherInventoryId = $otherInventory ? (int) $otherInventory['id'] : null;
+          }
+          if ($otherInventoryId === $targetInvId) {
+            $allocatedElsewhere += (int) ($otherRow['quantity'] ?? 0);
+          }
+        }
+        if (($allocatedElsewhere + $newQty) > (int) $requestLimit) {
+          $remainingForThisAllocation = max(0, (int) $requestLimit - $allocatedElsewhere);
+          throw new RuntimeException("Allocation exceeds the linked request. Maximum allowed for this record: {$remainingForThisAllocation} {$requestLimits[$targetInvId]['unit']}.");
+        }
+      }
+    }
 
     // CASE 1: Status changing TO Cancelled -> Restore deducted stock
     if ($newStatus === 'Cancelled' && $oldStatus !== 'Cancelled') {

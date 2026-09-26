@@ -95,96 +95,7 @@
   transform: scale(0.95);
 }
 
-/* ─── 3. STEP INDICATOR ──────────────────────────────────── */
-
-.repacking-steps-indicator {
-  flex-shrink: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 0;
-  padding: 1rem 1.75rem;
-  background: #f8fafc;
-  border-bottom: 1px solid var(--admin-border, #e5e7eb);
-}
-
-/* Each step = number + label + connector */
-.step-item {
-  display: flex;
-  align-items: center;
-  gap: 0.625rem;
-  position: relative;
-}
-
-/* The circle */
-.step-number {
-  width: 34px;
-  height: 34px;
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 0.875rem;
-  font-weight: 700;
-  background: #fff;
-  border: 2px solid #d1d5db;
-  color: #94a3b8;
-  transition: all 0.2s ease;
-  flex-shrink: 0;
-  line-height: 1;
-}
-
-.step-item.active .step-number {
-  background: var(--admin-brand, #af101a);
-  border-color: var(--admin-brand, #af101a);
-  color: #fff;
-  box-shadow: 0 0 0 4px rgba(175, 16, 26, 0.12);
-}
-
-.step-item.completed .step-number {
-  background: #10b981;
-  border-color: #10b981;
-  color: #fff;
-}
-
-/* The label */
-.step-label {
-  font-size: 0.8125rem;
-  font-weight: 600;
-  color: #94a3b8;
-  white-space: nowrap;
-  line-height: 1.3;
-}
-
-.step-item.active .step-label {
-  color: var(--admin-text, #1e293b);
-  font-weight: 700;
-}
-
-.step-item.completed .step-label {
-  color: #64748b;
-}
-
-.step-item[style*="not-allowed"] .step-label {
-  opacity: 0.55;
-}
-
-/* The connector line between steps */
-.step-connector {
-  width: 80px;
-  height: 2px;
-  background: #e2e8f0;
-  margin: 0 0.75rem;
-  flex-shrink: 0;
-  transition: background 0.25s ease;
-}
-
-.step-item.completed + .step-item .step-connector,
-.step-item.completed .step-connector {
-  background: #10b981;
-}
-
-/* ─── 4. MODAL BODY (SCROLLABLE) ─────────────────────────── */
+/* ─── 3. MODAL BODY (SCROLLABLE) ─────────────────────────── */
 
 .repacking-modal-body {
   flex: 1;
@@ -210,7 +121,7 @@
   background: #9ca3af;
 }
 
-/* ─── 5. MODAL FOOTER ────────────────────────────────────── */
+/* ─── 4. MODAL FOOTER ────────────────────────────────────── */
 
 .repacking-modal-multi .admin-modal__actions,
 .repacking-modal-actions {
@@ -1413,18 +1324,9 @@
   .repacking-modal-multi .admin-modal__header,
   .repacking-modal-body,
   .repacking-modal-actions,
-  .repacking-modal-multi .admin-modal__actions,
-  .repacking-steps-indicator {
+  .repacking-modal-multi .admin-modal__actions {
     padding-left: 1rem !important;
     padding-right: 1rem !important;
-  }
-
-  .step-label {
-    display: none;
-  }
-
-  .step-connector {
-    width: 40px;
   }
 
   .pack-config-grid {
