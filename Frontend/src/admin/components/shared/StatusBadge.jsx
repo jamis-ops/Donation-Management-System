@@ -16,6 +16,7 @@ const statusMap = {
   sufficient: 'success',
   Available: 'success',
   Approved: 'success',
+  'Ready for Allocation': 'success',
   Completed: 'success',
   Delivered: 'success',
   Verified: 'success',
@@ -45,6 +46,7 @@ const statusMap = {
   'Awaiting Proof': 'warning',
   Planning: 'warning',
   Scheduled: 'warning',
+  'Scheduled for Delivery': 'warning',
 
   // Blue / Primary / Ongoing
   'In Progress': 'primary',
@@ -104,7 +106,9 @@ export default function StatusBadge({ status, level, className = '' }) {
     resolvedVariant = statusMap[status] || 'neutral'
   }
 
-  if (!displayText) {
+  if (status === 'Scheduled') {
+    displayText = 'Scheduled for Delivery'
+  } else if (!displayText) {
     displayText = status || 'Unknown'
   }
 

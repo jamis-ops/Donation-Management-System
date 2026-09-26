@@ -287,7 +287,7 @@ if ($method === 'GET') {
       SELECT ar.*, b.full_name AS beneficiary_name, b.barangay, b.municipality
       FROM assistance_requests ar
       JOIN beneficiaries b ON b.id = ar.beneficiary_id
-      WHERE ar.status IN ('Approved', 'Partially Funded', 'Partially Allocated', 'Allocated')
+      WHERE ar.status IN ('Approved', 'Ready for Allocation', 'Partially Funded', 'Partially Allocated', 'Allocated')
         AND NOT EXISTS (
           SELECT 1 FROM allocations a
           JOIN distributions d ON d.id = a.distribution_id
@@ -808,13 +808,14 @@ if ($method === 'PUT') {
 
     // Workflow: Pending -> Approve OR Reject
     // Approved -> no approval/rejection actions permitted
-    if ($requestedStatus === 'Approved') {
+    if (in_array($requestedStatus, ['Approved', 'Ready for Allocation'], true)) {
       if (!in_array($currentStatus, ['Pending Review', 'Under Review', 'Pending'], true)) {
         json_response([
           'ok' => false,
           'error' => "Cannot approve a request with status '{$currentStatus}'. Once approved or in progress, Approve is no longer permitted."
         ], 400);
       }
+      $newStatus = 'Ready for Allocation';
     } elseif ($requestedStatus === 'Rejected') {
       if (!in_array($currentStatus, ['Pending Review', 'Under Review', 'Pending'], true)) {
         json_response([

@@ -1709,7 +1709,7 @@ export default function RequestsPage() {
     searchKeys: ['beneficiary', 'id', 'type', 'notes'],
     filters: [
       { key: 'priority', label: 'Priority', options: ['Critical', 'High', 'Medium', 'Low'] },
-      { key: 'status', label: 'Status', options: ['Pending Review', 'Under Review', 'Approved', 'Rejected'] }
+      { key: 'status', label: 'Status', options: ['Pending Review', 'Under Review', 'Ready for Allocation', 'Approved', 'Partially Allocated', 'Allocated', 'Preparing', 'In Transit', 'Delivered', 'Completed', 'Rejected'] }
     ]
   }), []);
 
@@ -1753,7 +1753,7 @@ export default function RequestsPage() {
     let critical = 0;
     activeReliefData.forEach(r => {
       if (r.status === 'Pending Review' || r.status === 'Under Review') pending++;
-      if (r.status === 'Approved') approved++;
+      if (r.status === 'Approved' || r.status === 'Ready for Allocation') approved++;
       if (r.priority === 'Critical' && r.status !== 'Rejected') critical++;
     });
     return { total: activeReliefData.length, pending, approved, critical };
@@ -2093,7 +2093,7 @@ export default function RequestsPage() {
                             </button>
                             <button 
                               className="btn-action-approve" 
-                              onClick={() => handleUpdateStatus(req.dbId, { status: 'Approved' })}
+                              onClick={() => handleUpdateStatus(req.dbId, { status: 'Ready for Allocation' })}
                               title="Approve Request"
                               aria-label="Approve Request"
                             >

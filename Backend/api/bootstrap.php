@@ -1701,17 +1701,38 @@ const WORKFLOW_DONATION_BRANCHES = [
   'Partially Allocated' => ['Allocated', 'Cancelled'],
 ];
 
-const WORKFLOW_REQUEST_STEPS = ['Pending Review', 'Under Review', 'Approved', 'Partially Funded', 'Partially Allocated', 'Allocated', 'In Distribution', 'Completed'];
+const WORKFLOW_REQUEST_STEPS = [
+  'Pending Review',
+  'Under Review',
+  'Approved',
+  'Ready for Allocation',
+  'Partially Funded',
+  'Partially Allocated',
+  'Allocated',
+  'Preparing',
+  'In Transit',
+  'Delivered',
+  'Completed',
+];
 const WORKFLOW_REQUEST_TERMINAL = ['Completed', 'Rejected', 'Cancelled'];
 const WORKFLOW_REQUEST_BRANCHES = [
-  'Pending Review' => ['Under Review', 'Approved', 'Rejected', 'Cancelled'],
-  'Under Review' => ['Approved', 'Rejected', 'Cancelled'],
-  'Approved' => ['Partially Funded', 'Partially Allocated', 'Allocated', 'Cancelled'],
-  'Partially Funded' => ['Partially Allocated', 'Allocated', 'Cancelled'],
-  'Partially Allocated' => ['Allocated', 'In Distribution', 'Cancelled'],
+  'Pending Review' => ['Under Review', 'Approved', 'Ready for Allocation', 'Rejected', 'Cancelled'],
+  'Under Review' => ['Approved', 'Ready for Allocation', 'Rejected', 'Cancelled'],
+  'Approved' => ['Ready for Allocation', 'Partially Funded', 'Partially Allocated', 'Allocated', 'Cancelled'],
+  'Ready for Allocation' => ['Partially Funded', 'Partially Allocated', 'Allocated', 'Cancelled'],
+  'Partially Funded' => ['Ready for Allocation', 'Partially Allocated', 'Allocated', 'Cancelled'],
+  'Partially Allocated' => ['Allocated', 'Preparing', 'In Distribution', 'Cancelled'],
+  'Allocated' => ['Preparing', 'In Distribution', 'In Transit', 'Cancelled'],
+  'Preparing' => ['In Transit', 'Delivered', 'Cancelled'],
+  'In Distribution' => ['In Transit', 'Delivered', 'Completed'],
+  'In Transit' => ['Delivered', 'Completed'],
+  'Delivered' => ['Completed'],
 ];
 const WORKFLOW_REQUEST_ALIASES = [
   'In Progress' => 'In Distribution',
+  'Scheduled' => 'Preparing',
+  'Scheduled for Delivery' => 'Preparing',
+  'Ready' => 'Ready for Allocation',
 ];
 
 /**
@@ -1982,13 +2003,19 @@ const WORKFLOW_TASK_ALIASES = [
   'Ongoing' => 'inProgress',
 ];
 
-const WORKFLOW_ALLOCATION_STEPS = ['Pending', 'Reserved', 'Allocated', 'In Distribution', 'Delivered'];
+const WORKFLOW_ALLOCATION_STEPS = ['Allocated', 'Scheduled', 'In Transit', 'Delivered'];
 const WORKFLOW_ALLOCATION_TERMINAL = ['Delivered', 'Cancelled'];
 const WORKFLOW_ALLOCATION_BRANCHES = [
-  'Pending' => ['Cancelled'],
-  'Reserved' => ['Cancelled'],
-  'Allocated' => ['In Distribution', 'Cancelled'],
-  'In Distribution' => ['Delivered', 'Cancelled'],
+  'Allocated' => ['Scheduled', 'In Distribution', 'Cancelled'],
+  'Scheduled' => ['In Transit', 'Cancelled'],
+  'In Distribution' => ['Scheduled', 'In Transit', 'Delivered', 'Cancelled'],
+  'In Transit' => ['Delivered'],
+];
+const WORKFLOW_ALLOCATION_ALIASES = [
+  'Pending' => 'Allocated',
+  'Reserved' => 'Allocated',
+  'Preparing' => 'Scheduled',
+  'Scheduled for Delivery' => 'Scheduled',
 ];
 
 /**

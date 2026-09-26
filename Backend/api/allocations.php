@@ -13,9 +13,11 @@ try {
     JOIN distributions d ON d.id = a.distribution_id
     SET 
       a.status = CASE
-        WHEN d.status IN ('Delivered', 'Completed') THEN 'Delivered'
+        WHEN d.status IN ('Delivered', 'Completed', 'Awaiting Proof') THEN 'Delivered'
+        WHEN d.status = 'In Transit' THEN 'In Transit'
+        WHEN d.status IN ('Planning', 'Preparing', 'Scheduled') THEN 'Scheduled'
         WHEN d.status = 'Cancelled' THEN 'Allocated'
-        ELSE 'In Distribution'
+        ELSE 'Scheduled'
       END,
       a.distribution_id = CASE
         WHEN d.status = 'Cancelled' THEN NULL
@@ -25,21 +27,28 @@ try {
       AND a.distribution_id > 0
   ");
 
-  // 2. Fix orphaned 'In Distribution' allocations that have no distribution
+  // 2. Fix orphaned allocations that have no distribution
   $pdo->exec("
     UPDATE allocations
     SET status = 'Allocated'
     WHERE (distribution_id IS NULL OR distribution_id = 0)
-      AND status = 'In Distribution'
+      AND status IN ('In Distribution', 'Scheduled', 'In Transit')
   ");
 
   // 3. Keep linked relief request status synchronized
   $pdo->exec("
     UPDATE assistance_requests ar
     JOIN allocations a ON a.assistance_request_id = ar.id
-    SET ar.status = 'In Distribution'
-    WHERE a.status = 'In Distribution'
-      AND ar.status NOT IN ('In Distribution', 'In Transit', 'Delivered', 'Completed', 'Rejected', 'Cancelled')
+    JOIN distributions d ON d.id = a.distribution_id
+    SET ar.status = CASE
+      WHEN d.status = 'In Transit' THEN 'In Transit'
+      WHEN d.status IN ('Delivered', 'Awaiting Proof') THEN 'Delivered'
+      WHEN d.status IN ('Planning', 'Preparing', 'Scheduled') THEN 'Preparing'
+      ELSE ar.status
+    END
+    WHERE a.distribution_id IS NOT NULL 
+      AND a.distribution_id > 0
+      AND ar.status NOT IN ('Completed', 'Rejected', 'Cancelled')
   ");
 } catch (Throwable $e) {}
 
@@ -534,7 +543,7 @@ if ($method === 'POST') {
     if (!$arRow) {
       json_response(['ok' => false, 'error' => 'Linked relief request not found.'], 404);
     }
-    $allocatableRequestStatuses = ['Approved', 'Partially Funded', 'Partially Allocated'];
+    $allocatableRequestStatuses = ['Approved', 'Ready for Allocation', 'Partially Funded', 'Partially Allocated'];
     if (!in_array((string) ($arRow['status'] ?? ''), $allocatableRequestStatuses, true)) {
       json_response(['ok' => false, 'error' => "Relief request is {$arRow['status']} and is not open for inventory allocation."], 409);
     }
@@ -802,8 +811,13 @@ if ($method === 'PUT') {
     (string) $newStatus,
     WORKFLOW_ALLOCATION_STEPS,
     WORKFLOW_ALLOCATION_TERMINAL,
-    WORKFLOW_ALLOCATION_BRANCHES
+    WORKFLOW_ALLOCATION_BRANCHES,
+    WORKFLOW_ALLOCATION_ALIASES ?? []
   );
+
+  if (in_array($newStatus, ['Delivered', 'Completed'], true) && $oldStatus !== $newStatus) {
+    json_response(['ok' => false, 'error' => 'Allocation status cannot be manually set to Delivered. It updates automatically when the delivery is executed in Logistics.'], 400);
+  }
 
   $rawNewQty = array_key_exists('quantity', $body) ? $body['quantity'] : $existing['quantity'];
   if (!is_numeric($rawNewQty) || (float) $rawNewQty <= 0 || floor((float) $rawNewQty) !== (float) $rawNewQty) {

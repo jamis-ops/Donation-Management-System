@@ -40,24 +40,34 @@ export const REQUEST_WORKFLOW = [
   'Pending Review',
   'Under Review',
   'Approved',
+  'Ready for Allocation',
   'Partially Funded',
   'Partially Allocated',
   'Allocated',
-  'In Distribution',
+  'Preparing',
+  'In Transit',
+  'Delivered',
   'Completed',
 ]
 export const REQUEST_TERMINAL = ['Completed', 'Rejected', 'Cancelled']
 export const REQUEST_BRANCHES = {
-  'Pending Review': ['Under Review', 'Approved', 'Rejected', 'Cancelled'],
-  'Under Review': ['Approved', 'Rejected', 'Cancelled'],
-  'Approved': ['Partially Funded', 'Partially Allocated', 'Allocated', 'Cancelled'],
-  'Partially Funded': ['Partially Allocated', 'Allocated', 'Cancelled'],
-  'Partially Allocated': ['Allocated', 'In Distribution', 'Cancelled'],
-  'Allocated': ['In Distribution', 'Cancelled'],
-  'In Distribution': ['Completed'],
+  'Pending Review': ['Under Review', 'Approved', 'Ready for Allocation', 'Rejected', 'Cancelled'],
+  'Under Review': ['Approved', 'Ready for Allocation', 'Rejected', 'Cancelled'],
+  'Approved': ['Ready for Allocation', 'Partially Funded', 'Partially Allocated', 'Allocated', 'Cancelled'],
+  'Ready for Allocation': ['Partially Funded', 'Partially Allocated', 'Allocated', 'Cancelled'],
+  'Partially Funded': ['Ready for Allocation', 'Partially Allocated', 'Allocated', 'Cancelled'],
+  'Partially Allocated': ['Allocated', 'Preparing', 'In Distribution', 'Cancelled'],
+  'Allocated': ['Preparing', 'In Distribution', 'In Transit', 'Cancelled'],
+  'Preparing': ['In Transit', 'Delivered', 'Cancelled'],
+  'In Distribution': ['In Transit', 'Delivered', 'Completed'],
+  'In Transit': ['Delivered', 'Completed'],
+  'Delivered': ['Completed'],
 }
 export const REQUEST_ALIASES = {
   'In Progress': 'In Distribution',
+  'Scheduled': 'Preparing',
+  'Scheduled for Delivery': 'Preparing',
+  'Ready': 'Ready for Allocation',
 }
 
 /**
@@ -70,7 +80,7 @@ export function getReliefRequestActionPermissions(status) {
   const norm = (status || '').trim()
   const isPending = ['Pending Review', 'Under Review', 'Pending'].includes(norm)
   const isRejected = norm === 'Rejected'
-  const isApproved = norm === 'Approved'
+  const isApproved = norm === 'Approved' || norm === 'Ready for Allocation'
   const isAllocatedOrInProgressOrDone = [
     'Approved',
     'Partially Funded',
@@ -109,13 +119,19 @@ export const TASK_ALIASES = {
 }
 
 // ── 5. Allocations Workflow ──
-export const ALLOCATION_WORKFLOW = ['Pending', 'Reserved', 'Allocated', 'In Distribution', 'Delivered']
+export const ALLOCATION_WORKFLOW = ['Allocated', 'Scheduled', 'In Transit', 'Delivered']
 export const ALLOCATION_TERMINAL = ['Delivered', 'Cancelled']
 export const ALLOCATION_BRANCHES = {
-  Pending: ['Cancelled'],
-  Reserved: ['Cancelled'],
-  Allocated: ['In Distribution', 'Cancelled'],
-  'In Distribution': ['Delivered', 'Cancelled'],
+  Allocated: ['Scheduled', 'In Distribution', 'Cancelled'],
+  Scheduled: ['In Transit', 'Cancelled'],
+  'In Distribution': ['Scheduled', 'In Transit', 'Delivered', 'Cancelled'],
+  'In Transit': ['Delivered'],
+}
+export const ALLOCATION_ALIASES = {
+  Pending: 'Allocated',
+  Reserved: 'Allocated',
+  Preparing: 'Scheduled',
+  'Scheduled for Delivery': 'Scheduled',
 }
 
 // ── 6. Volunteers Workflow ──

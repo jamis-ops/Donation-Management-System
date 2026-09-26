@@ -29,9 +29,9 @@ import {
 } from '../../utils/workflow'
 import { useLoading } from '../../context/LoadingContext'
 
-const STATUS_OPTIONS = ['Pending', 'Reserved', 'Allocated', 'Delivered', 'Cancelled']
+const STATUS_OPTIONS = ['Allocated', 'Scheduled', 'In Transit', 'Delivered', 'Cancelled']
 const PRIORITY_OPTIONS = ['Low', 'Medium', 'High', 'Critical']
-const ALLOCATABLE_REQUEST_STATUSES = new Set(['Approved', 'Partially Funded', 'Partially Allocated'])
+const ALLOCATABLE_REQUEST_STATUSES = new Set(['Approved', 'Ready for Allocation', 'Partially Funded', 'Partially Allocated'])
 const ALLOCATION_STEPS = [
   { id: 'request', label: 'Select Request', description: 'Approved request' },
   { id: 'review', label: 'Review Allocation', description: 'Items and quantities' },
@@ -1030,13 +1030,13 @@ export default function AllocationPage() {
 
   const activeAllocations = useMemo(() => {
     return (data || []).filter(
-      (a) => !['In Distribution', 'Delivered', 'Cancelled'].includes(a.status) && !a.distributionId
+      (a) => !['In Distribution', 'Scheduled', 'In Transit', 'Delivered', 'Cancelled'].includes(a.status) && !a.distributionId
     )
   }, [data])
 
   const inDistributionAllocations = useMemo(() => {
     return (data || []).filter(
-      (a) => a.status === 'In Distribution' || (Boolean(a.distributionId) && !['Delivered', 'Cancelled'].includes(a.status))
+      (a) => ['In Distribution', 'Scheduled', 'In Transit'].includes(a.status) || (Boolean(a.distributionId) && !['Delivered', 'Cancelled'].includes(a.status))
     )
   }, [data])
 
@@ -1095,8 +1095,7 @@ export default function AllocationPage() {
   const [detailRow, setDetailRow] = useState(null)
   const { showLoading, hideLoading } = useLoading()
   const [editRow, setEditRow] = useState(null)
-  const [statusRow, setStatusRow] = useState(null)
-  const [statusValue, setStatusValue] = useState('')
+  
   const [showCreate, setShowCreate] = useState(false)
   const [form, setForm] = useState(emptyForm)
   const [activeReliefRequest, setActiveReliefRequest] = useState(null)
@@ -1495,15 +1494,6 @@ export default function AllocationPage() {
 
 
 
-  const openStatus = (row) => {
-    if (isTerminalStatus(row.status, ALLOCATION_TERMINAL)) {
-      notify.info(`Allocation ${row.id || ''} is already ${row.status} (final stage) and locked from status changes.`)
-      return
-    }
-    setStatusRow(row)
-    setStatusValue(row.status)
-    setDetailRow(null)
-  }
 
   const quickAllocateForRequest = (req, need = null) => {
     const details = req.parsedDetails || parseRequestDetails(req)
@@ -1791,47 +1781,6 @@ export default function AllocationPage() {
     }
   }
 
-  const handleUpdateStatus = async (e) => {
-    e.preventDefault()
-    if (!statusRow) return
-    const check = validateStatusTransition({
-      entityName: 'Allocation',
-      currentStatus: statusRow.status,
-      nextStatus: statusValue,
-      workflowOrder: ALLOCATION_WORKFLOW,
-      terminalStatuses: ALLOCATION_TERMINAL,
-      branches: ALLOCATION_BRANCHES,
-    })
-    if (!check.valid) {
-      notify.error(check.message)
-      return
-    }
-    setSaving(true)
-    showLoading('Saving changes…')
-    try {
-      const res = await allocationsApi.update(statusRow.dbId, { status: statusValue })
-      if (res?.draftDistributionCreated) {
-        setDraftNotice({
-          id: res.draftDistributionId,
-          code: res.draftDistributionCode,
-          barangay: statusRow.beneficiary || 'Barangay',
-        })
-      }
-      const status = res?.data?.status || statusValue
-      setStatusRow(null)
-      setDetailRow(null)
-      reload()
-      if (typeof reloadInventory === 'function') reloadInventory()
-      notifyBadgesChanged()
-      notify.success(`Status successfully updated to: ${status}.`)
-      showSuccessModal('Successfully updated.')
-    } catch (err) {
-      notify.error(err.message)
-    } finally {
-      hideLoading()
-      setSaving(false)
-    }
-  }
 
   const handleDelete = async (row) => {
     const ok = await confirmAction({
@@ -1936,18 +1885,58 @@ export default function AllocationPage() {
     {
       key: 'actions',
       label: 'Actions',
-      width: '95px',
+      width: '105px',
       align: 'center',
-      render: (row) => (
-        <div className="alloc-row-actions">
-          <button type="button" className="icon-btn" title="View details" aria-label="View allocation details" onClick={(event) => { event.stopPropagation(); setDetailRow(row) }}>
-            <Eye size={15} />
-          </button>
-          <button type="button" className="icon-btn" title="Update allocation status" aria-label="Update allocation status" disabled={isTerminalStatus(row.status, ALLOCATION_TERMINAL)} onClick={(event) => { event.stopPropagation(); openStatus(row) }}>
-            <ArrowRightCircle size={16} />
-          </button>
-        </div>
-      ),
+      render: (row) => {
+        const isReadyToPlan = (row.status === 'Allocated' || !row.status) && !row.distributionId
+        const hasDelivery = Boolean(row.distributionId)
+        return (
+          <div className="alloc-row-actions">
+            <button
+              type="button"
+              className="icon-btn"
+              title="View details"
+              aria-label="View allocation details"
+              onClick={(event) => {
+                event.stopPropagation()
+                setDetailRow(row)
+              }}
+            >
+              <Eye size={15} />
+            </button>
+            {isReadyToPlan && (
+              <button
+                type="button"
+                className="icon-btn"
+                title="Plan Delivery for this allocation"
+                aria-label="Plan Delivery"
+                style={{ color: '#AF101A' }}
+                onClick={(event) => {
+                  event.stopPropagation()
+                  planDistribution(row)
+                }}
+              >
+                <Truck size={15} />
+              </button>
+            )}
+            {hasDelivery && (
+              <button
+                type="button"
+                className="icon-btn"
+                title={`View Delivery (${row.draftDistributionCode || 'DST'})`}
+                aria-label="View Delivery"
+                style={{ color: '#2563eb' }}
+                onClick={(event) => {
+                  event.stopPropagation()
+                  navigate(`/admin/distributions?id=${row.distributionId}#distributions-table`)
+                }}
+              >
+                <ExternalLink size={15} />
+              </button>
+            )}
+          </div>
+        )
+      },
     },
   ]
 
@@ -2942,35 +2931,6 @@ export default function AllocationPage() {
           canPlan={canPlan(detailRow)}
           navigate={navigate}
         />
-      )}
-
-      {statusRow && (
-        <div className="admin-modal-overlay" onClick={() => setStatusRow(null)}>
-          <div className="admin-modal" onClick={(e) => e.stopPropagation()}>
-            <ModalHeader title="Update Status" onClose={() => setStatusRow(null)} />
-            <form onSubmit={handleUpdateStatus}>
-              <p style={{ margin: '0 0 1rem', color: '#64748b', fontSize: '0.9rem' }}>
-                {statusRow.resource} × {statusRow.quantity}
-              </p>
-              <label>
-                Status
-                <select required value={statusValue} onChange={(e) => setStatusValue(e.target.value)}>
-                  {getAvailableNextStatuses({
-                    currentStatus: statusRow.status,
-                    allStatuses: STATUS_OPTIONS,
-                    workflowOrder: ALLOCATION_WORKFLOW,
-                    terminalStatuses: ALLOCATION_TERMINAL,
-                    branches: ALLOCATION_BRANCHES,
-                  }).map((s) => <option key={s} value={s}>{s}</option>)}
-                </select>
-              </label>
-              <div className="admin-modal__actions">
-                <button type="button" className="btn btn--ghost" onClick={() => setStatusRow(null)}>Cancel</button>
-                <button type="submit" className="btn btn--primary" disabled={saving}>{saving ? 'Saving...' : 'Save Status'}</button>
-              </div>
-            </form>
-          </div>
-        </div>
       )}
 
       {(editRow || showCreate) && (
