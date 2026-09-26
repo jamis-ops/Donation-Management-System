@@ -1171,7 +1171,7 @@ export default function DistributionsPage() {
             <div className="admin-modal dist-detail-modal" onClick={(e) => e.stopPropagation()}>
               <ModalHeader
                 title={detailRow.eventName || (detailRow.barangay ? `Delivery — ${detailRow.barangay}` : (detailRow.location || 'Delivery Details'))}
-                subtitle={`Logistics Event · ${detailRow.id || detailRow.code || 'DST'} · ${[detailRow.barangay, detailRow.barangayMunicipality].filter(Boolean).join(', ') || detailRow.location || 'Barangay'}`}
+                subtitle={`${detailRow.id || detailRow.code || 'DST'} · ${detailRow.program || 'Standard Relief Delivery'} · Scheduled: ${detailRow.date || 'Unscheduled'}${detailRow.scheduleTime ? ` at ${detailRow.scheduleTime}` : ''}`}
                 onClose={() => setDetailRow(null)}
               />
 
@@ -1186,11 +1186,12 @@ export default function DistributionsPage() {
                         .filter((v, i, arr) => arr.indexOf(v) === i)
                         .join(' · ') || '—'}
                     </span>
-                    <span className="dist-overview-chip" title="Delivery Schedule">
-                      <Calendar size={14} />
-                      {detailRow.date || 'Unscheduled'}
-                      {detailRow.scheduleTime ? ` · ${detailRow.scheduleTime}` : ''}
-                    </span>
+                    {(detailRow.beneficiaries != null && detailRow.beneficiaries !== '') && (
+                      <span className="dist-overview-chip" title="Target Beneficiaries">
+                        <Users size={14} />
+                        {detailRow.beneficiaries} Families
+                      </span>
+                    )}
                     {(detailRow.request?.id || detailRow.requestId) && (
                       <span className="dist-overview-chip" title="Linked Relief Request">
                         <Package size={14} />
@@ -1211,72 +1212,55 @@ export default function DistributionsPage() {
                     )}
                   </div>
                   <div className="dist-overview-right">
-                    <span className="dist-detail__code-badge">{detailRow.id || detailRow.code || 'DST'}</span>
                     <StatusBadge status={detailRow.status} />
-                    {detailRow.proofStatus && detailRow.proofStatus !== 'Not Required' && (
-                      <StatusBadge status={detailRow.proofStatus} />
-                    )}
-                    {detailRow.receiptStatus && detailRow.receiptStatus !== 'Awaiting Confirmation' && (
-                      <StatusBadge status={detailRow.receiptStatus} />
-                    )}
                   </div>
                 </div>
 
-                {/* Workflow Stepper: Planning → Preparing → In Transit → Delivered → Proof Review → Completed */}
-                <div className="dist-mini-stepper" aria-label="Workflow progress">
-                  {WORKFLOW.map((step, idx) => {
-                    const isDone = currIdx > idx
-                    const isActive = currIdx === idx
-                    return (
-                      <div
-                        key={step}
-                        className={`dist-mini-step ${isDone ? 'dist-mini-step--done' : ''} ${isActive ? 'dist-mini-step--active' : ''}`}
-                      >
-                        <span className="dist-mini-step__dot">
-                          {isDone ? '✓' : idx + 1}
-                        </span>
-                        <span className="dist-mini-step__label">{step}</span>
-                        {idx < WORKFLOW.length - 1 && (
-                          <span className={`dist-mini-step__line ${isDone ? 'dist-mini-step__line--done' : ''}`} />
+                {/* Workflow Stepper & Unified Status Timeline */}
+                <div className="dist-stepper-container">
+                  <div className="dist-mini-stepper" aria-label="Workflow progress">
+                    {WORKFLOW.map((step, idx) => {
+                      const isDone = currIdx > idx
+                      const isActive = currIdx === idx
+                      return (
+                        <div
+                          key={step}
+                          className={`dist-mini-step ${isDone ? 'dist-mini-step--done' : ''} ${isActive ? 'dist-mini-step--active' : ''}`}
+                        >
+                          <span className="dist-mini-step__dot">
+                            {isDone ? '✓' : idx + 1}
+                          </span>
+                          <span className="dist-mini-step__label">{step}</span>
+                          {idx < WORKFLOW.length - 1 && (
+                            <span className={`dist-mini-step__line ${isDone ? 'dist-mini-step__line--done' : ''}`} />
+                          )}
+                        </div>
+                      )
+                    })}
+                  </div>
+
+                  {nextAction && (
+                    <div className="dist-stepper-status-line">
+                      <div className="dist-stepper-status-text">
+                        {nextAction.verifiedText && (
+                          <span className="dist-stepper-status-verified">
+                            <Check size={13} /> {nextAction.verifiedText}
+                          </span>
+                        )}
+                        {nextAction.pendingText && (
+                          <span className="dist-stepper-status-pending">
+                            <Clock size={12} /> {nextAction.pendingText}
+                          </span>
                         )}
                       </div>
-                    )
-                  })}
-                </div>
-
-                {/* Stage guidance & status clarity */}
-                {nextAction && (
-                  <div style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'space-between',
-                    gap: '0.75rem',
-                    padding: '0.45rem 0.8rem',
-                    background: '#ffffff',
-                    border: '1px solid #e2e8f0',
-                    borderRadius: '8px',
-                    fontSize: '0.78rem',
-                    flexWrap: 'wrap',
-                  }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
-                      {nextAction.verifiedText && (
-                        <span style={{ color: '#166534', display: 'inline-flex', alignItems: 'center', gap: '0.25rem', fontWeight: 600 }}>
-                          <Check size={13} style={{ color: '#16a34a' }} /> {nextAction.verifiedText}
-                        </span>
-                      )}
-                      {nextAction.pendingText && (
-                        <span style={{ color: '#64748b', display: 'inline-flex', alignItems: 'center', gap: '0.25rem' }}>
-                          · <Clock size={12} style={{ color: '#d97706' }} /> {nextAction.pendingText}
+                      {nextAction.canAdvance && (
+                        <span className="dist-stepper-next-pill">
+                          Next Action: <strong>{nextAction.label}</strong>
                         </span>
                       )}
                     </div>
-                    {nextAction.canAdvance && (
-                      <span style={{ color: '#AF101A', fontWeight: 700 }}>
-                        Next Step: {nextAction.label}
-                      </span>
-                    )}
-                  </div>
-                )}
+                  )}
+                </div>
               </div>
 
               {/* Tabs Navigation Bar */}
@@ -1413,20 +1397,31 @@ export default function DistributionsPage() {
                   <>
                     <div className="dist-stat-strip">
                       <div className="dist-stat-item">
-                        <strong>{detailRow.volunteers ?? 0}</strong>
-                        <span>Volunteers</span>
+                        <div className="dist-stat-item__icon-wrap">
+                          <Users size={16} />
+                        </div>
+                        <div className="dist-stat-item__content">
+                          <strong>{detailRow.volunteers ?? 0}</strong>
+                          <span>Volunteers</span>
+                        </div>
                       </div>
                       <div className="dist-stat-item">
-                        <strong>{detailRow.vehicles ?? 0}</strong>
-                        <span>Vehicles</span>
+                        <div className="dist-stat-item__icon-wrap">
+                          <Truck size={16} />
+                        </div>
+                        <div className="dist-stat-item__content">
+                          <strong>{detailRow.vehicles ?? 0}</strong>
+                          <span>Vehicles</span>
+                        </div>
                       </div>
                       <div className="dist-stat-item">
-                        <strong>{detailRow.distanceKm != null ? `${detailRow.distanceKm} km` : '—'}</strong>
-                        <span>Distance</span>
-                      </div>
-                      <div className="dist-stat-item">
-                        <strong>{detailRow.type || 'Delivery'}</strong>
-                        <span>Type</span>
+                        <div className="dist-stat-item__icon-wrap">
+                          <Route size={16} />
+                        </div>
+                        <div className="dist-stat-item__content">
+                          <strong>{detailRow.type || 'Delivery'}</strong>
+                          <span>Dispatch Type</span>
+                        </div>
                       </div>
                     </div>
 
@@ -1608,9 +1603,8 @@ export default function DistributionsPage() {
                         </div>
                         <button
                           type="button"
-                          className="btn btn--success btn--sm"
+                          className="btn btn--success btn--sm dist-approve-btn"
                           onClick={() => handleApproveProofAndComplete(detailRow)}
-                          style={{ background: '#16a34a', borderColor: '#16a34a', color: '#ffffff', fontWeight: 700 }}
                         >
                           <ShieldCheck size={14} /> Approve Proof &amp; Complete Delivery
                         </button>
@@ -1673,9 +1667,8 @@ export default function DistributionsPage() {
                     nextAction.isApproveAction ? (
                       <button
                         type="button"
-                        className="btn btn--success btn--sm"
+                        className="btn btn--success btn--sm dist-approve-btn"
                         onClick={() => handleApproveProofAndComplete(detailRow)}
-                        style={{ background: '#16a34a', borderColor: '#16a34a', color: '#ffffff', fontWeight: 700 }}
                       >
                         <ShieldCheck size={14} /> {nextAction.label}
                       </button>
