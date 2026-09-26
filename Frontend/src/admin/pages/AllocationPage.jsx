@@ -2710,7 +2710,7 @@ export default function AllocationPage() {
           >
             <ModalHeader
               title={editRow ? 'Edit Allocation' : 'Create Allocation'}
-              subtitle={editRow ? 'Update the allocation details' : ALLOCATION_STEPS[allocationStep - 1].label}
+              subtitle={editRow ? 'Update the allocation details' : 'Allocate warehouse resources to approved relief requests'}
               onClose={closeForm}
             />
             {!editRow && (
