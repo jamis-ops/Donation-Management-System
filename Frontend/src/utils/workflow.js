@@ -8,7 +8,7 @@ export const DISTRIBUTION_WORKFLOW = [
   'Preparing',
   'In Transit',
   'Delivered',
-  'Awaiting Proof',
+  'Proof Review',
   'Completed',
 ]
 export const DISTRIBUTION_TERMINAL = ['Completed']
@@ -16,6 +16,131 @@ export const DISTRIBUTION_ALIASES = {
   Scheduled: 'Planning',
   Pending: 'Planning',
   'In Progress': 'Preparing',
+  'Awaiting Proof': 'Proof Review',
+}
+
+/**
+ * Determines the sequential next step, action button label, icon,
+ * and contextual prompt for a distribution based on its current stage and proof status.
+ */
+export function getNextDistributionAction(distribution) {
+  if (!distribution) return null
+
+  const current = DISTRIBUTION_ALIASES[distribution.status] || distribution.status || 'Planning'
+  const proofStatus = distribution.proofStatus || 'Not Required'
+  const hasProofs = (distribution.proofs && distribution.proofs.length > 0) || (distribution.proofsCount > 0)
+  const isProofSubmitted = proofStatus === 'Proof Submitted' || (hasProofs && proofStatus !== 'Proof Rejected')
+  const isProofVerified = proofStatus === 'Proof Verified' || current === 'Completed'
+
+  switch (current) {
+    case 'Planning':
+      return {
+        nextStatus: 'Preparing',
+        label: 'Start Preparing Delivery',
+        shortLabel: 'Start Preparing',
+        prompt: 'Transition distribution to Preparing? Logistics team can begin cargo staging and repacking.',
+        buttonVariant: 'primary',
+        canAdvance: true,
+        isApproveAction: false,
+        pendingText: 'Pending cargo packing and vehicle preparation.',
+        verifiedText: 'Delivery scheduled & cargo allocated.',
+      }
+
+    case 'Preparing':
+      return {
+        nextStatus: 'In Transit',
+        label: 'Dispatch Delivery (In Transit)',
+        shortLabel: 'Dispatch Delivery',
+        prompt: 'Dispatch delivery? Vehicle and assigned team will be marked In Transit to target barangay.',
+        buttonVariant: 'primary',
+        canAdvance: true,
+        isApproveAction: false,
+        pendingText: 'Awaiting team dispatch to destination.',
+        verifiedText: 'Cargo repacked and vehicle assigned.',
+      }
+
+    case 'In Transit':
+      return {
+        nextStatus: 'Delivered',
+        label: 'Confirm Delivery Arrival (Delivered)',
+        shortLabel: 'Confirm Delivered',
+        prompt: 'Confirm that the delivery team has reached the destination barangay and handed over cargo?',
+        buttonVariant: 'primary',
+        canAdvance: true,
+        isApproveAction: false,
+        pendingText: 'In transit to drop-off location.',
+        verifiedText: 'Dispatched and on route.',
+      }
+
+    case 'Delivered':
+      // If barangay already submitted proof, admin can approve and complete
+      if (isProofSubmitted) {
+        return {
+          nextStatus: 'Completed',
+          label: 'Approve Proof & Complete Delivery',
+          shortLabel: 'Approve & Complete',
+          prompt: 'Approve the uploaded turnover proof photos and finalize this distribution as Completed?',
+          buttonVariant: 'success',
+          canAdvance: true,
+          isApproveAction: true,
+          pendingText: 'Turnover proof photos submitted. Ready for admin verification.',
+          verifiedText: 'Delivered to barangay destination.',
+        }
+      }
+      return {
+        nextStatus: 'Proof Review',
+        label: 'Advance to Proof Review',
+        shortLabel: 'Proof Review',
+        prompt: 'Move to Proof Review stage? The barangay can upload turnover proof photos.',
+        buttonVariant: 'primary',
+        canAdvance: true,
+        isApproveAction: false,
+        pendingText: 'Awaiting barangay acknowledgment & turnover photo upload.',
+        verifiedText: 'Delivered to drop-off point.',
+      }
+
+    case 'Proof Review':
+      if (isProofSubmitted) {
+        return {
+          nextStatus: 'Completed',
+          label: 'Approve Proof & Complete Delivery',
+          shortLabel: 'Approve & Complete',
+          prompt: 'Approve the uploaded turnover proof photos and finalize this distribution as Completed?',
+          buttonVariant: 'success',
+          canAdvance: true,
+          isApproveAction: true,
+          pendingText: 'Turnover proof photos submitted. Ready for admin approval.',
+          verifiedText: 'Goods received by barangay.',
+        }
+      }
+      return {
+        nextStatus: null,
+        label: 'Awaiting Barangay Proof Submission',
+        shortLabel: 'Awaiting Proof',
+        prompt: null,
+        buttonVariant: 'muted',
+        canAdvance: false,
+        isApproveAction: false,
+        pendingText: 'Barangay has not uploaded turnover proof photos yet. Representative can upload via Barangay Portal.',
+        verifiedText: 'Cargo delivered.',
+      }
+
+    case 'Completed':
+      return {
+        nextStatus: null,
+        label: 'Delivery Completed & Verified',
+        shortLabel: 'Completed',
+        prompt: null,
+        buttonVariant: 'completed',
+        canAdvance: false,
+        isApproveAction: false,
+        pendingText: null,
+        verifiedText: 'Delivery completed and turnover proof verified.',
+      }
+
+    default:
+      return null
+  }
 }
 
 // ── 2. Donations Workflow ──

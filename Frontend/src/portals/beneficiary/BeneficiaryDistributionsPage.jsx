@@ -15,7 +15,7 @@ import Pagination from '../../admin/components/shared/Pagination'
 import { notify } from '../../utils/confirm'
 import { useLoading } from '../../context/LoadingContext'
 
-const ACTIVE_STATUSES = ['Planning', 'Preparing', 'In Transit', 'Delivered', 'Awaiting Proof']
+const ACTIVE_STATUSES = ['Planning', 'Preparing', 'In Transit', 'Delivered', 'Proof Review', 'Awaiting Proof']
 
 const DISTRIBUTION_STAGES = [
   { key: 'scheduled', label: 'Scheduled' },
@@ -33,7 +33,7 @@ function getDistributionStage(d) {
   if (status === 'completed' || (proof === 'proof verified' && receipt === 'received')) {
     return 3
   }
-  if (receipt === 'received' || proof === 'proof submitted' || proof === 'awaiting proof' || status === 'awaiting proof') {
+  if (receipt === 'received' || proof === 'proof submitted' || proof === 'awaiting proof' || status === 'awaiting proof' || status === 'proof review') {
     return 2
   }
   if (status === 'in transit' || status === 'delivered' || status === 'ready for dispatch' || status === 'dispatched') {

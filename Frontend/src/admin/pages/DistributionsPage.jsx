@@ -4,7 +4,7 @@ import {
   Eye, ArrowRightCircle, MapPin, Calendar, Package, Users,
   Truck, UserRound, FileCheck, ClipboardList, Route, Fuel, StickyNote,
   Sparkles, Check, Plus, X, UserCheck, ShieldCheck, RefreshCw, AlertCircle,
-  FileText, Lock, Trash2,
+  FileText, Lock, Trash2, Maximize2, ExternalLink, Camera,
 } from 'lucide-react'
 import { distributionsApi, beneficiariesApi, volunteerMatchApi, volunteersApi, getStaff, allocationsApi } from '../../api/resources'
 import { getTodayDateString, isPastDateString } from '../../utils/date'
@@ -34,6 +34,7 @@ import {
   getAvailableNextStatuses,
   validateStatusTransition,
   isTerminalStatus,
+  getNextDistributionAction,
 } from '../../utils/workflow'
 import { useLoading } from '../../context/LoadingContext'
 
@@ -156,6 +157,7 @@ export default function DistributionsPage() {
   const { showLoading, hideLoading } = useLoading()
   const [detailRow, setDetailRow] = useState(null)
   const [detailTab, setDetailTab] = useState('cargo') // 'cargo' | 'logistics' | 'proof' | 'notes'
+  const [activePhoto, setActivePhoto] = useState(null)
   const [formTab, setFormTab] = useState('destination') // 'destination' | 'logistics' | 'requirements'
   const [editRow, setEditRow] = useState(null)
   const [statusRow, setStatusRow] = useState(null)
@@ -868,6 +870,75 @@ export default function DistributionsPage() {
     }
   }
 
+  const handleAdvanceStatus = async (row, nextStatus, promptMessage = null) => {
+    if (!row || !nextStatus) return
+    const check = validateStatusTransition({
+      entityName: 'Distribution',
+      currentStatus: row.status,
+      nextStatus,
+      workflowOrder: DISTRIBUTION_WORKFLOW,
+      terminalStatuses: DISTRIBUTION_TERMINAL,
+      aliases: DISTRIBUTION_ALIASES,
+    })
+    if (!check.valid) {
+      notify.error(check.message)
+      return
+    }
+
+    const ok = await confirmAction({
+      title: `Advance Status: ${nextStatus}`,
+      message: promptMessage || `Are you sure you want to transition this delivery to "${nextStatus}"?`,
+      confirmText: `Advance to ${nextStatus}`,
+      type: 'primary',
+    })
+    if (!ok) return
+
+    showLoading('Updating delivery status…')
+    try {
+      const res = await distributionsApi.update(row.dbId || row.id, { status: nextStatus })
+      const updated = res?.data || { ...row, status: nextStatus }
+      setDetailRow(updated)
+      reload()
+      notifyBadgesChanged()
+      notify.success(`Delivery advanced to ${nextStatus}.`)
+    } catch (err) {
+      notify.error(err.message || 'Failed to update delivery status.')
+    } finally {
+      hideLoading()
+    }
+  }
+
+  const handleApproveProofAndComplete = async (row) => {
+    if (!row) return
+    const ok = await confirmAction({
+      title: 'Approve Proof & Complete Delivery',
+      message: 'Approve the turnover proof photos and confirm completion for this distribution? This will verify the proof, mark the delivery Completed, and close the linked relief request.',
+      confirmText: 'Approve Proof & Complete',
+      type: 'primary',
+    })
+    if (!ok) return
+
+    showLoading('Finalizing delivery completion…')
+    try {
+      const res = await distributionsApi.update(row.dbId || row.id, {
+        action: 'approve_proof_and_complete',
+        status: 'Completed',
+        proofStatus: 'Proof Verified',
+        forceComplete: true,
+      })
+      const updated = res?.data || { ...row, status: 'Completed', proofStatus: 'Proof Verified' }
+      setDetailRow(updated)
+      reload()
+      notifyBadgesChanged()
+      notify.success('Delivery marked Completed and proof verified!')
+      showSuccessModal('Delivery completed! Turnover proof photos verified and linked relief request closed.')
+    } catch (err) {
+      notify.error(err.message || 'Failed to approve proof and complete delivery.')
+    } finally {
+      hideLoading()
+    }
+  }
+
   const fromAllocation = !!form.allocationIds?.length
 
   const columns = [
@@ -1084,318 +1155,632 @@ export default function DistributionsPage() {
       {/* =========================================================
           1. Delivery Details Modal (Compact & Tabbed Design)
           ========================================================= */}
-      {detailRow && (
-        <div className="admin-modal-overlay" onClick={() => setDetailRow(null)}>
-          <div className="admin-modal dist-detail-modal" onClick={(e) => e.stopPropagation()}>
-            <ModalHeader
-              title={detailRow.eventName || detailRow.barangay || detailRow.location || 'Delivery Details'}
-              subtitle={`Logistics Event · ${[detailRow.barangay, detailRow.barangayMunicipality].filter(Boolean).join(', ') || detailRow.location || 'Barangay'}`}
-              onClose={() => setDetailRow(null)}
-            />
+      {/* =========================================================
+          1. Delivery Details Modal (Clean, Spacious & Intuitive)
+          ========================================================= */}
+      {detailRow && (() => {
+        const nextAction = getNextDistributionAction(detailRow)
+        const proofs = detailRow.proofs || []
+        const hasProofs = proofs.length > 0 || (detailRow.proofsCount > 0)
+        const isProofSubmitted = detailRow.proofStatus === 'Proof Submitted' || (hasProofs && detailRow.proofStatus !== 'Proof Rejected')
+        const isProofVerified = detailRow.proofStatus === 'Proof Verified' || detailRow.status === 'Completed'
+        const normCurrent = DISTRIBUTION_ALIASES[detailRow.status] || detailRow.status || 'Planning'
+        const currIdx = WORKFLOW.indexOf(normCurrent)
 
-            {/* Fixed Top Essentials Overview */}
-            <div className="dist-modal-overview">
-              <div className="dist-overview-meta-row">
-                <div className="dist-overview-left">
-                  <span className="dist-overview-chip" title="Location">
-                    <MapPin size={14} />
-                    {[detailRow.barangay, detailRow.barangayMunicipality || detailRow.location]
-                      .filter(Boolean)
-                      .filter((v, i, arr) => arr.indexOf(v) === i)
-                      .join(' · ') || '—'}
-                  </span>
-                  <span className="dist-overview-chip" title="Schedule">
-                    <Calendar size={14} />
-                    {detailRow.date || 'Unscheduled'}
-                    {detailRow.scheduleTime ? ` · ${detailRow.scheduleTime}` : ''}
-                  </span>
-                  {detailRow.program && (
-                    <span className="dist-overview-chip" title="Program">
-                      <ClipboardList size={14} />
-                      {detailRow.program}
+        return (
+          <div className="admin-modal-overlay" onClick={() => setDetailRow(null)}>
+            <div className="admin-modal dist-detail-modal" onClick={(e) => e.stopPropagation()}>
+              <ModalHeader
+                title={detailRow.eventName || (detailRow.barangay ? `Delivery — ${detailRow.barangay}` : (detailRow.location || 'Delivery Details'))}
+                subtitle={`Logistics Event · ${detailRow.id || detailRow.code || 'DST'} · ${[detailRow.barangay, detailRow.barangayMunicipality].filter(Boolean).join(', ') || detailRow.location || 'Barangay'}`}
+                onClose={() => setDetailRow(null)}
+              />
+
+              {/* Fixed Top Essentials Overview */}
+              <div className="dist-modal-overview">
+                <div className="dist-overview-meta-row">
+                  <div className="dist-overview-left">
+                    <span className="dist-overview-chip" title="Destination Barangay">
+                      <MapPin size={14} />
+                      {[detailRow.barangay, detailRow.barangayMunicipality || detailRow.location]
+                        .filter(Boolean)
+                        .filter((v, i, arr) => arr.indexOf(v) === i)
+                        .join(' · ') || '—'}
                     </span>
-                  )}
-                </div>
-                <div className="dist-overview-right">
-                  <span className="dist-detail__code-badge">{detailRow.id || detailRow.code || 'DST'}</span>
-                  <StatusBadge status={detailRow.status} />
-                  {detailRow.type && <span className="dist-detail__pill">{detailRow.type}</span>}
-                </div>
-              </div>
-
-              {/* Compact Mini Progress Tracker */}
-              <div className="dist-mini-stepper" aria-label="Workflow progress">
-                {WORKFLOW.map((step, idx) => {
-                  const currIdx = WORKFLOW.indexOf(detailRow.status)
-                  const isDone = currIdx > idx
-                  const isActive = currIdx === idx
-                  return (
-                    <div
-                      key={step}
-                      className={`dist-mini-step ${isDone ? 'dist-mini-step--done' : ''} ${isActive ? 'dist-mini-step--active' : ''}`}
-                    >
-                      <span className="dist-mini-step__dot">
-                        {isDone ? '✓' : idx + 1}
+                    <span className="dist-overview-chip" title="Delivery Schedule">
+                      <Calendar size={14} />
+                      {detailRow.date || 'Unscheduled'}
+                      {detailRow.scheduleTime ? ` · ${detailRow.scheduleTime}` : ''}
+                    </span>
+                    {(detailRow.request?.id || detailRow.requestId) && (
+                      <span className="dist-overview-chip" title="Linked Relief Request">
+                        <Package size={14} />
+                        Request: <strong style={{ color: '#AF101A' }}>{detailRow.request?.id || `#${detailRow.requestId}`}</strong>
+                        {detailRow.requestPriority && (
+                          <span style={{
+                            padding: '1px 6px',
+                            borderRadius: '4px',
+                            fontSize: '0.7rem',
+                            fontWeight: 700,
+                            background: detailRow.requestPriority === 'Critical' ? '#fee2e2' : '#fefce8',
+                            color: detailRow.requestPriority === 'Critical' ? '#dc2626' : '#d97706',
+                          }}>
+                            {detailRow.requestPriority}
+                          </span>
+                        )}
                       </span>
-                      <span className="dist-mini-step__label">{step}</span>
-                      {idx < WORKFLOW.length - 1 && (
-                        <span className={`dist-mini-step__line ${isDone ? 'dist-mini-step__line--done' : ''}`} />
+                    )}
+                  </div>
+                  <div className="dist-overview-right">
+                    <span className="dist-detail__code-badge">{detailRow.id || detailRow.code || 'DST'}</span>
+                    <StatusBadge status={detailRow.status} />
+                    {detailRow.proofStatus && detailRow.proofStatus !== 'Not Required' && (
+                      <StatusBadge status={detailRow.proofStatus} />
+                    )}
+                    {detailRow.receiptStatus && detailRow.receiptStatus !== 'Awaiting Confirmation' && (
+                      <StatusBadge status={detailRow.receiptStatus} />
+                    )}
+                  </div>
+                </div>
+
+                {/* Workflow Stepper: Planning → Preparing → In Transit → Delivered → Proof Review → Completed */}
+                <div className="dist-mini-stepper" aria-label="Workflow progress">
+                  {WORKFLOW.map((step, idx) => {
+                    const isDone = currIdx > idx
+                    const isActive = currIdx === idx
+                    return (
+                      <div
+                        key={step}
+                        className={`dist-mini-step ${isDone ? 'dist-mini-step--done' : ''} ${isActive ? 'dist-mini-step--active' : ''}`}
+                      >
+                        <span className="dist-mini-step__dot">
+                          {isDone ? '✓' : idx + 1}
+                        </span>
+                        <span className="dist-mini-step__label">{step}</span>
+                        {idx < WORKFLOW.length - 1 && (
+                          <span className={`dist-mini-step__line ${isDone ? 'dist-mini-step__line--done' : ''}`} />
+                        )}
+                      </div>
+                    )
+                  })}
+                </div>
+
+                {/* Stage guidance & status clarity */}
+                {nextAction && (
+                  <div style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    gap: '0.75rem',
+                    padding: '0.45rem 0.8rem',
+                    background: '#ffffff',
+                    border: '1px solid #e2e8f0',
+                    borderRadius: '8px',
+                    fontSize: '0.78rem',
+                    flexWrap: 'wrap',
+                  }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+                      {nextAction.verifiedText && (
+                        <span style={{ color: '#166534', display: 'inline-flex', alignItems: 'center', gap: '0.25rem', fontWeight: 600 }}>
+                          <Check size={13} style={{ color: '#16a34a' }} /> {nextAction.verifiedText}
+                        </span>
+                      )}
+                      {nextAction.pendingText && (
+                        <span style={{ color: '#64748b', display: 'inline-flex', alignItems: 'center', gap: '0.25rem' }}>
+                          · <Clock size={12} style={{ color: '#d97706' }} /> {nextAction.pendingText}
+                        </span>
                       )}
                     </div>
-                  )
-                })}
-              </div>
-            </div>
-
-            {/* Tabs Navigation Bar */}
-            <div className="dist-tabs-bar">
-              <button
-                type="button"
-                className={`dist-tab-btn ${detailTab === 'cargo' ? 'dist-tab-btn--active' : ''}`}
-                onClick={() => setDetailTab('cargo')}
-              >
-                <Package size={14} /> Cargo &amp; Request
-              </button>
-              <button
-                type="button"
-                className={`dist-tab-btn ${detailTab === 'logistics' ? 'dist-tab-btn--active' : ''}`}
-                onClick={() => setDetailTab('logistics')}
-              >
-                <Truck size={14} /> Logistics &amp; Team
-              </button>
-              <button
-                type="button"
-                className={`dist-tab-btn ${detailTab === 'proof' ? 'dist-tab-btn--active' : ''}`}
-                onClick={() => setDetailTab('proof')}
-              >
-                <FileCheck size={14} /> Proof &amp; Receipt
-                {(detailRow.proofsCount > 0 || detailRow.receivedQuantity != null) && (
-                  <span className="dist-tab-badge">✓</span>
+                    {nextAction.canAdvance && (
+                      <span style={{ color: '#AF101A', fontWeight: 700 }}>
+                        Next Step: {nextAction.label}
+                      </span>
+                    )}
+                  </div>
                 )}
-              </button>
-              {(detailRow.notes || (detailRow.statusActivity || []).length > 0) && (
+              </div>
+
+              {/* Tabs Navigation Bar */}
+              <div className="dist-tabs-bar">
                 <button
                   type="button"
-                  className={`dist-tab-btn ${detailTab === 'notes' ? 'dist-tab-btn--active' : ''}`}
-                  onClick={() => setDetailTab('notes')}
+                  className={`dist-tab-btn ${detailTab === 'cargo' ? 'dist-tab-btn--active' : ''}`}
+                  onClick={() => setDetailTab('cargo')}
                 >
-                  <StickyNote size={14} /> Notes &amp; History
+                  <Package size={14} /> Cargo &amp; Request
                 </button>
-              )}
-            </div>
-
-            {/* Tab Content Body (Scrolls inside bounding box if needed) */}
-            <div className="dist-tab-content-body">
-              {detailTab === 'cargo' && (
-                <>
-                  <div className="dist-info-tile">
-                    <span className="dist-info-tile__label">Items to Deliver</span>
-                    <div className="dist-info-tile__value">
-                      {detailRow.itemsSummary ? (
-                        <div className="dist-tag-list">
-                          {String(detailRow.itemsSummary)
-                            .split(/;|\n/)
-                            .map((item) => item.trim())
-                            .filter(Boolean)
-                            .map((item) => (
-                              <span key={item} className="dist-tag-chip">
-                                <Package size={12} style={{ color: '#AF101A' }} /> {item}
-                              </span>
-                            ))}
-                        </div>
-                      ) : (
-                        <span style={{ color: '#94a3b8' }}>No items specified</span>
-                      )}
-                    </div>
-                  </div>
-
-                  <div className="dist-info-grid-2">
-                    <div className="dist-info-tile">
-                      <span className="dist-info-tile__label">Linked Relief Request</span>
-                      <div className="dist-info-tile__value">
-                        {detailRow.request?.id || detailRow.requestId ? (
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', flexWrap: 'wrap' }}>
-                            <span className="alloc-request-id">
-                              {detailRow.request?.id || `#${detailRow.requestId}`}
-                            </span>
-                            {detailRow.request?.type && (
-                              <small style={{ color: '#64748b' }}>· {detailRow.request.type}</small>
-                            )}
-                          </div>
-                        ) : (
-                          <span style={{ color: '#94a3b8' }}>Manual Delivery (No linked request)</span>
-                        )}
-                      </div>
-                    </div>
-                    <div className="dist-info-tile">
-                      <span className="dist-info-tile__label">Target Beneficiaries</span>
-                      <div className="dist-info-tile__value">
-                        <strong style={{ fontSize: '1rem', color: '#0f172a' }}>
-                          {detailRow.beneficiaries ?? '—'}
-                        </strong>{' '}
-                        <span style={{ color: '#64748b', fontSize: '0.84rem' }}>Families / Recipients</span>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="dist-info-tile">
-                    <span className="dist-info-tile__label">Drop-off Location / Address</span>
-                    <div className="dist-info-tile__value" style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
-                      <MapPin size={13} style={{ color: '#AF101A' }} />
-                      {detailRow.location || '—'}
-                    </div>
-                  </div>
-                </>
-              )}
-
-              {detailTab === 'logistics' && (
-                <>
-                  <div className="dist-stat-strip">
-                    <div className="dist-stat-item">
-                      <strong>{detailRow.volunteers ?? 0}</strong>
-                      <span>Volunteers</span>
-                    </div>
-                    <div className="dist-stat-item">
-                      <strong>{detailRow.vehicles ?? 0}</strong>
-                      <span>Vehicles</span>
-                    </div>
-                    <div className="dist-stat-item">
-                      <strong>{detailRow.distanceKm != null ? `${detailRow.distanceKm} km` : '—'}</strong>
-                      <span>Distance</span>
-                    </div>
-                    <div className="dist-stat-item">
-                      <strong>{detailRow.type || 'Delivery'}</strong>
-                      <span>Type</span>
-                    </div>
-                  </div>
-
-                  <div className="dist-info-grid-2">
-                    <div className="dist-info-tile">
-                      <span className="dist-info-tile__label">Assigned Coordinator</span>
-                      <div className="dist-info-tile__value" style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
-                        <UserRound size={13} style={{ color: '#AF101A' }} />
-                        {detailRow.coordinator || 'Unassigned'}
-                      </div>
-                    </div>
-                    <div className="dist-info-tile">
-                      <span className="dist-info-tile__label">Fuel / Transport Cost</span>
-                      <div className="dist-info-tile__value">
-                        {detailRow.fuelLiters != null ? (
-                          <span>
-                            <Fuel size={12} style={{ display: 'inline', marginRight: '3px' }} />
-                            {detailRow.fuelLiters} L
-                            {detailRow.fuelCost != null ? ` · ₱${Number(detailRow.fuelCost).toLocaleString()}` : ''}
-                          </span>
-                        ) : (
-                          <span style={{ color: '#94a3b8' }}>Standard dispatch</span>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-
-                  {(detailRow.allocations || []).length > 0 && (
-                    <div className="dist-info-tile">
-                      <span className="dist-info-tile__label">Source Allocation Batches</span>
-                      <div className="dist-tag-list">
-                        {detailRow.allocations.map((a) => (
-                          <span key={a.dbId || a.id || `${a.resource}-${a.quantity}`} className="dist-tag-chip">
-                            {a.resource} × {a.quantity}
-                          </span>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                </>
-              )}
-
-              {detailTab === 'proof' && (
-                <>
-                  <div className="dist-info-grid-2">
-                    <div className="dist-info-tile">
-                      <span className="dist-info-tile__label">Turnover Proof Status</span>
-                      <div style={{ marginTop: '0.3rem', display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
-                        <StatusBadge status={detailRow.proofStatus} />
-                        <small style={{ color: '#64748b' }}>
-                          {detailRow.proofsCount ?? 0} verification photos uploaded
-                        </small>
-                      </div>
-                    </div>
-                    <div className="dist-info-tile">
-                      <span className="dist-info-tile__label">Barangay Receipt Confirmation</span>
-                      <div style={{ marginTop: '0.3rem', display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
-                        <StatusBadge status={detailRow.receiptStatus} />
-                        <small style={{ color: '#64748b' }}>
-                          {detailRow.receivedQuantity != null
-                            ? `${detailRow.receivedQuantity} received${detailRow.receivedAt ? ` on ${detailRow.receivedAt}` : ''}`
-                            : 'Awaiting barangay acknowledgment'}
-                        </small>
-                      </div>
-                    </div>
-                  </div>
-
-                  {detailRow.receiptNotes && (
-                    <div className="dist-info-tile">
-                      <span className="dist-info-tile__label">Barangay Remarks / Feedback</span>
-                      <p style={{ margin: 0, fontSize: '0.86rem', color: '#334155', lineHeight: 1.4 }}>
-                        {detailRow.receiptNotes}
-                      </p>
-                    </div>
-                  )}
-                </>
-              )}
-
-              {detailTab === 'notes' && (
-                <>
-                  {detailRow.notes && (
-                    <div className="dist-info-tile">
-                      <span className="dist-info-tile__label">Logistics Notes</span>
-                      <p style={{ margin: 0, fontSize: '0.86rem', color: '#334155', lineHeight: 1.45, whiteSpace: 'pre-wrap' }}>
-                        {detailRow.notes}
-                      </p>
-                    </div>
-                  )}
-
-                  {(detailRow.statusActivity || []).length > 0 && (
-                    <div className="dist-info-tile">
-                      <span className="dist-info-tile__label">Status Activity Log</span>
-                      <ul style={{ listStyle: 'none', margin: '0.3rem 0 0', padding: 0 }}>
-                        {detailRow.statusActivity.map((evt, idx) => (
-                          <li
-                            key={`${evt.atRaw || evt.at}-${idx}`}
-                            style={{
-                              padding: '0.35rem 0',
-                              borderBottom: idx < detailRow.statusActivity.length - 1 ? '1px solid #e2e8f0' : 'none',
-                            }}
-                          >
-                            <strong style={{ display: 'block', fontSize: '0.82rem', color: '#0f172a' }}>{evt.title}</strong>
-                            <span style={{ color: '#64748b', fontSize: '0.78rem' }}>{evt.message}</span>
-                            {evt.at && (
-                              <small style={{ display: 'block', color: '#94a3b8', fontSize: '0.72rem' }}>{evt.at}</small>
-                            )}
-                          </li>
-                        ))}
-                      </ul>
-                    </div>
-                  )}
-                </>
-              )}
-            </div>
-
-            {/* Fixed Bottom Actions Footer */}
-            <div className="dist-modal-footer admin-modal__actions--split">
-              <button type="button" className="btn btn--ghost btn--sm" onClick={() => setDetailRow(null)}>
-                Close
-              </button>
-              <div className="admin-modal__actions-group">
-                <button type="button" className="btn btn--danger btn--sm" onClick={() => handleDelete(detailRow)}>
-                  <Trash2 size={13} /> Delete Delivery
+                <button
+                  type="button"
+                  className={`dist-tab-btn ${detailTab === 'logistics' ? 'dist-tab-btn--active' : ''}`}
+                  onClick={() => setDetailTab('logistics')}
+                >
+                  <Truck size={14} /> Logistics &amp; Team
                 </button>
-                {WORKFLOW.indexOf(detailRow.status) < WORKFLOW.length - 1 && (
-                  <button type="button" className="btn btn--outline btn--sm" onClick={() => openStatus(detailRow)}>
-                    <ArrowRightCircle size={13} /> Update Status
+                <button
+                  type="button"
+                  className={`dist-tab-btn ${detailTab === 'proof' ? 'dist-tab-btn--active' : ''}`}
+                  onClick={() => setDetailTab('proof')}
+                >
+                  <FileCheck size={14} /> Proof &amp; Receipt
+                  {(hasProofs || detailRow.receivedQuantity != null) && (
+                    <span className="dist-tab-badge">✓</span>
+                  )}
+                </button>
+                {(detailRow.notes || (detailRow.statusActivity || []).length > 0) && (
+                  <button
+                    type="button"
+                    className={`dist-tab-btn ${detailTab === 'notes' ? 'dist-tab-btn--active' : ''}`}
+                    onClick={() => setDetailTab('notes')}
+                  >
+                    <StickyNote size={14} /> Notes &amp; History
                   </button>
                 )}
               </div>
+
+              {/* Tab Content Body */}
+              <div className="dist-tab-content-body">
+                {detailTab === 'cargo' && (
+                  <>
+                    <div className="dist-info-tile">
+                      <span className="dist-info-tile__label">Allocated Cargo / Relief Items</span>
+                      <div className="dist-info-tile__value">
+                        {detailRow.itemsSummary ? (
+                          <div className="dist-tag-list">
+                            {String(detailRow.itemsSummary)
+                              .split(/;|\n/)
+                              .map((item) => item.trim())
+                              .filter(Boolean)
+                              .map((item) => (
+                                <span key={item} className="dist-tag-chip">
+                                  <Package size={12} style={{ color: '#AF101A' }} /> {item}
+                                </span>
+                              ))}
+                          </div>
+                        ) : (
+                          <span style={{ color: '#94a3b8' }}>No items specified</span>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="dist-info-grid-2">
+                      <div className="dist-info-tile">
+                        <span className="dist-info-tile__label">Linked Relief Request</span>
+                        <div className="dist-info-tile__value">
+                          {detailRow.request?.id || detailRow.requestId ? (
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', flexWrap: 'wrap' }}>
+                              <span className="alloc-request-id">
+                                {detailRow.request?.id || `#${detailRow.requestId}`}
+                              </span>
+                              {detailRow.request?.type && (
+                                <small style={{ color: '#64748b' }}>· {detailRow.request.type}</small>
+                              )}
+                              {detailRow.request?.notes && (
+                                <small style={{ display: 'block', width: '100%', color: '#64748b', marginTop: '0.2rem' }}>
+                                  "{detailRow.request.notes}"
+                                </small>
+                              )}
+                            </div>
+                          ) : (
+                            <span style={{ color: '#94a3b8' }}>Manual Delivery (No linked request)</span>
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="dist-info-tile">
+                        <span className="dist-info-tile__label">Target Beneficiaries</span>
+                        <div className="dist-info-tile__value">
+                          <strong style={{ fontSize: '1rem', color: '#0f172a' }}>
+                            {detailRow.beneficiaries ?? '—'}
+                          </strong>{' '}
+                          <span style={{ color: '#64748b', fontSize: '0.84rem' }}>Families / Recipients</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="dist-info-grid-2">
+                      <div className="dist-info-tile">
+                        <span className="dist-info-tile__label">Drop-off Location / Address</span>
+                        <div className="dist-info-tile__value" style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                          <MapPin size={13} style={{ color: '#AF101A' }} />
+                          {detailRow.location || '—'}
+                        </div>
+                      </div>
+
+                      <div className="dist-info-tile">
+                        <span className="dist-info-tile__label">Assigned Program</span>
+                        <div className="dist-info-tile__value" style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                          <ClipboardList size={13} style={{ color: '#AF101A' }} />
+                          {detailRow.program || 'Standard Relief Delivery'}
+                        </div>
+                      </div>
+                    </div>
+
+                    {(detailRow.allocations || []).length > 0 && (
+                      <div className="dist-info-tile">
+                        <span className="dist-info-tile__label">Source Allocation Batches</span>
+                        <div className="dist-tag-list">
+                          {detailRow.allocations.map((a) => (
+                            <span key={a.dbId || a.id || `${a.resource}-${a.quantity}`} className="dist-tag-chip">
+                              <Package size={11} style={{ color: '#AF101A' }} /> {a.id ? `${a.id}: ` : ''}{a.resource} × {a.quantity}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </>
+                )}
+
+                {detailTab === 'logistics' && (
+                  <>
+                    <div className="dist-stat-strip">
+                      <div className="dist-stat-item">
+                        <strong>{detailRow.volunteers ?? 0}</strong>
+                        <span>Volunteers</span>
+                      </div>
+                      <div className="dist-stat-item">
+                        <strong>{detailRow.vehicles ?? 0}</strong>
+                        <span>Vehicles</span>
+                      </div>
+                      <div className="dist-stat-item">
+                        <strong>{detailRow.distanceKm != null ? `${detailRow.distanceKm} km` : '—'}</strong>
+                        <span>Distance</span>
+                      </div>
+                      <div className="dist-stat-item">
+                        <strong>{detailRow.type || 'Delivery'}</strong>
+                        <span>Type</span>
+                      </div>
+                    </div>
+
+                    <div className="dist-info-grid-2">
+                      <div className="dist-info-tile">
+                        <span className="dist-info-tile__label">Assigned Coordinator</span>
+                        <div className="dist-info-tile__value" style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                          <UserRound size={13} style={{ color: '#AF101A' }} />
+                          {detailRow.coordinator || 'Unassigned'}
+                        </div>
+                      </div>
+
+                      <div className="dist-info-tile">
+                        <span className="dist-info-tile__label">Transport &amp; Fuel</span>
+                        <div className="dist-info-tile__value">
+                          {detailRow.fuelLiters != null ? (
+                            <span>
+                              <Fuel size={12} style={{ display: 'inline', marginRight: '3px' }} />
+                              {detailRow.fuelLiters} L
+                              {detailRow.fuelCost != null ? ` · ₱${Number(detailRow.fuelCost).toLocaleString()}` : ''}
+                            </span>
+                          ) : (
+                            <span style={{ color: '#94a3b8' }}>Standard dispatch</span>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Assigned Personnel / Tasks */}
+                    <div className="dist-info-tile">
+                      <span className="dist-info-tile__label">Assigned Logistics Team</span>
+                      {(detailRow.assignedTeam || []).length > 0 ? (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem', marginTop: '0.3rem' }}>
+                          {detailRow.assignedTeam.map((t) => (
+                            <div key={t.id || t.code} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0.35rem 0.65rem', background: '#ffffff', border: '1px solid #e2e8f0', borderRadius: '6px', fontSize: '0.8rem' }}>
+                              <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem', fontWeight: 600, color: '#1e293b' }}>
+                                <UserCheck size={13} style={{ color: '#16a34a' }} />
+                                {t.assignee || 'Volunteer'}
+                              </span>
+                              <span style={{ color: '#64748b', fontSize: '0.75rem' }}>
+                                {t.title || t.code}
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <div style={{ fontSize: '0.84rem', color: '#64748b', marginTop: '0.2rem' }}>
+                          {detailRow.volunteers > 0 ? `${detailRow.volunteers} volunteer(s) allocated for this dispatch.` : 'No volunteer tasks assigned yet.'}
+                        </div>
+                      )}
+                    </div>
+                  </>
+                )}
+
+                {detailTab === 'proof' && (
+                  <>
+                    <div className="dist-info-grid-2">
+                      <div className="dist-info-tile">
+                        <span className="dist-info-tile__label">Turnover Proof Status</span>
+                        <div style={{ marginTop: '0.3rem', display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
+                          <StatusBadge status={detailRow.proofStatus} />
+                          <small style={{ color: '#64748b' }}>
+                            {proofs.length > 0 ? `${proofs.length} photo(s) uploaded for review` : `${detailRow.proofsCount ?? 0} photos reported`}
+                          </small>
+                        </div>
+                      </div>
+
+                      <div className="dist-info-tile">
+                        <span className="dist-info-tile__label">Barangay Receipt Confirmation</span>
+                        <div style={{ marginTop: '0.3rem', display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
+                          <StatusBadge status={detailRow.receiptStatus} />
+                          <small style={{ color: '#64748b' }}>
+                            {detailRow.receivedQuantity != null
+                              ? `${detailRow.receivedQuantity} items/packs confirmed${detailRow.receivedAt ? ` on ${detailRow.receivedAt}` : ''}`
+                              : 'Awaiting barangay acknowledgment'}
+                          </small>
+                        </div>
+                      </div>
+                    </div>
+
+                    {detailRow.receiptNotes && (
+                      <div className="dist-info-tile">
+                        <span className="dist-info-tile__label">Barangay Remarks / Feedback</span>
+                        <p style={{ margin: 0, fontSize: '0.86rem', color: '#334155', lineHeight: 1.45 }}>
+                          "{detailRow.receiptNotes}"
+                        </p>
+                      </div>
+                    )}
+
+                    {/* Photo Proof Gallery */}
+                    <div className="dist-proof-gallery-header">
+                      <div className="dist-proof-gallery-title">
+                        <Camera size={15} style={{ color: '#AF101A' }} /> Uploaded Proof Photos
+                        <span className="dist-proof-gallery-count">{proofs.length} photos</span>
+                      </div>
+                    </div>
+
+                    {proofs.length > 0 ? (
+                      <div className="dist-proof-grid">
+                        {proofs.map((proof, pIdx) => (
+                          <div
+                            key={proof.id || pIdx}
+                            className="dist-proof-card"
+                            onClick={() => setActivePhoto(proof)}
+                            title="Click to view enlarged"
+                          >
+                            <div className="dist-proof-thumb-wrap">
+                              {proof.categoryLabel && (
+                                <span className="dist-proof-category-tag">
+                                  {proof.categoryLabel}
+                                </span>
+                              )}
+                              <img
+                                src={proof.fileUrl}
+                                alt={proof.fileName || 'Proof photo'}
+                                className="dist-proof-thumb-img"
+                                loading="lazy"
+                                onError={(e) => {
+                                  e.currentTarget.style.display = 'none'
+                                  if (e.currentTarget.nextSibling) {
+                                    e.currentTarget.nextSibling.style.display = 'flex'
+                                  }
+                                }}
+                              />
+                              <div style={{ display: 'none', alignItems: 'center', justifyContent: 'center', width: '100%', height: '100%', color: '#94a3b8' }}>
+                                <FileText size={32} />
+                              </div>
+                              <div className="dist-proof-overlay">
+                                <span className="dist-proof-overlay-btn">
+                                  <Maximize2 size={13} /> Click to Enlarge
+                                </span>
+                              </div>
+                            </div>
+                            <div className="dist-proof-card-info">
+                              <span className="dist-proof-card-name" title={proof.fileName}>
+                                {proof.fileName || 'Proof Image'}
+                              </span>
+                              <div className="dist-proof-card-sub">
+                                <Calendar size={11} />
+                                <span>{proof.submittedAt || 'Uploaded'}</span>
+                                {proof.status && (
+                                  <span style={{
+                                    marginLeft: 'auto',
+                                    fontSize: '0.66rem',
+                                    fontWeight: 700,
+                                    color: proof.status === 'Approved' ? '#166534' : '#d97706',
+                                  }}>
+                                    {proof.status}
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="dist-proof-empty-box">
+                        <div className="dist-proof-empty-icon">
+                          <Camera size={22} />
+                        </div>
+                        <h4 className="dist-proof-empty-title">No turnover proof photos uploaded yet</h4>
+                        <p className="dist-proof-empty-desc">
+                          Once items arrive at the barangay destination, the barangay representative will upload handover photos and submit their receipt acknowledgment through the Barangay Portal.
+                        </p>
+                      </div>
+                    )}
+
+                    {/* Admin Verification & Completion Banner */}
+                    {isProofSubmitted && detailRow.status !== 'Completed' && (
+                      <div className="dist-proof-verify-banner">
+                        <div className="dist-proof-verify-content">
+                          <ShieldCheck size={28} className="dist-proof-verify-icon" />
+                          <div>
+                            <h4 className="dist-proof-verify-title">Proof Review Ready</h4>
+                            <p className="dist-proof-verify-desc">
+                              Turnover photos and receipt confirmation have been submitted. Inspect the proof photos above before approving.
+                            </p>
+                          </div>
+                        </div>
+                        <button
+                          type="button"
+                          className="btn btn--success btn--sm"
+                          onClick={() => handleApproveProofAndComplete(detailRow)}
+                          style={{ background: '#16a34a', borderColor: '#16a34a', color: '#ffffff', fontWeight: 700 }}
+                        >
+                          <ShieldCheck size={14} /> Approve Proof &amp; Complete Delivery
+                        </button>
+                      </div>
+                    )}
+                  </>
+                )}
+
+                {detailTab === 'notes' && (
+                  <>
+                    {detailRow.notes && (
+                      <div className="dist-info-tile">
+                        <span className="dist-info-tile__label">Logistics Notes</span>
+                        <p style={{ margin: 0, fontSize: '0.86rem', color: '#334155', lineHeight: 1.45, whiteSpace: 'pre-wrap' }}>
+                          {detailRow.notes}
+                        </p>
+                      </div>
+                    )}
+
+                    {(detailRow.statusActivity || []).length > 0 && (
+                      <div className="dist-info-tile">
+                        <span className="dist-info-tile__label">Status Activity Log</span>
+                        <ul style={{ listStyle: 'none', margin: '0.3rem 0 0', padding: 0 }}>
+                          {detailRow.statusActivity.map((evt, idx) => (
+                            <li
+                              key={`${evt.atRaw || evt.at}-${idx}`}
+                              style={{
+                                padding: '0.35rem 0',
+                                borderBottom: idx < detailRow.statusActivity.length - 1 ? '1px solid #e2e8f0' : 'none',
+                              }}
+                            >
+                              <strong style={{ display: 'block', fontSize: '0.82rem', color: '#0f172a' }}>{evt.title}</strong>
+                              <span style={{ color: '#64748b', fontSize: '0.78rem' }}>{evt.message}</span>
+                              {evt.at && (
+                                <small style={{ display: 'block', color: '#94a3b8', fontSize: '0.72rem' }}>{evt.at}</small>
+                              )}
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+                  </>
+                )}
+              </div>
+
+              {/* Fixed Bottom Actions Footer */}
+              <div className="dist-modal-footer admin-modal__actions--split">
+                <button type="button" className="btn btn--ghost btn--sm" onClick={() => setDetailRow(null)}>
+                  Close
+                </button>
+                <div className="admin-modal__actions-group" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                  {['Planning', 'Preparing'].includes(detailRow.status) && (
+                    <button type="button" className="btn btn--danger btn--sm" onClick={() => handleDelete(detailRow)}>
+                      <Trash2 size={13} /> Delete Delivery
+                    </button>
+                  )}
+
+                  {/* Contextual Single Next Step Action Button */}
+                  {nextAction?.canAdvance ? (
+                    nextAction.isApproveAction ? (
+                      <button
+                        type="button"
+                        className="btn btn--success btn--sm"
+                        onClick={() => handleApproveProofAndComplete(detailRow)}
+                        style={{ background: '#16a34a', borderColor: '#16a34a', color: '#ffffff', fontWeight: 700 }}
+                      >
+                        <ShieldCheck size={14} /> {nextAction.label}
+                      </button>
+                    ) : (
+                      <button
+                        type="button"
+                        className="btn btn--primary btn--sm"
+                        onClick={() => handleAdvanceStatus(detailRow, nextAction.nextStatus, nextAction.prompt)}
+                        style={{ fontWeight: 700 }}
+                      >
+                        {nextAction.nextStatus === 'Preparing' ? (
+                          <Truck size={14} />
+                        ) : nextAction.nextStatus === 'In Transit' ? (
+                          <Route size={14} />
+                        ) : (
+                          <Check size={14} />
+                        )}
+                        {' '}{nextAction.label} &rarr;
+                      </button>
+                    )
+                  ) : detailRow.status === 'Completed' ? (
+                    <span className="dist-status-completed-pill">
+                      <Check size={14} /> Delivery Completed &amp; Verified
+                    </span>
+                  ) : ['Delivered', 'Proof Review', 'Awaiting Proof'].includes(detailRow.status) ? (
+                    <button
+                      type="button"
+                      className="btn btn--ghost btn--sm"
+                      disabled
+                      style={{ opacity: 0.7, cursor: 'not-allowed', color: '#64748b' }}
+                      title="Waiting for barangay proof submission"
+                    >
+                      <AlertCircle size={14} style={{ color: '#d97706' }} /> Awaiting Barangay Proof
+                    </button>
+                  ) : null}
+                </div>
+              </div>
+            </div>
+          </div>
+        )
+      })()}
+
+      {/* Lightbox Modal for Full-Size Proof Viewing */}
+      {activePhoto && (
+        <div className="dist-lightbox-overlay" onClick={() => setActivePhoto(null)}>
+          <div className="dist-lightbox-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="dist-lightbox-header">
+              <div className="dist-lightbox-meta">
+                <span className="dist-proof-category-tag" style={{ position: 'static' }}>
+                  {activePhoto.categoryLabel || activePhoto.category || 'Turnover Proof'}
+                </span>
+                <span className="dist-lightbox-title" title={activePhoto.fileName}>
+                  {activePhoto.fileName || 'Turnover Proof Photo'}
+                </span>
+              </div>
+              <div className="dist-lightbox-actions">
+                {activePhoto.fileUrl && (
+                  <a
+                    href={activePhoto.fileUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="btn btn--ghost btn--sm"
+                    style={{ color: '#cbd5e1', borderColor: 'rgba(255,255,255,0.2)' }}
+                  >
+                    <ExternalLink size={13} /> Open Original
+                  </a>
+                )}
+                <button
+                  type="button"
+                  className="btn btn--ghost btn--sm"
+                  style={{ color: '#fff' }}
+                  onClick={() => setActivePhoto(null)}
+                >
+                  <X size={16} />
+                </button>
+              </div>
+            </div>
+
+            <div className="dist-lightbox-body">
+              {activePhoto.isImage !== false ? (
+                <img
+                  src={activePhoto.fileUrl}
+                  alt={activePhoto.fileName || 'Turnover Proof'}
+                  className="dist-lightbox-img"
+                />
+              ) : (
+                <div style={{ color: '#cbd5e1', textAlign: 'center', padding: '2rem' }}>
+                  <FileText size={48} style={{ color: '#94a3b8', marginBottom: '0.75rem' }} />
+                  <p style={{ margin: 0, fontWeight: 600 }}>{activePhoto.fileName}</p>
+                  <small style={{ color: '#64748b' }}>{activePhoto.fileType || 'Document file'}</small>
+                </div>
+              )}
+            </div>
+
+            <div className="dist-lightbox-footer">
+              <span>
+                Uploaded: {activePhoto.submittedAt || 'Recently'}
+                {activePhoto.status && ` · Status: ${activePhoto.status}`}
+              </span>
+              {activePhoto.notes && (
+                <span style={{ maxWidth: '60%', textAlign: 'right', fontStyle: 'italic' }}>
+                  "{activePhoto.notes}"
+                </span>
+              )}
             </div>
           </div>
         </div>

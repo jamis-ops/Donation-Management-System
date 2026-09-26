@@ -6,15 +6,17 @@ $pdo = db();
 ensure_distribution_schema($pdo);
 $user = require_auth(['Admin', 'Staff', 'Beneficiary']);
 
-function normalize_proof_status(?string $status): string
-{
-  $status = trim((string) $status);
-  return match ($status) {
-    'Verified', 'Proof Verified', 'Approved' => 'Approved',
-    'Rejected', 'Proof Rejected' => 'Rejected',
-    'Pending Review', 'Under Review', 'Pending', '' => 'Pending',
-    default => $status !== '' ? $status : 'Pending',
-  };
+if (!function_exists('normalize_proof_status')) {
+  function normalize_proof_status(?string $status): string
+  {
+    $status = trim((string) $status);
+    return match ($status) {
+      'Verified', 'Proof Verified', 'Approved' => 'Approved',
+      'Rejected', 'Proof Rejected' => 'Rejected',
+      'Pending Review', 'Under Review', 'Pending', '' => 'Pending',
+      default => $status !== '' ? $status : 'Pending',
+    };
+  }
 }
 
 function map_proof(PDO $pdo, array $row): array
@@ -129,6 +131,7 @@ $id = get_id_param();
 
 if ($method === 'GET') {
   $beneficiaryFilter = isset($_GET['beneficiaryId']) ? (int) $_GET['beneficiaryId'] : 0;
+  $distributionFilter = isset($_GET['distributionId']) ? (int) $_GET['distributionId'] : (isset($_GET['distribution_id']) ? (int) $_GET['distribution_id'] : 0);
 
   if ($user['role'] === 'Beneficiary') {
     $ben = $pdo->prepare('SELECT id FROM beneficiaries WHERE user_id = ? LIMIT 1');
@@ -144,6 +147,9 @@ if ($method === 'GET') {
     }
     $stmt = $pdo->prepare('SELECT * FROM distribution_proofs WHERE beneficiary_id = ? ORDER BY submitted_at DESC');
     $stmt->execute([$benId]);
+  } elseif ($distributionFilter > 0) {
+    $stmt = $pdo->prepare('SELECT * FROM distribution_proofs WHERE distribution_id = ? ORDER BY submitted_at DESC');
+    $stmt->execute([$distributionFilter]);
   } elseif ($beneficiaryFilter > 0) {
     $stmt = $pdo->prepare('SELECT * FROM distribution_proofs WHERE beneficiary_id = ? ORDER BY submitted_at DESC');
     $stmt->execute([$beneficiaryFilter]);
@@ -377,10 +383,9 @@ if ($method === 'PUT') {
     ->execute([$status, $remarks, $user['id'], $id]);
 
   if ($status === 'Approved') {
-    $pdo->prepare("UPDATE distributions SET proof_status = 'Proof Verified', status = 'Completed' WHERE id = ?")
-      ->execute([$proof['distribution_id']]);
+    complete_distribution($pdo, (int) $proof['distribution_id'], (int) $user['id']);
   } elseif ($status === 'Rejected') {
-    $pdo->prepare("UPDATE distributions SET proof_status = 'Proof Rejected', status = 'Awaiting Proof' WHERE id = ?")
+    $pdo->prepare("UPDATE distributions SET proof_status = 'Proof Rejected', status = 'Proof Review' WHERE id = ?")
       ->execute([$proof['distribution_id']]);
   }
 

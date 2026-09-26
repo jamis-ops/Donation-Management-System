@@ -156,6 +156,59 @@ function map_distribution(PDO $pdo, array $row): array
     }
   }
 
+  $proofs = [];
+  try {
+    $pStmt = $pdo->prepare('SELECT id, beneficiary_id, file_path, file_name, file_type, notes, proof_category, status, review_remarks, submitted_at, reviewed_at FROM distribution_proofs WHERE distribution_id = ? ORDER BY submitted_at DESC, id DESC');
+    $pStmt->execute([(int) $row['id']]);
+    foreach ($pStmt->fetchAll() as $p) {
+      $fileType = (string) ($p['file_type'] ?? '');
+      $fileName = (string) ($p['file_name'] ?? '');
+      $isImage = str_starts_with($fileType, 'image/') || (bool) preg_match('/\.(jpe?g|png|gif|webp)$/i', $fileName);
+      $cat = (string) ($p['proof_category'] ?? 'other');
+      $catLabel = match ($cat) {
+        'received_goods' => 'Received goods',
+        'distribution' => 'Distribution event photo',
+        'acknowledgment' => 'Signed acknowledgment / receipt',
+        default => 'Supporting file',
+      };
+      $proofs[] = [
+        'id' => (int) $p['id'],
+        'distributionId' => (int) $row['id'],
+        'beneficiaryId' => (int) ($p['beneficiary_id'] ?? 0),
+        'fileName' => $fileName,
+        'fileType' => $fileType,
+        'isImage' => $isImage,
+        'fileUrl' => '/api/file.php?kind=proofs&name=' . rawurlencode(basename((string) $p['file_path'])),
+        'notes' => $p['notes'] ?? '',
+        'category' => $cat,
+        'categoryLabel' => $catLabel,
+        'status' => normalize_proof_status($p['status'] ?? 'Pending'),
+        'reviewRemarks' => $p['review_remarks'] ?? '',
+        'submittedAt' => format_date($p['submitted_at'] ?? null),
+        'submittedAtRaw' => $p['submitted_at'] ?? null,
+      ];
+    }
+  } catch (Throwable $e) {
+    $proofs = [];
+  }
+
+  $assignedTeam = [];
+  try {
+    $tStmt = $pdo->prepare('SELECT id, code, title, assignee, board_column FROM tasks WHERE distribution_id = ? ORDER BY id ASC');
+    $tStmt->execute([(int) $row['id']]);
+    foreach ($tStmt->fetchAll() as $t) {
+      $assignedTeam[] = [
+        'id' => (int) $t['id'],
+        'code' => $t['code'] ?? '',
+        'title' => $t['title'] ?? '',
+        'assignee' => $t['assignee'] ?? '',
+        'status' => $t['board_column'] ?? '',
+      ];
+    }
+  } catch (Throwable $e) {
+    $assignedTeam = [];
+  }
+
   return [
     'id' => $row['code'],
     'dbId' => (int) $row['id'],
@@ -188,7 +241,9 @@ function map_distribution(PDO $pdo, array $row): array
     'notes' => $row['notes'] ?? '',
     'allocations' => $linkedAllocs,
     'allocationIds' => array_map(fn($a) => $a['dbId'], $linkedAllocs),
-    'proofsCount' => (int) $proofCount->fetchColumn(),
+    'proofs' => $proofs,
+    'proofsCount' => count($proofs) ?: (int) $proofCount->fetchColumn(),
+    'assignedTeam' => $assignedTeam,
     'workflowSteps' => distribution_workflow_steps(),
     'requestId' => $requestId ?: null,
     'requestPriority' => $requestPriority,
@@ -594,7 +649,7 @@ if ($user['role'] === 'Beneficiary') {
     $newProof = in_array($proofStatus, ['Proof Verified', 'Proof Submitted'], true)
       ? $proofStatus
       : 'Awaiting Proof';
-    $newStatus = 'Awaiting Proof';
+    $newStatus = 'Proof Review';
     $upd = $pdo->prepare('
       UPDATE distributions
       SET receipt_status = ?, received_quantity = ?, received_at = NOW(), receipt_notes = ?,
@@ -933,6 +988,13 @@ if ($method === 'PUT') {
     json_response(['ok' => false, 'error' => 'Distribution not found'], 404);
   }
 
+  $isApproveAction = in_array($body['action'] ?? '', ['approve_proof_and_complete', 'approve-proof'], true);
+  if ($isApproveAction) {
+    $body['status'] = 'Completed';
+    $body['proofStatus'] = 'Proof Verified';
+    $body['forceComplete'] = true;
+  }
+
   $newStatus = normalize_distribution_status((string) ($body['status'] ?? $existing['status']));
   if (!is_valid_distribution_status($newStatus)) {
     json_response([
@@ -1078,10 +1140,10 @@ if ($method === 'PUT') {
         // column may not exist yet pre-migrate
       }
     }
-    // Auto-close linked request when distribution is Completed
+    // Auto-close linked request and finalize proofs/inventory when distribution is Completed
     if ($newStatus === 'Completed') {
       try {
-        try_close_linked_request($pdo, (int) $id);
+        complete_distribution($pdo, (int) $id, (int) ($user['id'] ?? null));
       } catch (Throwable $e) {
         // best-effort
       }

@@ -663,6 +663,59 @@ function try_close_linked_request(PDO $pdo, int $distributionId): void
 }
 
 /**
+ * Finalize distribution completion: approves pending proofs, marks allocations Delivered,
+ * updates inventory, and closes linked requests.
+ */
+function complete_distribution(PDO $pdo, int $distId, ?int $reviewedByUserId = null): void
+{
+  $pdo->prepare("UPDATE distributions SET status = 'Completed', proof_status = 'Proof Verified' WHERE id = ?")
+    ->execute([$distId]);
+
+  try {
+    $pdo->prepare("UPDATE distribution_proofs SET status = 'Approved', reviewed_at = NOW(), reviewed_by_user_id = ? WHERE distribution_id = ? AND status <> 'Approved'")
+      ->execute([$reviewedByUserId, $distId]);
+  } catch (Throwable $e) {
+  }
+
+  try {
+    $allocStmt = $pdo->prepare("SELECT id, inventory_item_id, deducted_quantity FROM allocations WHERE distribution_id = ? AND status IN ('Reserved','Allocated','In Distribution','Scheduled','In Transit') AND inventory_deducted = 1");
+    $allocStmt->execute([$distId]);
+    $linkedAllocs = $allocStmt->fetchAll();
+    foreach ($linkedAllocs as $la) {
+      $invId = !empty($la['inventory_item_id']) ? (int) $la['inventory_item_id'] : null;
+      $dQty = (int) ($la['deducted_quantity'] ?? 0);
+      if ($invId && $dQty > 0) {
+        $pdo->prepare("UPDATE inventory_items SET allocated = GREATEST(0, allocated - ?), distributed = distributed + ? WHERE id = ?")
+          ->execute([$dQty, $dQty, $invId]);
+      }
+    }
+    $pdo->prepare("UPDATE allocations SET status = 'Delivered' WHERE distribution_id = ? AND status IN ('Reserved','Allocated','In Distribution','Scheduled','In Transit')")
+      ->execute([$distId]);
+    $pdo->prepare("UPDATE assistance_requests SET status = 'Delivered' WHERE id IN (SELECT assistance_request_id FROM allocations WHERE distribution_id = ? AND assistance_request_id IS NOT NULL) AND status NOT IN ('Completed')")
+      ->execute([$distId]);
+  } catch (Throwable $e) {
+  }
+
+  try {
+    try_close_linked_request($pdo, $distId);
+  } catch (Throwable $e) {
+  }
+}
+
+if (!function_exists('normalize_proof_status')) {
+  function normalize_proof_status(?string $status): string
+  {
+    $status = trim((string) $status);
+    return match ($status) {
+      'Verified', 'Proof Verified', 'Approved' => 'Approved',
+      'Rejected', 'Proof Rejected' => 'Rejected',
+      'Pending Review', 'Under Review', 'Pending', '' => 'Pending',
+      default => $status !== '' ? $status : 'Pending',
+    };
+  }
+}
+
+/**
  * Append a chronological donation progress update.
  */
 function record_donation_update(
@@ -823,6 +876,7 @@ function normalize_distribution_status(string $status): string
     'Scheduled' => 'Planning',
     'Pending' => 'Planning',
     'In Progress' => 'Preparing',
+    'Awaiting Proof' => 'Proof Review',
   ];
   return $map[$status] ?? $status;
 }
@@ -1682,15 +1736,16 @@ function accept_privacy_terms(PDO $pdo, int $userId): void
 
 function distribution_workflow_steps(): array
 {
-  return ['Planning', 'Preparing', 'In Transit', 'Delivered', 'Awaiting Proof', 'Completed'];
+  return ['Planning', 'Preparing', 'In Transit', 'Delivered', 'Proof Review', 'Completed'];
 }
 
-const WORKFLOW_DISTRIBUTION_STEPS = ['Planning', 'Preparing', 'In Transit', 'Delivered', 'Awaiting Proof', 'Completed'];
+const WORKFLOW_DISTRIBUTION_STEPS = ['Planning', 'Preparing', 'In Transit', 'Delivered', 'Proof Review', 'Completed'];
 const WORKFLOW_DISTRIBUTION_TERMINAL = ['Completed'];
 const WORKFLOW_DISTRIBUTION_ALIASES = [
   'Scheduled' => 'Planning',
   'Pending' => 'Planning',
   'In Progress' => 'Preparing',
+  'Awaiting Proof' => 'Proof Review',
 ];
 
 const WORKFLOW_DONATION_STEPS = ['Pending Verification', 'Verified', 'In Inventory', 'Partially Allocated', 'Allocated', 'Distributed', 'Completed'];

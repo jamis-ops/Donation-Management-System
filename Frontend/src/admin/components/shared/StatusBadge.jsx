@@ -44,6 +44,7 @@ const statusMap = {
   Reserved: 'warning',
   'Proof Submitted': 'warning',
   'Awaiting Proof': 'warning',
+  'Proof Review': 'warning',
   Planning: 'warning',
   Scheduled: 'warning',
   'Scheduled for Delivery': 'warning',
