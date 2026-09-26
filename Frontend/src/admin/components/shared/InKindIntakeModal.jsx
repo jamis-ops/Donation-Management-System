@@ -130,9 +130,8 @@ export default function InKindIntakeModal({
   return (
     <div className="admin-modal-overlay" onClick={onClose}>
       <div
-        className="admin-modal admin-modal--wide"
+        className="admin-modal admin-modal--wide admin-modal--structured in-kind-intake-modal"
         onClick={(e) => e.stopPropagation()}
-        style={{ maxWidth: '820px', maxHeight: '92vh', overflowY: 'auto' }}
       >
         <ModalHeader
           title={`Verify & Classify In-Kind Donation — ${donation.trackingCode || donation.id}`}
@@ -140,8 +139,9 @@ export default function InKindIntakeModal({
         />
 
         <form onSubmit={handleSubmit} className="in-kind-intake-form">
-          {/* Donor Source Overview Box */}
-          <div className="intake-donor-summary">
+          <div className="in-kind-intake-form__content">
+            {/* Donor Source Overview Box */}
+            <div className="intake-donor-summary">
             <div className="intake-donor-summary__item">
               <span className="text-muted text-xs">Donor</span>
               <strong>{donation.donor}</strong>
@@ -255,7 +255,7 @@ export default function InKindIntakeModal({
                     {/* Brand */}
                     <div className="form-group">
                       <label className="text-xs font-semibold">
-                        Brand <span className="text-muted font-normal">(Optional)</span>
+                        Brand <span className="intake-field-optional">Optional</span>
                       </label>
                       <Select
                         disabled={!row.itemType}
@@ -282,7 +282,7 @@ export default function InKindIntakeModal({
                     {/* Variant */}
                     <div className="form-group">
                       <label className="text-xs font-semibold">
-                        Variant / Size <span className="text-muted font-normal">(Optional)</span>
+                        Variant / Size <span className="intake-field-optional">Optional</span>
                       </label>
                       <Select
                         disabled={!row.itemType}
@@ -309,7 +309,7 @@ export default function InKindIntakeModal({
                     {/* Quantity */}
                     <div className="form-group form-group--qty">
                       <label className="text-xs font-semibold">
-                        Qty <span className="text-red-600">*</span>
+                        Quantity <span className="text-red-600">*</span>
                       </label>
                       <input
                         type="number"
@@ -351,18 +351,19 @@ export default function InKindIntakeModal({
             })}
           </div>
 
-          <div className="intake-add-more-row">
-            <button
-              type="button"
-              className="btn btn--outline btn--sm"
-              onClick={handleAddItemRow}
-            >
-              <Plus size={14} className="mr-1" /> Add Another Item From This Donation
-            </button>
+            <div className="intake-add-more-row">
+              <button
+                type="button"
+                className="btn btn--outline btn--sm"
+                onClick={handleAddItemRow}
+              >
+                <Plus size={14} className="mr-1" /> Add Another Item From This Donation
+              </button>
+            </div>
           </div>
 
           {/* Action buttons */}
-          <div className="admin-modal__actions mt-4 pt-3 border-t border-gray-200">
+          <div className="admin-modal__actions admin-modal__actions--footer">
             <button
               type="button"
               className="btn btn--ghost"
@@ -375,7 +376,6 @@ export default function InKindIntakeModal({
               type="submit"
               className="btn btn--primary"
               disabled={saving}
-              style={{ backgroundColor: '#AF101A' }}
             >
               {saving ? 'Verifying & Posting...' : 'Verify & Add to Warehouse Inventory'}
             </button>

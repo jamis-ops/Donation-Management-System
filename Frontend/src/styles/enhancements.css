@@ -10017,3 +10017,236 @@ button:disabled,
   flex-shrink: 0 !important;
 }
 
+/* =========================================================
+   Structured modal shells used by the primary admin workflows
+   ========================================================= */
+.admin-modal.admin-modal--structured {
+  padding: 0 !important;
+  display: flex !important;
+  flex-direction: column !important;
+  max-height: min(92vh, 900px) !important;
+  overflow: hidden !important;
+}
+
+.admin-modal--structured > .admin-modal__header {
+  position: relative !important;
+  top: auto !important;
+  flex: 0 0 auto !important;
+  margin: 0 !important;
+  padding: 1.1rem 1.5rem !important;
+  min-height: 68px;
+  align-items: center;
+  border-radius: var(--admin-radius-lg, 12px) var(--admin-radius-lg, 12px) 0 0 !important;
+}
+
+.admin-modal--structured .admin-modal__close {
+  margin: 0 !important;
+  width: 36px;
+  height: 36px;
+}
+
+.admin-modal--structured .admin-modal__actions--footer {
+  flex: 0 0 auto !important;
+  margin: 0 !important;
+  padding: 0.9rem 1.5rem !important;
+  background: #ffffff;
+}
+
+/* Create Staff Account */
+.staff-account-modal {
+  max-width: 900px !important;
+}
+
+.staff-account-form {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+.staff-account-form__content {
+  display: grid;
+  gap: 1rem;
+  padding: 1.35rem 2rem 1.5rem;
+  overflow-y: auto;
+}
+
+.staff-account-modal .form-row--names {
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(4.5rem, 5.5rem) !important;
+  gap: 1rem !important;
+}
+
+.staff-account-modal .form-row:not(.form-row--names) {
+  gap: 1rem !important;
+}
+
+.staff-account-modal .form-row > label,
+.staff-account-modal .name-fields__field {
+  display: grid !important;
+  grid-template-rows: minmax(1.15rem, auto) auto;
+  align-content: start;
+  gap: 0.4rem;
+  margin: 0 !important;
+}
+
+.staff-account-modal .name-fields__label,
+.staff-account-modal .staff-account-form__label {
+  display: inline-flex;
+  align-items: center;
+  min-height: 1.15rem;
+  margin-bottom: 0 !important;
+}
+
+/* Volunteer / Intern profile modal */
+.volunteer-manage-modal {
+  max-width: min(1180px, calc(100vw - 2rem)) !important;
+  max-height: min(92vh, 900px) !important;
+}
+
+.volunteer-manage-modal > .volunteer-detail {
+  min-height: 0;
+  overflow-y: auto;
+  padding: 1.25rem 1.5rem 1.5rem;
+}
+
+.volunteer-availability-section {
+  min-width: 0;
+  margin-top: 0.2rem;
+  padding-top: 0.9rem;
+  border-top: 1px solid #eef2f7;
+}
+
+.volunteer-availability-section__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-bottom: 0.65rem;
+}
+
+.volunteer-detail__list .volunteer-availability-section__header dt {
+  margin: 0;
+  color: #475569;
+}
+
+.volunteer-availability-section__edit {
+  flex: 0 0 auto;
+  min-height: 34px;
+  padding: 0.3rem 0.7rem !important;
+  font-size: 0.76rem !important;
+  gap: 0.35rem !important;
+}
+
+.volunteer-availability-section .availability-schedule-picker {
+  margin: 0 !important;
+}
+
+.volunteer-availability-section .availability-grid-table {
+  min-width: 0 !important;
+}
+
+.volunteer-availability-section .availability-grid-th--day {
+  width: 25% !important;
+}
+
+.volunteer-availability-section .availability-grid-th--slot {
+  width: 18.75% !important;
+}
+
+.volunteer-availability-section .availability-grid-th,
+.volunteer-availability-section .availability-grid-day-cell,
+.volunteer-availability-section .availability-grid-slot-cell {
+  height: 46px;
+}
+
+@media (max-width: 720px) {
+  .staff-account-form__content,
+  .volunteer-manage-modal > .volunteer-detail {
+    padding: 1rem;
+  }
+
+  .staff-account-modal .form-row--names {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(4rem, 4.75rem) !important;
+  }
+}
+
+@media (max-width: 560px) {
+  .admin-modal.admin-modal--structured {
+    max-height: calc(100dvh - 1rem) !important;
+  }
+
+  .admin-modal--structured > .admin-modal__header {
+    min-height: 60px;
+    padding: 0.9rem 1rem !important;
+  }
+
+  .staff-account-modal .form-row--names {
+    grid-template-columns: 1fr !important;
+    gap: 0.75rem !important;
+  }
+
+  .volunteer-availability-section__header {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .availability-grid-table-wrap {
+    overflow-x: hidden !important;
+  }
+
+  .availability-grid-table,
+  .volunteer-availability-section .availability-grid-table {
+    min-width: 0 !important;
+    table-layout: auto !important;
+  }
+
+  .availability-grid-table thead {
+    display: none;
+  }
+
+  .availability-grid-table tbody,
+  .availability-grid-table tr {
+    display: block;
+    width: 100%;
+  }
+
+  .availability-grid-table tr {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .availability-grid-day-cell {
+    grid-column: 1 / -1;
+    width: 100% !important;
+    border-right: 0 !important;
+    border-bottom: 1px solid #f1f5f9 !important;
+  }
+
+  .availability-grid-slot-cell,
+  .volunteer-availability-section .availability-grid-slot-cell {
+    height: 42px;
+    display: flex;
+    align-items: center;
+    justify-content: flex-start;
+    gap: 0.5rem;
+    padding-inline: 0.75rem !important;
+    text-align: left !important;
+  }
+
+  .availability-custom-check {
+    margin: 0 !important;
+  }
+
+  .availability-grid-slot-label-mobile {
+    display: inline !important;
+    color: #475569;
+    font-size: 0.76rem;
+    font-weight: 600;
+  }
+
+  .availability-grid-footer {
+    align-items: flex-start !important;
+    flex-direction: column !important;
+  }
+}
+

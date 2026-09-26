@@ -1143,9 +1143,6 @@
   display: flex;
   flex-direction: column;
   gap: 0.75rem;
-  max-height: 48vh;
-  overflow-y: auto;
-  padding-right: 4px;
 }
 
 .intake-item-row-card {
@@ -1190,13 +1187,106 @@
 
 .intake-form-grid {
   display: grid;
-  grid-template-columns: 1.2fr 1.3fr 1.1fr 1fr 0.7fr 0.8fr;
-  gap: 0.5rem;
+  grid-template-columns:
+    minmax(130px, 1fr)
+    minmax(165px, 1.2fr)
+    minmax(135px, 1fr)
+    minmax(145px, 1.05fr)
+    minmax(88px, 0.55fr)
+    minmax(105px, 0.7fr);
+  gap: 0.75rem;
+  align-items: end;
 }
 
-@media (max-width: 768px) {
+.in-kind-intake-modal {
+  width: min(1080px, calc(100vw - 2rem)) !important;
+  max-width: 1080px !important;
+}
+
+.in-kind-intake-form {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+.in-kind-intake-form__content {
+  min-height: 0;
+  overflow-y: auto;
+  padding: 1.25rem 1.5rem 1.5rem;
+}
+
+.intake-form-grid .form-group {
+  min-width: 0;
+  margin: 0;
+}
+
+.intake-form-grid .form-group > label {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+  min-height: 2.15rem;
+  margin: 0 0 0.4rem !important;
+  line-height: 1.2;
+}
+
+.intake-field-optional {
+  color: #64748b !important;
+  font-size: 0.7rem !important;
+  font-weight: 500 !important;
+  white-space: nowrap;
+}
+
+.intake-form-grid input,
+.intake-form-grid select {
+  min-width: 0;
+  height: 42px !important;
+  min-height: 42px !important;
+  text-overflow: ellipsis;
+}
+
+.intake-add-more-row {
+  display: flex;
+  align-items: center;
+}
+
+@media (max-width: 960px) {
   .intake-form-grid {
-    grid-template-columns: 1fr 1fr;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .intake-form-grid .form-group > label {
+    min-height: auto;
+  }
+}
+
+@media (max-width: 680px) {
+  .in-kind-intake-modal {
+    width: 100% !important;
+  }
+
+  .in-kind-intake-form__content {
+    padding: 1rem;
+  }
+
+  .intake-form-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .intake-donor-summary {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 460px) {
+  .intake-form-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .intake-add-more-row .btn {
+    width: 100%;
+    white-space: normal;
   }
 }
 
