@@ -3,6 +3,7 @@ declare(strict_types=1);
 require_once __DIR__ . '/bootstrap.php';
 
 $pdo = db();
+ensure_distribution_schema($pdo);
 $user = require_auth(['Admin', 'Staff', 'Beneficiary']);
 
 function normalize_proof_status(?string $status): string
@@ -18,7 +19,7 @@ function normalize_proof_status(?string $status): string
 
 function map_proof(PDO $pdo, array $row): array
 {
-  $distStmt = $pdo->prepare('SELECT id, code, event_name, location, program, status, distribution_date, request_id FROM distributions WHERE id = ?');
+  $distStmt = $pdo->prepare('SELECT id, code, event_name, location, program, status, distribution_date FROM distributions WHERE id = ?');
   $distStmt->execute([$row['distribution_id']]);
   $distribution = $distStmt->fetch() ?: [];
 
@@ -44,6 +45,17 @@ function map_proof(PDO $pdo, array $row): array
       $fromAlloc = $ar->fetchColumn();
       if ($fromAlloc) {
         $requestId = (int) $fromAlloc;
+      }
+    } catch (Throwable $e) {
+    }
+  }
+  if (!$requestId && !empty($distribution['id'])) {
+    try {
+      $rCheck = $pdo->prepare('SELECT request_id FROM distributions WHERE id = ? LIMIT 1');
+      $rCheck->execute([(int) $distribution['id']]);
+      $rVal = $rCheck->fetchColumn();
+      if ($rVal) {
+        $requestId = (int) $rVal;
       }
     } catch (Throwable $e) {
     }

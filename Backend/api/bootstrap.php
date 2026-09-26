@@ -2420,6 +2420,17 @@ function donation_belongs_to_donor_user(PDO $pdo, array $donation, array $user):
   }
 }
 
+
+function ensure_distribution_schema(PDO $pdo): void
+{
+  static $ensured = false;
+  if ($ensured) return;
+  $ensured = true;
+
+  ensure_column($pdo, 'distributions', 'request_id', 'BIGINT NULL AFTER proof_status');
+  ensure_column($pdo, 'distributions', 'source_allocation_ids', 'TEXT NULL AFTER request_id');
+}
+
 function ensure_column(PDO $pdo, string $table, string $column, string $typeDef): void
 {
   try {

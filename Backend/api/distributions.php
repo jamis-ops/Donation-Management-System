@@ -3,6 +3,7 @@ declare(strict_types=1);
 require_once __DIR__ . '/bootstrap.php';
 
 $pdo = db();
+ensure_distribution_schema($pdo);
 $method = request_method();
 $id = get_id_param();
 
