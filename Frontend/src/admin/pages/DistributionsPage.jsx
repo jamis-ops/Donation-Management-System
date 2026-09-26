@@ -4,7 +4,7 @@ import {
   Eye, ArrowRightCircle, MapPin, Calendar, Package, Users,
   Truck, UserRound, FileCheck, ClipboardList, Route, Fuel, StickyNote,
   Sparkles, Check, Plus, X, UserCheck, ShieldCheck, RefreshCw, AlertCircle,
-  FileText, Lock, Trash2, Maximize2, ExternalLink, Camera,
+  FileText, Lock, Trash2, Maximize2, ExternalLink, Camera, Clock,
 } from 'lucide-react'
 import { distributionsApi, beneficiariesApi, volunteerMatchApi, volunteersApi, getStaff, allocationsApi } from '../../api/resources'
 import { getTodayDateString, isPastDateString } from '../../utils/date'
@@ -1163,7 +1163,6 @@ export default function DistributionsPage() {
         const proofs = detailRow.proofs || []
         const hasProofs = proofs.length > 0 || (detailRow.proofsCount > 0)
         const isProofSubmitted = detailRow.proofStatus === 'Proof Submitted' || (hasProofs && detailRow.proofStatus !== 'Proof Rejected')
-        const isProofVerified = detailRow.proofStatus === 'Proof Verified' || detailRow.status === 'Completed'
         const normCurrent = DISTRIBUTION_ALIASES[detailRow.status] || detailRow.status || 'Planning'
         const currIdx = WORKFLOW.indexOf(normCurrent)
 
