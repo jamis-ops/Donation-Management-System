@@ -325,9 +325,25 @@ function find_inventory_item(PDO $pdo, ?int $inventoryItemId, string $resourceNa
   if ($item) return $item;
 
   // Fallback: substring match (e.g. "Rice" -> "Rice (50kg sacks)" or "5kg Family Rice Packs")
-  $stmt = $pdo->prepare('SELECT * FROM inventory_items WHERE LOWER(item_name) LIKE LOWER(?) OR LOWER(?) LIKE CONCAT("%", LOWER(item_name), "%") ORDER BY LENGTH(item_name) ASC LIMIT 1');
+  $stmt = $pdo->prepare('SELECT * FROM inventory_items WHERE LOWER(item_name) LIKE LOWER(?) OR LOWER(?) LIKE CONCAT("%", LOWER(item_name), "%") ORDER BY (quantity > 0) DESC, LENGTH(item_name) ASC LIMIT 1');
   $stmt->execute(['%' . $cleanName . '%', $cleanName]);
-  return $stmt->fetch() ?: null;
+  $item = $stmt->fetch();
+  if ($item) return $item;
+
+  // Fallback 2: Token and stem match (e.g. "Food Packs" -> "Family Emergency Relief Pack (Assembled)", "Tarpaulins" -> "Emergency Shelter Tarpaulin")
+  $cleanTokens = preg_replace('/\([^)]*\)/', ' ', $cleanName);
+  $cleanTokens = preg_replace('/[^a-zA-Z0-9]+/', ' ', (string) $cleanTokens);
+  $words = array_filter(explode(' ', strtolower((string) $cleanTokens)), fn($w) => strlen($w) >= 3);
+  foreach ($words as $word) {
+    $stem = rtrim($word, 's');
+    if (strlen($stem) < 3) $stem = $word;
+    $stmt = $pdo->prepare('SELECT * FROM inventory_items WHERE LOWER(item_name) LIKE ? OR LOWER(category) LIKE ? ORDER BY (quantity > 0) DESC, LENGTH(item_name) ASC LIMIT 1');
+    $stmt->execute(['%' . $stem . '%', '%' . $stem . '%']);
+    $item = $stmt->fetch();
+    if ($item) return $item;
+  }
+
+  return null;
 }
 
 /**
@@ -368,6 +384,12 @@ function request_inventory_limits(PDO $pdo, array $request, ?int &$unmatchedNume
   if (!$requestedItems && !empty($request['notes'])
       && preg_match('/(?:Goods Required|Type of Needs):\s*([^\n\r]+)/i', (string) $request['notes'], $match)) {
     foreach (array_filter(array_map('trim', explode(',', $match[1]))) as $name) {
+      $requestedItems[] = ['item' => $name, 'quantity' => null, 'unit' => null];
+    }
+  }
+
+  if (!$requestedItems && !empty($request['assistance_type'])) {
+    foreach (array_filter(array_map('trim', preg_split('/[,;\n]/', (string) $request['assistance_type']))) as $name) {
       $requestedItems[] = ['item' => $name, 'quantity' => null, 'unit' => null];
     }
   }
@@ -595,7 +617,21 @@ if ($method === 'POST') {
 
       $requestItemLimits = request_inventory_limits($pdo, $arRow);
       if (!$requestItemLimits) {
-        throw new RuntimeException('This relief request has no requested goods that match warehouse inventory.');
+        // If request had free-text needs, build open limits directly from valid inventory items being allocated:
+        foreach ($linesToProcess as $l) {
+          $invId = (int) ($l['inventoryItemId'] ?? 0);
+          if ($invId > 0) {
+            $requestItemLimits[$invId] = [
+              'inventoryItemId' => $invId,
+              'item' => $l['resource'],
+              'requestedQuantity' => null,
+              'unit' => $l['unit'] ?? 'units',
+            ];
+          }
+        }
+        if (!$requestItemLimits) {
+          throw new RuntimeException('This relief request has no requested goods that match warehouse inventory.');
+        }
       }
 
       // The request row lock serializes concurrent allocation attempts for the

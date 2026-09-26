@@ -84,19 +84,108 @@ function makeLine(resource = '', quantity = '', inventoryItemId = null, unit = '
   }
 }
 
-function normalizeResourceName(value) {
-  return String(value || '')
+// Helper to tokenize and clean item names for fuzzy matching
+function cleanResourceTokens(str) {
+  return String(str || '')
     .toLowerCase()
-    .replace(/\s+\(\s*\d+(?:\.\d+)?\s+[^)]*\)\s*$/, '')
+    .replace(/\([^)]*\)/g, ' ') // remove parenthetical specs e.g. (50kg), (150 packs), (155g), (1L), (Assembled)
     .replace(/[^a-z0-9]+/g, ' ')
-    .trim()
+    .split(/\s+/)
+    .map((w) => w.trim())
+    .filter((w) => w.length > 0)
+    .map((w) => {
+      if (w.endsWith('ies') && w.length > 4) return w.slice(0, -3) + 'y'
+      if (w.endsWith('ses') && w.length > 4) return w.slice(0, -2)
+      if (w.endsWith('s') && !w.endsWith('ss') && w.length > 3) return w.slice(0, -1)
+      return w
+    })
 }
 
-function resourceNamesMatch(left, right) {
-  const a = normalizeResourceName(left)
-  const b = normalizeResourceName(right)
-  if (!a || !b) return false
-  return a === b || a.includes(b) || b.includes(a)
+const RESOURCE_KEYWORD_GROUPS = [
+  ['rice', 'bigas'],
+  ['canned', 'sardine', 'tuna', 'corned', 'beef', 'meat', 'can'],
+  ['food', 'pack', 'relief', 'ration', 'grocery', 'feeding', 'good'],
+  ['water', 'drink', 'bottle', 'mineral'],
+  ['hygiene', 'kit', 'toiletries', 'soap', 'shampoo', 'sanitary'],
+  ['medicine', 'medical', 'firstaid', 'aid', 'vitamin', 'health'],
+  ['tarpaulin', 'tarp', 'shelter', 'tent'],
+  ['school', 'supply', 'education', 'student'],
+  ['clothing', 'clothes', 'blanket', 'apparel'],
+]
+
+function resourceNamesMatch(inventoryName, requestedName) {
+  if (!inventoryName || !requestedName) return false
+  const rawInv = String(inventoryName).toLowerCase().trim()
+  const rawReq = String(requestedName).toLowerCase().trim()
+  if (rawInv === rawReq) return true
+
+  const invTokens = cleanResourceTokens(rawInv)
+  const reqTokens = cleanResourceTokens(rawReq)
+  if (!invTokens.length || !reqTokens.length) return false
+
+  const invClean = invTokens.join(' ')
+  const reqClean = reqTokens.join(' ')
+  if (invClean === reqClean || invClean.includes(reqClean) || reqClean.includes(invClean)) {
+    return true
+  }
+
+  // Token overlap of meaningful words
+  const sharedTokens = reqTokens.filter((t) => t.length >= 3 && invTokens.includes(t))
+  if (sharedTokens.length > 0) return true
+
+  // Keyword group matching
+  for (const group of RESOURCE_KEYWORD_GROUPS) {
+    const reqHas = reqTokens.some((t) => group.some((g) => t.includes(g) || g.includes(t)))
+    const invHas = invTokens.some((t) => group.some((g) => t.includes(g) || g.includes(t)))
+    if (reqHas && invHas) {
+      return true
+    }
+  }
+
+  return false
+}
+
+function scoreResourceMatch(inventoryItem, requestedName) {
+  if (!inventoryItem || !requestedName) return 0
+  const rawInv = String(inventoryItem.item || inventoryItem.item_name || '').toLowerCase().trim()
+  const rawReq = String(requestedName).toLowerCase().trim()
+  if (rawInv === rawReq) return 100
+
+  const invTokens = cleanResourceTokens(rawInv)
+  const reqTokens = cleanResourceTokens(rawReq)
+  const catTokens = cleanResourceTokens(inventoryItem.category)
+
+  let score = 0
+  const invClean = invTokens.join(' ')
+  const reqClean = reqTokens.join(' ')
+  if (invClean === reqClean) score += 90
+  else if (invClean.includes(reqClean) || reqClean.includes(invClean)) score += 75
+
+  // Common tokens
+  const sharedTokens = reqTokens.filter((t) => t.length >= 3 && invTokens.includes(t))
+  score += sharedTokens.length * 20
+
+  // Category match
+  if (reqTokens.some((t) => catTokens.includes(t))) {
+    score += 25
+  }
+
+  // Keyword group match
+  for (const group of RESOURCE_KEYWORD_GROUPS) {
+    const reqHas = reqTokens.some((t) => group.some((g) => t.includes(g) || g.includes(t)))
+    const invHas = invTokens.some((t) => group.some((g) => t.includes(g) || g.includes(t)))
+      || catTokens.some((t) => group.some((g) => t.includes(g) || g.includes(t)))
+    if (reqHas && invHas) {
+      score += 30
+      break
+    }
+  }
+
+  // Bonus for items currently in stock
+  const stock = Number(inventoryItem.available ?? inventoryItem.quantity ?? 0)
+  if (stock > 0) score += 5
+
+  return score
 }
 
 function parseLegacyRequestedItem(value) {
@@ -130,7 +219,7 @@ function requestItemsFrom(request, fallbackGoods = []) {
 
   const byName = new Map()
   source.map(parseLegacyRequestedItem).filter(Boolean).forEach((item) => {
-    const key = normalizeResourceName(item.name)
+    const key = String(item.name || '').toLowerCase().trim()
     if (!key) return
     if (!byName.has(key)) {
       byName.set(key, item)
@@ -163,9 +252,14 @@ function parseRequestDetails(request) {
     || (familiesRaw ? Number(familiesRaw) : 0)
 
   const goodsRaw = pick(/Goods Required:\s*(.+?)(?:\n|$)/i) || pick(/Type of Needs:\s*(.+?)(?:\n|$)/i)
-  const goods = Array.isArray(request.needs) && request.needs.length
+  let goods = Array.isArray(request.needs) && request.needs.length
     ? request.needs
     : (goodsRaw ? goodsRaw.split(',').map((g) => g.trim()).filter(Boolean) : [])
+
+  if (!goods.length && assistanceType) {
+    goods = assistanceType.split(/[,;\n]/).map((s) => s.trim()).filter(Boolean)
+  }
+
   const requestedItems = requestItemsFrom(request, goods)
 
   const additionalNotes = request.additionalNotes || pick(/Additional Notes:\s*([\s\S]+)/i)
@@ -191,6 +285,34 @@ function parseRequestDetails(request) {
 function suggestedQuantityFromFamilies(families) {
   const n = Number(families) || 0
   return n * PACKS_PER_FAMILY
+}
+
+function isRequestFullyAllocated(request, allocations) {
+  const reqStatus = String(request?.status || '').trim()
+  if (['Allocated', 'Completed', 'In Distribution', 'In Transit', 'Delivered', 'Cancelled', 'Rejected'].includes(reqStatus)) {
+    return true
+  }
+  const details = parseRequestDetails(request)
+  if (!details) return false
+
+  const reqAllocations = (allocations || []).filter(
+    (a) => Number(a.assistanceRequestId) === Number(request.dbId || details.dbId) && a.status !== 'Cancelled'
+  )
+  if (!reqAllocations.length) {
+    return false
+  }
+
+  const itemsWithQuantity = (details.requestedItems || []).filter((item) => Number(item.quantity) > 0)
+  if (itemsWithQuantity.length > 0) {
+    return itemsWithQuantity.every((item) => {
+      const allocatedQty = reqAllocations
+        .filter((a) => resourceNamesMatch(a.resource, item.name))
+        .reduce((sum, a) => sum + (Number(a.quantity) || 0), 0)
+      return allocatedQty >= Number(item.quantity)
+    })
+  }
+
+  return false
 }
 
 const styles = `
@@ -995,12 +1117,17 @@ export default function AllocationPage() {
   const activeReliefRequests = useMemo(() => {
     if (!requests || !requests.length) return []
     return requests
-      .filter((r) => ALLOCATABLE_REQUEST_STATUSES.has(String(r.status || '').trim()))
+      .filter((r) => {
+        const st = String(r.status || '').trim()
+        if (!ALLOCATABLE_REQUEST_STATUSES.has(st)) return false
+        if (isRequestFullyAllocated(r, data)) return false
+        return true
+      })
       .map((r) => {
         const details = parseRequestDetails(r)
         const rawNeeds = details?.goods?.length
           ? details.goods
-          : (Array.isArray(r.needs) ? r.needs : [])
+          : (Array.isArray(r.needs) ? r.needs : (r.type ? [r.type] : []))
         const cleanNeeds = Array.from(new Set(rawNeeds.filter((n) => n && !n.toLowerCase().startsWith('calamity/'))))
         
         let families = Number(details?.familiesAffected || r.affectedFamilies || r.familiesAffected || 0)
@@ -1013,29 +1140,35 @@ export default function AllocationPage() {
           ...r,
           parsedDetails: details,
           families,
-          needs: cleanNeeds,
+          needs: cleanNeeds.length ? cleanNeeds : ['Relief Assistance'],
           calamity: details?.reason || r.reason || r.type || 'Relief Assistance',
-          requestCode: r.id || r.code || `AST-${r.dbId}`,
+          requestCode: r.id || r.code || r.reference_code || `AST-${r.dbId}`,
           beneficiaryName: r.beneficiary || r.beneficiaryName || 'Barangay',
         }
       })
-      .filter((r) => r.needs.length > 0)
-  }, [requests])
+  }, [requests, data])
 
-  const findMatchingInventory = (resourceName, inventoryItemId = null) => {
+  const findMatchingInventory = useCallback((resourceName, inventoryItemId = null) => {
+    if (!inventoryData || !inventoryData.length) return null
     if (inventoryItemId) {
-      const byId = (inventoryData || []).find((i) => Number(i.dbId) === Number(inventoryItemId))
+      const byId = inventoryData.find((i) => Number(i.dbId) === Number(inventoryItemId))
       if (byId) return byId
     }
-    const clean = normalizeResourceName(resourceName)
-    if (!clean) return null
-    return (inventoryData || []).find((i) =>
-      normalizeResourceName(i.item) === clean ||
-      String(i.id || '').trim().toLowerCase() === String(resourceName || '').trim().toLowerCase()
-    ) || (inventoryData || []).find((i) =>
-      resourceNamesMatch(i.item, resourceName)
-    ) || null
-  }
+    if (!resourceName) return null
+
+    let bestItem = null
+    let bestScore = 0
+
+    for (const item of inventoryData) {
+      const score = scoreResourceMatch(item, resourceName)
+      if (score >= 20 && score > bestScore) {
+        bestScore = score
+        bestItem = item
+      }
+    }
+
+    return bestItem
+  }, [inventoryData])
 
   const matchGoodsToInventory = useCallback((goodsName) => {
     if (!goodsName) return null
@@ -1047,8 +1180,8 @@ export default function AllocationPage() {
     const details = parseRequestDetails(request)
     if (!details) return []
     const fallbackQuantity = suggestedQuantityFromFamilies(details.familiesAffected) || 1
-    return details.requestedItems.map((requestedItem) => {
-      const inventoryItem = (inventoryData || []).find((item) => resourceNamesMatch(item.item, requestedItem.name)) || null
+    return (details.requestedItems || []).map((requestedItem) => {
+      const inventoryItem = findMatchingInventory(requestedItem.name)
       const requestedQuantity = requestedItem.quantity || fallbackQuantity
       const alreadyAllocated = (data || [])
         .filter((allocation) => (
@@ -1072,12 +1205,59 @@ export default function AllocationPage() {
         allocatableQuantity: Math.max(0, Math.min(remainingRequested, available)),
       }
     })
-  }, [data, inventoryData])
+  }, [data, findMatchingInventory])
 
-  const eligibleReliefRequests = useMemo(() => activeReliefRequests.filter((request) => {
-    if (!request.beneficiaryId) return false
-    return buildRequestItemRows(request).some((item) => item.allocatableQuantity > 0)
-  }), [activeReliefRequests, buildRequestItemRows])
+  const eligibleReliefRequests = useMemo(() => {
+    const hasWarehouseStock = (inventoryData || []).some((inv) => Number(inv.available ?? inv.quantity ?? 0) > 0)
+    return activeReliefRequests.filter((request) => {
+      if (!request.beneficiaryId && !request.beneficiary) return false
+      const rows = buildRequestItemRows(request)
+      if (rows.some((item) => item.allocatableQuantity > 0)) return true
+      const hasRemaining = rows.some((item) => item.remainingRequested > 0)
+      return hasRemaining && hasWarehouseStock
+    })
+  }, [activeReliefRequests, buildRequestItemRows, inventoryData])
+
+  const emptyStateInfo = useMemo(() => {
+    if (requestsLoading || inventoryLoading) {
+      return {
+        title: 'Loading relief requests…',
+        message: 'Checking approved requests and warehouse inventory.',
+        action: 'none',
+      }
+    }
+    const approvedTotal = (requests || []).filter((r) =>
+      ALLOCATABLE_REQUEST_STATUSES.has(String(r.status || '').trim())
+    )
+    if (!approvedTotal.length) {
+      return {
+        title: 'No approved relief requests available',
+        message: 'Only approved requests are eligible for inventory allocation. Pending requests must be reviewed and approved under Requests Management first.',
+        action: 'requests',
+      }
+    }
+    const unallocated = approvedTotal.filter((r) => !isRequestFullyAllocated(r, data))
+    if (!unallocated.length) {
+      return {
+        title: 'All approved requests are fully allocated',
+        message: 'Every approved relief request has already been 100% allocated or is currently in distribution.',
+        action: 'none',
+      }
+    }
+    const hasAnyStock = (inventoryData || []).some((i) => Number(i.available ?? i.quantity ?? 0) > 0)
+    if (!hasAnyStock) {
+      return {
+        title: 'Warehouse inventory is out of stock',
+        message: 'There are approved requests waiting, but warehouse inventory currently has zero available stock to allocate.',
+        action: 'inventory',
+      }
+    }
+    return {
+      title: 'No requests ready for allocation',
+      message: 'Approved requests do not currently have matching warehouse stock available.',
+      action: 'refresh',
+    }
+  }, [requests, data, inventoryData, requestsLoading, inventoryLoading])
 
   const requestsSeeMore = useSeeMore(eligibleReliefRequests, 3)
 
@@ -1128,7 +1308,7 @@ export default function AllocationPage() {
     if (!requestItems.length) {
       return existingLines
     }
-    return requestItems
+    const allocatable = requestItems
       .filter((item) => item.inventoryItem && item.allocatableQuantity > 0)
       .map((item) => ({
         ...makeLine(
@@ -1144,46 +1324,95 @@ export default function AllocationPage() {
         alreadyAllocated: item.alreadyAllocated,
         remainingRequested: item.remainingRequested,
       }))
-  }, [buildRequestItemRows])
+    if (allocatable.length > 0) {
+      return allocatable
+    }
+
+    const matched = requestItems
+      .filter((item) => item.inventoryItem)
+      .map((item) => ({
+        ...makeLine(
+          item.inventoryItem.item,
+          item.allocatableQuantity > 0 ? item.allocatableQuantity : '',
+          item.inventoryItem.dbId,
+          item.inventoryItem.unit || item.unit || 'units',
+          item.inventoryItem.variant || ''
+        ),
+        requestedName: item.name,
+        requestedQuantity: item.requestedQuantity,
+        requestedUnit: item.unit || item.inventoryItem.unit || 'units',
+        alreadyAllocated: item.alreadyAllocated,
+        remainingRequested: item.remainingRequested,
+      }))
+    if (matched.length > 0) {
+      return matched
+    }
+
+    const firstAvailable = (inventoryData || []).find((i) => Number(i.available ?? i.quantity ?? 0) > 0)
+    if (firstAvailable) {
+      const fallbackQty = suggestedQuantityFromFamilies(request.families || request.affectedFamilies) || 1
+      const avail = Number(firstAvailable.available ?? firstAvailable.quantity ?? 0)
+      return [
+        makeLine(
+          firstAvailable.item,
+          Math.min(fallbackQty, avail),
+          firstAvailable.dbId,
+          firstAvailable.unit || 'units',
+          firstAvailable.variant || ''
+        ),
+      ]
+    }
+
+    return existingLines
+  }, [buildRequestItemRows, inventoryData])
 
   useEffect(() => {
     const pref = location.state?.prefillRequest
     if (!pref) return
 
-    const requestId = pref.requestId || pref.assistanceRequestId
+    const requestId = pref.requestId || pref.assistanceRequestId || pref.dbId || pref.id
     if (!requestId) return
-    // Wait for live inventory so the suggested quantities use current stock.
     if (inventoryLoading) return
 
     assistanceRequestsApi.get(requestId)
       .then((res) => {
         const fullReq = res.data || res
+        const reqStatus = String(fullReq.status || '').trim()
+        if (!ALLOCATABLE_REQUEST_STATUSES.has(reqStatus)) {
+          notify.warning(`Relief request is ${reqStatus || 'not approved'} and is not eligible for allocation.`)
+          setAllocationStep(1)
+          setHighestAllocationStep(1)
+          setShowCreate(true)
+          return
+        }
         setActiveReliefRequest(fullReq)
         const details = parseRequestDetails(fullReq)
-        if (!ALLOCATABLE_REQUEST_STATUSES.has(String(fullReq.status || '').trim())) {
-          throw new Error(`Relief request is ${fullReq.status || 'not approved'} and is not eligible for allocation.`)
-        }
         const lines = seedLinesFromRequest(fullReq)
-        if (!lines.length) {
-          throw new Error('This relief request has no remaining requested items with available warehouse stock.')
-        }
         setForm({
           ...emptyForm,
           lines,
-          program: details.reason || details.assistanceType || fullReq.type || '',
+          program: details?.reason || details?.assistanceType || fullReq.type || '',
           beneficiaryId: String(fullReq.beneficiaryId || ''),
           assistanceRequestId: String(fullReq.dbId || requestId),
-          priority: details.priority || 'Medium',
-          notes: '',
+          priority: details?.priority || fullReq.priority || 'Medium',
+          notes: fullReq.affectedFamilies
+            ? `Allocating for relief request ${fullReq.id || fullReq.reference_code || ''}: ${fullReq.affectedFamilies} affected families.`
+            : '',
           status: 'Allocated',
         })
-        setAllocationStep(2)
-        setHighestAllocationStep(2)
+        if (lines.length > 0) {
+          setAllocationStep(2)
+          setHighestAllocationStep(2)
+        } else {
+          setAllocationStep(1)
+          setHighestAllocationStep(1)
+          notify.info('Relief request loaded. Review requested needs and stock availability.')
+        }
         setShowCreate(true)
       })
       .catch((err) => {
         console.error('Failed to load relief request details:', err)
-        notify.error(err.message || 'This relief request is not eligible for allocation.')
+        notify.error(err.message || 'This relief request could not be loaded for allocation.')
         setAllocationStep(1)
         setHighestAllocationStep(1)
         setShowCreate(true)
@@ -1191,6 +1420,27 @@ export default function AllocationPage() {
 
     window.history.replaceState({}, document.title)
   }, [location.state, inventoryLoading, seedLinesFromRequest])
+
+  // Automatically refresh requests and inventory when opening the Create Allocation modal
+  useEffect(() => {
+    if (showCreate) {
+      reloadRequests()
+      reloadInventory()
+      reload()
+    }
+  }, [showCreate, reloadRequests, reloadInventory, reload])
+
+  // Auto-sync when window gains focus so newly approved requests appear immediately
+  useEffect(() => {
+    const handleFocus = () => {
+      if (showCreate) {
+        reloadRequests()
+        reloadInventory()
+      }
+    }
+    window.addEventListener('focus', handleFocus)
+    return () => window.removeEventListener('focus', handleFocus)
+  }, [showCreate, reloadRequests, reloadInventory])
 
   useEffect(() => {
     needsStockApi.get()
@@ -1350,43 +1600,39 @@ export default function AllocationPage() {
       return
     }
 
-    const listedRequest = eligibleReliefRequests.find((request) => String(request.dbId) === String(requestId))
-    if (!listedRequest) {
-      setActiveReliefRequest(null)
-      setForm({ ...emptyForm, lines: [] })
-      notify.warning('That request is no longer eligible for inventory allocation. Refresh and choose another request.')
-      return
-    }
-
     setActiveReliefRequest(null)
     setForm({ ...emptyForm, assistanceRequestId: String(requestId) })
     setActiveRequestLoading(true)
     try {
       const response = await assistanceRequestsApi.get(requestId)
       const fullRequest = response.data || response
-      if (!ALLOCATABLE_REQUEST_STATUSES.has(String(fullRequest.status || '').trim())) {
-        throw new Error(`Request ${fullRequest.id || ''} is ${fullRequest.status || 'not approved'} and cannot be allocated.`)
+      const reqStatus = String(fullRequest.status || '').trim()
+      if (!ALLOCATABLE_REQUEST_STATUSES.has(reqStatus)) {
+        throw new Error(`Request ${fullRequest.id || fullRequest.reference_code || ''} is ${reqStatus || 'not approved'} and cannot be allocated.`)
       }
       const details = parseRequestDetails(fullRequest)
       const lines = seedLinesFromRequest(fullRequest)
-      if (!lines.length) {
-        throw new Error('This request has no remaining requested items with available warehouse stock.')
-      }
       setActiveReliefRequest(fullRequest)
       setForm({
         ...emptyForm,
         assistanceRequestId: String(fullRequest.dbId || requestId),
         beneficiaryId: String(fullRequest.beneficiaryId || ''),
-        program: details.reason || details.assistanceType || fullRequest.type || '',
-        priority: details.priority || 'Medium',
+        program: details?.reason || details?.assistanceType || fullRequest.type || '',
+        priority: details?.priority || fullRequest.priority || 'Medium',
         status: 'Allocated',
-        notes: '',
+        notes: fullRequest.affectedFamilies
+          ? `Allocating for relief request ${fullRequest.id || fullRequest.reference_code || ''} (${fullRequest.beneficiary || ''}): ${fullRequest.affectedFamilies} affected families.`
+          : '',
         lines,
       })
+      if (!lines.length) {
+        notify.info('Request details loaded. Please choose items and quantities in Step 2.')
+      }
     } catch (error) {
+      console.error('Failed to load relief request details:', error)
+      notify.error(error.message || 'Failed to load relief request details. Try again or refresh the page.')
       setActiveReliefRequest(null)
       setForm({ ...emptyForm, lines: [] })
-      notify.error(error.message || 'Failed to load relief request details. Try again or refresh the page.')
     } finally {
       setActiveRequestLoading(false)
     }
@@ -1737,10 +1983,26 @@ export default function AllocationPage() {
     <>
       {allocationStep === 1 && (
         <section className="alloc-wizard-panel" aria-labelledby="alloc-step-request-title">
-          <div className="alloc-wizard-heading">
-            <span className="alloc-wizard-kicker">Step 1 of 3</span>
-            <h3 id="alloc-step-request-title">Choose an eligible relief request</h3>
-            <p>Only approved requests with remaining itemized needs and matching warehouse stock are shown.</p>
+          <div className="alloc-wizard-heading alloc-wizard-heading--split">
+            <div>
+              <span className="alloc-wizard-kicker">Step 1 of 3</span>
+              <h3 id="alloc-step-request-title">Choose an eligible relief request</h3>
+              <p>Only approved requests with remaining itemized needs and matching warehouse stock are shown.</p>
+            </div>
+            <button
+              type="button"
+              className="btn btn--ghost btn--sm alloc-refresh-btn"
+              onClick={() => {
+                reloadRequests()
+                reloadInventory()
+                reload()
+              }}
+              title="Refresh approved requests and warehouse inventory"
+              style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem', fontSize: '0.8rem' }}
+            >
+              <RotateCcw size={14} className={requestsLoading ? 'alloc-spin' : ''} />
+              Refresh
+            </button>
           </div>
 
           <label className="alloc-create-field">
@@ -1753,7 +2015,7 @@ export default function AllocationPage() {
               <option value="">Select an approved request…</option>
               {barangayRequests.map((request) => (
                 <option key={request.dbId} value={request.dbId}>
-                  {request.id} — {request.beneficiary || request.beneficiaryName || 'Barangay'} · {request.priority || 'Medium'} priority
+                  {request.id || request.requestCode} — {request.beneficiary || request.beneficiaryName || 'Barangay'} · {request.priority || 'Medium'} priority ({request.needs?.slice(0, 2).join(', ') || 'Relief Goods'})
                 </option>
               ))}
             </select>
@@ -1766,10 +2028,47 @@ export default function AllocationPage() {
 
           {!inventoryLoading && !requestsLoading && barangayRequests.length === 0 && (
             <div className="alloc-wizard-empty" role="status">
-              <Package size={20} />
+              <Package size={22} />
               <div>
-                <strong>No requests are ready for allocation</strong>
-                <span>Approve a request and make sure at least one requested item has warehouse stock.</span>
+                <strong>{emptyStateInfo.title}</strong>
+                <span>{emptyStateInfo.message}</span>
+                <div style={{ marginTop: '0.65rem', display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+                  <button
+                    type="button"
+                    className="btn btn--outline btn--sm"
+                    onClick={() => {
+                      reloadRequests()
+                      reloadInventory()
+                      reload()
+                    }}
+                  >
+                    <RotateCcw size={13} /> Refresh Requests
+                  </button>
+                  {emptyStateInfo.action === 'requests' && (
+                    <button
+                      type="button"
+                      className="btn btn--primary btn--sm"
+                      onClick={() => {
+                        closeForm()
+                        navigate('/admin/requests')
+                      }}
+                    >
+                      Go to Requests
+                    </button>
+                  )}
+                  {emptyStateInfo.action === 'inventory' && (
+                    <button
+                      type="button"
+                      className="btn btn--primary btn--sm"
+                      onClick={() => {
+                        closeForm()
+                        navigate('/admin/inventory')
+                      }}
+                    >
+                      View Inventory
+                    </button>
+                  )}
+                </div>
               </div>
             </div>
           )}
@@ -2015,7 +2314,7 @@ export default function AllocationPage() {
                   priority: details.priority || 'Medium',
                   status: 'Allocated',
                   notes: '',
-                  lines: seedLinesFromRequest(details),
+                  lines: seedLinesFromRequest(fullRequest),
                 })
               } catch {
                 setActiveReliefRequest(null)
