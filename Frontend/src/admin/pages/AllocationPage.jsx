@@ -1,7 +1,7 @@
 import { useEffect, useState, useMemo, useCallback } from 'react'
 import { useNavigate, useLocation, Link } from 'react-router-dom'
 import { 
-  Eye, Pencil, ArrowRightCircle, Truck, Sparkles, CheckCircle2, X, Plus,
+  Eye, ArrowRightCircle, Truck, Sparkles, CheckCircle2, X, Plus,
   Package, Users, Calendar, MapPin, FileText, Banknote, Check, AlertCircle, Trash2, ArrowRight, ExternalLink, RotateCcw
 } from 'lucide-react'
 import { allocationsApi, beneficiariesApi, needsStockApi, assistanceRequestsApi, inventoryApi, adminBadgesApi } from '../../api/resources'
@@ -1493,29 +1493,7 @@ export default function AllocationPage() {
     .filter((_, index) => (index + 1) > reachableAllocationStep || (index + 1) > highestAllocationStep)
     .map((step) => step.id)
 
-  const openEdit = (row) => {
-    if (isTerminalStatus(row.status, ALLOCATION_TERMINAL)) {
-      notify.info(`Allocation ${row.id || ''} is finalized and can no longer be edited.`)
-      return
-    }
-    setEditRow(row)
-    setActiveReliefRequest(null)
-    setDetailRow(null)
-    setStatusRow(null)
-    setAllocationStep(1)
-    setHighestAllocationStep(1)
-    const matched = findMatchingInventory(row.resource, row.inventoryItemId)
-    setForm({
-      lines: [makeLine(row.resource || '', row.quantity || '', matched?.dbId || row.inventoryItemId || null, matched?.unit || row.unit || '', matched?.variant || row.variant || '')],
-      program: row.program || '',
-      beneficiaryId: row.beneficiaryId || '',
-      assistanceRequestId: row.assistanceRequestId || '',
-      status: row.status,
-      priority: row.priority || 'Medium',
-      notes: row.notes || '',
-    })
-    setShowCreate(true)
-  }
+
 
   const openStatus = (row) => {
     if (isTerminalStatus(row.status, ALLOCATION_TERMINAL)) {
@@ -1958,15 +1936,12 @@ export default function AllocationPage() {
     {
       key: 'actions',
       label: 'Actions',
-      width: '122px',
+      width: '95px',
       align: 'center',
       render: (row) => (
         <div className="alloc-row-actions">
           <button type="button" className="icon-btn" title="View details" aria-label="View allocation details" onClick={(event) => { event.stopPropagation(); setDetailRow(row) }}>
             <Eye size={15} />
-          </button>
-          <button type="button" className="icon-btn" title="Edit allocation" aria-label="Edit allocation" disabled={isTerminalStatus(row.status, ALLOCATION_TERMINAL)} onClick={(event) => { event.stopPropagation(); openEdit(row) }}>
-            <Pencil size={14} />
           </button>
           <button type="button" className="icon-btn" title="Update allocation status" aria-label="Update allocation status" disabled={isTerminalStatus(row.status, ALLOCATION_TERMINAL)} onClick={(event) => { event.stopPropagation(); openStatus(row) }}>
             <ArrowRightCircle size={16} />

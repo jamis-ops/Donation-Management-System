@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useLocation, useNavigate, useSearchParams } from 'react-router-dom'
 import {
-  Eye, Pencil, ArrowRightCircle, MapPin, Calendar, Package, Users,
+  Eye, ArrowRightCircle, MapPin, Calendar, Package, Users,
   Truck, UserRound, FileCheck, ClipboardList, Route, Fuel, StickyNote,
   Sparkles, Check, Plus, X, UserCheck, ShieldCheck, RefreshCw, AlertCircle,
   FileText, Lock, Trash2,
@@ -902,7 +902,6 @@ export default function DistributionsPage() {
         <RowActionsMenu
           items={[
             { label: 'View', icon: <Eye size={14} />, onClick: () => setDetailRow(row) },
-            { label: 'Edit', icon: <Pencil size={14} />, onClick: () => openEdit(row) },
             {
               label: 'Update status',
               icon: <ArrowRightCircle size={14} />,
@@ -1396,9 +1395,6 @@ export default function DistributionsPage() {
                     <ArrowRightCircle size={13} /> Update Status
                   </button>
                 )}
-                <button type="button" className="btn btn--primary btn--sm" onClick={() => openEdit(detailRow)}>
-                  <Pencil size={13} /> Edit Delivery
-                </button>
               </div>
             </div>
           </div>
