@@ -869,7 +869,8 @@ export default function CertificatesPage() {
                     )}
 
                     <div className="form-row">
-                      <label>Recipient Type
+                      <label>
+                        <span className="cert-field-label">Recipient Type</span>
                         <select
                           value={form.recipientType}
                           disabled={Boolean(form.isFromApprovedRequest)}
@@ -890,7 +891,8 @@ export default function CertificatesPage() {
                         </select>
                       </label>
 
-                      <label>Select From Database
+                      <label>
+                        <span className="cert-field-label">Select From Database</span>
                         <select
                           value={form.recipientKey}
                           disabled={Boolean(form.isFromApprovedRequest)}
@@ -907,7 +909,8 @@ export default function CertificatesPage() {
                     </div>
 
                     <div className="form-row">
-                      <label>Recipient Name
+                      <label>
+                        <span className="cert-field-label">Recipient Name</span>
                         <input
                           required
                           disabled={Boolean(form.isFromApprovedRequest)}
@@ -916,7 +919,10 @@ export default function CertificatesPage() {
                           placeholder="Recipient Full Name / Organization"
                         />
                       </label>
-                      <label>Reference Code {form.recipientType === 'Volunteer' ? <span style={{ color: '#0f766e', fontSize: '0.72rem' }}>(Completed Duty)</span> : null}
+                      <label>
+                        <span className="cert-field-label">
+                          Reference Code {form.recipientType === 'Volunteer' ? <span style={{ color: '#0f766e', fontSize: '0.72rem', fontWeight: 500 }}>(Completed Duty)</span> : null}
+                        </span>
                         <input
                           disabled={Boolean(form.isFromApprovedRequest)}
                           value={form.reference}
@@ -940,7 +946,8 @@ export default function CertificatesPage() {
                       <Award size={16} color="#af101a" /> 2. Certificate Title & Template
                     </h3>
                     <div className="form-row">
-                      <label>Certificate Type
+                      <label>
+                        <span className="cert-field-label">Certificate Type</span>
                         <select
                           value={form.type}
                           disabled={editRow && isTerminalStatus(editRow.status, CERTIFICATE_TERMINAL)}
@@ -950,7 +957,8 @@ export default function CertificatesPage() {
                         </select>
                       </label>
 
-                      <label>Date Issued
+                      <label>
+                        <span className="cert-field-label">Date Issued</span>
                         <input
                           type="date"
                           value={form.certDate}
@@ -1168,7 +1176,8 @@ export default function CertificatesPage() {
                     </div>
 
                     <div className="form-row">
-                      <label>Official Signatory
+                      <label>
+                        <span className="cert-field-label">Official Signatory</span>
                         <select
                           value={form.signatoryId || ''}
                           onChange={(e) => handleSignatoryChange(e.target.value)}
@@ -1181,7 +1190,8 @@ export default function CertificatesPage() {
                         </select>
                       </label>
 
-                      <label>Location
+                      <label>
+                        <span className="cert-field-label">Location</span>
                         <input
                           value={form.location}
                           onChange={(e) => setForm({ ...form, location: e.target.value })}

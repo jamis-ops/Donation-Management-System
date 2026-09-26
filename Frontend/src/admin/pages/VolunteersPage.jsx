@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import {
   Clock3, ListTodo, Mail, UserCheck, Pencil, Trash2,
-  CheckCircle2, XCircle, CalendarDays, Briefcase, Truck, Users, Plus,
+  CheckCircle2, XCircle, Calendar, CalendarDays, Briefcase, Truck, Users, Plus,
   FileText, Download, ExternalLink, GraduationCap, Sparkles, RefreshCw,
   Award, School, Check, Phone, Info, Lock, Unlock, AlertTriangle, Quote, User, Eye,
   UploadCloud, X, Search, ChevronRight, ArrowLeft, ArrowRight,
@@ -1524,19 +1524,21 @@ export default function VolunteersPage() {
                                 <dd><StatusBadge status={selected.status} /></dd>
                               </div>
                             </div>
-                            <div style={{ marginTop: '0.85rem' }}>
-                              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.35rem' }}>
-                                <dt style={{ margin: 0, fontWeight: 600 }}>Availability & Duty Schedule</dt>
+                            <div className="volunteer-schedule-card-section">
+                              <div className="volunteer-schedule-section-header">
+                                <dt className="volunteer-schedule-section-title">
+                                  <Calendar size={14} className="volunteer-schedule-icon" />
+                                  <span>Availability & Duty Schedule</span>
+                                </dt>
                                 <button
                                   type="button"
-                                  className="btn btn--sm btn--outline"
+                                  className="btn btn--sm btn--outline volunteer-schedule-edit-btn"
                                   onClick={() => openEditAvailability(selected)}
-                                  style={{ padding: '0.2rem 0.6rem', fontSize: '0.76rem', gap: '0.35rem' }}
                                 >
                                   <Pencil size={12} /> Edit Availability
                                 </button>
                               </div>
-                              <dd style={{ margin: 0 }}>
+                              <dd className="volunteer-schedule-section-content">
                                 <AvailabilitySchedulePicker
                                   value={selected.availability}
                                   readOnly
@@ -2311,19 +2313,21 @@ export default function VolunteersPage() {
                             <dd><StatusBadge status={selected.status} /></dd>
                           </div>
                         </div>
-                        <div style={{ marginTop: '0.85rem' }}>
-                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.35rem' }}>
-                            <dt style={{ margin: 0, fontWeight: 600 }}>Availability & Schedule</dt>
+                        <div className="volunteer-schedule-card-section">
+                          <div className="volunteer-schedule-section-header">
+                            <dt className="volunteer-schedule-section-title">
+                              <Calendar size={14} className="volunteer-schedule-icon" />
+                              <span>Availability & Schedule</span>
+                            </dt>
                             <button
                               type="button"
-                              className="btn btn--sm btn--outline"
+                              className="btn btn--sm btn--outline volunteer-schedule-edit-btn"
                               onClick={() => openEditAvailability(selected)}
-                              style={{ padding: '0.2rem 0.6rem', fontSize: '0.76rem', gap: '0.35rem' }}
                             >
                               <Pencil size={12} /> Edit Availability
                             </button>
                           </div>
-                          <dd style={{ margin: 0 }}>
+                          <dd className="volunteer-schedule-section-content">
                             <AvailabilitySchedulePicker
                               value={selected.availability}
                               readOnly

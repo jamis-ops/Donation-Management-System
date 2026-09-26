@@ -130,239 +130,246 @@ export default function InKindIntakeModal({
   return (
     <div className="admin-modal-overlay" onClick={onClose}>
       <div
-        className="admin-modal admin-modal--wide"
+        className="admin-modal in-kind-intake-modal"
         onClick={(e) => e.stopPropagation()}
-        style={{ maxWidth: '820px', maxHeight: '92vh', overflowY: 'auto' }}
       >
         <ModalHeader
           title={`Verify & Classify In-Kind Donation — ${donation.trackingCode || donation.id}`}
           onClose={onClose}
         />
 
-        <form onSubmit={handleSubmit} className="in-kind-intake-form">
-          {/* Donor Source Overview Box */}
-          <div className="intake-donor-summary">
-            <div className="intake-donor-summary__item">
-              <span className="text-muted text-xs">Donor</span>
-              <strong>{donation.donor}</strong>
+        <form id="in-kind-intake-form" onSubmit={handleSubmit} className="in-kind-intake-form">
+          <div className="in-kind-intake-modal__body">
+            {/* Donor Source Overview Box */}
+            <div className="intake-donor-summary">
+              <div className="intake-donor-summary__item">
+                <span className="intake-donor-summary__label">Donor</span>
+                <strong className="intake-donor-summary__value">{donation.donor}</strong>
+              </div>
+              <div className="intake-donor-summary__item">
+                <span className="intake-donor-summary__label">Category</span>
+                <strong className="intake-donor-summary__value">{donation.category || 'General In-Kind'}</strong>
+              </div>
+              <div className="intake-donor-summary__item">
+                <span className="intake-donor-summary__label">Date Received</span>
+                <span className="intake-donor-summary__value">{donation.date || donation.donationDate}</span>
+              </div>
             </div>
-            <div className="intake-donor-summary__item">
-              <span className="text-muted text-xs">Category</span>
-              <strong>{donation.category || 'General In-Kind'}</strong>
-            </div>
-            <div className="intake-donor-summary__item">
-              <span className="text-muted text-xs">Date Received</span>
-              <span>{donation.date || donation.donationDate}</span>
-            </div>
-          </div>
 
-          <div className="intake-raw-description">
-            <div className="intake-raw-desc-header">
-              <Info size={14} className="text-blue-600" />
-              <span>Original Donor Description:</span>
-            </div>
-            <p className="intake-raw-desc-text">
-              "{donation.itemsDescription || 'No detailed description provided by donor.'}"
-            </p>
-          </div>
-
-          <div className="intake-instructions">
-            <Layers3 size={16} className="text-red-700" />
-            <div>
-              <strong>Warehouse Intake Classification</strong>
-              <p className="text-xs text-muted">
-                Classify this donation into exact items (Category → Item Type → Brand → Variant/Size → Quantity).
-                These will be automatically credited to warehouse inventory balances.
+            <div className="intake-raw-description">
+              <div className="intake-raw-desc-header">
+                <Info size={14} className="text-blue-600" />
+                <span>Original Donor Description:</span>
+              </div>
+              <p className="intake-raw-desc-text">
+                "{donation.itemsDescription || 'No detailed description provided by donor.'}"
               </p>
             </div>
-          </div>
 
-          {/* Items breakdown list */}
-          <div className="intake-items-list">
-            {items.map((row, index) => {
-              const typesForCat = getItemTypesByCategory(row.category)
-              const brandsForType = getBrandsByItemType(row.itemType, row.category)
-              const variantsForType = getVariantsByItemType(row.itemType, row.category)
-              const assembled = assembleRowName(row)
+            <div className="intake-instructions">
+              <Layers3 size={16} className="text-red-700" />
+              <div>
+                <strong>Warehouse Intake Classification</strong>
+                <p className="text-xs text-muted">
+                  Classify this donation into exact items (Category → Item Type → Brand → Variant/Size → Quantity).
+                  These will be automatically credited to warehouse inventory balances.
+                </p>
+              </div>
+            </div>
 
-              return (
-                <div key={row.id} className="intake-item-row-card">
-                  <div className="intake-item-row-card__header">
-                    <div className="flex items-center gap-2">
-                      <span className="intake-row-number">#{index + 1}</span>
-                      <strong className="text-sm">{assembled}</strong>
+            {/* Items breakdown list */}
+            <div className="intake-items-list">
+              {items.map((row, index) => {
+                const typesForCat = getItemTypesByCategory(row.category)
+                const brandsForType = getBrandsByItemType(row.itemType, row.category)
+                const variantsForType = getVariantsByItemType(row.itemType, row.category)
+                const assembled = assembleRowName(row)
+
+                return (
+                  <div key={row.id} className="intake-item-row-card">
+                    <div className="intake-item-row-card__header">
+                      <div className="intake-item-row-card__title-group">
+                        <span className="intake-row-number">#{index + 1}</span>
+                        <strong className="intake-row-title">{assembled}</strong>
+                      </div>
+                      {items.length > 1 && (
+                        <button
+                          type="button"
+                          className="btn-remove-row"
+                          onClick={() => handleRemoveItemRow(index)}
+                          title="Remove item"
+                        >
+                          <Trash2 size={13} /> Remove
+                        </button>
+                      )}
                     </div>
-                    {items.length > 1 && (
-                      <button
-                        type="button"
-                        className="btn-remove-row"
-                        onClick={() => handleRemoveItemRow(index)}
-                        title="Remove item"
-                      >
-                        <Trash2 size={14} /> Remove
-                      </button>
-                    )}
+
+                    <div className="intake-form-grid">
+                      {/* 1. Category */}
+                      <div className="intake-field intake-field--category">
+                        <label className="intake-label">
+                          <span>Category</span>
+                          <span className="req">*</span>
+                        </label>
+                        <Select
+                          required
+                          value={row.category}
+                          onChange={(e) => handleUpdateItemRow(index, 'category', e.target.value)}
+                          className="intake-select"
+                        >
+                          <option value="" disabled>-- Select Category --</option>
+                          {categories.map((c) => (
+                            <option key={c.id || c.name} value={c.name}>
+                              {c.name}
+                            </option>
+                          ))}
+                        </Select>
+                      </div>
+
+                      {/* 2. Item Type */}
+                      <div className="intake-field intake-field--type">
+                        <label className="intake-label">
+                          <span>Item Type</span>
+                          <span className="req">*</span>
+                        </label>
+                        <Select
+                          required
+                          disabled={!row.category}
+                          value={row.itemType}
+                          onChange={(e) => handleUpdateItemRow(index, 'itemType', e.target.value)}
+                          className="intake-select"
+                        >
+                          {!row.category ? (
+                            <option value="">-- Select Category --</option>
+                          ) : (
+                            <>
+                              <option value="" disabled>-- Select Type --</option>
+                              {typesForCat.map((t) => (
+                                <option key={t.id || t.name} value={t.name}>
+                                  {t.name}
+                                </option>
+                              ))}
+                            </>
+                          )}
+                        </Select>
+                      </div>
+
+                      {/* 3. Brand */}
+                      <div className="intake-field intake-field--brand">
+                        <label className="intake-label">
+                          <span>Brand</span>
+                          <span className="intake-label-opt">(Optional)</span>
+                        </label>
+                        <Select
+                          disabled={!row.itemType}
+                          value={row.brand}
+                          onChange={(e) => handleUpdateItemRow(index, 'brand', e.target.value)}
+                          className="intake-select"
+                        >
+                          {!row.itemType ? (
+                            <option value="">-- Select Type --</option>
+                          ) : (
+                            <>
+                              <option value="">-- Select Brand --</option>
+                              <option value="Generic / Unbranded">Generic / Unbranded</option>
+                              {brandsForType.map((b) => (
+                                <option key={b.id || b.name} value={b.name}>
+                                  {b.name}
+                                </option>
+                              ))}
+                            </>
+                          )}
+                        </Select>
+                      </div>
+
+                      {/* 4. Variant / Size */}
+                      <div className="intake-field intake-field--variant">
+                        <label className="intake-label">
+                          <span>Variant / Size</span>
+                          <span className="intake-label-opt">(Optional)</span>
+                        </label>
+                        <Select
+                          disabled={!row.itemType}
+                          value={row.variant}
+                          onChange={(e) => handleUpdateItemRow(index, 'variant', e.target.value)}
+                          className="intake-select"
+                        >
+                          {!row.itemType ? (
+                            <option value="">-- Select Type --</option>
+                          ) : (
+                            <>
+                              <option value="">-- Select Variant --</option>
+                              <option value="Standard / Regular">Standard / Regular</option>
+                              {variantsForType.map((v) => (
+                                <option key={v.id || v.name} value={v.name}>
+                                  {v.name}
+                                </option>
+                              ))}
+                            </>
+                          )}
+                        </Select>
+                      </div>
+
+                      {/* 5. Quantity */}
+                      <div className="intake-field intake-field--qty">
+                        <label className="intake-label">
+                          <span>Qty</span>
+                          <span className="req">*</span>
+                        </label>
+                        <input
+                          type="number"
+                          min="1"
+                          required
+                          value={row.quantity}
+                          onChange={(e) => handleUpdateItemRow(index, 'quantity', e.target.value)}
+                          className="intake-input intake-input--qty"
+                        />
+                      </div>
+
+                      {/* 6. Unit */}
+                      <div className="intake-field intake-field--unit">
+                        <label className="intake-label">
+                          <span>Unit</span>
+                          <span className="req">*</span>
+                        </label>
+                        <Select
+                          required
+                          value={row.unit}
+                          onChange={(e) => handleUpdateItemRow(index, 'unit', e.target.value)}
+                          className="intake-select"
+                        >
+                          {units.map((u) => (
+                            <option key={u.id || u.name} value={u.name.toLowerCase()}>
+                              {u.name}
+                            </option>
+                          ))}
+                          <option value="pcs">pcs</option>
+                          <option value="bottles">bottles</option>
+                          <option value="cans">cans</option>
+                          <option value="packs">packs</option>
+                          <option value="sacks">sacks</option>
+                          <option value="boxes">boxes</option>
+                        </Select>
+                      </div>
+                    </div>
                   </div>
+                )
+              })}
+            </div>
 
-                  <div className="intake-form-grid">
-                    {/* Category */}
-                    <div className="form-group">
-                      <label className="text-xs font-semibold">
-                        Category <span className="text-red-600">*</span>
-                      </label>
-                      <Select
-                        required
-                        value={row.category}
-                        onChange={(e) => handleUpdateItemRow(index, 'category', e.target.value)}
-                        className="form-select-sm"
-                      >
-                        <option value="" disabled>-- Category --</option>
-                        {categories.map((c) => (
-                          <option key={c.id || c.name} value={c.name}>
-                            {c.name}
-                          </option>
-                        ))}
-                      </Select>
-                    </div>
-
-                    {/* Item Type */}
-                    <div className="form-group">
-                      <label className="text-xs font-semibold">
-                        Item Type <span className="text-red-600">*</span>
-                      </label>
-                      <Select
-                        required
-                        disabled={!row.category}
-                        value={row.itemType}
-                        onChange={(e) => handleUpdateItemRow(index, 'itemType', e.target.value)}
-                        className="form-select-sm"
-                      >
-                        {!row.category ? (
-                          <option value="">-- Select Category First --</option>
-                        ) : (
-                          <>
-                            <option value="" disabled>-- Select Item Type --</option>
-                            {typesForCat.map((t) => (
-                              <option key={t.id || t.name} value={t.name}>
-                                {t.name}
-                              </option>
-                            ))}
-                          </>
-                        )}
-                      </Select>
-                    </div>
-
-                    {/* Brand */}
-                    <div className="form-group">
-                      <label className="text-xs font-semibold">
-                        Brand <span className="text-muted font-normal">(Optional)</span>
-                      </label>
-                      <Select
-                        disabled={!row.itemType}
-                        value={row.brand}
-                        onChange={(e) => handleUpdateItemRow(index, 'brand', e.target.value)}
-                        className="form-select-sm"
-                      >
-                        {!row.itemType ? (
-                          <option value="">-- Select Type First --</option>
-                        ) : (
-                          <>
-                            <option value="">-- Select or enter brand --</option>
-                            <option value="Generic / Unbranded">Generic / Unbranded</option>
-                            {brandsForType.map((b) => (
-                              <option key={b.id || b.name} value={b.name}>
-                                {b.name}
-                              </option>
-                            ))}
-                          </>
-                        )}
-                      </Select>
-                    </div>
-
-                    {/* Variant */}
-                    <div className="form-group">
-                      <label className="text-xs font-semibold">
-                        Variant / Size <span className="text-muted font-normal">(Optional)</span>
-                      </label>
-                      <Select
-                        disabled={!row.itemType}
-                        value={row.variant}
-                        onChange={(e) => handleUpdateItemRow(index, 'variant', e.target.value)}
-                        className="form-select-sm"
-                      >
-                        {!row.itemType ? (
-                          <option value="">-- Select Type First --</option>
-                        ) : (
-                          <>
-                            <option value="">-- e.g. 500ml, 155g, XL... --</option>
-                            <option value="Standard / Regular">Standard / Regular</option>
-                            {variantsForType.map((v) => (
-                              <option key={v.id || v.name} value={v.name}>
-                                {v.name}
-                              </option>
-                            ))}
-                          </>
-                        )}
-                      </Select>
-                    </div>
-
-                    {/* Quantity */}
-                    <div className="form-group form-group--qty">
-                      <label className="text-xs font-semibold">
-                        Qty <span className="text-red-600">*</span>
-                      </label>
-                      <input
-                        type="number"
-                        min="1"
-                        required
-                        value={row.quantity}
-                        onChange={(e) => handleUpdateItemRow(index, 'quantity', e.target.value)}
-                        className="form-input-enhanced form-input-sm"
-                      />
-                    </div>
-
-                    {/* Unit */}
-                    <div className="form-group form-group--unit">
-                      <label className="text-xs font-semibold">
-                        Unit <span className="text-red-600">*</span>
-                      </label>
-                      <Select
-                        required
-                        value={row.unit}
-                        onChange={(e) => handleUpdateItemRow(index, 'unit', e.target.value)}
-                        className="form-select-sm"
-                      >
-                        {units.map((u) => (
-                          <option key={u.id || u.name} value={u.name.toLowerCase()}>
-                            {u.name}
-                          </option>
-                        ))}
-                        <option value="pcs">pcs</option>
-                        <option value="bottles">bottles</option>
-                        <option value="cans">cans</option>
-                        <option value="packs">packs</option>
-                        <option value="sacks">sacks</option>
-                        <option value="boxes">boxes</option>
-                      </Select>
-                    </div>
-                  </div>
-                </div>
-              )
-            })}
+            <div className="intake-add-more-row">
+              <button
+                type="button"
+                className="btn btn--outline intake-add-btn"
+                onClick={handleAddItemRow}
+              >
+                <Plus size={15} /> Add Another Item From This Donation
+              </button>
+            </div>
           </div>
 
-          <div className="intake-add-more-row">
-            <button
-              type="button"
-              className="btn btn--outline btn--sm"
-              onClick={handleAddItemRow}
-            >
-              <Plus size={14} className="mr-1" /> Add Another Item From This Donation
-            </button>
-          </div>
-
-          {/* Action buttons */}
-          <div className="admin-modal__actions mt-4 pt-3 border-t border-gray-200">
+          {/* Action buttons footer */}
+          <div className="admin-modal__actions in-kind-intake-modal__footer">
             <button
               type="button"
               className="btn btn--ghost"
@@ -375,7 +382,6 @@ export default function InKindIntakeModal({
               type="submit"
               className="btn btn--primary"
               disabled={saving}
-              style={{ backgroundColor: '#AF101A' }}
             >
               {saving ? 'Verifying & Posting...' : 'Verify & Add to Warehouse Inventory'}
             </button>

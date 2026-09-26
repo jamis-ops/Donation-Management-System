@@ -801,8 +801,7 @@
   min-height: 0;
   display: flex;
   flex-direction: column;
-  overflow-y: auto;
-  overflow-x: hidden;
+  overflow: hidden;
   box-sizing: border-box;
 }
 
@@ -810,21 +809,24 @@
   background: #ffffff;
   border: 1px solid #e2e8f0;
   border-radius: 12px;
-  padding: 1rem 1.25rem 1.25rem;
+  padding: 1rem 1.25rem;
   box-shadow: 0 4px 18px rgba(0, 0, 0, 0.05);
   display: flex;
   flex-direction: column;
-  gap: 0.85rem;
+  height: 100%;
+  min-height: 0;
   width: 100%;
   box-sizing: border-box;
+  overflow: hidden;
 }
 
 .cert-preview-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding-bottom: 0.5rem;
+  padding-bottom: 0.65rem;
   border-bottom: 1px solid #f1f5f9;
+  flex-shrink: 0;
 }
 
 .cert-preview-label {
@@ -849,16 +851,29 @@
 }
 
 .cert-live-canvas-wrap {
+  flex: 1 1 0;
+  min-height: 0;
   width: 100%;
   display: flex;
-  flex-direction: column;
   align-items: center;
   justify-content: center;
   background: radial-gradient(circle at center, #fbfbfa 0%, #f1f0eb 100%);
   border: 1px solid #e2e8f0;
   border-radius: 8px;
-  padding: 0.85rem;
+  padding: 1rem;
   box-sizing: border-box;
+  overflow: hidden;
+  margin-top: 0.75rem;
+}
+
+.cert-live-canvas-wrap .certificate {
+  max-width: 100% !important;
+  max-height: 100% !important;
+  aspect-ratio: 297 / 210 !important;
+  width: auto !important;
+  height: auto !important;
+  margin: auto !important;
+  box-shadow: 0 8px 30px rgba(26, 21, 18, 0.14) !important;
 }
 
 /* Card Sections inside Form */
@@ -881,6 +896,60 @@
   display: flex;
   align-items: center;
   gap: 0.5rem;
+}
+
+.cert-section-card .form-row {
+  display: grid !important;
+  grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  gap: 0.75rem !important;
+  margin-bottom: 0.65rem !important;
+  align-items: start !important;
+}
+
+.cert-section-card label {
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 0.3rem !important;
+  font-size: 0.78rem !important;
+  font-weight: 600 !important;
+  color: #334155 !important;
+  margin: 0 !important;
+  width: 100% !important;
+}
+
+.cert-section-card label input,
+.cert-section-card label select {
+  height: 38px !important;
+  min-height: 38px !important;
+  line-height: 38px !important;
+  padding: 0 0.75rem !important;
+  font-size: 0.85rem !important;
+  border: 1.5px solid #cbd5e1 !important;
+  border-radius: 7px !important;
+  background: #ffffff !important;
+  color: #1e293b !important;
+  box-sizing: border-box !important;
+  margin: 0 !important;
+  width: 100% !important;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease !important;
+}
+
+.cert-section-card label input:focus,
+.cert-section-card label select:focus,
+.cert-caption-textarea:focus {
+  border-color: #AF101A !important;
+  box-shadow: 0 0 0 3px rgba(175, 16, 26, 0.12) !important;
+  outline: none !important;
+}
+
+.cert-caption-textarea {
+  border: 1.5px solid #cbd5e1 !important;
+  border-radius: 7px !important;
+  padding: 0.65rem !important;
+  font-size: 0.84rem !important;
+  width: 100% !important;
+  box-sizing: border-box !important;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease !important;
 }
 
 /* Template Selector Grid */

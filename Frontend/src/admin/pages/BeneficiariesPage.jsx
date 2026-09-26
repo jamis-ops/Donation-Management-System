@@ -1114,7 +1114,9 @@ export default function BeneficiariesPage() {
               {/* Header Summary */}
               <div className="barangay-submission-modal__header">
                 <div className="barangay-submission-modal__title-section">
-                  <MapPin size={20} className="barangay-submission-modal__location-icon" />
+                  <div className="barangay-submission-modal__icon-badge">
+                    <MapPin size={22} className="barangay-submission-modal__location-icon" />
+                  </div>
                   <div>
                     <h2 className="barangay-submission-modal__barangay-name">
                       {viewingSubmission.barangay || viewingSubmission.name}
@@ -1126,55 +1128,28 @@ export default function BeneficiariesPage() {
                   </div>
                 </div>
                 <div className="barangay-submission-modal__status-section">
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+                  <div className="barangay-submission-modal__actions-wrap">
                     <StatusBadge status="Pending Approval" />
-                    <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.45rem' }}>
+                    <div className="barangay-submission-modal__btn-group">
                       <button
                         type="button"
-                        className="btn btn--sm approval-overlay__btn-reject"
+                        className="btn btn--sm barangay-submission-modal__btn-reject"
                         onClick={() => {
                           setViewingSubmission(null)
                           handleReject(null, viewingSubmission)
                         }}
                         disabled={actionBusyId === viewingSubmission.dbId}
-                        style={{
-                          background: 'rgba(220, 38, 38, 0.95)',
-                          color: '#ffffff',
-                          border: '1px solid #dc2626',
-                          fontSize: '0.82rem',
-                          padding: '0.4rem 0.85rem',
-                          borderRadius: '7px',
-                          display: 'inline-flex',
-                          alignItems: 'center',
-                          gap: '0.35rem',
-                          fontWeight: 650,
-                          cursor: 'pointer'
-                        }}
                       >
                         <XCircle size={15} /> Reject Application
                       </button>
                       <button
                         type="button"
-                        className="btn btn--sm approval-overlay__btn-approve"
+                        className="btn btn--sm barangay-submission-modal__btn-approve"
                         onClick={() => {
                           setViewingSubmission(null)
                           handleApprove(null, viewingSubmission)
                         }}
                         disabled={actionBusyId === viewingSubmission.dbId}
-                        style={{
-                          background: '#16a34a',
-                          color: '#ffffff',
-                          border: '1px solid #15803d',
-                          fontSize: '0.82rem',
-                          padding: '0.4rem 0.95rem',
-                          borderRadius: '7px',
-                          display: 'inline-flex',
-                          alignItems: 'center',
-                          gap: '0.35rem',
-                          fontWeight: 650,
-                          cursor: 'pointer',
-                          boxShadow: '0 2px 6px rgba(0,0,0,0.18)'
-                        }}
                       >
                         <CheckCircle2 size={15} /> Approve & Send Credentials
                       </button>

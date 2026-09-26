@@ -130,10 +130,12 @@ export default function AvailabilitySchedulePicker({
       <div className="availability-schedule-picker__type-select-wrap">
         {readOnly ? (
           <div className="availability-schedule-picker__readonly-badge">
-            <Calendar size={15} aria-hidden />
-            <strong>{selectedType || 'Not specified'}</strong>
+            <span className="availability-type-pill">
+              <Calendar size={13} aria-hidden />
+              <span>{selectedType || 'Not specified'}</span>
+            </span>
             {totalSelectedSlots > 0 && (
-              <span className="availability-schedule-picker__count-tag">
+              <span className="availability-count-pill">
                 {totalSelectedSlots} active time slot{totalSelectedSlots > 1 ? 's' : ''}
               </span>
             )}
@@ -268,7 +270,8 @@ export default function AvailabilitySchedulePicker({
 
           <div className="availability-grid-footer">
             <span className="availability-grid-legend">
-              <Clock size={12} aria-hidden /> Click any day or time slot cell to toggle availability
+              <Clock size={12} aria-hidden />
+              {readOnly ? 'Scheduled volunteer availability slots' : 'Click any day or time slot cell to toggle availability'}
             </span>
             <span className="availability-grid-summary">
               {totalSelectedSlots} slot{totalSelectedSlots === 1 ? '' : 's'} selected across {relevantDays.length} day{relevantDays.length === 1 ? '' : 's'}

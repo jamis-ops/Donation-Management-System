@@ -1098,74 +1098,99 @@ export default function StaffPage() {
 
       {showForm && (
         <div className="admin-modal-overlay" onClick={() => setShowForm(false)}>
-          <div className="admin-modal admin-modal--wide" onClick={(e) => e.stopPropagation()}>
+          <div className="admin-modal admin-modal--wide staff-create-modal" onClick={(e) => e.stopPropagation()}>
             <ModalHeader title="Create Staff Account" onClose={() => setShowForm(false)} />
-            <form onSubmit={handleSave}>
-              <NameFields
-                value={form}
-                onChange={(parts) => setForm({ ...form, ...parts })}
-              />
-              <div className="form-row">
-                <label>
-                  <Req required>Email</Req>
-                  <input type="email" required value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} placeholder="staff@email.com" />
-                </label>
-                <label>
-                  Phone Number
-                  <PhoneInput
-                    allowInternational
-                    value={form.phone}
-                    onChange={(phone) => setForm({ ...form, phone })}
+            <form onSubmit={handleSave} className="staff-create-form">
+              <div className="staff-form-grid">
+                {/* Row 1: Last Name *, First Name *, MI */}
+                <div className="staff-form-row staff-form-row--names">
+                  <NameFields
+                    value={form}
+                    onChange={(parts) => setForm({ ...form, ...parts })}
                   />
-                </label>
-              </div>
-              <div className="form-row">
-                <label>
-                  Date of Birth
-                  <input
-                    type="date"
-                    value={form.birthDate}
-                    onChange={(e) => setForm({ ...form, birthDate: e.target.value })}
-                  />
-                </label>
-                <label>
-                  Address
-                  <input
-                    type="text"
-                    placeholder="e.g., Cebu City, Philippines"
-                    value={form.address}
-                    onChange={(e) => setForm({ ...form, address: e.target.value })}
-                  />
-                </label>
-              </div>
-              <div className="form-row">
-                <label>
-                  Emergency Contact Number
-                  <PhoneInput
-                    allowInternational
-                    value={form.emergencyContactNumber}
-                    onChange={(num) => setForm({ ...form, emergencyContactNumber: num })}
-                  />
-                </label>
-                <label>
-                  Emergency Contact Relation
-                  <input
-                    type="text"
-                    placeholder="e.g., Parent, Spouse, Sibling"
-                    value={form.emergencyContactRelation}
-                    onChange={(e) => setForm({ ...form, emergencyContactRelation: e.target.value })}
-                  />
-                </label>
+                </div>
+
+                {/* Row 2: Email *, Phone Number */}
+                <div className="staff-form-row staff-form-row--2">
+                  <label className="staff-form-field">
+                    <span className="staff-form-label"><Req required>Email</Req></span>
+                    <input
+                      type="email"
+                      required
+                      value={form.email}
+                      onChange={(e) => setForm({ ...form, email: e.target.value })}
+                      placeholder="staff@email.com"
+                      className="staff-form-input"
+                    />
+                  </label>
+                  <label className="staff-form-field">
+                    <span className="staff-form-label">Phone Number</span>
+                    <PhoneInput
+                      allowInternational
+                      value={form.phone}
+                      onChange={(phone) => setForm({ ...form, phone })}
+                      className="staff-form-phone"
+                    />
+                  </label>
+                </div>
+
+                {/* Row 3: Date of Birth, Address */}
+                <div className="staff-form-row staff-form-row--2">
+                  <label className="staff-form-field">
+                    <span className="staff-form-label">Date of Birth</span>
+                    <input
+                      type="date"
+                      value={form.birthDate}
+                      onChange={(e) => setForm({ ...form, birthDate: e.target.value })}
+                      className="staff-form-input"
+                    />
+                  </label>
+                  <label className="staff-form-field">
+                    <span className="staff-form-label">Address</span>
+                    <input
+                      type="text"
+                      placeholder="e.g., Cebu City, Philippines"
+                      value={form.address}
+                      onChange={(e) => setForm({ ...form, address: e.target.value })}
+                      className="staff-form-input"
+                    />
+                  </label>
+                </div>
+
+                {/* Row 4: Emergency Contact Number, Emergency Contact Relation */}
+                <div className="staff-form-row staff-form-row--2">
+                  <label className="staff-form-field">
+                    <span className="staff-form-label">Emergency Contact Number</span>
+                    <PhoneInput
+                      allowInternational
+                      value={form.emergencyContactNumber}
+                      onChange={(num) => setForm({ ...form, emergencyContactNumber: num })}
+                      className="staff-form-phone"
+                    />
+                  </label>
+                  <label className="staff-form-field">
+                    <span className="staff-form-label">Emergency Contact Relation</span>
+                    <input
+                      type="text"
+                      placeholder="e.g., Parent, Spouse, Sibling"
+                      value={form.emergencyContactRelation}
+                      onChange={(e) => setForm({ ...form, emergencyContactRelation: e.target.value })}
+                      className="staff-form-input"
+                    />
+                  </label>
+                </div>
               </div>
 
-              <div className="admin-modal__actions" style={{ marginTop: '1.25rem' }}>
-                <button type="button" className="btn btn--ghost" onClick={() => setShowForm(false)}>Cancel</button>
+              <div className="admin-modal__actions staff-modal-actions">
+                <button type="button" className="btn btn--outline" onClick={() => setShowForm(false)}>
+                  Cancel
+                </button>
                 <button
                   type="submit"
                   className="btn btn--primary"
                   disabled={saving}
                 >
-                  Create & Email Credentials
+                  {saving ? 'Creating Account…' : 'Create & Email Credentials'}
                 </button>
               </div>
             </form>
