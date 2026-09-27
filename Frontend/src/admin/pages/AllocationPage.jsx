@@ -1,7 +1,7 @@
-import { useEffect, useState, useMemo, useCallback } from 'react'
+import { useEffect, useState, useMemo, useCallback, useRef } from 'react'
 import { useNavigate, useLocation, Link } from 'react-router-dom'
 import { 
-  Eye, ArrowRightCircle, Truck, Sparkles, CheckCircle2, X, Plus,
+  Eye, Truck, Sparkles, CheckCircle2, X, Plus,
   Package, Users, Calendar, MapPin, FileText, Banknote, Check, AlertCircle, Trash2, ArrowRight, ExternalLink, RotateCcw
 } from 'lucide-react'
 import { allocationsApi, beneficiariesApi, needsStockApi, assistanceRequestsApi, inventoryApi, adminBadgesApi } from '../../api/resources'
@@ -1102,6 +1102,7 @@ export default function AllocationPage() {
   const [activeRequestLoading, setActiveRequestLoading] = useState(false)
   const [allocationStep, setAllocationStep] = useState(1)
   const [highestAllocationStep, setHighestAllocationStep] = useState(1)
+  const modalRefreshStartedRef = useRef(false)
 
   useEffect(() => {
     const s = document.createElement('style')
@@ -1422,11 +1423,22 @@ export default function AllocationPage() {
 
   // Automatically refresh requests and inventory when opening the Create Allocation modal
   useEffect(() => {
-    if (showCreate) {
-      reloadRequests()
-      reloadInventory()
-      reload()
+    if (!showCreate) {
+      modalRefreshStartedRef.current = false
+      return
     }
+
+    // The reload callbacks can change identity after their data updates. Guard this
+    // effect so a modal opening starts one refresh cycle instead of an endless loop.
+    if (modalRefreshStartedRef.current) return
+    modalRefreshStartedRef.current = true
+
+    // Refresh silently so the page-level ApiState loader cannot cover an open modal.
+    void Promise.allSettled([
+      reloadRequests(true),
+      reloadInventory(true),
+      reload(true),
+    ])
   }, [showCreate, reloadRequests, reloadInventory, reload])
 
   // Auto-sync when window gains focus so newly approved requests appear immediately
