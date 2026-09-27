@@ -87,6 +87,14 @@ function getSkillsForProgram(prog) {
   return ['Logistics / Driving', 'Packing / Repacking', 'First Aid']
 }
 
+function splitCargoLabel(value) {
+  const label = String(value || '').trim()
+  const match = label.match(/^(.*?)\s*[×x]\s*(\d+(?:\.\d+)?(?:\s+[\w/-]+)?)$/i)
+  return match
+    ? { name: match[1].trim(), quantity: match[2].trim() }
+    : { name: label, quantity: '' }
+}
+
 const filterConfig = {
   searchKeys: ['barangay', 'location', 'program', 'coordinator', 'eventName', 'itemsSummary'],
   filters: [
@@ -156,7 +164,7 @@ export default function DistributionsPage() {
   const filters = useFilters(data, filterConfig)
   const { showLoading, hideLoading } = useLoading()
   const [detailRow, setDetailRow] = useState(null)
-  const [detailTab, setDetailTab] = useState('cargo') // 'cargo' | 'logistics' | 'proof' | 'notes'
+  const [detailTab, setDetailTab] = useState('cargo') // 'cargo' | 'logistics' | 'proof'
   const [activePhoto, setActivePhoto] = useState(null)
   const [formTab, setFormTab] = useState('destination') // 'destination' | 'logistics' | 'requirements'
   const [editRow, setEditRow] = useState(null)
@@ -1165,6 +1173,10 @@ export default function DistributionsPage() {
         const isProofSubmitted = detailRow.proofStatus === 'Proof Submitted' || (hasProofs && detailRow.proofStatus !== 'Proof Rejected')
         const normCurrent = DISTRIBUTION_ALIASES[detailRow.status] || detailRow.status || 'Planning'
         const currIdx = WORKFLOW.indexOf(normCurrent)
+        const cargoItems = String(detailRow.itemsSummary || '')
+          .split(/;|\n/)
+          .map((item) => item.trim())
+          .filter(Boolean)
 
         return (
           <div className="admin-modal-overlay" onClick={() => setDetailRow(null)}>
@@ -1223,14 +1235,13 @@ export default function DistributionsPage() {
                       const isDone = currIdx > idx
                       const isActive = currIdx === idx
                       return (
-                        <div
-                          key={step}
-                          className={`dist-mini-step ${isDone ? 'dist-mini-step--done' : ''} ${isActive ? 'dist-mini-step--active' : ''}`}
-                        >
+                        <div className="dist-mini-step-group" key={step}>
+                          <div className={`dist-mini-step ${isDone ? 'dist-mini-step--done' : ''} ${isActive ? 'dist-mini-step--active' : ''}`}>
                           <span className="dist-mini-step__dot">
                             {isDone ? '✓' : idx + 1}
                           </span>
-                          <span className="dist-mini-step__label">{step}</span>
+                            <span className="dist-mini-step__label">{step}</span>
+                          </div>
                           {idx < WORKFLOW.length - 1 && (
                             <span className={`dist-mini-step__line ${isDone ? 'dist-mini-step__line--done' : ''}`} />
                           )}
@@ -1289,23 +1300,17 @@ export default function DistributionsPage() {
                     <span className="dist-tab-badge">✓</span>
                   )}
                 </button>
-                {(detailRow.notes || (detailRow.statusActivity || []).length > 0) && (
-                  <button
-                    type="button"
-                    className={`dist-tab-btn ${detailTab === 'notes' ? 'dist-tab-btn--active' : ''}`}
-                    onClick={() => setDetailTab('notes')}
-                  >
-                    <StickyNote size={14} /> Notes &amp; History
-                  </button>
-                )}
               </div>
 
               {/* Tab Content Body */}
-              <div className="dist-tab-content-body">
+              <div className={`dist-tab-content-body dist-tab-content-body--${detailTab}`}>
                 {detailTab === 'cargo' && (
                   <>
-                    <div className="dist-info-tile">
-                      <span className="dist-info-tile__label">Allocated Cargo / Relief Items</span>
+                    <div className="dist-info-tile dist-cargo-primary">
+                      <div className="dist-cargo-primary__head">
+                        <span className="dist-info-tile__label">Allocated Cargo / Relief Items</span>
+                        <span className="dist-cargo-count">{cargoItems.length} item{cargoItems.length === 1 ? '' : 's'}</span>
+                      </div>
                       <div className="dist-info-tile__value">
                         {detailRow.itemsSummary ? (
                           <div className="dist-tag-list">
@@ -1313,11 +1318,16 @@ export default function DistributionsPage() {
                               .split(/;|\n/)
                               .map((item) => item.trim())
                               .filter(Boolean)
-                              .map((item) => (
-                                <span key={item} className="dist-tag-chip">
-                                  <Package size={12} style={{ color: '#AF101A' }} /> {item}
-                                </span>
-                              ))}
+                              .map((item) => {
+                                const cargo = splitCargoLabel(item)
+                                return (
+                                  <span key={item} className="dist-tag-chip dist-cargo-chip">
+                                    <span className="dist-cargo-chip__icon"><Package size={13} /></span>
+                                    <span className="dist-cargo-chip__name">{cargo.name}</span>
+                                    {cargo.quantity && <strong className="dist-cargo-chip__qty">× {cargo.quantity}</strong>}
+                                  </span>
+                                )
+                              })}
                           </div>
                         ) : (
                           <span style={{ color: '#94a3b8' }}>No items specified</span>
@@ -1325,8 +1335,8 @@ export default function DistributionsPage() {
                       </div>
                     </div>
 
-                    <div className="dist-info-grid-2">
-                      <div className="dist-info-tile">
+                    <div className="dist-info-grid-2 dist-cargo-context-grid">
+                      <div className="dist-info-tile dist-context-tile dist-context-tile--request">
                         <span className="dist-info-tile__label">Linked Relief Request</span>
                         <div className="dist-info-tile__value">
                           {detailRow.request?.id || detailRow.requestId ? (
@@ -1337,11 +1347,6 @@ export default function DistributionsPage() {
                               {detailRow.request?.type && (
                                 <small style={{ color: '#64748b' }}>· {detailRow.request.type}</small>
                               )}
-                              {detailRow.request?.notes && (
-                                <small style={{ display: 'block', width: '100%', color: '#64748b', marginTop: '0.2rem' }}>
-                                  "{detailRow.request.notes}"
-                                </small>
-                              )}
                             </div>
                           ) : (
                             <span style={{ color: '#94a3b8' }}>Manual Delivery (No linked request)</span>
@@ -1349,7 +1354,7 @@ export default function DistributionsPage() {
                         </div>
                       </div>
 
-                      <div className="dist-info-tile">
+                      <div className="dist-info-tile dist-context-tile">
                         <span className="dist-info-tile__label">Target Beneficiaries</span>
                         <div className="dist-info-tile__value">
                           <strong style={{ fontSize: '1rem', color: '#0f172a' }}>
@@ -1360,8 +1365,8 @@ export default function DistributionsPage() {
                       </div>
                     </div>
 
-                    <div className="dist-info-grid-2">
-                      <div className="dist-info-tile">
+                    <div className="dist-info-grid-2 dist-cargo-context-grid">
+                      <div className="dist-info-tile dist-context-tile">
                         <span className="dist-info-tile__label">Drop-off Location / Address</span>
                         <div className="dist-info-tile__value" style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
                           <MapPin size={13} style={{ color: '#AF101A' }} />
@@ -1369,7 +1374,7 @@ export default function DistributionsPage() {
                         </div>
                       </div>
 
-                      <div className="dist-info-tile">
+                      <div className="dist-info-tile dist-context-tile">
                         <span className="dist-info-tile__label">Assigned Program</span>
                         <div className="dist-info-tile__value" style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
                           <ClipboardList size={13} style={{ color: '#AF101A' }} />
@@ -1379,7 +1384,7 @@ export default function DistributionsPage() {
                     </div>
 
                     {(detailRow.allocations || []).length > 0 && (
-                      <div className="dist-info-tile">
+                      <div className="dist-info-tile dist-allocation-source-tile">
                         <span className="dist-info-tile__label">Source Allocation Batches</span>
                         <div className="dist-tag-list">
                           {detailRow.allocations.map((a) => (
@@ -1613,41 +1618,6 @@ export default function DistributionsPage() {
                   </>
                 )}
 
-                {detailTab === 'notes' && (
-                  <>
-                    {detailRow.notes && (
-                      <div className="dist-info-tile">
-                        <span className="dist-info-tile__label">Logistics Notes</span>
-                        <p style={{ margin: 0, fontSize: '0.86rem', color: '#334155', lineHeight: 1.45, whiteSpace: 'pre-wrap' }}>
-                          {detailRow.notes}
-                        </p>
-                      </div>
-                    )}
-
-                    {(detailRow.statusActivity || []).length > 0 && (
-                      <div className="dist-info-tile">
-                        <span className="dist-info-tile__label">Status Activity Log</span>
-                        <ul style={{ listStyle: 'none', margin: '0.3rem 0 0', padding: 0 }}>
-                          {detailRow.statusActivity.map((evt, idx) => (
-                            <li
-                              key={`${evt.atRaw || evt.at}-${idx}`}
-                              style={{
-                                padding: '0.35rem 0',
-                                borderBottom: idx < detailRow.statusActivity.length - 1 ? '1px solid #e2e8f0' : 'none',
-                              }}
-                            >
-                              <strong style={{ display: 'block', fontSize: '0.82rem', color: '#0f172a' }}>{evt.title}</strong>
-                              <span style={{ color: '#64748b', fontSize: '0.78rem' }}>{evt.message}</span>
-                              {evt.at && (
-                                <small style={{ display: 'block', color: '#94a3b8', fontSize: '0.72rem' }}>{evt.at}</small>
-                              )}
-                            </li>
-                          ))}
-                        </ul>
-                      </div>
-                    )}
-                  </>
-                )}
               </div>
 
               {/* Fixed Bottom Actions Footer */}

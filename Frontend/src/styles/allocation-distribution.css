@@ -1200,9 +1200,21 @@
 .dist-mini-stepper {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: stretch;
   position: relative;
   padding: 0.15rem 0;
+  width: 100%;
+}
+
+.dist-mini-step-group {
+  display: flex;
+  align-items: center;
+  flex: 1 1 0;
+  min-width: 0;
+}
+
+.dist-mini-step-group:last-child {
+  flex: 0 0 auto;
 }
 
 .dist-mini-step {
@@ -1211,6 +1223,7 @@
   gap: 0.35rem;
   position: relative;
   z-index: 1;
+  flex: 0 0 auto;
 }
 
 .dist-mini-step__dot {
@@ -1259,13 +1272,32 @@
 
 .dist-mini-step__line {
   flex: 1;
-  height: 2px;
-  background: #e2e8f0;
-  margin: 0 0.4rem;
+  min-width: 1rem;
+  height: 3px;
+  background: #dbe3ed;
+  margin: 0 0.55rem;
+  border-radius: 999px;
+  position: relative;
+}
+
+.dist-mini-step__line::after {
+  content: '';
+  position: absolute;
+  right: -1px;
+  top: 50%;
+  width: 6px;
+  height: 6px;
+  border-top: 2px solid #94a3b8;
+  border-right: 2px solid #94a3b8;
+  transform: translateY(-50%) rotate(45deg);
 }
 
 .dist-mini-step__line--done {
   background: #86efac;
+}
+
+.dist-mini-step__line--done::after {
+  border-color: #22c55e;
 }
 
 .dist-stepper-status-line {
@@ -1713,6 +1745,122 @@
   color: #334155;
 }
 
+/* Cargo & Request tab: compact manifest with grouped delivery context */
+.dist-tab-content-body--cargo {
+  gap: 0.65rem;
+  background: #f8fafc;
+}
+
+.dist-cargo-primary {
+  padding: 0.85rem 0.95rem;
+  background: #ffffff;
+  border-left: 3px solid #AF101A;
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.04);
+}
+
+.dist-cargo-primary__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.dist-cargo-count {
+  flex-shrink: 0;
+  padding: 0.18rem 0.5rem;
+  border-radius: 999px;
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  color: #AF101A;
+  font-size: 0.68rem;
+  font-weight: 700;
+}
+
+.dist-cargo-primary .dist-tag-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  gap: 0.45rem;
+  margin-top: 0.5rem;
+}
+
+.dist-cargo-chip {
+  min-width: 0;
+  padding: 0.5rem 0.6rem;
+  border-color: #fecaca;
+  border-radius: 8px;
+  background: #fffafa;
+}
+
+.dist-cargo-chip__icon {
+  width: 28px;
+  height: 28px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  border-radius: 7px;
+  background: #ffffff;
+  border: 1px solid #fee2e2;
+  color: #AF101A;
+}
+
+.dist-cargo-chip__name {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  line-height: 1.35;
+}
+
+.dist-cargo-chip__qty {
+  margin-left: auto;
+  flex-shrink: 0;
+  padding: 0.16rem 0.45rem;
+  border-radius: 6px;
+  background: #AF101A;
+  color: #ffffff;
+  font-size: 0.72rem;
+  font-weight: 700;
+}
+
+.dist-cargo-context-grid {
+  gap: 0;
+  overflow: hidden;
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+}
+
+.dist-cargo-context-grid .dist-context-tile {
+  min-width: 0;
+  padding: 0.7rem 0.85rem;
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+}
+
+.dist-cargo-context-grid .dist-context-tile + .dist-context-tile {
+  border-left: 1px solid #e2e8f0;
+}
+
+.dist-context-tile--request .dist-info-tile__value > div {
+  min-height: 1.7rem;
+}
+
+.dist-allocation-source-tile {
+  padding: 0.65rem 0.85rem;
+  background: #ffffff;
+  border-style: dashed;
+}
+
+.dist-allocation-source-tile .dist-tag-list {
+  margin-top: 0.35rem;
+}
+
+.dist-allocation-source-tile .dist-tag-chip {
+  border-color: #e2e8f0;
+  background: #f8fafc;
+}
+
 .dist-stat-strip {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
@@ -1856,6 +2004,25 @@
   }
   .dist-mini-step__label {
     display: none;
+  }
+  .dist-mini-step__line {
+    margin: 0 0.35rem;
+  }
+  .dist-cargo-primary .dist-tag-list {
+    grid-template-columns: 1fr;
+  }
+  .dist-cargo-context-grid .dist-context-tile + .dist-context-tile {
+    border-left: 0;
+    border-top: 1px solid #e2e8f0;
+  }
+  .dist-modal-footer {
+    align-items: stretch;
+    flex-wrap: wrap;
+  }
+  .dist-modal-footer .admin-modal__actions-group {
+    margin-left: auto;
+    flex-wrap: wrap;
+    justify-content: flex-end;
   }
 }
 
