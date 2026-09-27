@@ -103,6 +103,25 @@ function showVerifyResultModal(res, status) {
   notify.warning(`Status successfully updated to: ${status}. Donor portal account was created, but the credential email was NOT delivered.`)
 }
 
+function getMonetaryRemainingBalance(donation) {
+  if (!donation || donation.type !== 'Monetary') return 0
+  const total = Number(donation.amountRaw || 0)
+  const utilized = Number(donation.totalUtilized || 0)
+  const remaining = Number(donation.remainingBalance ?? (total - utilized))
+  return Number.isFinite(remaining) ? Math.max(0, remaining) : 0
+}
+
+function canAllocateMonetaryDonation(donation) {
+  return donation?.type === 'Monetary'
+    && ['Verified', 'Partially Allocated'].includes(donation.status)
+    && getMonetaryRemainingBalance(donation) > 0.009
+}
+
+function isMonetaryDonationFullyAllocated(donation) {
+  return donation?.type === 'Monetary'
+    && (donation.status === 'Allocated' || getMonetaryRemainingBalance(donation) <= 0.009)
+}
+
 export default function DonationsPage() {
   const [searchParams, setSearchParams] = useSearchParams()
   const activeSection = (searchParams.get('tab') || '').toLowerCase() === 'monetary' || (searchParams.get('type') || '').toLowerCase() === 'monetary' ? 'monetary' : 'in-kind'
@@ -1393,7 +1412,7 @@ export default function DonationsPage() {
                         </button>
                       </>
                     ) : (
-                      selected.type === 'Monetary' && !['Rejected', 'Cancelled'].includes(selected.status) ? (
+                      canAllocateMonetaryDonation(selected) ? (
                         <button
                           type="button"
                           className="btn btn--primary"
@@ -1403,7 +1422,7 @@ export default function DonationsPage() {
                         </button>
                       ) : (
                         <div className="donation-actions-complete">
-                          <CheckCircle2 size={16} /> Verification & Intake Completed
+                          <CheckCircle2 size={16} /> {isMonetaryDonationFullyAllocated(selected) ? 'Funds Fully Allocated' : 'Verification & Intake Completed'}
                         </div>
                       )
                     )}
@@ -1481,14 +1500,16 @@ export default function DonationsPage() {
                       <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.82rem', fontWeight: 600, color: '#1e293b' }}>
                         <Coins size={14} color="#AF101A" /> Recorded Allocations & Purchases ({selected.procurements.length})
                       </div>
-                      <button
-                        type="button"
-                        className="btn btn--outline btn--sm"
-                        style={{ padding: '0.2rem 0.5rem', fontSize: '0.74rem' }}
-                        onClick={() => setProcuringDonation(selected)}
-                      >
-                        <ShoppingCart size={12} /> New Allocation
-                      </button>
+                      {canAllocateMonetaryDonation(selected) && (
+                        <button
+                          type="button"
+                          className="btn btn--outline btn--sm"
+                          style={{ padding: '0.2rem 0.5rem', fontSize: '0.74rem' }}
+                          onClick={() => setProcuringDonation(selected)}
+                        >
+                          <ShoppingCart size={12} /> New Allocation
+                        </button>
+                      )}
                     </div>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
                       {selected.procurements.slice(0, 3).map((proc, idx) => (
