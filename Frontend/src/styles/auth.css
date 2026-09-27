@@ -123,6 +123,15 @@
   margin-bottom: 0;
 }
 
+.invite-form .auth-form__row--split {
+  align-items: start;
+}
+
+.invite-form .auth-form__row--split > label {
+  width: 100%;
+  min-width: 0;
+}
+
 .invite-form__consent {
   display: flex !important;
   flex-direction: row !important;

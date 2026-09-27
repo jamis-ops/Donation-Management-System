@@ -5868,6 +5868,15 @@ optgroup {
   flex-direction: column;
   gap: 0.3rem;
   width: 100%;
+  margin-top: 0;
+}
+
+label > .phone-input {
+  margin-top: 0.25rem;
+}
+
+.staff-form-field > .phone-input {
+  margin-top: 0;
 }
 
 .phone-input__field-group {
@@ -5878,6 +5887,8 @@ optgroup {
 }
 
 .phone-input input {
+  flex: 1 1 0;
+  min-width: 0;
   width: 100%;
   letter-spacing: 0.02em;
   font-variant-numeric: tabular-nums;
@@ -5886,13 +5897,14 @@ optgroup {
 .phone-input--international .phone-input__field-group input {
   border-top-left-radius: 0 !important;
   border-bottom-left-radius: 0 !important;
-  border-left: 1px solid #cbd5e1;
+  border-left: 1.5px solid #cbd5e1;
 }
 
 .phone-input__country-select-wrap {
   position: relative;
   display: flex;
-  align-items: center;
+  align-items: stretch;
+  align-self: stretch;
   flex-shrink: 0;
 }
 
@@ -5905,6 +5917,9 @@ optgroup {
   cursor: pointer;
   z-index: 2;
   font-size: 1rem;
+  margin: 0 !important;
+  padding: 0 !important;
+  border: 0 !important;
 }
 
 .phone-input__country-display {
@@ -5913,10 +5928,11 @@ optgroup {
   gap: 0.35rem;
   padding: 0 0.65rem 0 0.75rem;
   background: #f8fafc;
-  border: 1px solid #cbd5e1;
+  height: 100%;
+  box-sizing: border-box;
+  border: 1.5px solid #cbd5e1;
   border-right: none;
-  border-top-left-radius: 6px;
-  border-bottom-left-radius: 6px;
+  border-radius: 9px 0 0 9px;
   color: #334155;
   font-size: 0.875rem;
   font-weight: 500;
