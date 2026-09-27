@@ -909,12 +909,18 @@
 .cert-section-card label {
   display: flex !important;
   flex-direction: column !important;
-  gap: 0.3rem !important;
+  gap: 0.2rem !important;
   font-size: 0.78rem !important;
   font-weight: 600 !important;
   color: #334155 !important;
   margin: 0 !important;
   width: 100% !important;
+}
+
+.cert-section-card .cert-field-label {
+  display: block !important;
+  margin: 0 !important;
+  line-height: 1.2 !important;
 }
 
 .cert-section-card label input,
