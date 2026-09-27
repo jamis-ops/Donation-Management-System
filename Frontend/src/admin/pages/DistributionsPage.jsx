@@ -113,11 +113,20 @@ const emptyForm = {
 function formFromAllocations(allocs, barangays) {
   if (!allocs?.length) return null
   const first = allocs[0]
-  const ben = barangays.find((b) => Number(b.dbId) === Number(first.beneficiaryId))
+  const ben = (barangays || []).find((b) => Number(b.dbId || b.id) === Number(first.beneficiaryId))
   const location = ben?.barangay || ben?.name || first.beneficiary || first.beneficiaryName || ''
   const itemsSummary = allocs.map((a) => `${a.resource || a.resourceName || a.resource_name || 'Relief Goods'} × ${a.quantity || 1}`).join('; ')
   const program = allocs.find((a) => a.program)?.program || ''
-  const families = first.affectedFamilies || ben?.affectedFamilies || ''
+  let families = first.affectedFamilies || first.affected_families || ben?.affectedFamilies || ben?.affected_families || ''
+  if (!families) {
+    for (const a of allocs) {
+      const fam = a.affectedFamilies || a.affected_families
+      if (fam) {
+        families = fam
+        break
+      }
+    }
+  }
   return {
     ...emptyForm,
     eventName: location ? `Delivery — ${location}` : '',
@@ -670,7 +679,9 @@ export default function DistributionsPage() {
       program: row.program || '',
       distributionDate: row.distributionDate || (row.date && row.date !== '—' ? row.date : '') || '',
       scheduleTime: row.scheduleTime || '',
-      beneficiaries: row.beneficiaries || '',
+      beneficiaries: (row.beneficiaries && String(row.beneficiaries) !== '0')
+        ? String(row.beneficiaries)
+        : (row.request?.affectedFamilies ? String(row.request.affectedFamilies) : ''),
       volunteers: row.volunteers || (parsedVolunteers.length ? String(parsedVolunteers.length) : ''),
       vehicles: row.vehicles || (row.type === 'Delivery' ? '1' : ''),
       distanceKm: '',
@@ -1178,6 +1189,27 @@ export default function DistributionsPage() {
           .map((item) => item.trim())
           .filter(Boolean)
 
+        const matchedBrgy = (barangays || []).find((b) => Number(b.dbId || b.id) === Number(detailRow.beneficiaryId)
+          || (b.barangay && b.barangay.toLowerCase() === String(detailRow.barangay || detailRow.location || '').toLowerCase())
+          || (b.name && b.name.toLowerCase() === String(detailRow.barangay || detailRow.location || '').toLowerCase()))
+
+        let targetBeneficiariesCount = Number(detailRow.beneficiaries || detailRow.beneficiariesCount || detailRow.affectedFamilies || 0)
+        if (!targetBeneficiariesCount) {
+          targetBeneficiariesCount = Number(detailRow.request?.affectedFamilies || detailRow.request?.affected_families || 0)
+        }
+        if (!targetBeneficiariesCount && Array.isArray(detailRow.allocations)) {
+          for (const a of detailRow.allocations) {
+            const aFam = Number(a.affectedFamilies || a.affected_families || 0)
+            if (aFam > 0) {
+              targetBeneficiariesCount = aFam
+              break
+            }
+          }
+        }
+        if (!targetBeneficiariesCount && matchedBrgy) {
+          targetBeneficiariesCount = Number(matchedBrgy.affectedFamilies || matchedBrgy.affected_families || 0)
+        }
+
         return (
           <div className="admin-modal-overlay" onClick={() => setDetailRow(null)}>
             <div className="admin-modal dist-detail-modal" onClick={(e) => e.stopPropagation()}>
@@ -1198,10 +1230,10 @@ export default function DistributionsPage() {
                         .filter((v, i, arr) => arr.indexOf(v) === i)
                         .join(' · ') || '—'}
                     </span>
-                    {(detailRow.beneficiaries != null && detailRow.beneficiaries !== '') && (
+                    {targetBeneficiariesCount > 0 && (
                       <span className="dist-overview-chip" title="Target Beneficiaries">
                         <Users size={14} />
-                        {detailRow.beneficiaries} Families
+                        {targetBeneficiariesCount} {targetBeneficiariesCount === 1 ? 'Family' : 'Families'}
                       </span>
                     )}
                     {(detailRow.request?.id || detailRow.requestId) && (
@@ -1358,9 +1390,11 @@ export default function DistributionsPage() {
                         <span className="dist-info-tile__label">Target Beneficiaries</span>
                         <div className="dist-info-tile__value">
                           <strong style={{ fontSize: '1rem', color: '#0f172a' }}>
-                            {detailRow.beneficiaries ?? '—'}
+                            {targetBeneficiariesCount > 0 ? targetBeneficiariesCount : (detailRow.beneficiaries && detailRow.beneficiaries !== 0 ? detailRow.beneficiaries : '—')}
                           </strong>{' '}
-                          <span style={{ color: '#64748b', fontSize: '0.84rem' }}>Families / Recipients</span>
+                          <span style={{ color: '#64748b', fontSize: '0.84rem' }}>
+                            {targetBeneficiariesCount === 1 ? 'Family / Recipient' : 'Families / Recipients'}
+                          </span>
                         </div>
                       </div>
                     </div>
@@ -1871,7 +1905,7 @@ export default function DistributionsPage() {
                               beneficiaryId: id,
                               location: prev.location || brgy?.barangay || brgy?.name || '',
                               eventName: prev.eventName || (brgy ? `Delivery — ${brgy.barangay || brgy.name}` : ''),
-                              beneficiaries: prev.beneficiaries || String(brgy?.affectedFamilies || ''),
+                              beneficiaries: (!prev.beneficiaries || prev.beneficiaries === '0') ? String(brgy?.affectedFamilies || '') : prev.beneficiaries,
                               allocationIds: allocIds.length ? allocIds : prev.allocationIds,
                               itemsSummary: items || prev.itemsSummary,
                               program: prog || prev.program,

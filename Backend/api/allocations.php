@@ -99,13 +99,16 @@ function map_allocation(PDO $pdo, array $row): array
   $assistanceRequestStatus = null;
   if ($assistanceRequestId) {
     try {
-      $ar = $pdo->prepare('SELECT reference_code, assistance_type, status FROM assistance_requests WHERE id = ? LIMIT 1');
+      $ar = $pdo->prepare('SELECT reference_code, assistance_type, status, affected_families FROM assistance_requests WHERE id = ? LIMIT 1');
       $ar->execute([$assistanceRequestId]);
       $arRow = $ar->fetch();
       if ($arRow) {
         $assistanceRequestCode = $arRow['reference_code'] ?? null;
         $assistanceRequestType = $arRow['assistance_type'] ?? null;
         $assistanceRequestStatus = $arRow['status'] ?? null;
+        if ($affectedFamilies <= 0 && !empty($arRow['affected_families'])) {
+          $affectedFamilies = (int) $arRow['affected_families'];
+        }
       }
     } catch (Throwable $e) {
       // older schemas may differ
@@ -190,6 +193,16 @@ function auto_create_distribution_draft(PDO $pdo, array $allocation): ?int
 
   // Determine request_id from linked assistance request
   $requestId = !empty($allocation['assistance_request_id']) ? (int) $allocation['assistance_request_id'] : null;
+  if ($beneficiariesCount <= 0 && $requestId) {
+    try {
+      $arStmt = $pdo->prepare('SELECT affected_families FROM assistance_requests WHERE id = ?');
+      $arStmt->execute([$requestId]);
+      $arFam = (int) $arStmt->fetchColumn();
+      if ($arFam > 0) {
+        $beneficiariesCount = $arFam;
+      }
+    } catch (Throwable $e) {}
+  }
 
   $stmt = $pdo->prepare('INSERT INTO distributions (code, event_name, location, beneficiary_id, program, beneficiaries_count, status, distribution_type, items_summary, notes, proof_status, request_id, source_allocation_ids) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)');
   $stmt->execute([

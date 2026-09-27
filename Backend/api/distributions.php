@@ -11,12 +11,14 @@ function map_distribution(PDO $pdo, array $row): array
 {
   $barangay = '';
   $barangayMunicipality = '';
+  $benAffectedFamilies = 0;
   if (!empty($row['beneficiary_id'])) {
     $b = $pdo->prepare('SELECT full_name, affected_families, municipality FROM beneficiaries WHERE id = ?');
     $b->execute([$row['beneficiary_id']]);
     $ben = $b->fetch();
     if ($ben) {
-      $barangay = $ben['full_name'] . ' (' . $ben['affected_families'] . ' families)';
+      $benAffectedFamilies = (int) ($ben['affected_families'] ?? 0);
+      $barangay = $ben['full_name'] . ($benAffectedFamilies > 0 ? ' (' . $benAffectedFamilies . ' families)' : '');
       $barangayMunicipality = $ben['municipality'] ?? '';
     }
   }
@@ -51,6 +53,7 @@ function map_distribution(PDO $pdo, array $row): array
   // Linked request urgency + details
   $requestPriority = null;
   $requestInfo = null;
+  $reqAffectedFamilies = 0;
   $requestId = !empty($row['request_id']) ? (int) $row['request_id'] : null;
 
   // Fallback: resolve via linked allocation if distribution.request_id is empty
@@ -73,12 +76,13 @@ function map_distribution(PDO $pdo, array $row): array
 
   if ($requestId) {
     $rp = $pdo->prepare(
-      'SELECT id, reference_code, assistance_type, status, priority, notes, request_date
+      'SELECT id, reference_code, assistance_type, status, priority, notes, request_date, affected_families
        FROM assistance_requests WHERE id = ? LIMIT 1'
     );
     $rp->execute([$requestId]);
     $reqRow = $rp->fetch();
     if ($reqRow) {
+      $reqAffectedFamilies = (int) ($reqRow['affected_families'] ?? 0);
       $requestPriority = $reqRow['priority'] ?: null;
       $requestInfo = [
         'dbId' => (int) $reqRow['id'],
@@ -87,9 +91,50 @@ function map_distribution(PDO $pdo, array $row): array
         'status' => $reqRow['status'],
         'priority' => $reqRow['priority'],
         'notes' => $reqRow['notes'] ?? '',
+        'affectedFamilies' => $reqAffectedFamilies,
         'date' => format_date($reqRow['request_date'] ?? null),
         'requestDate' => $reqRow['request_date'] ?? null,
       ];
+    }
+  }
+
+  // Ensure beneficiaries_count resolves to the true affected families count
+  $beneficiariesCount = (int) ($row['beneficiaries_count'] ?? 0);
+  if ($beneficiariesCount <= 0) {
+    if ($reqAffectedFamilies > 0) {
+      $beneficiariesCount = $reqAffectedFamilies;
+    } elseif ($benAffectedFamilies > 0) {
+      $beneficiariesCount = $benAffectedFamilies;
+    } else {
+      // Check linked allocations for assistance request or beneficiary affected families
+      foreach ($linkedAllocs as $la) {
+        if (!empty($la['dbId'])) {
+          try {
+            $laStmt = $pdo->prepare('SELECT ar.affected_families as req_fam, b.affected_families as ben_fam 
+              FROM allocations a
+              LEFT JOIN assistance_requests ar ON ar.id = a.assistance_request_id
+              LEFT JOIN beneficiaries b ON b.id = a.beneficiary_id
+              WHERE a.id = ? LIMIT 1');
+            $laStmt->execute([$la['dbId']]);
+            $laRow = $laStmt->fetch();
+            if (!empty($laRow['req_fam']) && (int) $laRow['req_fam'] > 0) {
+              $beneficiariesCount = (int) $laRow['req_fam'];
+              break;
+            }
+            if (!empty($laRow['ben_fam']) && (int) $laRow['ben_fam'] > 0) {
+              $beneficiariesCount = (int) $laRow['ben_fam'];
+              break;
+            }
+          } catch (Throwable $e) {}
+        }
+      }
+    }
+    // Backfill distributions table if resolved
+    if ($beneficiariesCount > 0 && !empty($row['id'])) {
+      try {
+        $pdo->prepare('UPDATE distributions SET beneficiaries_count = ? WHERE id = ? AND (beneficiaries_count IS NULL OR beneficiaries_count = 0)')
+          ->execute([$beneficiariesCount, (int) $row['id']]);
+      } catch (Throwable $e) {}
     }
   }
 
@@ -221,7 +266,9 @@ function map_distribution(PDO $pdo, array $row): array
     'date' => format_date($row['distribution_date']),
     'distributionDate' => $row['distribution_date'],
     'scheduleTime' => $row['schedule_time'] ?? '',
-    'beneficiaries' => (int) $row['beneficiaries_count'],
+    'beneficiaries' => $beneficiariesCount,
+    'beneficiariesCount' => $beneficiariesCount,
+    'affectedFamilies' => $beneficiariesCount,
     'volunteers' => (int) $row['volunteers_count'],
     'vehicles' => (int) $row['vehicles_count'],
     'distanceKm' => isset($row['distance_km']) && $row['distance_km'] !== null ? (float) $row['distance_km'] : null,
@@ -236,7 +283,7 @@ function map_distribution(PDO $pdo, array $row): array
     'type' => $row['distribution_type'],
     'itemsSummary' => $finalItemsSummary,
     'items' => $finalItemsSummary,
-    'quantity' => isset($row['beneficiaries_count']) ? (int) $row['beneficiaries_count'] : null,
+    'quantity' => $beneficiariesCount,
     'coordinator' => $row['coordinator'] ?? '',
     'notes' => $row['notes'] ?? '',
     'allocations' => $linkedAllocs,
@@ -758,6 +805,18 @@ if ($method === 'POST' && !empty($body['action']) && $body['action'] === 'group'
   $ben = $benInfo->fetch();
   $barangayName = $ben ? $ben['full_name'] : 'Unknown';
 
+  $beneficiariesCount = (int) ($ben['affected_families'] ?? 0);
+  if ($beneficiariesCount <= 0 && !empty($mergedRequestIds)) {
+    try {
+      $arStmt = $pdo->prepare('SELECT affected_families FROM assistance_requests WHERE id = ?');
+      $arStmt->execute([$mergedRequestIds[0]]);
+      $arFam = (int) $arStmt->fetchColumn();
+      if ($arFam > 0) {
+        $beneficiariesCount = $arFam;
+      }
+    } catch (Throwable $e) {}
+  }
+
   $code = generate_code('DST');
   $stmt = $pdo->prepare('INSERT INTO distributions (code, event_name, location, beneficiary_id, program, beneficiaries_count, status, distribution_type, items_summary, notes, proof_status, request_id, source_allocation_ids) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)');
   $stmt->execute([
@@ -766,7 +825,7 @@ if ($method === 'POST' && !empty($body['action']) && $body['action'] === 'group'
     $ben['barangay'] ?? $barangayName,
     $benIds[0],
     implode(', ', array_unique($mergedPrograms)) ?: null,
-    (int) ($ben['affected_families'] ?? 0),
+    $beneficiariesCount,
     'Planning',
     'Delivery',
     implode('; ', $mergedItems) ?: null,
@@ -907,6 +966,9 @@ if ($method === 'POST') {
     $linkedRequest = $requestStmt->fetch(PDO::FETCH_ASSOC);
     if (!$linkedRequest) {
       json_response(['ok' => false, 'error' => 'Linked relief request was not found.'], 404);
+    }
+    if ($beneficiariesCount <= 0 && !empty($linkedRequest['affected_families'])) {
+      $beneficiariesCount = (int) $linkedRequest['affected_families'];
     }
     ensure_procurement_table($pdo);
     $fundingStmt = $pdo->prepare('SELECT COUNT(*) FROM donation_procurements WHERE assistance_request_id = ?');
