@@ -5,8 +5,8 @@ export default function InventoryPage() {
   return (
     <>
       <PageHeader
-        title="Inventory & Repacking"
-        description="Track stock levels with color indicators (green = sufficient, yellow = moderate, red = low), manage items, and run repacking batches that update inventory automatically."
+        title="Inventory"
+        description="Track stock levels with color indicators (green = sufficient, yellow = moderate, red = low) and manage inventory items."
       />
       <InventoryManagement />
     </>

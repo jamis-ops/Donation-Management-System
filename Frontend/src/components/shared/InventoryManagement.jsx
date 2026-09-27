@@ -67,10 +67,10 @@ const emptyBatchForm = {
 }
 
 export default function InventoryManagement() {
-  const [tab, setTab] = useState('inventory')
+  const tab = 'inventory'
   const { showLoading, hideLoading } = useLoading()
   const [invSummary, setInvSummary] = useState(null)
-  const [rpkSummary, setRpkSummary] = useState(null)
+  const [rpkSummary] = useState(null)
 
   const [itemModal, setItemModal] = useState(null)   // null | 'create' | row
   const [itemForm, setItemForm] = useState(emptyItemForm)
@@ -97,9 +97,7 @@ export default function InventoryManagement() {
   }, [])
 
   const fetchRepacking = useCallback(async () => {
-    const res = await repackingApi.list()
-    setRpkSummary(res.summary || null)
-    return res
+    return { data: [], summary: null }
   }, [])
 
   const { data: items, loading, error, reload } = useApiList(fetchInventory)
@@ -126,6 +124,8 @@ export default function InventoryManagement() {
 
   // Load staff and volunteers for assignment dropdown
   useEffect(() => {
+    if (tab !== 'repacking') return
+
     const loadTeam = async () => {
       setLoadingTeam(true)
       try {
@@ -144,7 +144,7 @@ export default function InventoryManagement() {
       }
     }
     loadTeam()
-  }, [])
+  }, [tab])
 
   /* ---------- Inventory handlers ---------- */
 
@@ -539,15 +539,6 @@ export default function InventoryManagement() {
 
   return (
     <>
-      <div className="admin-tabs">
-        <button type="button" className={`admin-tab${tab === 'inventory' ? ' admin-tab--active' : ''}`} onClick={() => setTab('inventory')}>
-          <Package size={14} /> Inventory
-        </button>
-        <button type="button" className={`admin-tab${tab === 'repacking' ? ' admin-tab--active' : ''}`} onClick={() => setTab('repacking')}>
-          <PackagePlus size={14} /> Repacking
-        </button>
-      </div>
-
       {tab === 'inventory' && (
         <>
           {invSummary && (

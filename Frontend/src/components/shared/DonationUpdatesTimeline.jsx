@@ -7,7 +7,6 @@ import { useLoading } from '../../context/LoadingContext'
 const FALLBACK_STAGES = [
   'Donation Received',
   'Sorted',
-  'Repacked',
   'Scheduled for Distribution',
   'In Transit',
   'Delivered',

@@ -175,7 +175,6 @@ const lifecycle = [
   'Tracking Code Generated',
   'Donation Verification',
   'Inventory Recording',
-  'Repacking (if needed)',
   'Resource Allocation',
   'Distribution Planning',
   'Distribution to Beneficiaries',

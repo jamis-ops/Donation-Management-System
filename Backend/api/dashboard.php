@@ -22,8 +22,7 @@ $familiesAffected = (int) $pdo->query("SELECT COALESCE(SUM(affected_families), 0
 $cashTotal = (float) $pdo->query("SELECT COALESCE(SUM(amount), 0) FROM donations WHERE type = 'Monetary'")->fetchColumn();
 $inKindCount = (int) $pdo->query("SELECT COUNT(*) FROM donations WHERE type = 'In-Kind'")->fetchColumn();
 
-// Repacked inventory available + deliveries currently in transit
-$repackedAvailable = (int) $pdo->query("SELECT COALESCE(SUM(quantity), 0) FROM repacking_jobs WHERE status = 'Completed'")->fetchColumn();
+// Deliveries currently in transit
 $inTransit = (int) $pdo->query("SELECT COUNT(*) FROM distributions WHERE status = 'In Transit'")->fetchColumn();
 
 // Monthly donation trend (last 6 months, missing months filled with zeros)
@@ -146,7 +145,6 @@ json_response([
       ['label' => 'Total Cash Donations', 'value' => '₱' . number_format($cashTotal, 0), 'change' => "{$inKindCount} in-kind gifts", 'trend' => 'up'],
       ['label' => 'Active Beneficiaries', 'value' => number_format($beneficiaryCount), 'change' => "+{$pendingBeneficiaries} pending", 'trend' => 'up'],
       ['label' => 'Items in Inventory', 'value' => number_format($inventoryQty), 'change' => "{$lowStock} low stock", 'trend' => $lowStock > 0 ? 'warn' : 'up'],
-      ['label' => 'Repacked Inventory', 'value' => number_format($repackedAvailable), 'change' => 'packs available', 'trend' => 'up'],
       ['label' => 'Active Deliveries', 'value' => (string) $activeDeliveries, 'change' => "{$inTransit} in transit", 'trend' => 'up'],
       ['label' => 'Beneficiaries Served', 'value' => number_format($beneficiariesServed), 'change' => number_format($familiesAffected) . ' families covered', 'trend' => 'up'],
     ],

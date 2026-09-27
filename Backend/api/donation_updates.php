@@ -14,7 +14,6 @@ $method = request_method();
 const DONATION_UPDATE_STAGES = [
   'Donation Received',
   'Sorted',
-  'Repacked',
   'Scheduled for Distribution',
   'In Transit',
   'Delivered',
@@ -65,7 +64,7 @@ function resolve_donation_progress_status(PDO $pdo, array $donation, array $upda
     return match (strtolower(trim($value))) {
       'submitted', 'pending', 'pending verification', 'donation received' => 0,
       'verified', 'verified & acknowledged', 'under review', 'sorted' => 1,
-      'in inventory', 'in stock', 'repacked', 'repacking' => 2,
+      'in inventory', 'in stock', 'repacked', 'repacking',
       'partially allocated', 'allocated', 'reserved', 'assigned' => 3,
       'planning', 'preparing', 'in distribution', 'scheduled', 'scheduled for distribution',
       'in transit', 'out for delivery' => 4,
@@ -176,7 +175,6 @@ if ($method === 'POST') {
   $statusMap = [
     'Donation Received' => 'Pending Verification',
     'Sorted' => 'Verified',
-    'Repacked' => 'Verified',
     'Scheduled for Distribution' => 'Allocated',
     'In Transit' => 'Distributed',
     'Delivered' => 'Completed',
@@ -223,7 +221,7 @@ if ($method === 'POST') {
       $donorUserId
     );
   }
-  // Email only for high-value stages (Sorted/Repacked/In Transit/Delivered).
+  // Email only for high-value lifecycle stages.
   if (
     lifecycle_mail_allowed('donation_stage', $stage)
     && $donorEmail !== ''

@@ -19,17 +19,10 @@ const WORKFLOW_STAGES = [
     description: 'Our team is verifying your donation details',
   },
   {
-    key: 'repacking',
-    label: 'Repacking',
-    icon: Package,
-    statuses: ['In Inventory', 'In Stock', 'Repacked', 'Repacking'],
-    description: 'Items are being organized and prepared for distribution',
-  },
-  {
     key: 'allocation',
     label: 'Allocation',
     icon: MapPin,
-    statuses: ['Partially Allocated', 'Allocated', 'Reserved', 'Assigned'],
+    statuses: ['In Inventory', 'In Stock', 'Repacked', 'Repacking', 'Partially Allocated', 'Allocated', 'Reserved', 'Assigned'],
     description: 'Resources are being assigned to beneficiaries',
   },
   {

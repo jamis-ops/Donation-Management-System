@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import { Link } from 'react-router-dom'
-import { HeartHandshake, UserCheck, Users, Package, Truck, UserCog, Layers } from 'lucide-react'
+import { HeartHandshake, UserCheck, Users, Package, Truck, UserCog } from 'lucide-react'
 import { getDashboard, needsStockApi, inventoryApi, allocationsApi, donationsApi, distributionsApi } from '../../api/resources'
 import { cacheManager } from '../../utils/cacheManager'
 import { useApiObject } from '../../hooks/useApiList'
@@ -14,7 +14,6 @@ const STAT_ICONS = {
   'Total Cash Donations': HeartHandshake,
   'Active Beneficiaries': Users,
   'Items in Inventory': Package,
-  'Repacked Inventory': Layers,
   'Active Deliveries': Truck,
   'Beneficiaries Served': UserCheck,
 }
@@ -40,7 +39,6 @@ const STAT_LINKS = {
   'Total Cash Donations': '/admin/donations?tab=monetary',
   'Active Beneficiaries': '/admin/beneficiaries?status=Active',
   'Items in Inventory': '/admin/inventory',
-  'Repacked Inventory': '/admin/inventory',
   'Active Deliveries': '/admin/distributions?status=In+Transit',
   'Beneficiaries Served': '/admin/distributions?status=Completed',
   'Pending Requests': '/admin/requests?status=Pending+Review',
