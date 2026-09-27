@@ -1103,6 +1103,7 @@ export default function AllocationPage() {
   const [allocationStep, setAllocationStep] = useState(1)
   const [highestAllocationStep, setHighestAllocationStep] = useState(1)
   const modalRefreshStartedRef = useRef(false)
+  const handledPrefillRequestRef = useRef(null)
 
   useEffect(() => {
     const s = document.createElement('style')
@@ -1368,11 +1369,25 @@ export default function AllocationPage() {
 
   useEffect(() => {
     const pref = location.state?.prefillRequest
-    if (!pref) return
+    if (!pref) {
+      handledPrefillRequestRef.current = null
+      return
+    }
 
     const requestId = pref.requestId || pref.assistanceRequestId || pref.dbId || pref.id
     if (!requestId) return
     if (inventoryLoading) return
+
+    const prefillKey = String(requestId)
+    if (handledPrefillRequestRef.current === prefillKey) return
+    handledPrefillRequestRef.current = prefillKey
+
+    // Consume navigation state before the request starts. Inventory/allocation
+    // refreshes must not replay this prefill after the request status changes.
+    navigate(`${location.pathname}${location.search}${location.hash}`, {
+      replace: true,
+      state: null,
+    })
 
     assistanceRequestsApi.get(requestId)
       .then((res) => {
@@ -1418,8 +1433,7 @@ export default function AllocationPage() {
         setShowCreate(true)
       })
 
-    window.history.replaceState({}, document.title)
-  }, [location.state, inventoryLoading, seedLinesFromRequest])
+  }, [location.state, location.pathname, location.search, location.hash, inventoryLoading, seedLinesFromRequest, navigate])
 
   // Automatically refresh requests and inventory when opening the Create Allocation modal
   useEffect(() => {
