@@ -115,8 +115,59 @@ export default function AvailabilitySchedulePicker({
     return count
   }, [relevantDays, slots])
 
+  const activeDays = useMemo(() => {
+    const orderedDays = [...relevantDays]
+
+    Object.keys(slots).forEach((day) => {
+      if (!orderedDays.includes(day)) orderedDays.push(day)
+    })
+
+    return orderedDays
+      .map((day) => ({
+        day,
+        timeSlots: Array.isArray(slots[day])
+          ? slots[day]
+              .map((slotId) => TIME_SLOTS.find((slot) => slot.id === slotId))
+              .filter(Boolean)
+          : [],
+      }))
+      .filter(({ timeSlots }) => timeSlots.length > 0)
+  }, [relevantDays, slots])
+
+  if (readOnly) {
+    return (
+      <div className="availability-summary">
+        {label && (
+          <div className="availability-schedule-picker__header">
+            <span className="availability-schedule-picker__label">{label}</span>
+          </div>
+        )}
+
+        {activeDays.length > 0 ? (
+          <div className="availability-summary__days" role="list" aria-label="Available days and times">
+            {activeDays.map(({ day, timeSlots }) => (
+              <div className="availability-summary__day" role="listitem" key={day}>
+                <span className="availability-summary__day-name">{day}</span>
+                <div className="availability-summary__times">
+                  {timeSlots.map((slot) => (
+                    <span className="availability-summary__time" key={slot.id}>
+                      <Clock size={12} aria-hidden />
+                      {slot.time}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <p className="availability-summary__empty">No specific days or time ranges recorded.</p>
+        )}
+      </div>
+    )
+  }
+
   return (
-    <div className={`availability-schedule-picker ${readOnly ? 'availability-schedule-picker--readonly' : ''}`}>
+    <div className="availability-schedule-picker">
       {label && (
         <div className="availability-schedule-picker__header">
           <label className="availability-schedule-picker__label">
@@ -128,20 +179,7 @@ export default function AvailabilitySchedulePicker({
 
       {/* Availability Dropdown */}
       <div className="availability-schedule-picker__type-select-wrap">
-        {readOnly ? (
-          <div className="availability-schedule-picker__readonly-badge">
-            <span className="availability-type-pill">
-              <Calendar size={13} aria-hidden />
-              <span>{selectedType || 'Not specified'}</span>
-            </span>
-            {totalSelectedSlots > 0 && (
-              <span className="availability-count-pill">
-                {totalSelectedSlots} active time slot{totalSelectedSlots > 1 ? 's' : ''}
-              </span>
-            )}
-          </div>
-        ) : (
-          <div className="availability-schedule-picker__select-row">
+        <div className="availability-schedule-picker__select-row">
             <div className="availability-schedule-picker__select-field">
               <select
                 className="availability-schedule-picker__select"
@@ -179,8 +217,7 @@ export default function AvailabilitySchedulePicker({
                 )}
               </div>
             )}
-          </div>
-        )}
+        </div>
       </div>
 
       {/* Relevant Days Schedule Grid */}
@@ -278,14 +315,10 @@ export default function AvailabilitySchedulePicker({
             </span>
           </div>
         </div>
-      ) : !readOnly ? (
+      ) : (
         <div className="availability-grid-empty-prompt">
           <Calendar size={18} className="availability-grid-empty-icon" />
           <span>Select an availability option above to view and customize your day and time schedule.</span>
-        </div>
-      ) : (
-        <div className="availability-grid-empty-prompt">
-          <span>No schedule slots recorded for this profile.</span>
         </div>
       )}
     </div>

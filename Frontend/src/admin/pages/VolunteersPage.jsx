@@ -1528,7 +1528,7 @@ export default function VolunteersPage() {
                               <div className="volunteer-schedule-section-header">
                                 <dt className="volunteer-schedule-section-title">
                                   <Calendar size={14} className="volunteer-schedule-icon" />
-                                  <span>Availability & Duty Schedule</span>
+                                  <span>Availability</span>
                                 </dt>
                                 <button
                                   type="button"
@@ -2317,7 +2317,7 @@ export default function VolunteersPage() {
                           <div className="volunteer-schedule-section-header">
                             <dt className="volunteer-schedule-section-title">
                               <Calendar size={14} className="volunteer-schedule-icon" />
-                              <span>Availability & Schedule</span>
+                              <span>Availability</span>
                             </dt>
                             <button
                               type="button"

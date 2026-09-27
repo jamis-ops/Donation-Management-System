@@ -10445,6 +10445,7 @@ button:disabled,
   justify-content: space-between !important;
   margin-bottom: 0.5rem !important;
   width: 100% !important;
+  gap: 0.75rem !important;
 }
 
 .volunteer-schedule-section-title {
@@ -10505,5 +10506,85 @@ button:disabled,
   border-radius: 9999px !important;
   font-size: 0.76rem !important;
   font-weight: 600 !important;
+}
+
+.availability-summary {
+  width: 100% !important;
+}
+
+.availability-summary__days {
+  display: grid !important;
+  gap: 0.45rem !important;
+}
+
+.availability-summary__day {
+  display: grid !important;
+  grid-template-columns: minmax(5.5rem, auto) minmax(0, 1fr) !important;
+  align-items: center !important;
+  gap: 0.65rem !important;
+  padding: 0.55rem 0.65rem !important;
+  background: #fffafa !important;
+  border: 1px solid #fee2e2 !important;
+  border-radius: 8px !important;
+}
+
+.availability-summary__day-name {
+  color: #991b1b !important;
+  font-size: 0.8rem !important;
+  font-weight: 700 !important;
+}
+
+.availability-summary__times {
+  display: flex !important;
+  align-items: center !important;
+  flex-wrap: wrap !important;
+  gap: 0.35rem !important;
+  min-width: 0 !important;
+}
+
+.availability-summary__time {
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 0.3rem !important;
+  padding: 0.24rem 0.5rem !important;
+  color: #334155 !important;
+  background: #ffffff !important;
+  border: 1px solid #fecaca !important;
+  border-radius: 9999px !important;
+  font-size: 0.74rem !important;
+  font-weight: 600 !important;
+  line-height: 1.25 !important;
+  white-space: nowrap !important;
+}
+
+.availability-summary__time svg {
+  color: #af101a !important;
+  flex-shrink: 0 !important;
+}
+
+.availability-summary__empty {
+  margin: 0 !important;
+  padding: 0.65rem 0.75rem !important;
+  color: #64748b !important;
+  background: #f8fafc !important;
+  border: 1px dashed #cbd5e1 !important;
+  border-radius: 8px !important;
+  font-size: 0.8rem !important;
+  line-height: 1.4 !important;
+}
+
+@media (max-width: 540px) {
+  .volunteer-schedule-section-header {
+    align-items: flex-start !important;
+  }
+
+  .volunteer-schedule-edit-btn {
+    flex-shrink: 0 !important;
+  }
+
+  .availability-summary__day {
+    grid-template-columns: 1fr !important;
+    gap: 0.4rem !important;
+  }
 }
 
