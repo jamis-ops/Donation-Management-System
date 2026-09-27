@@ -1,4 +1,4 @@
-import { Check, Clock, FileText, CheckCircle, Package, Truck, MapPin, AlertCircle, XCircle } from 'lucide-react'
+import { Check, Clock, FileText, CheckCircle, Package, Truck, MapPin, XCircle } from 'lucide-react'
 
 const WORKFLOW_STAGES = [
   {
@@ -140,7 +140,7 @@ export default function RequestProgressTracker({ request }) {
           }
 
           return (
-            <div key={stage.key} className="req-step-item">
+            <div key={stage.key} className={`req-step-item req-step-item--${status}`}>
               <div
                 style={{
                   width: '34px',

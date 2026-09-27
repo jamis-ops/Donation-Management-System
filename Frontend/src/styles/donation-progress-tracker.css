@@ -154,33 +154,41 @@
 
 /* Workflow Stages */
 .progress-tracker-stages {
-  display: flex;
-  flex-direction: column;
-  gap: 1.5rem;
+  display: grid;
+  grid-template-columns: repeat(6, minmax(104px, 1fr));
+  gap: 0;
   margin-bottom: 2rem;
   position: relative;
+  overflow-x: auto;
+  padding: 0.4rem 0 0.75rem;
+  scrollbar-width: thin;
 }
 
 .progress-stage {
   display: flex;
-  gap: 1.5rem;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.55rem;
   position: relative;
   transition: all 0.3s ease;
+  min-width: 104px;
+  padding: 0 0.3rem;
+  text-align: center;
 }
 
 .progress-stage:hover {
-  transform: translateX(4px);
+  transform: translateY(-2px);
 }
 
 .progress-stage-line {
   position: absolute;
-  left: 22px;
-  top: 50px;
-  bottom: -30px;
-  width: 2px;
+  right: 50%;
+  top: 22px;
+  width: 100%;
+  height: 2px;
 }
 
-.progress-stage:last-child .progress-stage-line {
+.progress-stage:first-child .progress-stage-line {
   display: none;
 }
 
@@ -247,12 +255,12 @@
 }
 
 .progress-stage-content {
-  flex: 1;
-  padding-top: 0.25rem;
+  width: 100%;
+  padding-top: 0;
 }
 
 .progress-stage-label {
-  font-size: 1.1rem;
+  font-size: 0.9rem;
   font-weight: 700;
   color: var(--dpt-ink);
   margin-bottom: 0.25rem;
@@ -267,15 +275,15 @@
 }
 
 .progress-stage-description {
-  font-size: 0.875rem;
+  font-size: 0.72rem;
   color: var(--dpt-muted);
-  line-height: 1.5;
+  line-height: 1.35;
   margin-bottom: 0.5rem;
 }
 
 .progress-stage-update {
-  display: flex;
-  align-items: center;
+  display: inline-flex;
+  align-items: flex-start;
   gap: 0.5rem;
   padding: 0.5rem 0.75rem;
   background: var(--dpt-brand-muted);
@@ -397,8 +405,14 @@
     align-self: flex-end;
   }
 
+  .progress-tracker-stages {
+    grid-template-columns: repeat(6, 112px);
+    margin-right: -0.5rem;
+    padding-right: 0.5rem;
+  }
+
   .progress-stage {
-    gap: 1rem;
+    gap: 0.5rem;
   }
 
   .progress-stage-icon {
@@ -407,7 +421,7 @@
   }
 
   .progress-stage-line {
-    left: 19px;
+    top: 19px;
   }
 
   .progress-stage-label {

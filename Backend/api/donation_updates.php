@@ -57,6 +57,63 @@ function donation_accessible(PDO $pdo, array $user, int $donationId): ?array
   return null;
 }
 
+/** Resolve the furthest donor-facing stage from the donation and its linked delivery. */
+function resolve_donation_progress_status(PDO $pdo, array $donation, array $updates): string
+{
+  $status = trim((string) ($donation['status'] ?? '')) ?: 'Pending Verification';
+  $rank = static function (string $value): int {
+    return match (strtolower(trim($value))) {
+      'submitted', 'pending', 'pending verification', 'donation received' => 0,
+      'verified', 'verified & acknowledged', 'under review', 'sorted' => 1,
+      'in inventory', 'in stock', 'repacked', 'repacking' => 2,
+      'partially allocated', 'allocated', 'reserved', 'assigned' => 3,
+      'planning', 'preparing', 'in distribution', 'scheduled', 'scheduled for distribution',
+      'in transit', 'out for delivery' => 4,
+      'distributed', 'delivered', 'proof review', 'completed' => 5,
+      default => -1,
+    };
+  };
+  $bestRank = max(0, $rank($status));
+  $bestStatus = $status;
+  $consider = static function (string $candidate) use ($rank, &$bestRank, &$bestStatus): void {
+    $candidate = trim($candidate);
+    $candidateRank = $rank($candidate);
+    if ($candidate !== '' && $candidateRank >= $bestRank) {
+      $bestRank = $candidateRank;
+      $bestStatus = $candidate;
+    }
+  };
+  foreach ($updates as $update) {
+    $consider((string) ($update['stage'] ?? ''));
+  }
+
+  try {
+    $stmt = $pdo->prepare('
+      SELECT a.status AS allocation_status, d.status AS distribution_status
+      FROM donation_procurements dp
+      LEFT JOIN allocations a ON a.id = dp.allocation_id
+      LEFT JOIN distributions d ON d.id = a.distribution_id
+      WHERE dp.donation_id = ?
+    ');
+    $stmt->execute([(int) $donation['id']]);
+    foreach ($stmt->fetchAll() as $linked) {
+      $consider((string) ($linked['allocation_status'] ?? ''));
+      $consider((string) ($linked['distribution_status'] ?? ''));
+    }
+  } catch (Throwable $e) {
+    // Older databases may not yet have procurement links; stored progress still works.
+  }
+
+  return match (strtolower($bestStatus)) {
+    'donation received' => 'Pending Verification',
+    'sorted' => 'Verified',
+    'repacked', 'repacking' => 'In Inventory',
+    'planning', 'preparing', 'in distribution', 'scheduled for distribution' => 'Scheduled',
+    'proof review' => 'Delivered',
+    default => $bestStatus,
+  };
+}
+
 if (!function_exists('record_donation_update')) {
   // Defined here when API is hit directly; also mirrored in bootstrap for donations.php.
 }
@@ -68,7 +125,8 @@ if ($method === 'GET') {
   if ($donationId <= 0) {
     json_response(['ok' => false, 'error' => 'donationId is required'], 400);
   }
-  if (!donation_accessible($pdo, $user, $donationId)) {
+  $donation = donation_accessible($pdo, $user, $donationId);
+  if (!$donation) {
     json_response(['ok' => false, 'error' => 'Donation not found or access denied'], 404);
   }
   $stmt = $pdo->prepare('SELECT * FROM donation_updates WHERE donation_id = ? ORDER BY created_at ASC, id ASC');
@@ -78,6 +136,7 @@ if ($method === 'GET') {
     'ok' => true,
     'data' => array_map('map_donation_update', $rows),
     'stages' => DONATION_UPDATE_STAGES,
+    'currentStatus' => resolve_donation_progress_status($pdo, $donation, $rows),
   ]);
 }
 

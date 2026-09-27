@@ -66,6 +66,7 @@ function getStageStatus(stageIndex, currentIndex) {
 
 export default function DonationProgressTracker({ donation, donationId }) {
   const [updates, setUpdates] = useState([])
+  const [remoteProgress, setRemoteProgress] = useState({ donationId: null, status: '' })
   const [loading, setLoading] = useState(true)
   const [autoRefresh, setAutoRefresh] = useState(true)
 
@@ -76,6 +77,7 @@ export default function DonationProgressTracker({ donation, donationId }) {
       try {
         const res = await donationUpdatesApi.list(donationId)
         setUpdates(res.data || [])
+        setRemoteProgress({ donationId, status: res.currentStatus || donation?.status || '' })
       } catch (err) {
         console.error('Failed to fetch updates:', err)
       } finally {
@@ -90,12 +92,15 @@ export default function DonationProgressTracker({ donation, donationId }) {
       const interval = setInterval(fetchUpdates, 30000)
       return () => clearInterval(interval)
     }
-  }, [donationId, autoRefresh])
+  }, [donationId, donation?.status, autoRefresh])
 
-  const currentStageIndex = determineCurrentStage(donation?.status)
+  const syncedStatus = remoteProgress.donationId === donationId
+    ? remoteProgress.status
+    : (donation?.status || '')
+  const currentStageIndex = determineCurrentStage(syncedStatus)
   const progressPercentage = ((currentStageIndex + 1) / WORKFLOW_STAGES.length) * 100
 
-  const latestUpdate = updates.length > 0 ? updates[0] : null
+  const latestUpdate = updates.length > 0 ? updates[updates.length - 1] : null
 
   return (
     <div className="donation-progress-tracker">
@@ -117,11 +122,11 @@ export default function DonationProgressTracker({ donation, donationId }) {
         <div className="progress-tracker-status">
           <div className="progress-tracker-status-badge">
             <Clock size={14} />
-            <span>Current Status: <strong>{donation?.status || 'Unknown'}</strong></span>
+            <span>Current Status: <strong>{syncedStatus || 'Unknown'}</strong></span>
           </div>
           {latestUpdate && (
             <div className="progress-tracker-last-update">
-              Last updated: {new Date(latestUpdate.date || latestUpdate.createdAt).toLocaleString()}
+              Last updated: {new Date(latestUpdate.createdAt || latestUpdate.date).toLocaleString()}
             </div>
           )}
         </div>
@@ -145,12 +150,13 @@ export default function DonationProgressTracker({ donation, donationId }) {
           const Icon = stage.icon
           const isActive = status === 'active'
           const isCompleted = status === 'completed'
+          const connectorReached = index <= currentStageIndex
 
           return (
             <div key={stage.key} className={`progress-stage progress-stage--${status}`}>
               <div className="progress-stage-line">
                 {index > 0 && (
-                  <div className={`progress-stage-line-segment ${isCompleted ? 'completed' : ''}`} />
+                  <div className={`progress-stage-line-segment ${connectorReached ? 'completed' : ''}`} />
                 )}
               </div>
               
@@ -167,7 +173,7 @@ export default function DonationProgressTracker({ donation, donationId }) {
                 {isActive && latestUpdate && (
                   <div className="progress-stage-update">
                     <AlertCircle size={12} />
-                    <span>{latestUpdate.message || latestUpdate.description}</span>
+                    <span>{latestUpdate.note || latestUpdate.stage || latestUpdate.message || latestUpdate.description}</span>
                   </div>
                 )}
               </div>
@@ -186,10 +192,10 @@ export default function DonationProgressTracker({ donation, donationId }) {
                 <div className="progress-timeline-marker" />
                 <div className="progress-timeline-content">
                   <div className="progress-timeline-title">
-                    {update.message || update.description || 'Status updated'}
+                    {update.note || update.stage || update.message || update.description || 'Status updated'}
                   </div>
                   <div className="progress-timeline-meta">
-                    <span>{new Date(update.date || update.createdAt).toLocaleString()}</span>
+                    <span>{new Date(update.createdAt || update.date).toLocaleString()}</span>
                     {update.updatedBy && <span> • By {update.updatedBy}</span>}
                   </div>
                 </div>

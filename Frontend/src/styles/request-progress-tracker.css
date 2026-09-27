@@ -71,6 +71,53 @@
   margin-bottom: 1.5rem;
 }
 
+/* Compact horizontal lifecycle used in the assistance-request modal. */
+.req-stepper-grid {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(92px, 1fr));
+  gap: 0;
+  overflow-x: auto;
+  padding: 0.4rem 0 0.65rem;
+  scrollbar-width: thin;
+}
+
+.req-step-item {
+  position: relative;
+  min-width: 92px;
+  padding: 0 0.25rem;
+}
+
+.req-step-item::before {
+  content: '';
+  position: absolute;
+  z-index: 0;
+  top: 16px;
+  right: 50%;
+  width: 100%;
+  height: 2px;
+  background: #e2e8f0;
+}
+
+.req-step-item:first-child::before {
+  display: none;
+}
+
+.req-step-item--completed::before,
+.req-step-item--active::before {
+  background: #10b981;
+}
+
+.req-step-item > div:first-child {
+  position: relative;
+  z-index: 1;
+}
+
+@media (max-width: 720px) {
+  .req-stepper-grid {
+    grid-template-columns: repeat(6, 104px);
+  }
+}
+
 .request-progress-tracker .progress-stage-line-segment.completed {
   background: linear-gradient(180deg, var(--rpt-brand) 0%, var(--rpt-brand-deep) 100%);
 }
