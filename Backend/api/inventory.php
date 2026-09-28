@@ -20,6 +20,9 @@ function ensure_inventory_items_columns(PDO $pdo): void
     $pdo->exec("ALTER TABLE inventory_items ADD COLUMN variant VARCHAR(100) NULL AFTER brand");
   } catch (Throwable $e) {}
   try {
+    $pdo->exec("ALTER TABLE inventory_items ADD COLUMN date_received DATE NULL AFTER variant");
+  } catch (Throwable $e) {}
+  try {
     $pdo->exec("ALTER TABLE inventory_items ADD COLUMN cost_per_unit DECIMAL(10,2) NULL AFTER unit");
   } catch (Throwable $e) {}
   try {
@@ -61,6 +64,19 @@ function map_inventory(array $row): array
   $location = !empty($row['location']) ? (string)$row['location'] : ('Warehouse Shelf ' . strtoupper(substr($cat ?: 'G', 0, 1)) . '-1');
   $reorder = !empty($row['reorder_amount']) ? (int)$row['reorder_amount'] : max(10, ($moderate ?: ($low * 2)) - $qty);
 
+  $donationCodes = trim((string) ($row['donation_tracking_codes'] ?? ''));
+  $donorNames = trim((string) ($row['donor_names'] ?? ''));
+  if ($donationCodes !== '') {
+    $sourceRef = $donationCodes . ($donorNames !== '' ? " ({$donorNames})" : '');
+  } elseif (!empty($row['supplier'])) {
+    $sourceRef = (string) $row['supplier'];
+  } else {
+    $sourceRef = 'Direct Procurement / Warehouse Stock';
+  }
+
+  $dateReceivedRaw = $row['donation_received_date'] ?? $row['date_received'] ?? $row['created_at'] ?? null;
+  $dateReceived = format_date($dateReceivedRaw);
+
   return [
     'id' => $row['code'],
     'dbId' => (int) $row['id'],
@@ -88,6 +104,11 @@ function map_inventory(array $row): array
     'supplier' => $supplier,
     'location' => $location,
     'reorderAmount' => $reorder,
+    'dateReceived' => $dateReceived,
+    'dateReceivedRaw' => $dateReceivedRaw,
+    'source' => $sourceRef,
+    'sourceReference' => $sourceRef,
+    'donationReference' => $donationCodes ?: $sourceRef,
     'lastUpdated' => format_date($row['updated_at'] ?? null),
   ];
 }
@@ -216,16 +237,47 @@ if ($method === 'GET') {
   }
 
   if ($id) {
-    $stmt = $pdo->prepare('SELECT * FROM inventory_items WHERE id = ? LIMIT 1');
-    $stmt->execute([$id]);
-    $row = $stmt->fetch();
+    try {
+      $stmt = $pdo->prepare('
+        SELECT ii.*,
+               GROUP_CONCAT(DISTINCT d.tracking_code ORDER BY d.id SEPARATOR ", ") AS donation_tracking_codes,
+               GROUP_CONCAT(DISTINCT d.donor_name ORDER BY d.id SEPARATOR ", ") AS donor_names,
+               MIN(d.donation_date) AS donation_received_date
+        FROM inventory_items ii
+        LEFT JOIN donation_inventory_sources dis ON dis.inventory_item_id = ii.id
+        LEFT JOIN donations d ON d.id = dis.donation_id
+        WHERE ii.id = ?
+        GROUP BY ii.id
+        LIMIT 1
+      ');
+      $stmt->execute([$id]);
+      $row = $stmt->fetch();
+    } catch (Throwable $e) {
+      $stmt = $pdo->prepare('SELECT * FROM inventory_items WHERE id = ? LIMIT 1');
+      $stmt->execute([$id]);
+      $row = $stmt->fetch();
+    }
     if (!$row) {
       json_response(['ok' => false, 'error' => 'Inventory item not found'], 404);
     }
     json_response(['ok' => true, 'data' => map_inventory($row)]);
   }
 
-  $rows = $pdo->query('SELECT * FROM inventory_items ORDER BY created_at DESC, id DESC')->fetchAll();
+  try {
+    $rows = $pdo->query('
+      SELECT ii.*,
+             GROUP_CONCAT(DISTINCT d.tracking_code ORDER BY d.id SEPARATOR ", ") AS donation_tracking_codes,
+             GROUP_CONCAT(DISTINCT d.donor_name ORDER BY d.id SEPARATOR ", ") AS donor_names,
+             MIN(d.donation_date) AS donation_received_date
+      FROM inventory_items ii
+      LEFT JOIN donation_inventory_sources dis ON dis.inventory_item_id = ii.id
+      LEFT JOIN donations d ON d.id = dis.donation_id
+      GROUP BY ii.id
+      ORDER BY ii.created_at DESC, ii.id DESC
+    ')->fetchAll();
+  } catch (Throwable $e) {
+    $rows = $pdo->query('SELECT * FROM inventory_items ORDER BY created_at DESC, id DESC')->fetchAll();
+  }
   $mapped = array_map('map_inventory', $rows);
   $summary = [
     'totalItems' => count($mapped),

@@ -1,5 +1,5 @@
 import { useCallback, useState, useEffect } from 'react'
-import { Package, PackagePlus, Pencil, Play, CheckCircle2, XCircle, Trash2, Calculator, Users, AlertCircle, Info, LayoutGrid, List, Eye, Sliders } from 'lucide-react'
+import { Package, PackagePlus, Pencil, Play, CheckCircle2, XCircle, Trash2, Calculator, Users, AlertCircle, Info, LayoutGrid, List, Eye, Sliders, FileSpreadsheet } from 'lucide-react'
 import { inventoryApi, repackingApi, getStaff, volunteersApi, beneficiariesApi } from '../../api/resources'
 import { useApiList } from '../../hooks/useApiList'
 import { DONATION_CATEGORIES } from '../../constants/options'
@@ -16,6 +16,8 @@ import InventoryCategoryExplorer from './InventoryCategoryExplorer'
 import { useBulkSelection } from '../../hooks/useBulkSelection'
 import { notify, confirmAction, showSuccessModal } from '../../utils/confirm'
 import { useLoading } from '../../context/LoadingContext'
+import { useAuth } from '../../context/AuthContext'
+import { exportInventoryExcel } from '../../utils/exportData'
 import { calculateInventoryStatus } from '../../utils/inventoryStatus'
 
 const inventoryFilterConfig = {
@@ -83,6 +85,8 @@ export default function InventoryManagement() {
   const [batchForm, setBatchForm] = useState(emptyBatchForm)
   const [multiSourceModal, setMultiSourceModal] = useState(false) // New multi-source modal
   const [saving, setSaving] = useState(false)
+  const { user } = useAuth()
+  const [exporting, setExporting] = useState(false)
   
   // New state for enhanced features
   const [staff, setStaff] = useState([])
@@ -147,6 +151,29 @@ export default function InventoryManagement() {
   }, [tab])
 
   /* ---------- Inventory handlers ---------- */
+
+  const handleExportInventory = async () => {
+    try {
+      setExporting(true)
+      let exportItems = items
+      if (!Array.isArray(exportItems) || !exportItems.length) {
+        showLoading('Fetching inventory records…')
+        const res = await inventoryApi.list()
+        exportItems = Array.isArray(res?.data) ? res.data : []
+      }
+      if (!exportItems.length) {
+        notify.warning('No inventory records found to export.')
+        return
+      }
+      await exportInventoryExcel(exportItems, user)
+    } catch (err) {
+      console.error('Inventory export failed:', err)
+      notify.error('Failed to export inventory: ' + (err.message || 'Unknown error'))
+    } finally {
+      hideLoading()
+      setExporting(false)
+    }
+  }
 
   const openItemCreate = (preset = {}) => {
     setPresetCategory(preset?.category || '')
@@ -607,9 +634,21 @@ export default function InventoryManagement() {
               </button>
             </div>
 
-            {/* Only show global Add Item button in toolbar when on List View or at the Root All Categories view */}
-            {(!categoryNav.category || viewMode === 'table') && (
-              <div style={{ display: 'flex', gap: '0.5rem' }}>
+            {/* Action buttons */}
+            <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', alignItems: 'center' }}>
+              <button
+                type="button"
+                className="btn btn--outline inv-export-btn"
+                onClick={handleExportInventory}
+                disabled={exporting || loading}
+                title="Export current inventory records to an Excel (.xlsx) file"
+              >
+                <FileSpreadsheet size={16} />
+                <span>Export to Inventory</span>
+              </button>
+
+              {/* Only show global Add Item button in toolbar when on List View or at the Root All Categories view */}
+              {(!categoryNav.category || viewMode === 'table') && (
                 <button
                   type="button"
                   className="btn btn--primary"
@@ -618,8 +657,8 @@ export default function InventoryManagement() {
                 >
                   + Add Item
                 </button>
-              </div>
-            )}
+              )}
+            </div>
           </div>
 
           {viewMode === 'category' ? (

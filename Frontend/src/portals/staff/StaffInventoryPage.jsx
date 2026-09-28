@@ -10,6 +10,7 @@ import {
   CheckCircle2,
   Coins,
   Boxes,
+  FileSpreadsheet,
 } from 'lucide-react'
 import StatusBadge from '../../admin/components/shared/StatusBadge'
 import ModalHeader from '../../admin/components/shared/ModalHeader'
@@ -21,9 +22,12 @@ import Pagination from '../../admin/components/shared/Pagination'
 import ExportMenu from '../../admin/components/shared/ExportMenu'
 import { notify, confirmAction, showSuccessModal } from '../../utils/confirm'
 import { useLoading } from '../../context/LoadingContext'
+import { useAuth } from '../../context/AuthContext'
+import { exportInventoryExcel } from '../../utils/exportData'
 
 export default function StaffInventoryPage() {
   const { showLoading, hideLoading } = useLoading()
+  const { user } = useAuth()
   const { data: inventory = [], loading, error, reload } = useApiList(() => inventoryApi.list())
 
   const [filterCategory, setFilterCategory] = useState('all')
@@ -35,6 +39,27 @@ export default function StaffInventoryPage() {
   const [stockAmount, setStockAmount] = useState('')
   const [stockNotes, setStockNotes] = useState('')
   const [busy, setBusy] = useState(false)
+
+  const handleExportInventory = async () => {
+    try {
+      let exportItems = inventory
+      if (!Array.isArray(exportItems) || !exportItems.length) {
+        showLoading('Fetching inventory records…')
+        const res = await inventoryApi.list()
+        exportItems = Array.isArray(res?.data) ? res.data : []
+      }
+      if (!exportItems.length) {
+        notify.warning('No inventory records found to export.')
+        return
+      }
+      await exportInventoryExcel(exportItems, user)
+    } catch (err) {
+      console.error('Inventory export failed:', err)
+      notify.error('Failed to export inventory: ' + (err.message || 'Unknown error'))
+    } finally {
+      hideLoading()
+    }
+  }
 
   const categories = useMemo(() => {
     const set = new Set(['Food', 'Hygiene', 'Medical', 'Education', 'Clothing'])
@@ -282,6 +307,18 @@ export default function StaffInventoryPage() {
                 <option value="low">Low Stock</option>
                 <option value="critical">Critical</option>
               </select>
+
+              <button
+                type="button"
+                className="btn btn--outline inv-export-btn"
+                onClick={handleExportInventory}
+                disabled={busy || loading}
+                title="Export current inventory records to an Excel (.xlsx) file"
+                style={{ height: '36px', padding: '0 0.85rem', fontSize: '0.85rem' }}
+              >
+                <FileSpreadsheet size={15} />
+                <span>Export to Inventory</span>
+              </button>
 
               <ExportMenu
                 items={filteredInventory}

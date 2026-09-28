@@ -102,7 +102,7 @@ export function resolveExportMeta(options = {}) {
     preparedBy = 'Administrator'
   }
 
-  const dateStr = formatReportDateTime(options.date || new Date())
+  const dateStr = options.datePrepared || options.dateStr || formatReportDateTime(options.date || new Date())
   return { preparedBy, dateStr }
 }
 
@@ -162,14 +162,14 @@ export function exportCsv(filename, columns, rows, options = {}) {
 
 /**
  * Official Excel (.xlsx) Export with embedded Rise Above Foundation Cebu logo,
- * professional header banner, custom column widths, text wrapping, borders, and
- * standardized bottom sign-off (Prepared By & Date).
+ * professional header banner, top sign-off (Prepared By & Date Prepared), custom column widths,
+ * text wrapping, borders, and standardized bottom sign-off.
  */
 export async function exportExcel(filename, columns, rows, options = {}) {
   showGlobalLoading('Generating Excel report…')
   const opt = typeof options === 'string' ? { title: options } : (options || {})
   const rawTitle = opt.title || filename.replace(/[-_]/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase())
-  const reportTitle = rawTitle.includes('Report') ? rawTitle : `${rawTitle} Report`
+  const reportTitle = rawTitle.includes('Report') || rawTitle.includes('Export') ? rawTitle : `${rawTitle} Report`
   const { preparedBy, dateStr } = resolveExportMeta(opt)
 
   try {
@@ -218,6 +218,17 @@ export async function exportExcel(filename, columns, rows, options = {}) {
     subRow.getCell(2).font = { name: 'Calibri', size: 9, italic: true, color: { argb: 'FF64748B' } }
 
     worksheet.addRow([]) // Row 5: spacer
+
+    // Top Metadata: Prepared By & Date Prepared placed clearly before the table
+    const prepRowTop = worksheet.addRow(['Prepared By:', preparedBy])
+    prepRowTop.getCell(1).font = { name: 'Calibri', size: 10, bold: true, color: { argb: 'FF475569' } }
+    prepRowTop.getCell(2).font = { name: 'Calibri', size: 10, bold: true, color: { argb: 'FF0F172A' } }
+
+    const dateRowTop = worksheet.addRow(['Date Prepared:', dateStr])
+    dateRowTop.getCell(1).font = { name: 'Calibri', size: 10, bold: true, color: { argb: 'FF475569' } }
+    dateRowTop.getCell(2).font = { name: 'Calibri', size: 10, color: { argb: 'FF334155' } }
+
+    worksheet.addRow([]) // Row 8: spacer before table
 
     // 3. Table Column Headers
     const { header, body } = buildMatrix(columns, rows)
@@ -307,6 +318,36 @@ export async function exportExcel(filename, columns, rows, options = {}) {
   } finally {
     hideGlobalLoading()
   }
+}
+
+export const INVENTORY_EXPORT_COLUMNS = [
+  { key: 'category', label: 'Item Category', exportValue: (i) => i.category || 'General Goods' },
+  { key: 'itemType', label: 'Item Type', exportValue: (i) => i.itemType || i.item || '—' },
+  { key: 'brand', label: 'Brand', exportValue: (i) => i.brand || '—' },
+  { key: 'variant', label: 'Variant / Size', exportValue: (i) => i.variant || '—' },
+  { key: 'quantity', label: 'Quantity', exportValue: (i) => Number(i.quantity ?? i.currentStock ?? 0) },
+  { key: 'unit', label: 'Unit', exportValue: (i) => i.unit || 'units' },
+  { key: 'status', label: 'Stock Status', exportValue: (i) => i.status || 'Available' },
+  { key: 'dateReceived', label: 'Date Received', exportValue: (i) => i.dateReceived || i.lastUpdated || '—' },
+  { key: 'donationReference', label: 'Source / Donation Reference', exportValue: (i) => i.donationReference || i.sourceReference || i.supplier || 'Warehouse Stock' },
+]
+
+/**
+ * Dedicated Inventory Excel (.xlsx) export with accurate columns,
+ * date-stamped filename (e.g. Inventory_Export_YYYY-MM-DD.xlsx),
+ * and Top Metadata Block (Prepared By & Date Prepared).
+ */
+export async function exportInventoryExcel(items, user = null, options = {}) {
+  const todayIso = new Date().toISOString().slice(0, 10)
+  const defaultFilename = `Inventory_Export_${todayIso}.xlsx`
+  const filename = options.filename || defaultFilename
+  const activeUser = user || getStoredCurrentUser()
+
+  return exportExcel(filename, INVENTORY_EXPORT_COLUMNS, items, {
+    title: 'Inventory Export',
+    user: activeUser,
+    ...options,
+  })
 }
 
 /**

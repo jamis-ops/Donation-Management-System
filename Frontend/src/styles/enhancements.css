@@ -1518,6 +1518,44 @@ a.volunteer-kpi-card:hover,
   margin-top: 0.15rem;
 }
 
+.inv-export-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  background-color: #ffffff;
+  color: #AF101A;
+  border: 1.5px solid #AF101A;
+  border-radius: 6px;
+  font-weight: 600;
+  font-size: 0.875rem;
+  padding: 0.55rem 0.95rem;
+  cursor: pointer;
+  transition: all 0.15s ease-in-out;
+  white-space: nowrap;
+}
+
+.inv-export-btn:hover:not(:disabled) {
+  background-color: #AF101A;
+  color: #ffffff;
+  box-shadow: 0 2px 6px rgba(175, 16, 26, 0.25);
+}
+
+.inv-export-btn:active:not(:disabled) {
+  transform: translateY(1px);
+}
+
+.inv-export-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+@media (max-width: 640px) {
+  .inv-export-btn {
+    width: 100%;
+    justify-content: center;
+  }
+}
+
 .stock-summary--4 {
   grid-template-columns: repeat(4, 1fr);
 }
