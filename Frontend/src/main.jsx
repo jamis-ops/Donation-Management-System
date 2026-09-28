@@ -20,6 +20,7 @@ import './barangay-overview-improved.css'
 import './barangay-submission-modal-improved.css'
 import './styles/loading-spinner.css'
 import './styles/inventory-improvements.css'
+import './styles/responsive.css'
 import App from './App.jsx'
 
 // Leaflet default marker fix for bundlers

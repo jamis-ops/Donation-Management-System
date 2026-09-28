@@ -1,0 +1,683 @@
+/* =========================================================
+   System-wide responsive guardrails
+   Loaded last so these rules consistently protect every shell without
+   changing the established desktop theme or component structure.
+   ========================================================= */
+
+html,
+body,
+#root {
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+}
+
+body {
+  overflow-x: hidden;
+}
+
+@supports (overflow: clip) {
+  body { overflow-x: clip; }
+}
+
+.public-layout,
+.public-layout main,
+.page,
+.admin-layout,
+.admin-main,
+.admin-content,
+.portal-layout,
+.portal-main,
+.portal-content {
+  min-width: 0;
+  max-width: 100%;
+}
+
+.admin-content > *,
+.portal-content > *,
+.form-card > *,
+.admin-modal > * {
+  min-width: 0;
+}
+
+.admin-content img,
+.portal-content img,
+.admin-modal img,
+.public-layout main img,
+.admin-content video,
+.portal-content video,
+.admin-modal video,
+.public-layout main video,
+.admin-content canvas,
+.portal-content canvas {
+  max-width: 100%;
+}
+
+.admin-layout :is(h1, h2, h3, h4, p, dd, td),
+.portal-layout :is(h1, h2, h3, h4, p, dd, td),
+.public-layout main :is(h1, h2, h3, h4, p, dd) {
+  overflow-wrap: anywhere;
+}
+
+.portal-topbar__actions {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-left: auto;
+  flex: 0 0 auto;
+}
+
+/* Keep wide tabular data usable without allowing it to widen the page. */
+.data-table-wrapper,
+.portal-table-wrap,
+.db-table-wrap,
+.db-data-table-wrap,
+.cms-table-wrap,
+.inv-items-table-wrapper,
+.inv-cms-content,
+.review-table-wrap,
+.availability-grid-table-wrap,
+.fund-allocation-plan-table,
+.repacking-table-wrapper,
+.pm-cms-table-wrap,
+[class*="table-scroll"] {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  overflow-x: auto;
+  overscroll-behavior-inline: contain;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* Form controls must shrink with their grid/flex parent. */
+.form-card label,
+.admin-modal label,
+.admin-layout form label,
+.portal-layout form label,
+.form-group,
+.admin-form-group {
+  min-width: 0;
+  max-width: 100%;
+}
+
+.form-card :is(input:not([type="checkbox"]):not([type="radio"]), select, textarea),
+.admin-modal :is(input:not([type="checkbox"]):not([type="radio"]), select, textarea),
+.admin-layout form :is(input:not([type="checkbox"]):not([type="radio"]), select, textarea),
+.portal-layout form :is(input:not([type="checkbox"]):not([type="radio"]), select, textarea) {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+}
+
+/* Every modal uses the visible viewport and can scroll on short screens. */
+.admin-modal-overlay,
+.staff-modal-overlay,
+.staff-task-modal-overlay,
+.approval-confirm-overlay {
+  max-width: 100vw;
+  max-height: 100dvh;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.admin-modal,
+.staff-modal,
+.staff-task-modal,
+.volunteer-task-modal,
+.barangay-submission-modal,
+.relief-modal-improved,
+.dist-detail-modal,
+.dist-form-modal {
+  max-height: calc(100dvh - 2rem);
+  min-width: 0;
+  box-sizing: border-box;
+}
+
+.admin-modal.cert-creator-modal {
+  width: min(97vw, 1420px) !important;
+  height: min(94dvh, 940px) !important;
+  max-height: calc(100dvh - 1rem) !important;
+}
+
+.admin-modal__body,
+.admin-modal__content,
+.staff-modal__content,
+.staff-task-modal__content,
+.barangay-submission-modal__body,
+.beneficiary-request-modal__body,
+.dist-modal__body,
+.dist-detail-body,
+.dist-form-body,
+.cert-creator-body {
+  min-height: 0;
+  max-width: 100%;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+}
+
+@media (max-width: 1200px) {
+  .admin-content,
+  .portal-content {
+    padding: 1.5rem;
+  }
+}
+
+@media (max-width: 900px) {
+  .container {
+    padding-inline: 1.25rem;
+  }
+
+  .section {
+    padding-block: 4rem;
+  }
+
+  .auth-page__form-wrap {
+    padding: 1.5rem;
+  }
+}
+
+@media (max-width: 768px) {
+  :root { --header-height: 64px; }
+
+  .site-header,
+  .site-header__inner {
+    height: var(--header-height);
+  }
+
+  .site-nav {
+    height: calc(100dvh - var(--header-height));
+    bottom: auto;
+    overscroll-behavior: contain;
+  }
+
+  .admin-content,
+  .portal-content {
+    width: 100%;
+    padding: 1rem;
+  }
+
+  .admin-topbar,
+  .portal-topbar {
+    width: 100%;
+    min-height: 64px;
+    height: auto;
+    padding: 0.65rem 1rem;
+    gap: 0.65rem;
+  }
+
+  .admin-topbar__title-group,
+  .portal-topbar__info {
+    min-width: 0;
+  }
+
+  .admin-topbar__title,
+  .portal-topbar h1 {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .portal-topbar p {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .admin-page-header,
+  .portal-page-header {
+    gap: 1rem;
+  }
+
+  .admin-page-header__actions,
+  .portal-page-header__actions {
+    max-width: 100%;
+  }
+
+  .data-table-wrapper,
+  .portal-table-wrap,
+  .db-table-wrap,
+  .pm-cms-table-wrap {
+    position: relative;
+    scrollbar-width: thin;
+  }
+
+  .data-table,
+  .portal-table,
+  .admin-table,
+  .db-data-table,
+  .pm-cms-table,
+  .cms-table,
+  .inv-items-table,
+  .inv-cms-table,
+  .review-table {
+    min-width: 640px;
+  }
+
+  .data-table th,
+  .data-table td,
+  .portal-table th,
+  .portal-table td {
+    padding-inline: 0.75rem;
+  }
+
+  .admin-modal-overlay,
+  .staff-modal-overlay,
+  .staff-task-modal-overlay,
+  .approval-confirm-overlay {
+    align-items: safe center;
+    padding: 0.75rem;
+  }
+
+  .admin-modal,
+  .staff-modal,
+  .staff-task-modal,
+  .volunteer-task-modal,
+  .barangay-submission-modal,
+  .relief-modal-improved,
+  .dist-detail-modal,
+  .dist-form-modal {
+    width: 100% !important;
+    max-width: calc(100vw - 1.5rem) !important;
+    max-height: calc(100dvh - 1.5rem) !important;
+  }
+
+  .dist-detail-modal,
+  .dist-form-modal {
+    height: auto;
+  }
+
+  .admin-modal.cert-creator-modal {
+    width: calc(100vw - 1rem) !important;
+    height: calc(100dvh - 1rem) !important;
+  }
+
+  .admin-modal__header,
+  .staff-modal__header,
+  .staff-task-modal__header {
+    gap: 0.75rem;
+  }
+
+  .admin-modal__header-text,
+  .staff-modal__header > :first-child,
+  .staff-task-modal__header > :first-child {
+    min-width: 0;
+  }
+
+  .admin-modal__header :is(h2, h3),
+  .staff-modal__header :is(h2, h3),
+  .staff-task-modal__header :is(h2, h3) {
+    overflow-wrap: anywhere;
+  }
+
+  .auth-page__visual {
+    min-height: 210px;
+    max-height: 34vh;
+  }
+
+  .auth-page__visual-overlay {
+    padding: 1.5rem;
+  }
+
+  .auth-page__form-wrap {
+    align-items: flex-start;
+    padding: 1.5rem 1rem;
+  }
+
+  .auth-card,
+  .forgot-pw-card {
+    max-width: 100%;
+  }
+
+  .form-row,
+  .admin-form-grid-2col,
+  .staff-form-row--2,
+  .staff-form-row--names,
+  .task-review-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .portal-task-item,
+  .portal-list-item {
+    align-items: flex-start;
+    flex-wrap: wrap;
+  }
+
+  .portal-task-item__actions {
+    max-width: 100%;
+  }
+}
+
+@media (max-width: 640px) {
+  .container {
+    padding-inline: 1rem;
+  }
+
+  .section {
+    padding-block: 3rem;
+  }
+
+  .page-hero {
+    padding-block: 2.75rem;
+  }
+
+  .page-hero h1 {
+    font-size: clamp(1.75rem, 8vw, 2.25rem);
+  }
+
+  .page-hero p {
+    max-width: 100%;
+  }
+
+  .brand-logo {
+    min-width: 0;
+  }
+
+  .brand-logo__text {
+    min-width: 0;
+  }
+
+  .brand-logo__title,
+  .brand-logo__subtitle {
+    white-space: nowrap;
+  }
+
+  .admin-topbar__secondary-menu span,
+  .admin-topbar .user-profile-menu__info,
+  .portal-topbar .user-profile-menu__info,
+  .admin-topbar .user-profile-menu__chevron,
+  .portal-topbar .user-profile-menu__chevron {
+    display: none;
+  }
+
+  .admin-topbar__secondary-menu {
+    width: 38px;
+    padding: 0;
+    justify-content: center;
+    flex: 0 0 38px;
+  }
+
+  .admin-topbar__right,
+  .portal-topbar__actions {
+    gap: 0.4rem;
+  }
+
+  .admin-topbar .user-profile-menu__trigger,
+  .portal-topbar .user-profile-menu__trigger {
+    padding: 0.15rem;
+  }
+
+  .user-profile-menu__dropdown {
+    position: fixed;
+    top: 70px;
+    right: 0.75rem;
+    width: min(280px, calc(100vw - 1.5rem));
+    max-height: calc(100dvh - 82px);
+    overflow-y: auto;
+  }
+
+  .admin-page-header,
+  .portal-page-header {
+    flex-direction: column;
+    align-items: stretch;
+    margin-bottom: 1.25rem;
+  }
+
+  .admin-page-header__actions,
+  .portal-page-header__actions,
+  .portal-panel__actions {
+    width: 100%;
+    margin-left: 0;
+  }
+
+  .admin-page-header__actions .btn,
+  .portal-page-header__actions .btn {
+    flex: 1 1 auto;
+  }
+
+  .admin-page-header h1,
+  .portal-page-header h1 {
+    font-size: 1.2rem;
+  }
+
+  .admin-panel,
+  .portal-panel,
+  .form-card,
+  .proof-upload-card {
+    padding: 1rem;
+  }
+
+  .portal-panel__header,
+  .admin-panel__header {
+    align-items: flex-start;
+    flex-wrap: wrap;
+  }
+
+  .portal-filter-bar__search,
+  .portal-search-input,
+  .filter-bar__search,
+  .admin-search {
+    min-width: 0;
+    width: 100%;
+    max-width: 100%;
+  }
+
+  .portal-filter-bar__filters,
+  .filter-bar__filters,
+  .admin-filters,
+  .table-actions {
+    max-width: 100%;
+  }
+
+  .inv-cms-toolbar,
+  .inv-cms-toolbar__left,
+  .inv-cms-search {
+    width: 100%;
+    min-width: 0;
+  }
+
+  .inv-cms-search input {
+    width: 100%;
+    min-width: 0;
+  }
+
+  .pagination,
+  .pagination__controls {
+    justify-content: center;
+  }
+
+  .pagination__summary {
+    width: 100%;
+    text-align: center;
+  }
+
+  .admin-modal,
+  .staff-modal,
+  .staff-task-modal,
+  .volunteer-task-modal,
+  .barangay-submission-modal,
+  .relief-modal-improved,
+  .dist-detail-modal,
+  .dist-form-modal {
+    max-width: calc(100vw - 1rem) !important;
+    max-height: calc(100dvh - 1rem) !important;
+    border-radius: 12px !important;
+  }
+
+  .admin-modal__body,
+  .admin-modal__content,
+  .staff-modal__content,
+  .staff-task-modal__content,
+  .barangay-submission-modal__body,
+  .beneficiary-request-modal__body {
+    padding: 1rem;
+  }
+
+  .admin-modal__actions,
+  .admin-modal__footer,
+  .staff-modal__actions,
+  .staff-task-modal__footer,
+  .barangay-submission-modal__actions {
+    gap: 0.6rem;
+  }
+
+  .detail-list {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0.2rem;
+  }
+
+  .detail-list dd {
+    margin-bottom: 0.65rem;
+  }
+
+  .portal-stats,
+  .volunteer-kpi-grid,
+  .beneficiary-summary-grid,
+  .beneficiary-request-summary,
+  .beneficiary-requests-grid,
+  .donor-analytics-cards,
+  .donor-donations-grid,
+  .donor-cert-summary,
+  .staff-tasks-grid,
+  .staff-verification-grid,
+  .staff-inventory-items-grid,
+  .staff-distributions-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .cert-creator-body {
+    padding: 0.75rem;
+    gap: 0.75rem;
+  }
+
+  .cert-form-column,
+  .cert-preview-column {
+    min-width: 0;
+    padding-right: 0;
+  }
+}
+
+@media (max-width: 480px) {
+  .admin-content,
+  .portal-content {
+    padding: 0.75rem;
+  }
+
+  .admin-topbar,
+  .portal-topbar {
+    padding-inline: 0.75rem;
+  }
+
+  .portal-topbar p {
+    display: none;
+  }
+
+  .portal-topbar h1,
+  .admin-topbar__title {
+    font-size: 0.95rem;
+  }
+
+  .auth-page__visual {
+    min-height: 190px;
+  }
+
+  .auth-page__visual-overlay {
+    padding: 1rem;
+  }
+
+  .auth-page__visual-overlay p {
+    font-size: 1.35rem;
+  }
+
+  .auth-page__form-wrap {
+    padding: 1rem 0.75rem;
+  }
+
+  .auth-card,
+  .forgot-pw-card {
+    padding: 1.5rem 1.25rem;
+    border-radius: 16px;
+  }
+
+  .auth-form__row {
+    align-items: flex-start;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+  }
+
+  .auth-link-btn {
+    margin-left: auto;
+  }
+
+  .hero-section__content {
+    max-width: 100%;
+  }
+
+  .hero-section__title {
+    font-size: clamp(2.15rem, 11vw, 3rem);
+  }
+
+  .hero-section__actions {
+    width: 100%;
+  }
+
+  .hero-section__actions .btn {
+    width: 100%;
+    min-width: 0;
+  }
+
+  .admin-modal__actions,
+  .admin-modal__actions-group,
+  .admin-modal__footer,
+  .staff-modal__actions,
+  .staff-task-modal__footer,
+  .barangay-submission-modal__actions {
+    flex-direction: column;
+    align-items: stretch;
+    width: 100%;
+  }
+
+  .admin-modal__actions .btn,
+  .admin-modal__actions-group .btn,
+  .admin-modal__footer .btn,
+  .staff-modal__actions .btn,
+  .staff-task-modal__footer .btn,
+  .barangay-submission-modal__actions .btn {
+    width: 100%;
+  }
+
+  .admin-metrics-grid,
+  .admin-stats-grid,
+  .staff-tasks-summary,
+  .staff-verification-summary,
+  .staff-inventory-summary,
+  .staff-distributions-summary {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .portal-filter-btn,
+  .btn {
+    white-space: normal;
+    text-align: center;
+  }
+}
+
+@media (max-height: 560px) and (orientation: landscape) {
+  .admin-modal-overlay,
+  .staff-modal-overlay,
+  .staff-task-modal-overlay,
+  .approval-confirm-overlay {
+    align-items: flex-start;
+    padding: 0.5rem;
+  }
+
+  .admin-modal,
+  .staff-modal,
+  .staff-task-modal,
+  .volunteer-task-modal,
+  .barangay-submission-modal,
+  .relief-modal-improved,
+  .dist-detail-modal,
+  .dist-form-modal {
+    max-height: calc(100dvh - 1rem) !important;
+  }
+}

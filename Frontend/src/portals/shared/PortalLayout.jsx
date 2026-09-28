@@ -61,7 +61,7 @@ export default function PortalLayout({ role }) {
             {page.sub && <p>{page.sub}</p>}
           </div>
 
-          <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+          <div className="portal-topbar__actions">
             {(role === 'Staff' || role === 'Beneficiary' || role === 'Volunteer' || role === 'Donor') && (
               <NotificationBell
                 linkPrefix={
