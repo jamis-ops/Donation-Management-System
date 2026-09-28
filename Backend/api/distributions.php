@@ -4,6 +4,7 @@ require_once __DIR__ . '/bootstrap.php';
 
 $pdo = db();
 ensure_distribution_schema($pdo);
+ensure_allocation_inventory_schema($pdo);
 $method = request_method();
 $id = get_id_param();
 
@@ -1030,6 +1031,7 @@ if ($method === 'POST') {
       $pdo->prepare("UPDATE assistance_requests SET status = 'In Distribution' WHERE id IN ($inReq) AND status NOT IN ('Completed', 'Rejected', 'Cancelled')")
         ->execute($reqIds);
     }
+    sync_donations_for_distribution($pdo, $newId, (string) ($body['status'] ?? 'Planning'));
   }
 
   notify_admins($pdo, 'distribution', 'New distribution planned', "Distribution {$code} scheduled for {$location}", '/admin/distributions?focus=drafts#distributions-drafts');
@@ -1223,6 +1225,7 @@ if ($method === 'PUT') {
       'beneficiary_id' => $beneficiaryId ?? ($existing['beneficiary_id'] ?? null),
     ]);
     notify_distribution_lifecycle($pdo, $freshForMail, (string) $newStatus, (string) ($existing['status'] ?? ''));
+    sync_donations_for_distribution($pdo, (int) $id, (string) $newStatus);
   }
 
   audit_log($pdo, 'update', 'distribution', $existing['code'], "Updated distribution" . ($newStatus !== $existing['status'] ? " (status: {$newStatus})" : ''));

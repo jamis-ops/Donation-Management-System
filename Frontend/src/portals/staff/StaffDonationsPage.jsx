@@ -463,7 +463,7 @@ export default function StaffDonationsPage() {
         {/* Donation Details Modal */}
         {selected && (
           <div className="admin-modal-overlay" onClick={() => setSelected(null)}>
-            <div className="admin-modal admin-modal--wide" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '850px' }}>
+            <div className="admin-modal admin-modal--wide donation-detail-modal" onClick={(e) => e.stopPropagation()}>
               <ModalHeader
                 title={`Donation Details – ${selected.trackingCode}`}
                 onClose={() => setSelected(null)}
@@ -625,7 +625,7 @@ export default function StaffDonationsPage() {
                     <StatusBadge status={selected.status} />
                   </div>
                   <div className="donation-overview-card__subtitle">
-                    {selected.status === 'Pending Verification' ? 'Awaiting staff review' : 'Active status'}
+                    {selected.status === 'Pending Verification' ? 'Awaiting staff review' : 'System-controlled workflow status'}
                   </div>
                 </div>
               </div>
@@ -656,7 +656,7 @@ export default function StaffDonationsPage() {
               {/* TAB 1: Donation Details */}
               {modalTab === 'details' && (
                 <div>
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '1rem', marginBottom: '1rem' }}>
+                  <div className="donation-profile-grid">
                     {/* Left Column: Donor Profile */}
                     <div className="donation-info-section" style={{ background: '#f8fafc', padding: '1rem', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
                       <h4 style={{ margin: '0 0 0.75rem', fontSize: '0.9rem', fontWeight: 700, color: '#1e293b', display: 'flex', alignItems: 'center', gap: '6px' }}>
@@ -772,6 +772,31 @@ export default function StaffDonationsPage() {
                       </div>
                     </div>
                   </div>
+
+                  {selected.status !== 'Pending Verification' && selected.relatedProcesses?.length > 0 && (
+                    <div className="donation-process-card">
+                      <div className="donation-process-card__header">
+                        <div><ShieldCheck size={14} /> Related Allocation & Request Progress ({selected.relatedProcesses.length})</div>
+                      </div>
+                      <div className="donation-process-list">
+                        {selected.relatedProcesses.map((process, idx) => (
+                          <div className="donation-process-row" key={`${process.allocationId || 'process'}-${idx}`}>
+                            <div className="donation-process-row__main">
+                              <strong>{process.requestCode || 'Linked Relief Request'}</strong>
+                              <span>{process.beneficiaryName || 'Partner Community'} · {process.allocationCode || 'Allocation recorded'}</span>
+                            </div>
+                            <div className="donation-process-row__statuses">
+                              <StatusBadge status={process.requestStatus || process.allocationStatus || 'Allocated'} />
+                              {process.distributionStatus && <StatusBadge status={process.distributionStatus} />}
+                            </div>
+                            {selected.type === 'Monetary' && Number(process.amount) > 0 && (
+                              <strong className="donation-process-row__amount">₱{Number(process.amount).toLocaleString('en-PH', { minimumFractionDigits: 2 })}</strong>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
 
                   {/* OCR Extracted Payment Info (if present) */}
                   {selected.aiExtractedAmount !== null && selected.aiExtractedAmount !== undefined && (

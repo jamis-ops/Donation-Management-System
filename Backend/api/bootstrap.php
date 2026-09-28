@@ -2153,6 +2153,150 @@ function ensure_allocation_inventory_schema(PDO $pdo): void
   try {
     $pdo->exec("UPDATE inventory_items SET allocated = quantity WHERE allocated > quantity");
   } catch (Throwable $e) {}
+
+  // Preserve which verified in-kind donation supplied stock. Inventory remains
+  // aggregated, while these small ledgers let donation progress follow the
+  // real allocation/distribution records without guessing from item names.
+  try {
+    $pdo->exec("
+      CREATE TABLE IF NOT EXISTS donation_inventory_sources (
+        id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+        donation_id BIGINT UNSIGNED NOT NULL,
+        inventory_item_id BIGINT UNSIGNED NOT NULL,
+        received_quantity INT UNSIGNED NOT NULL DEFAULT 0,
+        allocated_quantity INT UNSIGNED NOT NULL DEFAULT 0,
+        created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE KEY uq_donation_inventory_source (donation_id, inventory_item_id),
+        INDEX idx_dis_inventory_available (inventory_item_id, allocated_quantity),
+        CONSTRAINT fk_dis_donation FOREIGN KEY (donation_id) REFERENCES donations(id) ON DELETE CASCADE,
+        CONSTRAINT fk_dis_inventory FOREIGN KEY (inventory_item_id) REFERENCES inventory_items(id) ON DELETE CASCADE
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+    ");
+    $pdo->exec("
+      CREATE TABLE IF NOT EXISTS allocation_donation_sources (
+        id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+        allocation_id BIGINT UNSIGNED NOT NULL,
+        source_id BIGINT UNSIGNED NOT NULL,
+        donation_id BIGINT UNSIGNED NOT NULL,
+        quantity INT UNSIGNED NOT NULL DEFAULT 0,
+        created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE KEY uq_allocation_source (allocation_id, source_id),
+        INDEX idx_ads_donation (donation_id),
+        CONSTRAINT fk_ads_allocation FOREIGN KEY (allocation_id) REFERENCES allocations(id) ON DELETE CASCADE,
+        CONSTRAINT fk_ads_source FOREIGN KEY (source_id) REFERENCES donation_inventory_sources(id) ON DELETE CASCADE,
+        CONSTRAINT fk_ads_donation FOREIGN KEY (donation_id) REFERENCES donations(id) ON DELETE CASCADE
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+    ");
+  } catch (Throwable $e) {
+    // Legacy installations can continue operating; the API exposes stored
+    // statuses until the migration privilege is available.
+  }
+}
+
+/** Attribute an inventory deduction to the oldest unallocated in-kind sources. */
+function consume_donation_inventory_sources(PDO $pdo, int $allocationId, int $inventoryItemId, int $quantity): void
+{
+  if ($allocationId <= 0 || $inventoryItemId <= 0 || $quantity <= 0) return;
+  $stmt = $pdo->prepare("SELECT * FROM donation_inventory_sources WHERE inventory_item_id = ? AND allocated_quantity < received_quantity ORDER BY created_at ASC, id ASC FOR UPDATE");
+  $stmt->execute([$inventoryItemId]);
+  $remaining = $quantity;
+  $touched = [];
+  foreach ($stmt->fetchAll() as $source) {
+    if ($remaining <= 0) break;
+    $available = max(0, (int) $source['received_quantity'] - (int) $source['allocated_quantity']);
+    $take = min($available, $remaining);
+    if ($take <= 0) continue;
+    $pdo->prepare('UPDATE donation_inventory_sources SET allocated_quantity = allocated_quantity + ? WHERE id = ?')
+      ->execute([$take, (int) $source['id']]);
+    $pdo->prepare('INSERT INTO allocation_donation_sources (allocation_id, source_id, donation_id, quantity) VALUES (?, ?, ?, ?) ON DUPLICATE KEY UPDATE quantity = quantity + VALUES(quantity)')
+      ->execute([$allocationId, (int) $source['id'], (int) $source['donation_id'], $take]);
+    $touched[] = (int) $source['donation_id'];
+    $remaining -= $take;
+  }
+  sync_in_kind_donation_statuses($pdo, $touched);
+}
+
+/** Release source attribution when an allocation is cancelled or reduced. */
+function release_donation_inventory_sources(PDO $pdo, int $allocationId, ?int $quantity = null): void
+{
+  $stmt = $pdo->prepare('SELECT * FROM allocation_donation_sources WHERE allocation_id = ? ORDER BY id DESC FOR UPDATE');
+  $stmt->execute([$allocationId]);
+  $remaining = $quantity === null ? PHP_INT_MAX : max(0, $quantity);
+  $touched = [];
+  foreach ($stmt->fetchAll() as $link) {
+    if ($remaining <= 0) break;
+    $release = min((int) $link['quantity'], $remaining);
+    $pdo->prepare('UPDATE donation_inventory_sources SET allocated_quantity = GREATEST(0, allocated_quantity - ?) WHERE id = ?')
+      ->execute([$release, (int) $link['source_id']]);
+    if ($release >= (int) $link['quantity']) {
+      $pdo->prepare('DELETE FROM allocation_donation_sources WHERE id = ?')->execute([(int) $link['id']]);
+    } else {
+      $pdo->prepare('UPDATE allocation_donation_sources SET quantity = quantity - ? WHERE id = ?')->execute([$release, (int) $link['id']]);
+    }
+    $touched[] = (int) $link['donation_id'];
+    $remaining -= $release;
+  }
+  sync_in_kind_donation_statuses($pdo, $touched);
+}
+
+function sync_in_kind_donation_statuses(PDO $pdo, array $donationIds): void
+{
+  foreach (array_values(array_unique(array_filter(array_map('intval', $donationIds)))) as $donationId) {
+    try {
+      $totals = $pdo->prepare('SELECT COALESCE(SUM(received_quantity),0) received, COALESCE(SUM(allocated_quantity),0) allocated FROM donation_inventory_sources WHERE donation_id = ?');
+      $totals->execute([$donationId]);
+      $source = $totals->fetch() ?: [];
+      $received = (int) ($source['received'] ?? 0);
+      $allocated = (int) ($source['allocated'] ?? 0);
+      $status = $allocated <= 0 ? 'Verified' : ($allocated < $received ? 'Partially Allocated' : 'Allocated');
+      $progress = $pdo->prepare('SELECT d.status FROM allocation_donation_sources ads JOIN allocations a ON a.id = ads.allocation_id LEFT JOIN distributions d ON d.id = a.distribution_id WHERE ads.donation_id = ? AND a.status <> \'Cancelled\'');
+      $progress->execute([$donationId]);
+      $distributionStatuses = $progress->fetchAll(PDO::FETCH_COLUMN);
+      $allCompleted = !empty($distributionStatuses);
+      $allDistributed = !empty($distributionStatuses);
+      foreach ($distributionStatuses as $distributionStatus) {
+        $normalized = normalize_distribution_status((string) $distributionStatus);
+        $allCompleted = $allCompleted && $normalized === 'Completed';
+        $allDistributed = $allDistributed && in_array($normalized, ['In Transit', 'Delivered', 'Completed'], true);
+      }
+      if ($status === 'Allocated' && $allCompleted) $status = 'Completed';
+      elseif ($status === 'Allocated' && $allDistributed) $status = 'Distributed';
+      $pdo->prepare("UPDATE donations SET status = ? WHERE id = ? AND status NOT IN ('Pending Verification','Rejected','Cancelled')")
+        ->execute([$status, $donationId]);
+    } catch (Throwable $e) {}
+  }
+}
+
+/** Keep linked donation records aligned with the furthest real distribution step. */
+function sync_donations_for_distribution(PDO $pdo, int $distributionId, string $distributionStatus): void
+{
+  try {
+    $stmt = $pdo->prepare("SELECT DISTINCT donation_id FROM donation_procurements WHERE allocation_id IN (SELECT id FROM allocations WHERE distribution_id = ?) UNION SELECT DISTINCT ads.donation_id FROM allocation_donation_sources ads JOIN allocations a ON a.id = ads.allocation_id WHERE a.distribution_id = ?");
+    $stmt->execute([$distributionId, $distributionId]);
+    $ids = array_map('intval', $stmt->fetchAll(PDO::FETCH_COLUMN));
+    foreach ($ids as $donationId) {
+      $donationStmt = $pdo->prepare('SELECT type, amount, status FROM donations WHERE id = ? LIMIT 1');
+      $donationStmt->execute([$donationId]);
+      $donation = $donationStmt->fetch();
+      if (!$donation || in_array($donation['status'], ['Pending Verification', 'Rejected', 'Cancelled'], true)) continue;
+      if (($donation['type'] ?? '') === 'In-Kind') {
+        sync_in_kind_donation_statuses($pdo, [$donationId]);
+        continue;
+      }
+      $procStmt = $pdo->prepare('SELECT dp.total_amount, d.status distribution_status FROM donation_procurements dp LEFT JOIN allocations a ON a.id = dp.allocation_id LEFT JOIN distributions d ON d.id = a.distribution_id WHERE dp.donation_id = ?');
+      $procStmt->execute([$donationId]);
+      $processes = $procStmt->fetchAll();
+      $utilized = array_sum(array_map(static fn($p) => (float) $p['total_amount'], $processes));
+      $remaining = max(0.0, (float) $donation['amount'] - $utilized);
+      $status = $utilized <= 0.009 ? 'Verified' : ($remaining > 0.009 ? 'Partially Allocated' : 'Allocated');
+      if ($status === 'Allocated' && $processes) {
+        $states = array_map(static fn($p) => normalize_distribution_status((string) ($p['distribution_status'] ?? '')), $processes);
+        if (count(array_filter($states, static fn($s) => $s === 'Completed')) === count($states)) $status = 'Completed';
+        elseif (count(array_filter($states, static fn($s) => in_array($s, ['In Transit', 'Delivered', 'Completed'], true))) === count($states)) $status = 'Distributed';
+      }
+      $pdo->prepare('UPDATE donations SET status = ? WHERE id = ?')->execute([$status, $donationId]);
+    }
+  } catch (Throwable $e) {}
 }
 
 /**

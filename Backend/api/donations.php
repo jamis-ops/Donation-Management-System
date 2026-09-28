@@ -28,6 +28,7 @@ function ensure_donation_classified_columns(PDO $pdo): void
   $done = true;
 }
 ensure_donation_classified_columns($pdo);
+ensure_allocation_inventory_schema($pdo);
 
 function donation_proof_is_image(?string $mime, ?string $fileName): bool
 {
@@ -82,13 +83,20 @@ function map_donation(array $row, ?PDO $pdo = null): array
   $procurements = [];
   $totalUtilized = 0.0;
   $familiesSupported = 0;
+  $relatedProcesses = [];
   if ($pdo) {
     ensure_procurement_table($pdo);
     try {
       $stmt = $pdo->prepare("
-        SELECT dp.*, b.full_name AS beneficiary_name, b.municipality AS beneficiary_municipality
+        SELECT dp.*, b.full_name AS beneficiary_name, b.municipality AS beneficiary_municipality,
+               ar.reference_code AS request_code, ar.status AS request_status,
+               a.code AS allocation_code, a.status AS allocation_status,
+               dist.code AS distribution_code, dist.status AS distribution_status
         FROM donation_procurements dp
         LEFT JOIN beneficiaries b ON b.id = dp.beneficiary_id
+        LEFT JOIN assistance_requests ar ON ar.id = dp.assistance_request_id
+        LEFT JOIN allocations a ON a.id = dp.allocation_id
+        LEFT JOIN distributions dist ON dist.id = a.distribution_id
         WHERE dp.donation_id = ?
         ORDER BY dp.created_at DESC, dp.id DESC
       ");
@@ -118,12 +126,68 @@ function map_donation(array $row, ?PDO $pdo = null): array
           'notes' => $p['notes'],
           'createdAt' => $p['created_at'],
         ];
+        $relatedProcesses[] = [
+          'requestId' => $p['assistance_request_id'] ? (int) $p['assistance_request_id'] : null,
+          'requestCode' => $p['request_code'] ?? null,
+          'requestStatus' => $p['request_status'] ?? null,
+          'allocationId' => $p['allocation_id'] ? (int) $p['allocation_id'] : null,
+          'allocationCode' => $p['allocation_code'] ?? null,
+          'allocationStatus' => $p['allocation_status'] ?? null,
+          'distributionCode' => $p['distribution_code'] ?? null,
+          'distributionStatus' => $p['distribution_status'] ?? null,
+          'amount' => $pAmount,
+          'beneficiaryName' => $p['beneficiary_name'] ?? null,
+        ];
       }
     } catch (Throwable $e) {}
+
+    if (($row['type'] ?? '') === 'In-Kind') {
+      try {
+        $stmt = $pdo->prepare("SELECT DISTINCT ar.id request_id, ar.reference_code request_code, ar.status request_status, a.id allocation_id, a.code allocation_code, a.status allocation_status, d.code distribution_code, d.status distribution_status, b.full_name beneficiary_name FROM allocation_donation_sources ads JOIN allocations a ON a.id = ads.allocation_id LEFT JOIN assistance_requests ar ON ar.id = a.assistance_request_id LEFT JOIN distributions d ON d.id = a.distribution_id LEFT JOIN beneficiaries b ON b.id = a.beneficiary_id WHERE ads.donation_id = ? AND a.status <> 'Cancelled' ORDER BY a.id DESC");
+        $stmt->execute([(int) $row['id']]);
+        foreach ($stmt->fetchAll() as $p) {
+          $relatedProcesses[] = [
+            'requestId' => $p['request_id'] ? (int) $p['request_id'] : null,
+            'requestCode' => $p['request_code'] ?? null,
+            'requestStatus' => $p['request_status'] ?? null,
+            'allocationId' => (int) $p['allocation_id'],
+            'allocationCode' => $p['allocation_code'] ?? null,
+            'allocationStatus' => $p['allocation_status'] ?? null,
+            'distributionCode' => $p['distribution_code'] ?? null,
+            'distributionStatus' => $p['distribution_status'] ?? null,
+            'beneficiaryName' => $p['beneficiary_name'] ?? null,
+          ];
+        }
+      } catch (Throwable $e) {}
+    }
   }
 
   $amountRaw = (float) ($row['amount'] ?? 0);
   $remainingAmount = max(0.0, $amountRaw - $totalUtilized);
+  $effectiveStatus = (string) ($row['status'] ?? 'Pending Verification');
+  if (!in_array($effectiveStatus, ['Pending Verification', 'Rejected', 'Cancelled'], true)) {
+    if (($row['type'] ?? '') === 'Monetary') {
+      $effectiveStatus = $totalUtilized <= 0.009
+        ? 'Verified'
+        : ($remainingAmount > 0.009 ? 'Partially Allocated' : 'Allocated');
+    }
+    $allCompleted = !empty($relatedProcesses);
+    $allDistributed = !empty($relatedProcesses);
+    foreach ($relatedProcesses as $process) {
+      $workflowStatus = (string) ($process['distributionStatus'] ?? $process['requestStatus'] ?? $process['allocationStatus'] ?? '');
+      $normalized = strtolower(trim($workflowStatus));
+      $allCompleted = $allCompleted && $normalized === 'completed';
+      $allDistributed = $allDistributed && in_array($normalized, ['in transit', 'delivered', 'distributed', 'completed'], true);
+      if ($normalized !== '' && $effectiveStatus === 'Verified') $effectiveStatus = 'Allocated';
+    }
+    if ($effectiveStatus === 'Allocated' && $allCompleted) $effectiveStatus = 'Completed';
+    elseif ($effectiveStatus === 'Allocated' && $allDistributed) $effectiveStatus = 'Distributed';
+    if ($pdo && $effectiveStatus !== ($row['status'] ?? '')) {
+      try {
+        $pdo->prepare('UPDATE donations SET status = ? WHERE id = ?')->execute([$effectiveStatus, (int) $row['id']]);
+      } catch (Throwable $e) {}
+    }
+  }
 
   return [
     'id' => $row['tracking_code'],
@@ -139,8 +203,9 @@ function map_donation(array $row, ?PDO $pdo = null): array
     'remainingBalance' => $remainingAmount,
     'familiesSupported' => $familiesSupported,
     'procurements' => $procurements,
+    'relatedProcesses' => $relatedProcesses,
     'itemsDescription' => $row['items_description'],
-    'status' => $row['status'],
+    'status' => $effectiveStatus,
     'date' => format_date($row['donation_date']),
     'donationDate' => $row['donation_date'],
     'notes' => $row['notes'],
@@ -696,7 +761,9 @@ if ($method === 'POST') {
   $tracking = generate_code('DON');
   $amount = $type === 'Monetary' ? (float) ($body['amount'] ?? 0) : null;
   $items = $type === 'In-Kind' ? trim((string) ($body['items'] ?? $body['itemsDescription'] ?? '')) : null;
-  $status = trim((string) ($body['status'] ?? 'Pending Verification'));
+  // Every new donation enters intake; later operational milestones are derived
+  // from its linked allocation/request/distribution records.
+  $status = 'Pending Verification';
   $notes = trim((string) ($body['notes'] ?? $body['message'] ?? ''));
   $paymentMethod = trim((string) ($body['paymentMethod'] ?? $body['payment_method'] ?? '')) ?: null;
   $paymentReference = trim((string) ($body['paymentReference'] ?? $body['payment_reference'] ?? '')) ?: null;
@@ -933,12 +1000,15 @@ if ($method === 'PUT') {
 
   $action = trim((string) ($body['action'] ?? ''));
   if ($action === 'classify_in_kind') {
+    if (($existing['status'] ?? '') !== 'Pending Verification') {
+      json_response(['ok' => false, 'error' => 'Only donations pending verification can be classified.'], 409);
+    }
     $classifiedItems = is_array($body['classifiedItems'] ?? null) ? $body['classifiedItems'] : [];
     if (empty($classifiedItems)) {
       json_response(['ok' => false, 'error' => 'Please provide at least one item to classify into inventory.'], 400);
     }
 
-    $newStatus = trim((string) ($body['status'] ?? 'Verified'));
+    $newStatus = 'Verified';
     $becomingVerified = $newStatus === 'Verified' && ($existing['status'] ?? '') !== 'Verified';
 
     try {
@@ -947,8 +1017,10 @@ if ($method === 'PUT') {
       $pdo->exec("ALTER TABLE inventory_items ADD COLUMN variant VARCHAR(100) NULL AFTER brand");
     } catch (Throwable $e) {}
 
+    ensure_allocation_inventory_schema($pdo);
     $inventoryAddedCount = 0;
     $itemSummaryList = [];
+    $classifiedWithInventory = [];
 
     foreach ($classifiedItems as $item) {
       $cat = trim((string) ($item['category'] ?? 'Food')) ?: 'Food';
@@ -985,6 +1057,7 @@ if ($method === 'PUT') {
 
       if ($invRow) {
         update_inventory_stock_state($pdo, (int) $invRow['id'], (int) $invRow['quantity'] + $qty, (int) ($invRow['allocated'] ?? 0), 'Available');
+        $inventoryItemId = (int) $invRow['id'];
       } else {
         try {
           $insertInv = $pdo->prepare('
@@ -1004,6 +1077,7 @@ if ($method === 'PUT') {
             $unit,
             $lowStock
           ]);
+          $inventoryItemId = (int) $pdo->lastInsertId();
         } catch (PDOException $e) {
           if (str_contains($e->getMessage(), 'stock_state') || $e->getCode() === '42S22' || str_contains((string) $e->getCode(), '1054')) {
             $insertInv = $pdo->prepare('
@@ -1023,16 +1097,20 @@ if ($method === 'PUT') {
               $unit,
               $lowStock
             ]);
+            $inventoryItemId = (int) $pdo->lastInsertId();
           } else {
             throw $e;
           }
         }
       }
+      $pdo->prepare('INSERT INTO donation_inventory_sources (donation_id, inventory_item_id, received_quantity, allocated_quantity) VALUES (?, ?, ?, 0) ON DUPLICATE KEY UPDATE received_quantity = received_quantity + VALUES(received_quantity)')
+        ->execute([(int) $id, $inventoryItemId, $qty]);
+      $classifiedWithInventory[] = array_merge($item, ['inventoryItemId' => $inventoryItemId]);
       $inventoryAddedCount += $qty;
     }
 
     ensure_donation_classified_columns($pdo);
-    $encodedJson = json_encode($classifiedItems);
+    $encodedJson = json_encode($classifiedWithInventory);
     $pdo->prepare('
       UPDATE donations 
       SET status = ?, 
@@ -1093,6 +1171,13 @@ if ($method === 'PUT') {
   }
 
   $status = trim((string) ($body['status'] ?? $existing['status']));
+  if ($status !== (string) $existing['status']) {
+    $allowedVerificationDecision = ($existing['status'] ?? '') === 'Pending Verification'
+      && in_array($status, ['Verified', 'Rejected'], true);
+    if (!$allowedVerificationDecision) {
+      json_response(['ok' => false, 'error' => 'Donation status is system-controlled and follows its allocation, request, and distribution records.'], 409);
+    }
+  }
   assert_valid_status_transition(
     'Donation',
     (string) ($existing['status'] ?? ''),

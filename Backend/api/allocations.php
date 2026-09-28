@@ -767,6 +767,8 @@ if ($method === 'POST') {
       ]);
       $newId = (int) $pdo->lastInsertId();
 
+      consume_donation_inventory_sources($pdo, $newId, $matchedInvId, $qty);
+
       $fetchStmt = $pdo->prepare('SELECT * FROM allocations WHERE id = ?');
       $fetchStmt->execute([$newId]);
       $allocRow = $fetchStmt->fetch();
@@ -929,6 +931,7 @@ if ($method === 'PUT') {
         }
         $invDeducted = 0;
         $deductedQty = 0;
+        release_donation_inventory_sources($pdo, (int) $id);
       }
     }
     // CASE 2: Status changing FROM Pending to Confirmed (Reserved or Allocated) -> Deduct stock
@@ -963,6 +966,7 @@ if ($method === 'PUT') {
           );
           $invDeducted = 1;
           $deductedQty = $newQty;
+          consume_donation_inventory_sources($pdo, (int) $id, $targetInvId, $newQty);
         }
       }
     }
@@ -1021,6 +1025,7 @@ if ($method === 'PUT') {
             $beneficiaryTarget,
             "Increased allocation {$existing['code']} by {$diff} {$inv['unit']}"
           );
+          consume_donation_inventory_sources($pdo, (int) $id, $targetInvId, $diff);
         } else {
           // Partial restore
           $restoreAmount = abs($diff);
@@ -1041,6 +1046,7 @@ if ($method === 'PUT') {
             $beneficiaryTarget,
             "Reduced allocation {$existing['code']} by {$restoreAmount} {$inv['unit']} (stock restored)"
           );
+          release_donation_inventory_sources($pdo, (int) $id, $restoreAmount);
         }
         $deductedQty = $newQty;
       }
@@ -1157,6 +1163,7 @@ if ($method === 'DELETE') {
       }
     }
 
+    release_donation_inventory_sources($pdo, (int) $id);
     $pdo->prepare('DELETE FROM allocations WHERE id = ?')->execute([$id]);
     $pdo->commit();
   } catch (Throwable $e) {

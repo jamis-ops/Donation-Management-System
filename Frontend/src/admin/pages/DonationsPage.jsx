@@ -24,7 +24,6 @@ import { notify, confirmAction, showSuccessModal } from '../../utils/confirm'
 import { notifyBadgesChanged } from '../../utils/badgeSync'
 import { useLoading } from '../../context/LoadingContext'
 import { printDonationReceipt } from '../../components/shared/printDonationReceipt'
-import { DONATION_STATUSES } from '../../constants/options'
 
 const IN_KIND_CATEGORIES = [
   'Food',
@@ -138,7 +137,6 @@ export default function DonationsPage() {
   const [saving, setSaving] = useState(false)
   const [modalTab, setModalTab] = useState('details')
   const [actionLoading, setActionLoading] = useState(false)
-  const [actionStatus, setActionStatus] = useState('')
   const [paymentMethodOptions, setPaymentMethodOptions] = useState(PAYMENT_METHODS)
   const [proofZoomModal, setProofZoomModal] = useState(false)
   const [zoomLevel, setZoomLevel] = useState(1)
@@ -150,7 +148,6 @@ export default function DonationsPage() {
     setProofZoomModal(false)
     setZoomLevel(1)
     setProofImgError(false)
-    setActionStatus(donation?.status || '')
   }
 
   useEffect(() => {
@@ -947,16 +944,6 @@ export default function DonationsPage() {
                         ))}
                       </select>
                     </label>
-                    <label>
-                      Initial Status
-                      <select 
-                        value={form.status} 
-                        onChange={(e) => setForm({ ...form, status: e.target.value })}
-                      >
-                        <option value="Pending Verification">Pending Verification</option>
-                        <option value="Verified">Verified (Post to Inventory)</option>
-                      </select>
-                    </label>
                   </div>
 
                   <label>
@@ -1021,19 +1008,6 @@ export default function DonationsPage() {
                     </label>
                   </div>
 
-                  <div className="form-row">
-                    <label>
-                      Initial Status
-                      <select 
-                        value={form.status} 
-                        onChange={(e) => setForm({ ...form, status: e.target.value })}
-                      >
-                        {DONATION_STATUSES.map((s) => (
-                          <option key={s} value={s}>{s}</option>
-                        ))}
-                      </select>
-                    </label>
-                  </div>
                 </>
               )}
 
@@ -1217,7 +1191,7 @@ export default function DonationsPage() {
                 <hr className="donation-section-divider" />
 
                 {/* 2. Compact Unified Information: Donor Profile & Transaction Information */}
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '0.85rem', marginBottom: '1rem' }}>
+                <div className="donation-profile-grid">
                   {/* Left Column: Donor Information */}
                   <div className="donation-info-section" style={{ margin: 0 }}>
                     <h4 className="donation-info-section__title">
@@ -1362,11 +1336,11 @@ export default function DonationsPage() {
                         <span style={{ fontWeight: 600, color: '#1e293b' }}>{selected.category || 'General Support'}</span>
                       </div>
 
-                      {selected.type === 'Monetary' && selected.status !== 'Pending Verification' && (
-                        <div style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: '6px', padding: '0.45rem 0.65rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                          <span style={{ color: '#64748b', fontSize: '0.74rem' }}>Funds Allocated:</span>
+                      {selected.type === 'Monetary' && selected.status !== 'Pending Verification' && !isMonetaryDonationFullyAllocated(selected) && (
+                        <div className="donation-balance-summary">
+                          <span>Remaining to Allocate:</span>
                           <span style={{ fontWeight: 600, color: '#047857' }}>
-                            ₱{(Number(selected.totalUtilized) || 0).toLocaleString('en-PH')} / ₱{(Number(selected.amountRaw) || 0).toLocaleString('en-PH')}
+                            ₱{getMonetaryRemainingBalance(selected).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                           </span>
                         </div>
                       )}
@@ -1435,27 +1409,8 @@ export default function DonationsPage() {
                       <StatusBadge status={selected.status} />
                     </div>
 
-                    <div className="donation-status-quick-transition">
-                      <label htmlFor="donation-status-select">Status</label>
-                      <select
-                        id="donation-status-select"
-                        value={actionStatus || selected.status}
-                        onChange={(e) => setActionStatus(e.target.value)}
-                        disabled={actionLoading}
-                        title="Change operational status"
-                      >
-                        {DONATION_STATUSES.map((st) => (
-                          <option key={st} value={st}>{st}</option>
-                        ))}
-                      </select>
-                      <button
-                        type="button"
-                        className="btn btn--outline btn--sm"
-                        disabled={(actionStatus || selected.status) === selected.status || actionLoading}
-                        onClick={() => handleUpdateStatus(selected, actionStatus || selected.status)}
-                      >
-                        Update
-                      </button>
+                    <div className="donation-status-system-note">
+                      <ShieldCheck size={15} /> Updated automatically from the linked request and distribution
                     </div>
                   </div>
 
@@ -1493,39 +1448,30 @@ export default function DonationsPage() {
                   </div>
                 </div>
 
-                {/* Monetary Procurement Breakdown (if active and items recorded) */}
-                {selected.type === 'Monetary' && selected.status !== 'Pending Verification' && selected.procurements && selected.procurements.length > 0 && (
-                  <div className="donation-procurement-card" style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '8px', padding: '0.85rem 1rem', marginBottom: '1rem' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.82rem', fontWeight: 600, color: '#1e293b' }}>
-                        <Coins size={14} color="#AF101A" /> Recorded Allocations & Purchases ({selected.procurements.length})
-                      </div>
+                {selected.status !== 'Pending Verification' && selected.relatedProcesses?.length > 0 && (
+                  <div className="donation-process-card">
+                    <div className="donation-process-card__header">
+                      <div><Coins size={14} /> Related Allocation & Request Progress ({selected.relatedProcesses.length})</div>
                       {canAllocateMonetaryDonation(selected) && (
-                        <button
-                          type="button"
-                          className="btn btn--outline btn--sm"
-                          style={{ padding: '0.2rem 0.5rem', fontSize: '0.74rem' }}
-                          onClick={() => setProcuringDonation(selected)}
-                        >
+                        <button type="button" className="btn btn--outline btn--sm" onClick={() => setProcuringDonation(selected)}>
                           <ShoppingCart size={12} /> New Allocation
                         </button>
                       )}
                     </div>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
-                      {selected.procurements.slice(0, 3).map((proc, idx) => (
-                        <div key={proc.id || idx} style={{ padding: '0.45rem 0.65rem', background: '#fff', borderRadius: '6px', border: '1px solid #e2e8f0', fontSize: '0.78rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                          <div>
-                            <span style={{ fontWeight: 600, color: '#0f172a' }}>
-                              {proc.procurement_type === 'pack_sponsorship' ? `📦 ${proc.pack_type || 'Relief Pack'} Sponsorship` : `🏬 Store Purchase: ${proc.store_name || 'Wholesale'}`}
-                            </span>
-                            <div style={{ color: '#64748b', fontSize: '0.72rem' }}>
-                              {proc.beneficiary_name ? `Target: ${proc.beneficiary_name}` : 'General Relief'}
-                              {proc.created_at && ` • ${new Date(proc.created_at).toLocaleDateString()}`}
-                            </div>
+                    <div className="donation-process-list">
+                      {selected.relatedProcesses.map((process, idx) => (
+                        <div className="donation-process-row" key={`${process.allocationId || 'process'}-${idx}`}>
+                          <div className="donation-process-row__main">
+                            <strong>{process.requestCode || 'Linked Relief Request'}</strong>
+                            <span>{process.beneficiaryName || 'Partner Community'} · {process.allocationCode || 'Allocation recorded'}</span>
                           </div>
-                          <strong style={{ color: '#047857' }}>
-                            ₱{Number(proc.total_amount || 0).toLocaleString('en-PH', { minimumFractionDigits: 2 })}
-                          </strong>
+                          <div className="donation-process-row__statuses">
+                            <StatusBadge status={process.requestStatus || process.allocationStatus || 'Allocated'} />
+                            {process.distributionStatus && <StatusBadge status={process.distributionStatus} />}
+                          </div>
+                          {selected.type === 'Monetary' && Number(process.amount) > 0 && (
+                            <strong className="donation-process-row__amount">₱{Number(process.amount).toLocaleString('en-PH', { minimumFractionDigits: 2 })}</strong>
+                          )}
                         </div>
                       ))}
                     </div>

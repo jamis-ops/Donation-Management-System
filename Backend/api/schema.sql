@@ -267,6 +267,34 @@ CREATE TABLE IF NOT EXISTS allocations (
   updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
+-- Source ledger keeps aggregated warehouse stock traceable to in-kind donors.
+CREATE TABLE IF NOT EXISTS donation_inventory_sources (
+  id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  donation_id BIGINT UNSIGNED NOT NULL,
+  inventory_item_id BIGINT UNSIGNED NOT NULL,
+  received_quantity INT UNSIGNED NOT NULL DEFAULT 0,
+  allocated_quantity INT UNSIGNED NOT NULL DEFAULT 0,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE KEY uq_donation_inventory_source (donation_id, inventory_item_id),
+  INDEX idx_dis_inventory_available (inventory_item_id, allocated_quantity),
+  CONSTRAINT fk_dis_donation FOREIGN KEY (donation_id) REFERENCES donations(id) ON DELETE CASCADE,
+  CONSTRAINT fk_dis_inventory FOREIGN KEY (inventory_item_id) REFERENCES inventory_items(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS allocation_donation_sources (
+  id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  allocation_id BIGINT UNSIGNED NOT NULL,
+  source_id BIGINT UNSIGNED NOT NULL,
+  donation_id BIGINT UNSIGNED NOT NULL,
+  quantity INT UNSIGNED NOT NULL DEFAULT 0,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE KEY uq_allocation_source (allocation_id, source_id),
+  INDEX idx_ads_donation (donation_id),
+  CONSTRAINT fk_ads_allocation FOREIGN KEY (allocation_id) REFERENCES allocations(id) ON DELETE CASCADE,
+  CONSTRAINT fk_ads_source FOREIGN KEY (source_id) REFERENCES donation_inventory_sources(id) ON DELETE CASCADE,
+  CONSTRAINT fk_ads_donation FOREIGN KEY (donation_id) REFERENCES donations(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
 -- ---------- DISTRIBUTIONS ----------
 CREATE TABLE IF NOT EXISTS distributions (
   id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,

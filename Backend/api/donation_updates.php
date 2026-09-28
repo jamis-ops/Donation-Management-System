@@ -59,58 +59,9 @@ function donation_accessible(PDO $pdo, array $user, int $donationId): ?array
 /** Resolve the furthest donor-facing stage from the donation and its linked delivery. */
 function resolve_donation_progress_status(PDO $pdo, array $donation, array $updates): string
 {
-  $status = trim((string) ($donation['status'] ?? '')) ?: 'Pending Verification';
-  $rank = static function (string $value): int {
-    return match (strtolower(trim($value))) {
-      'submitted', 'pending', 'pending verification', 'donation received' => 0,
-      'verified', 'verified & acknowledged', 'under review', 'sorted' => 1,
-      'in inventory', 'in stock', 'repacked', 'repacking',
-      'partially allocated', 'allocated', 'reserved', 'assigned' => 3,
-      'planning', 'preparing', 'in distribution', 'scheduled', 'scheduled for distribution',
-      'in transit', 'out for delivery' => 4,
-      'distributed', 'delivered', 'proof review', 'completed' => 5,
-      default => -1,
-    };
-  };
-  $bestRank = max(0, $rank($status));
-  $bestStatus = $status;
-  $consider = static function (string $candidate) use ($rank, &$bestRank, &$bestStatus): void {
-    $candidate = trim($candidate);
-    $candidateRank = $rank($candidate);
-    if ($candidate !== '' && $candidateRank >= $bestRank) {
-      $bestRank = $candidateRank;
-      $bestStatus = $candidate;
-    }
-  };
-  foreach ($updates as $update) {
-    $consider((string) ($update['stage'] ?? ''));
-  }
-
-  try {
-    $stmt = $pdo->prepare('
-      SELECT a.status AS allocation_status, d.status AS distribution_status
-      FROM donation_procurements dp
-      LEFT JOIN allocations a ON a.id = dp.allocation_id
-      LEFT JOIN distributions d ON d.id = a.distribution_id
-      WHERE dp.donation_id = ?
-    ');
-    $stmt->execute([(int) $donation['id']]);
-    foreach ($stmt->fetchAll() as $linked) {
-      $consider((string) ($linked['allocation_status'] ?? ''));
-      $consider((string) ($linked['distribution_status'] ?? ''));
-    }
-  } catch (Throwable $e) {
-    // Older databases may not yet have procurement links; stored progress still works.
-  }
-
-  return match (strtolower($bestStatus)) {
-    'donation received' => 'Pending Verification',
-    'sorted' => 'Verified',
-    'repacked', 'repacking' => 'In Inventory',
-    'planning', 'preparing', 'in distribution', 'scheduled for distribution' => 'Scheduled',
-    'proof review' => 'Delivered',
-    default => $bestStatus,
-  };
+  // Timeline entries are descriptive only. The stored status is synchronized
+  // by allocation/distribution operations and is the authoritative value.
+  return trim((string) ($donation['status'] ?? '')) ?: 'Pending Verification';
 }
 
 if (!function_exists('record_donation_update')) {
@@ -171,17 +122,8 @@ if ($method === 'POST') {
   ]);
   $newId = (int) $pdo->lastInsertId();
 
-  // Keep donations.status roughly aligned with the latest operational stage.
-  $statusMap = [
-    'Donation Received' => 'Pending Verification',
-    'Sorted' => 'Verified',
-    'Scheduled for Distribution' => 'Allocated',
-    'In Transit' => 'Distributed',
-    'Delivered' => 'Completed',
-  ];
-  if (isset($statusMap[$stage])) {
-    $pdo->prepare('UPDATE donations SET status = ? WHERE id = ?')->execute([$statusMap[$stage], $donationId]);
-  }
+  // Timeline notes are informational. Operational status is derived from the
+  // linked allocation, request, and distribution workflow.
 
   $donationStmt = $pdo->prepare('SELECT tracking_code, donor_name, donor_email, donor_id FROM donations WHERE id = ? LIMIT 1');
   $donationStmt->execute([$donationId]);
