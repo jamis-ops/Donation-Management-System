@@ -318,7 +318,7 @@ export default function StaffInventoryPage() {
                   style={{ height: '36px', padding: '0 0.85rem', fontSize: '0.85rem' }}
                 >
                   <FileSpreadsheet size={15} />
-                  <span>Export to Inventory</span>
+                  <span>Export</span>
                   <ChevronDown size={13} style={{ opacity: 0.8, marginLeft: '2px' }} />
                 </summary>
                 <div className="export-menu__list" style={{ minWidth: '190px', right: 0, zIndex: 100 }}>

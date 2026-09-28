@@ -642,7 +642,7 @@ export default function InventoryManagement() {
                   title="Export inventory records to Excel, PDF, or CSV"
                 >
                   <FileSpreadsheet size={16} />
-                  <span>Export to Inventory</span>
+                  <span>Export</span>
                   <ChevronDown size={14} style={{ opacity: 0.8, marginLeft: '2px' }} />
                 </summary>
                 <div className="export-menu__list" style={{ minWidth: '190px', right: 0, zIndex: 100 }}>
