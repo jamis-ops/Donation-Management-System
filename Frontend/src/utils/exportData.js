@@ -134,9 +134,8 @@ export async function getLogoBase64() {
 }
 
 /**
- * Official CSV Export with BOM and standardized bottom sign-off:
- * Prepared By: [User]
- * Date: [Date and Time]
+ * Official CSV Export with BOM, top sign-off (Prepared By & Date Prepared),
+ * and clean data rows without duplicate footers.
  */
 export function exportCsv(filename, columns, rows, options = {}) {
   showGlobalLoading('Exporting CSV…')
@@ -144,17 +143,25 @@ export function exportCsv(filename, columns, rows, options = {}) {
     const opt = typeof options === 'string' ? { title: options } : (options || {})
     const { preparedBy, dateStr } = resolveExportMeta(opt)
     const { header, body } = buildMatrix(columns, rows)
-    const lines = [header, ...body].map((r) => r.map(csvEscape).join(','))
+    const lines = []
 
-    // Standardized bottom sign-off section
-    lines.push('')
+    // Top Metadata: Prepared By & Date Prepared (Shown only once)
     lines.push(`Prepared By,"${csvEscape(preparedBy)}"`)
-    lines.push(`Date,"${csvEscape(dateStr)}"`)
-    lines.push('"Rise Above Foundation Cebu · Official System Export · Confidential"')
+    lines.push(`Date Prepared,"${csvEscape(dateStr)}"`)
+    lines.push('') // Blank line before data table
+
+    // Column headers
+    lines.push(header.map(csvEscape).join(','))
+    // Data rows
+    body.forEach((r) => lines.push(r.map(csvEscape).join(',')))
 
     const cleanName = filename.replace(/\.csv$/i, '')
     // BOM so Excel reads UTF-8 (₱, accents) correctly.
     triggerDownload(`${cleanName}.csv`, '\uFEFF' + lines.join('\r\n'), 'text/csv;charset=utf-8;')
+    notify.success(`Exported ${cleanName}.csv successfully.`)
+  } catch (err) {
+    console.error('Failed to export CSV:', err)
+    notify.error('Failed to export CSV: ' + err.message)
   } finally {
     hideGlobalLoading()
   }
@@ -163,7 +170,7 @@ export function exportCsv(filename, columns, rows, options = {}) {
 /**
  * Official Excel (.xlsx) Export with embedded Rise Above Foundation Cebu logo,
  * professional header banner, top sign-off (Prepared By & Date Prepared), custom column widths,
- * text wrapping, borders, and standardized bottom sign-off.
+ * text wrapping, borders, and clean single-instance sign-off.
  */
 export async function exportExcel(filename, columns, rows, options = {}) {
   showGlobalLoading('Generating Excel report…')
@@ -219,7 +226,7 @@ export async function exportExcel(filename, columns, rows, options = {}) {
 
     worksheet.addRow([]) // Row 5: spacer
 
-    // Top Metadata: Prepared By & Date Prepared placed clearly before the table
+    // Top Metadata: Prepared By & Date Prepared placed clearly before the table (shown only once)
     const prepRowTop = worksheet.addRow(['Prepared By:', preparedBy])
     prepRowTop.getCell(1).font = { name: 'Calibri', size: 10, bold: true, color: { argb: 'FF475569' } }
     prepRowTop.getCell(2).font = { name: 'Calibri', size: 10, bold: true, color: { argb: 'FF0F172A' } }
@@ -289,18 +296,11 @@ export async function exportExcel(filename, columns, rows, options = {}) {
       })
 
       // Clamped width between 14 and 48 characters
-      column.width = Math.min(Math.max(maxLen + 4, 14), 48)
+      column.width = Math.min(Math.max(maxLen + 4, 16), 48)
     })
 
-    // 6. Bottom Sign-off Section (Prepared By & Date)
+    // 6. Bottom Confidential Footer (Single instance of Prepared By & Date at top; not duplicated here)
     worksheet.addRow([]) // blank row
-
-    const prepRow = worksheet.addRow([`Prepared By: ${preparedBy}`])
-    prepRow.getCell(1).font = { name: 'Calibri', size: 11, bold: true, color: { argb: 'FF0F172A' } }
-
-    const dateRow = worksheet.addRow([`Date: ${dateStr}`])
-    dateRow.getCell(1).font = { name: 'Calibri', size: 10, color: { argb: 'FF475569' } }
-
     const footerRow = worksheet.addRow(['Rise Above Foundation Cebu · Official System Export · Confidential'])
     footerRow.getCell(1).font = { name: 'Calibri', size: 9, italic: true, color: { argb: 'FF94A3B8' } }
 
@@ -335,7 +335,7 @@ export const INVENTORY_EXPORT_COLUMNS = [
 /**
  * Dedicated Inventory Excel (.xlsx) export with accurate columns,
  * date-stamped filename (e.g. Inventory_Export_YYYY-MM-DD.xlsx),
- * and Top Metadata Block (Prepared By & Date Prepared).
+ * and Top Metadata Block (Prepared By & Date Prepared, shown only once).
  */
 export async function exportInventoryExcel(items, user = null, options = {}) {
   const todayIso = new Date().toISOString().slice(0, 10)
@@ -351,22 +351,74 @@ export async function exportInventoryExcel(items, user = null, options = {}) {
 }
 
 /**
+ * Dedicated Inventory CSV (.csv) export with accurate columns,
+ * date-stamped filename (e.g. Inventory_Export_YYYY-MM-DD.csv),
+ * and Top Metadata Block (Prepared By & Date Prepared, shown only once).
+ */
+export function exportInventoryCsv(items, user = null, options = {}) {
+  const todayIso = new Date().toISOString().slice(0, 10)
+  const defaultFilename = `Inventory_Export_${todayIso}.csv`
+  const filename = options.filename || defaultFilename
+  const activeUser = user || getStoredCurrentUser()
+
+  return exportCsv(filename, INVENTORY_EXPORT_COLUMNS, items, {
+    title: 'Inventory Export',
+    user: activeUser,
+    ...options,
+  })
+}
+
+/**
+ * Dedicated Inventory PDF export with properly sized landscape report layout,
+ * accurate columns without cut-off, and Top Metadata Block (Prepared By & Date Prepared, shown only once).
+ */
+export function exportInventoryPdf(items, user = null, options = {}) {
+  const activeUser = user || getStoredCurrentUser()
+  const datePrepared = formatReportDateTime(new Date())
+
+  printPdf('Inventory Export', [{ heading: 'Inventory Export', columns: INVENTORY_EXPORT_COLUMNS, rows: items }], {
+    title: 'Inventory Export',
+    user: activeUser,
+    datePrepared,
+    orientation: 'landscape',
+    ...options,
+  })
+  notify.success('Opened print-ready PDF export successfully.')
+}
+
+/**
+ * Master multi-format inventory export dispatcher.
+ * Supports: 'excel' | 'pdf' | 'csv'
+ */
+export async function exportInventory(format, items, user = null, options = {}) {
+  const fmt = String(format || 'excel').toLowerCase().trim()
+  if (fmt === 'pdf') {
+    return exportInventoryPdf(items, user, options)
+  }
+  if (fmt === 'csv') {
+    return exportInventoryCsv(items, user, options)
+  }
+  return exportInventoryExcel(items, user, options)
+}
+
+/**
  * Open a print-ready window and trigger the browser print dialog (Save as PDF).
  * sections: [{ heading, columns, rows }] — supports multi-table reports.
- * Includes Rise Above Foundation Cebu header, removes top date, and places
- * Prepared By and Date at the bottom.
+ * Includes Rise Above Foundation Cebu header, single-instance top metadata
+ * (Prepared By & Date Prepared), properly sized landscape layout, and clean footer.
  */
 export function printPdf(title, sections, options = {}) {
   const opt = typeof options === 'string' ? { preparedBy: options } : (options || {})
   const { preparedBy, dateStr } = resolveExportMeta(opt)
 
-  const win = window.open('', '_blank', 'width=1050,height=750')
+  const win = window.open('', '_blank', 'width=1150,height=800')
   if (!win) {
     notify.warning('Please allow pop-ups to export as PDF.')
     return
   }
 
   const logoUrl = new URL(logo, window.location.origin).href
+  const orientation = opt.orientation || 'landscape'
   const blocks = sections
     .filter((s) => s.rows && s.rows.length)
     .map((s) => {
@@ -382,14 +434,14 @@ export function printPdf(title, sections, options = {}) {
     <title>${htmlEscape(title)} — Rise Above Foundation Cebu</title>
     <style>
       @page {
-        size: auto;
-        margin: 0;
+        size: ${orientation};
+        margin: 10mm 12mm;
       }
       * { box-sizing: border-box; }
       body {
         font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
         color: #0f172a;
-        padding: 32px 36px;
+        padding: 22px 26px;
         background: #ffffff;
         -webkit-print-color-adjust: exact;
         print-color-adjust: exact;
@@ -399,18 +451,18 @@ export function printPdf(title, sections, options = {}) {
         justify-content: space-between;
         align-items: center;
         border-bottom: 2.5px solid #AF101A;
-        padding-bottom: 16px;
-        margin-bottom: 22px;
+        padding-bottom: 12px;
+        margin-bottom: 16px;
         gap: 16px;
       }
       .report-header__brand {
         display: flex;
         align-items: center;
-        gap: 14px;
+        gap: 12px;
       }
       .report-header__logo {
-        width: 52px;
-        height: 52px;
+        width: 48px;
+        height: 48px;
         object-fit: contain;
         flex-shrink: 0;
       }
@@ -420,7 +472,7 @@ export function printPdf(title, sections, options = {}) {
         gap: 2px;
       }
       .report-header__org {
-        font-size: 0.8rem;
+        font-size: 0.76rem;
         font-weight: 700;
         color: #475569;
         letter-spacing: 0.05em;
@@ -428,24 +480,29 @@ export function printPdf(title, sections, options = {}) {
       }
       .report-header__title {
         margin: 0;
-        font-size: 1.35rem;
+        font-size: 1.25rem;
         font-weight: 800;
         color: #AF101A;
         line-height: 1.2;
       }
       .report-header__meta {
         text-align: right;
-        font-size: 0.78rem;
-        color: #64748b;
-        line-height: 1.5;
+        font-size: 0.8rem;
+        color: #334155;
+        line-height: 1.45;
       }
       .report-header__meta strong {
-        color: #1e293b;
+        color: #0f172a;
+      }
+      .report-header__meta-status {
+        font-size: 0.7rem;
+        color: #64748b;
+        margin-top: 2px;
       }
       h2 {
-        font-size: 1.02rem;
+        font-size: 0.98rem;
         font-weight: 700;
-        margin: 22px 0 10px;
+        margin: 16px 0 8px;
         color: #1e293b;
         border-left: 3.5px solid #AF101A;
         padding-left: 8px;
@@ -453,78 +510,52 @@ export function printPdf(title, sections, options = {}) {
       table.report-table {
         width: 100%;
         border-collapse: collapse;
-        margin-bottom: 20px;
-        font-size: 0.8rem;
+        margin-bottom: 16px;
+        font-size: 0.74rem;
+        table-layout: auto;
       }
       table.report-table th {
-        background: #1e293b;
-        color: #ffffff;
+        background: #1e293b !important;
+        color: #ffffff !important;
         text-align: left;
-        padding: 8px 10px;
-        font-weight: 600;
+        padding: 7px 8px;
+        font-weight: 700;
+        font-size: 0.73rem;
         letter-spacing: 0.02em;
         border: 1px solid #1e293b;
+        white-space: nowrap;
       }
       table.report-table td {
-        padding: 6px 10px;
+        padding: 6px 8px;
         border: 1px solid #cbd5e1;
         color: #1e293b;
         vertical-align: top;
+        font-size: 0.73rem;
+        line-height: 1.35;
+        word-break: break-word;
       }
       table.report-table tr:nth-child(even) td {
         background: #f8fafc;
       }
-      .report-signoff {
-        margin-top: 24px;
-        padding: 14px 18px;
-        background: #f8fafc;
-        border: 1px solid #e2e8f0;
-        border-left: 4px solid #AF101A;
-        border-radius: 6px;
-        display: inline-flex;
-        flex-direction: column;
-        gap: 6px;
-        min-width: 280px;
-      }
-      .report-signoff__row {
-        display: flex;
-        align-items: baseline;
-        gap: 8px;
-        font-size: 0.86rem;
-      }
-      .report-signoff__label {
-        color: #64748b;
-        font-weight: 600;
-        width: 95px;
-        flex-shrink: 0;
-      }
-      .report-signoff__value {
-        color: #0f172a;
-        font-weight: 700;
-      }
-      .report-signoff__value--date {
-        color: #334155;
-        font-weight: 500;
-      }
       .report-footer {
-        margin-top: 28px;
-        padding-top: 10px;
+        margin-top: 20px;
+        padding-top: 8px;
         border-top: 1px solid #e2e8f0;
         display: flex;
         justify-content: space-between;
         align-items: center;
-        font-size: 0.74rem;
+        font-size: 0.72rem;
         color: #94a3b8;
       }
       @media print {
         @page {
-          size: auto;
-          margin: 0;
+          size: ${orientation};
+          margin: 10mm 12mm;
         }
-        body { padding: 16mm 20mm; }
-        .report-header { margin-bottom: 16px; padding-bottom: 12px; }
-        .report-table th { background: #1e293b !important; color: #ffffff !important; }
-        .report-signoff { background: #ffffff !important; border: 1px solid #cbd5e1 !important; border-left: 4px solid #AF101A !important; }
+        body { padding: 0; }
+        .report-header { margin-bottom: 12px; padding-bottom: 8px; }
+        .report-table th { background: #1e293b !important; color: #ffffff !important; -webkit-print-color-adjust: exact; }
+        .report-table tr:nth-child(even) td { background: #f8fafc !important; -webkit-print-color-adjust: exact; }
       }
     </style></head><body>
     <header class="report-header">
@@ -536,21 +567,12 @@ export function printPdf(title, sections, options = {}) {
         </div>
       </div>
       <div class="report-header__meta">
-        <div><strong>System:</strong> Donation & Operations Management</div>
-        <div><strong>Status:</strong> Official System Export</div>
+        <div><strong>Prepared By:</strong> ${htmlEscape(preparedBy)}</div>
+        <div><strong>Date Prepared:</strong> ${htmlEscape(dateStr)}</div>
+        <div class="report-header__meta-status">Donation & Operations Management · Official Export</div>
       </div>
     </header>
     ${blocks || '<p style="color:#64748b; font-size:0.9rem; padding: 20px 0;">No data to export.</p>'}
-    <div class="report-signoff">
-      <div class="report-signoff__row">
-        <span class="report-signoff__label">Prepared By:</span>
-        <span class="report-signoff__value">${htmlEscape(preparedBy)}</span>
-      </div>
-      <div class="report-signoff__row">
-        <span class="report-signoff__label">Date:</span>
-        <span class="report-signoff__value report-signoff__value--date">${htmlEscape(dateStr)}</span>
-      </div>
-    </div>
     <footer class="report-footer">
       <span>Rise Above Foundation Cebu · Official System Export</span>
       <span>Confidential</span>

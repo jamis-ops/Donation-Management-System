@@ -1,5 +1,5 @@
 import { useCallback, useState, useEffect } from 'react'
-import { Package, PackagePlus, Pencil, Play, CheckCircle2, XCircle, Trash2, Calculator, Users, AlertCircle, Info, LayoutGrid, List, Eye, Sliders, FileSpreadsheet } from 'lucide-react'
+import { Package, PackagePlus, Pencil, Play, CheckCircle2, XCircle, Trash2, Calculator, Users, AlertCircle, Info, LayoutGrid, List, Eye, Sliders, FileSpreadsheet, FileText, Printer, ChevronDown } from 'lucide-react'
 import { inventoryApi, repackingApi, getStaff, volunteersApi, beneficiariesApi } from '../../api/resources'
 import { useApiList } from '../../hooks/useApiList'
 import { DONATION_CATEGORIES } from '../../constants/options'
@@ -17,7 +17,7 @@ import { useBulkSelection } from '../../hooks/useBulkSelection'
 import { notify, confirmAction, showSuccessModal } from '../../utils/confirm'
 import { useLoading } from '../../context/LoadingContext'
 import { useAuth } from '../../context/AuthContext'
-import { exportInventoryExcel } from '../../utils/exportData'
+import { exportInventory } from '../../utils/exportData'
 import { calculateInventoryStatus } from '../../utils/inventoryStatus'
 
 const inventoryFilterConfig = {
@@ -152,7 +152,7 @@ export default function InventoryManagement() {
 
   /* ---------- Inventory handlers ---------- */
 
-  const handleExportInventory = async () => {
+  const handleExportInventory = async (format = 'excel') => {
     try {
       setExporting(true)
       let exportItems = items
@@ -165,7 +165,7 @@ export default function InventoryManagement() {
         notify.warning('No inventory records found to export.')
         return
       }
-      await exportInventoryExcel(exportItems, user)
+      await exportInventory(format, exportItems, user)
     } catch (err) {
       console.error('Inventory export failed:', err)
       notify.error('Failed to export inventory: ' + (err.message || 'Unknown error'))
@@ -636,16 +636,51 @@ export default function InventoryManagement() {
 
             {/* Action buttons */}
             <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', alignItems: 'center' }}>
-              <button
-                type="button"
-                className="btn btn--outline inv-export-btn"
-                onClick={handleExportInventory}
-                disabled={exporting || loading}
-                title="Export current inventory records to an Excel (.xlsx) file"
-              >
-                <FileSpreadsheet size={16} />
-                <span>Export to Inventory</span>
-              </button>
+              <details className="export-menu inv-export-dropdown">
+                <summary
+                  className="btn btn--outline inv-export-btn"
+                  title="Export inventory records to Excel, PDF, or CSV"
+                >
+                  <FileSpreadsheet size={16} />
+                  <span>Export to Inventory</span>
+                  <ChevronDown size={14} style={{ opacity: 0.8, marginLeft: '2px' }} />
+                </summary>
+                <div className="export-menu__list" style={{ minWidth: '190px', right: 0, zIndex: 100 }}>
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      const d = e.currentTarget.closest('details')
+                      if (d) d.open = false
+                      handleExportInventory('excel')
+                    }}
+                    disabled={exporting || loading}
+                  >
+                    <FileSpreadsheet size={15} /> Excel (.xlsx)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      const d = e.currentTarget.closest('details')
+                      if (d) d.open = false
+                      handleExportInventory('pdf')
+                    }}
+                    disabled={exporting || loading}
+                  >
+                    <Printer size={15} /> PDF Document
+                  </button>
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      const d = e.currentTarget.closest('details')
+                      if (d) d.open = false
+                      handleExportInventory('csv')
+                    }}
+                    disabled={exporting || loading}
+                  >
+                    <FileText size={15} /> CSV (.csv)
+                  </button>
+                </div>
+              </details>
 
               {/* Only show global Add Item button in toolbar when on List View or at the Root All Categories view */}
               {(!categoryNav.category || viewMode === 'table') && (

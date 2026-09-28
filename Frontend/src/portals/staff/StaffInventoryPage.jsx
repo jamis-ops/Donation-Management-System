@@ -11,6 +11,9 @@ import {
   Coins,
   Boxes,
   FileSpreadsheet,
+  FileText,
+  Printer,
+  ChevronDown,
 } from 'lucide-react'
 import StatusBadge from '../../admin/components/shared/StatusBadge'
 import ModalHeader from '../../admin/components/shared/ModalHeader'
@@ -23,7 +26,7 @@ import ExportMenu from '../../admin/components/shared/ExportMenu'
 import { notify, confirmAction, showSuccessModal } from '../../utils/confirm'
 import { useLoading } from '../../context/LoadingContext'
 import { useAuth } from '../../context/AuthContext'
-import { exportInventoryExcel } from '../../utils/exportData'
+import { exportInventory } from '../../utils/exportData'
 
 export default function StaffInventoryPage() {
   const { showLoading, hideLoading } = useLoading()
@@ -40,7 +43,7 @@ export default function StaffInventoryPage() {
   const [stockNotes, setStockNotes] = useState('')
   const [busy, setBusy] = useState(false)
 
-  const handleExportInventory = async () => {
+  const handleExportInventory = async (format = 'excel') => {
     try {
       let exportItems = inventory
       if (!Array.isArray(exportItems) || !exportItems.length) {
@@ -52,7 +55,7 @@ export default function StaffInventoryPage() {
         notify.warning('No inventory records found to export.')
         return
       }
-      await exportInventoryExcel(exportItems, user)
+      await exportInventory(format, exportItems, user)
     } catch (err) {
       console.error('Inventory export failed:', err)
       notify.error('Failed to export inventory: ' + (err.message || 'Unknown error'))
@@ -308,17 +311,52 @@ export default function StaffInventoryPage() {
                 <option value="critical">Critical</option>
               </select>
 
-              <button
-                type="button"
-                className="btn btn--outline inv-export-btn"
-                onClick={handleExportInventory}
-                disabled={busy || loading}
-                title="Export current inventory records to an Excel (.xlsx) file"
-                style={{ height: '36px', padding: '0 0.85rem', fontSize: '0.85rem' }}
-              >
-                <FileSpreadsheet size={15} />
-                <span>Export to Inventory</span>
-              </button>
+              <details className="export-menu inv-export-dropdown">
+                <summary
+                  className="btn btn--outline inv-export-btn"
+                  title="Export inventory records to Excel, PDF, or CSV"
+                  style={{ height: '36px', padding: '0 0.85rem', fontSize: '0.85rem' }}
+                >
+                  <FileSpreadsheet size={15} />
+                  <span>Export to Inventory</span>
+                  <ChevronDown size={13} style={{ opacity: 0.8, marginLeft: '2px' }} />
+                </summary>
+                <div className="export-menu__list" style={{ minWidth: '190px', right: 0, zIndex: 100 }}>
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      const d = e.currentTarget.closest('details')
+                      if (d) d.open = false
+                      handleExportInventory('excel')
+                    }}
+                    disabled={busy || loading}
+                  >
+                    <FileSpreadsheet size={14} /> Excel (.xlsx)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      const d = e.currentTarget.closest('details')
+                      if (d) d.open = false
+                      handleExportInventory('pdf')
+                    }}
+                    disabled={busy || loading}
+                  >
+                    <Printer size={14} /> PDF Document
+                  </button>
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      const d = e.currentTarget.closest('details')
+                      if (d) d.open = false
+                      handleExportInventory('csv')
+                    }}
+                    disabled={busy || loading}
+                  >
+                    <FileText size={14} /> CSV (.csv)
+                  </button>
+                </div>
+              </details>
 
               <ExportMenu
                 items={filteredInventory}
