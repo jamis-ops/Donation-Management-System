@@ -11,9 +11,7 @@ import {
   distributionsApi,
   allocationsApi,
 } from '../../api/resources'
-import { BARANGAY_TYPES as FALLBACK_BARANGAY_TYPES } from '../../constants/options'
 import { useCatalogOptions } from '../../hooks/useCatalogOptions'
-import { CatalogFieldLabel } from '../components/shared/CatalogQuickAdd'
 import { NEEDS as FALLBACK_NEEDS } from '../../constants/options'
 import { useApiList } from '../../hooks/useApiList'
 import StatusBadge from '../components/shared/StatusBadge'
@@ -206,10 +204,6 @@ export default function BarangayDetailsPage() {
   const [useCustomPass, setUseCustomPass] = useState(false)
   const [customPassword, setCustomPassword] = useState('')
   const [editForm, setEditForm] = useState({})
-  const { options: barangayTypeOptions, applyList: applyBarangayTypes } = useCatalogOptions(
-    'barangay_types',
-    FALLBACK_BARANGAY_TYPES,
-  )
   const { options: needOptions, applyList: applyNeeds } = useCatalogOptions('needs', FALLBACK_NEEDS)
 
   useEffect(() => {
@@ -217,7 +211,6 @@ export default function BarangayDetailsPage() {
     setEditForm({
       barangay: beneficiary.barangay || beneficiary.name || '',
       municipality: beneficiary.municipality || '',
-      barangayType: beneficiary.barangayType || '',
       address: beneficiary.address || '',
       needs: normalizeNeeds(beneficiary.needs),
       representativeName: beneficiary.representativeName || '',
@@ -693,10 +686,6 @@ export default function BarangayDetailsPage() {
                   <span className="barangay-info-value">{beneficiary.municipality || '—'}</span>
                 </div>
                 <div className="barangay-info-row">
-                  <span className="barangay-info-label">Barangay Type</span>
-                  <span className="barangay-info-value">{beneficiary.barangayType || '—'}</span>
-                </div>
-                <div className="barangay-info-row">
                   <span className="barangay-info-label">Address</span>
                   <span className="barangay-info-value">{beneficiary.address || '—'}</span>
                 </div>
@@ -999,24 +988,10 @@ export default function BarangayDetailsPage() {
                 </label>
               </div>
 
-              <div className="form-row">
-                <label>
-                  <CatalogFieldLabel catalog="barangay_types" onUpdated={applyBarangayTypes}>
-                    Barangay Type
-                  </CatalogFieldLabel>
-                  <select value={editForm.barangayType || ''} onChange={(e) => setEditForm({ ...editForm, barangayType: e.target.value })}>
-                    <option value="">Select type…</option>
-                    {barangayTypeOptions.map((t) => <option key={t} value={t}>{t}</option>)}
-                    {editForm.barangayType && !barangayTypeOptions.includes(editForm.barangayType) && (
-                      <option value={editForm.barangayType}>{editForm.barangayType}</option>
-                    )}
-                  </select>
-                </label>
-                <label>
-                  <Req required>Complete Address</Req>
-                  <input required value={editForm.address} onChange={(e) => setEditForm({ ...editForm, address: e.target.value })} />
-                </label>
-              </div>
+              <label>
+                <Req required>Complete Address</Req>
+                <input required value={editForm.address} onChange={(e) => setEditForm({ ...editForm, address: e.target.value })} />
+              </label>
 
               <NeedsPicker
                 value={editForm.needs || []}

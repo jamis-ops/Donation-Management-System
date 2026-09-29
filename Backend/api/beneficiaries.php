@@ -136,6 +136,7 @@ if ($method === 'GET' && $action === 'validate_token') {
     'representativeMiddleInitial' => $ben['representative_middle_initial'] ?? '',
     'representativePosition' => $ben['representative_position'] ?? '',
     'representativePhone' => $ben['representative_phone'] ?? '',
+    'address' => $ben['address'] ?? '',
     'notes' => $ben['notes'] ?? '',
   ]);
 }
@@ -176,12 +177,16 @@ if ($method === 'POST' && ($action === 'accept_invite' || $action === 'apply_inv
   $notes = trim((string) ($body['notes'] ?? ''));
   $phone = trim((string) ($body['contactNumber'] ?? $body['representativePhone'] ?? ''));
   $position = trim((string) ($body['representativePosition'] ?? $body['position'] ?? ''));
+  $address = trim((string) ($body['address'] ?? ''));
 
   if ($barangay === '') {
     json_response(['ok' => false, 'error' => 'Barangay name is required.'], 400);
   }
   if ($municipality === '') {
     json_response(['ok' => false, 'error' => 'Municipality / city is required.'], 400);
+  }
+  if ($address === '') {
+    json_response(['ok' => false, 'error' => 'Address is required.'], 400);
   }
   if ($email === '' || !filter_var($email, FILTER_VALIDATE_EMAIL)) {
     json_response(['ok' => false, 'error' => 'A valid email address is required.'], 400);
@@ -222,7 +227,7 @@ if ($method === 'POST' && ($action === 'accept_invite' || $action === 'apply_inv
   try {
     $pdo->prepare('
       UPDATE beneficiaries SET
-        full_name = ?, barangay = ?, municipality = ?,
+        full_name = ?, barangay = ?, municipality = ?, address = ?,
         affected_families = ?,
         representative_name = ?, representative_first_name = ?, representative_last_name = ?,
         representative_middle_initial = ?, representative_position = ?, representative_phone = ?,
@@ -233,6 +238,7 @@ if ($method === 'POST' && ($action === 'accept_invite' || $action === 'apply_inv
       $barangay,
       $barangay,
       $municipality,
+      $address,
       $affFamilies,
       $repName,
       $repFirst,
@@ -296,7 +302,7 @@ function map_beneficiary(PDO $pdo, array $row): array
     'dbId' => (int) $row['id'],
     'name' => $row['full_name'],
     'barangay' => $row['barangay'] ?? $row['full_name'],
-    'barangayType' => $row['barangay_type'] ?? '',
+    'barangayType' => '',
     'municipality' => $row['municipality'] ?? '',
     'address' => $row['address'] ?? '',
     'affectedFamilies' => null,
@@ -637,14 +643,13 @@ if ($method === 'POST') {
     ? strtoupper(substr(preg_replace('/[^a-zA-Z]/', '', $repMi) ?: '', 0, 1))
     : null;
   $stmt = $pdo->prepare('
-    INSERT INTO beneficiaries (code, full_name, category, barangay_type, barangay, municipality, address, affected_families, representative_name, representative_first_name, representative_last_name, representative_middle_initial, representative_position, representative_phone, representative_email, needs, notes, status)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    INSERT INTO beneficiaries (code, full_name, category, barangay, municipality, address, affected_families, representative_name, representative_first_name, representative_last_name, representative_middle_initial, representative_position, representative_phone, representative_email, needs, notes, status)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   ');
   $stmt->execute([
     $code,
     $barangay,
     $category,
-    $body['barangayType'] ?? null,
     $barangay,
     $municipality,
     $body['address'] ?? null,
@@ -747,7 +752,7 @@ if ($method === 'PUT') {
       : (isset($body['families']) ? (int) $body['families'] : (int) ($existing['affected_families'] ?? 0)));
 
   $update = $pdo->prepare('
-    UPDATE beneficiaries SET full_name = ?, category = ?, barangay_type = ?, barangay = ?, municipality = ?, address = ?, affected_families = ?,
+    UPDATE beneficiaries SET full_name = ?, category = ?, barangay = ?, municipality = ?, address = ?, affected_families = ?,
     representative_name = ?, representative_first_name = ?, representative_last_name = ?, representative_middle_initial = ?,
     representative_position = ?, representative_phone = ?, representative_email = ?, needs = ?, notes = ?, status = ?
     WHERE id = ?
@@ -755,7 +760,6 @@ if ($method === 'PUT') {
   $update->execute([
     $barangay,
     $category,
-    $body['barangayType'] ?? $existing['barangay_type'],
     $barangay,
     $municipality,
     $body['address'] ?? $existing['address'],

@@ -21,6 +21,7 @@ const emptyForm = {
   representativePosition: '',
   contactNumber: '',
   email: '',
+  address: '',
   notes: '',
   acceptedTerms: false,
   acceptedPrivacy: false,
@@ -62,6 +63,7 @@ export default function AcceptInvitePage() {
           representativeMiddleInitial: data.representativeMiddleInitial || '',
           representativePosition: data.representativePosition || '',
           contactNumber: data.representativePhone || '',
+          address: data.address || '',
           notes: data.notes || '',
         }))
       } catch {
@@ -82,6 +84,10 @@ export default function AcceptInvitePage() {
     const phoneMsg = phoneError(form.contactNumber, { required: true, allowInternational: true })
     if (phoneMsg) {
       setError(phoneMsg)
+      return
+    }
+    if (!form.address?.trim()) {
+      setError('Address is required.')
       return
     }
     if (!form.acceptedTerms || !form.acceptedPrivacy) {
@@ -105,6 +111,7 @@ export default function AcceptInvitePage() {
           representativePosition: form.representativePosition,
           contactNumber: form.contactNumber,
           email: form.email,
+          address: form.address.trim(),
           notes: form.notes,
           acceptedTerms: true,
           acceptedPrivacy: true,
@@ -259,6 +266,17 @@ export default function AcceptInvitePage() {
                     value={form.email}
                     onChange={(e) => set('email', e.target.value)}
                     placeholder="representative@email.com"
+                  />
+                </label>
+
+                <label>
+                  <Req required>Address</Req>
+                  <input
+                    type="text"
+                    required
+                    value={form.address}
+                    onChange={(e) => set('address', e.target.value)}
+                    placeholder="House / Street / Purok, Barangay, City, Province"
                   />
                 </label>
 

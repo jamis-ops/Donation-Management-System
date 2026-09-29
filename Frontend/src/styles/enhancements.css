@@ -10254,9 +10254,10 @@ button:disabled,
    2. IN-KIND INTAKE CLASSIFICATION MODAL
    -------------------------------------------------------------------------- */
 .in-kind-intake-modal {
-  max-width: 960px !important;
-  width: 95vw !important;
-  max-height: 90vh !important;
+  max-width: 1200px !important;
+  width: min(96vw, 1200px) !important;
+  height: min(92dvh, 900px) !important;
+  max-height: calc(100dvh - 2rem) !important;
   display: flex !important;
   flex-direction: column !important;
   overflow: hidden !important;
@@ -10283,7 +10284,11 @@ button:disabled,
 
 .in-kind-intake-modal__body {
   flex: 1 1 auto !important;
+  min-height: 0 !important;
   overflow-y: auto !important;
+  overflow-x: hidden !important;
+  overscroll-behavior: contain !important;
+  scrollbar-gutter: stable !important;
   padding: 1.25rem 1.5rem !important;
   display: flex !important;
   flex-direction: column !important;
@@ -10343,6 +10348,7 @@ button:disabled,
   border: 1px solid #bbf7d0 !important;
   border-radius: 8px !important;
   padding: 0.75rem 1rem !important;
+  margin: 0 !important;
 }
 
 .intake-instructions {
@@ -10354,6 +10360,20 @@ button:disabled,
   padding: 0.75rem 1rem !important;
   align-items: flex-start !important;
   color: #742a2a !important;
+  margin: 0 !important;
+}
+
+/* The modal body owns scrolling. A second scrolling region here previously
+   collapsed the first item card to its heading on shorter viewports. */
+.intake-items-list {
+  display: flex !important;
+  flex: 0 0 auto !important;
+  flex-direction: column !important;
+  gap: 0.75rem !important;
+  min-height: 0 !important;
+  max-height: none !important;
+  overflow: visible !important;
+  padding-right: 0 !important;
 }
 
 .intake-item-row-card {
@@ -10474,7 +10494,18 @@ button:disabled,
   color: #8E0D15 !important;
 }
 
+.intake-add-more-row {
+  flex: 0 0 auto !important;
+  margin: 0 !important;
+}
+
 @media (max-width: 920px) {
+  .in-kind-intake-modal {
+    width: calc(100vw - 1.5rem) !important;
+    height: calc(100dvh - 1.5rem) !important;
+    max-height: calc(100dvh - 1.5rem) !important;
+  }
+
   .intake-form-grid {
     grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
     gap: 0.75rem !important;
@@ -10482,12 +10513,69 @@ button:disabled,
 }
 
 @media (max-width: 600px) {
+  .in-kind-intake-modal {
+    width: calc(100vw - 1rem) !important;
+    height: calc(100dvh - 1rem) !important;
+    max-height: calc(100dvh - 1rem) !important;
+  }
+
+  .in-kind-intake-modal__body {
+    padding: 1rem !important;
+    gap: 0.85rem !important;
+  }
+
+  .intake-donor-summary {
+    align-items: flex-start !important;
+    gap: 0.75rem 1rem !important;
+  }
+
+  .intake-item-row-card {
+    padding: 0.85rem !important;
+  }
+
   .intake-form-grid {
     grid-template-columns: 1fr 1fr !important;
   }
   .intake-field--qty,
   .intake-field--unit {
     grid-column: span 1 !important;
+  }
+
+  .intake-add-btn {
+    width: 100% !important;
+    height: auto !important;
+    min-height: 42px !important;
+    padding: 0.65rem 0.85rem !important;
+  }
+
+  .in-kind-intake-modal__footer {
+    gap: 0.75rem !important;
+    padding: 0.85rem 1rem !important;
+  }
+
+  .in-kind-intake-modal__footer .btn--primary {
+    flex: 1 1 230px !important;
+  }
+}
+
+@media (max-width: 420px) {
+  .intake-form-grid {
+    grid-template-columns: 1fr !important;
+  }
+
+  .intake-field--qty,
+  .intake-field--unit {
+    grid-column: auto !important;
+  }
+
+  .in-kind-intake-modal__footer {
+    flex-direction: column-reverse !important;
+    align-items: stretch !important;
+  }
+
+  .in-kind-intake-modal__footer .btn {
+    width: 100% !important;
+    flex: 0 0 auto !important;
   }
 }
 

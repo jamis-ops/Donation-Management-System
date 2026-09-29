@@ -119,12 +119,11 @@ try {
     $needsJson = (is_array($needs) && count($needs) > 0)
       ? json_encode(array_values(array_map('strval', $needs)))
       : null;
-    $stmt = $pdo->prepare('INSERT INTO beneficiaries (code, full_name, category, barangay_type, barangay, municipality, address, affected_families, representative_name, representative_first_name, representative_last_name, representative_middle_initial, representative_position, representative_phone, representative_email, needs, status, user_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)');
+    $stmt = $pdo->prepare('INSERT INTO beneficiaries (code, full_name, category, barangay, municipality, address, affected_families, representative_name, representative_first_name, representative_last_name, representative_middle_initial, representative_position, representative_phone, representative_email, needs, status, user_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)');
     $stmt->execute([
       generate_code('BEN'),
       $barangay,
       $needsJson ? implode(', ', array_values(array_map('strval', $needs))) : ($body['category'] ?? null),
-      $body['barangayType'] ?? null,
       $barangay,
       $body['municipality'] ?? null,
       $body['address'] ?? null,

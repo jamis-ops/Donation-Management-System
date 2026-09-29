@@ -348,7 +348,7 @@ export default function AccountSettingsPage() {
         title="Account Settings"
         description={
           canManageLists
-            ? 'Update your profile and manage shared system lists (Volunteer Programs, Skills, Barangay types, Needs, Tasks).'
+            ? 'Update your profile and manage shared system lists (Volunteer Programs, Skills, Needs, Tasks).'
             : isVolunteer
             ? 'Update your personal profile, preferred programs, skills, availability, and password.'
             : 'Update your profile details, recovery phone, password, and photo.'

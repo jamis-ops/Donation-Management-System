@@ -95,8 +95,12 @@ foreach ($pdo->query('SELECT item_name, quantity, unit, low_stock_threshold, mod
 
 // Active beneficiaries broken down by barangay type
 $beneficiaryTypes = [];
-foreach ($pdo->query("SELECT COALESCE(NULLIF(barangay_type, ''), 'Unspecified') AS label, COUNT(*) AS cnt FROM beneficiaries WHERE status IN ('Approved','Active') GROUP BY label ORDER BY cnt DESC")->fetchAll() as $row) {
-  $beneficiaryTypes[] = ['label' => $row['label'], 'value' => (int) $row['cnt']];
+try {
+  foreach ($pdo->query("SELECT COALESCE(NULLIF(barangay_type, ''), 'Unspecified') AS label, COUNT(*) AS cnt FROM beneficiaries WHERE status IN ('Approved','Active') GROUP BY label ORDER BY cnt DESC")->fetchAll() as $row) {
+    $beneficiaryTypes[] = ['label' => $row['label'], 'value' => (int) $row['cnt']];
+  }
+} catch (Throwable $e) {
+  $beneficiaryTypes = [];
 }
 
 // Donations vs. distribution vs. need for distribution (inventory item units)

@@ -46,13 +46,6 @@ const SECTIONS = [
     icon: Sparkles,
   },
   {
-    key: 'barangay_types',
-    title: 'Type of Barangay',
-    short: 'Urban, Rural, Coastal, and other barangay classifications.',
-    description: 'These options appear in Add/Edit Barangay forms across the Barangay module.',
-    icon: Building2,
-  },
-  {
     key: 'needs',
     title: 'Type of Needs',
     short: 'Food, Water, Medicine, and other assistance categories.',

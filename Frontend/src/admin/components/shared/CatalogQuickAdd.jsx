@@ -5,10 +5,6 @@ import { isAdminPortalRole } from '../../../utils/roleRoutes'
 import CatalogManageModal from './CatalogManageModal'
 
 const CATALOG_META = {
-  barangay_types: {
-    title: 'Manage Type of Barangay',
-    description: 'Add or edit barangay classifications. New items appear in Barangay forms immediately.',
-  },
   needs: {
     title: 'Manage Type of Needs',
     description: 'Add or edit need categories. New items appear in barangay forms and Beneficiary requests immediately.',

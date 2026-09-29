@@ -5,7 +5,7 @@ import { beneficiariesApi, assistanceRequestsApi } from '../../api/resources'
 import { useApiList } from '../../hooks/useApiList'
 import { useFilters } from '../../hooks/useFilters'
 import { MUNICIPALITIES, barangaysForMunicipality } from '../../constants/locations'
-import { BARANGAY_TYPES as FALLBACK_BARANGAY_TYPES, REPRESENTATIVE_POSITIONS } from '../../constants/options'
+import { REPRESENTATIVE_POSITIONS } from '../../constants/options'
 import PageHeader from '../components/shared/PageHeader'
 import DataTable from '../components/shared/DataTable'
 import StatusBadge from '../components/shared/StatusBadge'
@@ -15,7 +15,6 @@ import Req from '../../components/shared/Req'
 import NameFields from '../../components/shared/NameFields'
 import NeedsPicker from '../../components/shared/NeedsPicker'
 import { useCatalogOptions } from '../../hooks/useCatalogOptions'
-import { CatalogFieldLabel } from '../components/shared/CatalogQuickAdd'
 import { NEEDS as FALLBACK_NEEDS } from '../../constants/options'
 import ApiState from '../components/shared/ApiState'
 import { emptyNameParts, formatFullName, parseFullName } from '../../utils/personName'
@@ -49,7 +48,6 @@ const filterConfig = {
 const emptyCreateForm = {
   barangay: '',
   municipality: '',
-  barangayType: '',
   address: '',
   needs: [],
   nameParts: emptyNameParts(),
@@ -87,7 +85,6 @@ function formFromRow(row) {
 
   return {
     barangay: row.barangay || row.name || '',
-    barangayType: row.barangayType || '',
     municipality: row.municipality || '',
     address: row.address || '',
     needs: normalizeNeeds(row.needs),
@@ -244,10 +241,6 @@ export default function BeneficiariesPage() {
   const [customPassword, setCustomPassword] = useState('')
   const [rejectionReason, setRejectionReason] = useState('')
 
-  const { options: barangayTypeOptions, applyList: applyBarangayTypes } = useCatalogOptions(
-    'barangay_types',
-    FALLBACK_BARANGAY_TYPES,
-  )
   const { options: needOptions, applyList: applyNeeds } = useCatalogOptions('needs', FALLBACK_NEEDS)
 
   const pendingSubmissions = useMemo(
@@ -524,7 +517,6 @@ export default function BeneficiariesPage() {
       const payload = {
         barangay: createForm.barangay,
         municipality: createForm.municipality,
-        barangayType: createForm.barangayType,
         address: createForm.address,
         affectedFamilies: Number(createForm.affectedFamilies) || 0,
         needs: createForm.needs,
@@ -828,7 +820,7 @@ export default function BeneficiariesPage() {
                     <div>
                       <h3 className="barangay-submission-card__title">{sub.barangay || sub.name}</h3>
                       <span className="barangay-submission-card__sub">
-                        <MapPin size={12} className="inline-icon" /> {sub.municipality || 'Cebu'} • {sub.barangayType || 'Barangay'}
+                        <MapPin size={12} className="inline-icon" /> {sub.municipality || 'Cebu'}
                       </span>
                     </div>
                     <StatusBadge status="Pending Approval" />
@@ -1001,19 +993,6 @@ export default function BeneficiariesPage() {
               </div>
 
               <label>
-                <CatalogFieldLabel catalog="barangay_types" onUpdated={applyBarangayTypes}>
-                  Barangay Type
-                </CatalogFieldLabel>
-                <select value={createForm.barangayType} onChange={(e) => setCreateForm({ ...createForm, barangayType: e.target.value })}>
-                  <option value="">Select type…</option>
-                  {barangayTypeOptions.map((t) => <option key={t} value={t}>{t}</option>)}
-                  {createForm.barangayType && !barangayTypeOptions.includes(createForm.barangayType) && (
-                    <option value={createForm.barangayType}>{createForm.barangayType}</option>
-                  )}
-                </select>
-              </label>
-
-              <label>
                 <Req required>Complete Address</Req>
                 <input
                   required
@@ -1123,7 +1102,6 @@ export default function BeneficiariesPage() {
                     </h2>
                     <p className="barangay-submission-modal__location">
                       {viewingSubmission.municipality}, Cebu
-                      {viewingSubmission.barangayType && <> • {viewingSubmission.barangayType}</>}
                     </p>
                   </div>
                 </div>
@@ -1255,12 +1233,6 @@ export default function BeneficiariesPage() {
                       <span className="barangay-submission-modal__info-label">Municipality / City</span>
                       <span className="barangay-submission-modal__info-value">
                         {viewingSubmission.municipality || '—'}
-                      </span>
-                    </div>
-                    <div className="barangay-submission-modal__info-item">
-                      <span className="barangay-submission-modal__info-label">Classification</span>
-                      <span className="barangay-submission-modal__info-value">
-                        {viewingSubmission.barangayType || 'Not specified'}
                       </span>
                     </div>
                     <div className="barangay-submission-modal__info-item">
