@@ -364,7 +364,7 @@ export default function BeneficiaryRequestsPage() {
               {paging.pageItems.map((r) => {
                 const preview = getRequestPreview(r)
                 return (
-                <div key={r.id} className="beneficiary-request-card">
+                <div key={r.id} className="beneficiary-request-card" data-status={r.status}>
                   <div className="beneficiary-request-card__header">
                     <div className="beneficiary-request-card__ref">
                       <span className="beneficiary-request-card__id" title="Request ID">{r.id}</span>
@@ -426,7 +426,7 @@ export default function BeneficiaryRequestsPage() {
 
                   <div className="beneficiary-request-card__actions">
                     {r.canSubmitProof && r.delivery?.dbId && (
-                      <button type="button" className="btn btn--sm btn--primary" onClick={() => navigate(`/beneficiary/proofs?distributionId=${r.delivery.dbId}&requestId=${r.dbId}#proof-submit-form`)}>
+                      <button type="button" className="btn btn--sm btn--primary" onClick={() => navigate(`/beneficiary/proofs?requestId=${r.dbId}`)}>
                         Submit Proof of Receipt
                       </button>
                     )}
@@ -750,7 +750,7 @@ export default function BeneficiaryRequestsPage() {
               {/* Actions */}
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '0.65rem', borderTop: '1px solid #e2e8f0', paddingTop: '1.25rem' }}>
                 {selectedRequest.canSubmitProof && selectedRequest.delivery?.dbId && (
-                  <button type="button" className="btn btn--primary" onClick={() => navigate(`/beneficiary/proofs?distributionId=${selectedRequest.delivery.dbId}&requestId=${selectedRequest.dbId}#proof-submit-form`)}>
+                  <button type="button" className="btn btn--primary" onClick={() => navigate(`/beneficiary/proofs?requestId=${selectedRequest.dbId}`)}>
                     Submit Proof of Receipt
                   </button>
                 )}

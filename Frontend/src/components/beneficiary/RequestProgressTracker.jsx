@@ -1,4 +1,4 @@
-import { Check, Clock, FileText, CheckCircle, Package, Truck, MapPin, XCircle, ShieldCheck } from 'lucide-react'
+﻿import { Check, Clock, FileText, CheckCircle, Package, Truck, MapPin, XCircle, ShieldCheck } from 'lucide-react'
 
 const WORKFLOW_STAGES = [
   {
@@ -27,7 +27,7 @@ const WORKFLOW_STAGES = [
     label: 'Allocated',
     icon: Package,
     statuses: ['Allocated', 'Reserved', 'In Stock'],
-    description: 'Relief goods packed',
+    description: 'Goods packed',
   },
   {
     key: 'distribution',
@@ -44,19 +44,24 @@ const WORKFLOW_STAGES = [
     description: 'Aid received',
   },
   {
-    key: 'proof', label: 'Proof Review', icon: ShieldCheck,
-    statuses: ['Proof Review', 'Proof Submitted', 'Awaiting Proof'], description: 'Receipt under review',
+    key: 'proof',
+    label: 'Proof Review',
+    icon: ShieldCheck,
+    statuses: ['Proof Review', 'Proof Submitted', 'Awaiting Proof'],
+    description: 'Under review',
   },
   {
-    key: 'completed', label: 'Completed', icon: Check,
-    statuses: ['Completed', 'Done'], description: 'Proof approved',
+    key: 'completed',
+    label: 'Completed',
+    icon: Check,
+    statuses: ['Completed', 'Done'],
+    description: 'Proof approved',
   },
 ]
 
 function determineCurrentStage(status) {
   if (!status) return 0
   if (['Rejected', 'Declined', 'Cancelled'].includes(status)) return 'rejected'
-  
   const normalized = ['Preparing', 'Scheduled', 'In Distribution', 'In Progress'].includes(status) ? 'Allocated' : status
   const stageIndex = WORKFLOW_STAGES.findIndex((stage) =>
     stage.statuses.some((s) => s.toLowerCase() === normalized.toLowerCase())
@@ -76,8 +81,8 @@ function getStageStatus(stageIndex, currentIndex) {
 export default function RequestProgressTracker({ request }) {
   const currentStageIndex = determineCurrentStage(request?.status)
   const isRejected = currentStageIndex === 'rejected'
-  const progressPercentage = isRejected 
-    ? 0 
+  const progressPercentage = isRejected
+    ? 0
     : Math.min(100, Math.round(((currentStageIndex + 1) / WORKFLOW_STAGES.length) * 100))
 
   return (
@@ -90,7 +95,7 @@ export default function RequestProgressTracker({ request }) {
           </h4>
         </div>
         {!isRejected && (
-          <span style={{ fontSize: '0.8rem', fontWeight: 700, color: '#059669', background: '#ecfdf5', padding: '0.2rem 0.6rem', borderRadius: '999px', border: '1px solid #a7f3d0' }}>
+          <span className="req-tracker-pct">
             {progressPercentage}% Completed
           </span>
         )}
@@ -98,84 +103,46 @@ export default function RequestProgressTracker({ request }) {
 
       {/* Progress Bar */}
       {!isRejected && (
-        <div style={{ height: '6px', background: '#f1f5f9', borderRadius: '999px', overflow: 'hidden', margin: '0.75rem 0 1.25rem' }}>
+        <div className="req-tracker-bar-wrap">
           <div
-            style={{
-              height: '100%',
-              background: 'linear-gradient(90deg, #AF101A 0%, #059669 100%)',
-              borderRadius: '999px',
-              width: `${progressPercentage}%`,
-              transition: 'width 0.4s ease',
-            }}
+            className="req-tracker-bar-fill"
+            style={{ width: `${progressPercentage}%` }}
           />
         </div>
       )}
 
       {/* Rejection Notice */}
       {isRejected && (
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', padding: '0.85rem 1rem', background: '#fef2f2', border: '1px solid #fecaca', borderRadius: '8px', color: '#991b1b', margin: '0.75rem 0 1rem', fontSize: '0.85rem' }}>
+        <div className="req-tracker-rejected">
           <XCircle size={18} style={{ flexShrink: 0 }} />
           <div>
             <strong>Request {request?.status}</strong>
-            <p style={{ margin: '0.15rem 0 0', fontSize: '0.8rem', color: '#b91c1c' }}>This assistance request is closed or cancelled.</p>
+            <p>This assistance request is closed or cancelled.</p>
           </div>
         </div>
       )}
 
-      {/* Workflow Stepper */}
-      <div className="req-stepper-grid">
-        {WORKFLOW_STAGES.map((stage, index) => {
-          const status = getStageStatus(index, currentStageIndex)
-          const Icon = stage.icon
-          const isActive = status === 'active'
-          const isCompleted = status === 'completed'
-          const isRejectedStage = status === 'rejected'
+      {/* Stepper - two rows of 4 to avoid overflow */}
+      <div className="req-stepper-wrap">
+        <div className="req-stepper-grid">
+          {WORKFLOW_STAGES.map((stage, index) => {
+            const status = getStageStatus(index, currentStageIndex)
+            const Icon = stage.icon
+            const isActive = status === 'active'
+            const isCompleted = status === 'completed'
+            const isRejectedStage = status === 'rejected'
 
-          let dotBg = '#f1f5f9'
-          let dotColor = '#94a3b8'
-          let borderColor = '#e2e8f0'
-          if (isCompleted) {
-            dotBg = '#ecfdf5'
-            dotColor = '#059669'
-            borderColor = '#10b981'
-          } else if (isActive) {
-            dotBg = '#fef2f2'
-            dotColor = '#AF101A'
-            borderColor = '#AF101A'
-          } else if (isRejectedStage) {
-            dotBg = '#fef2f2'
-            dotColor = '#ef4444'
-            borderColor = '#ef4444'
-          }
-
-          return (
-            <div key={stage.key} className={`req-step-item req-step-item--${status}`}>
-              <div
-                style={{
-                  width: '34px',
-                  height: '34px',
-                  borderRadius: '50%',
-                  background: dotBg,
-                  color: dotColor,
-                  border: `2px solid ${borderColor}`,
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  margin: '0 auto 0.4rem',
-                  boxShadow: isActive ? '0 0 0 4px rgba(175, 16, 26, 0.12)' : 'none',
-                }}
-              >
-                {isCompleted ? <Check size={16} /> : isRejectedStage ? <XCircle size={16} /> : <Icon size={15} />}
+            return (
+              <div key={stage.key} className={`req-step-item req-step-item--${status}`}>
+                <div className="req-step-dot">
+                  {isCompleted ? <Check size={15} /> : isRejectedStage ? <XCircle size={15} /> : <Icon size={14} />}
+                </div>
+                <span className="req-step-label">{stage.label}</span>
+                <span className="req-step-desc">{stage.description}</span>
               </div>
-              <span style={{ fontSize: '0.78rem', fontWeight: isActive || isCompleted ? 700 : 500, color: isActive ? '#AF101A' : isCompleted ? '#0f172a' : '#94a3b8', display: 'block', textAlign: 'center' }}>
-                {stage.label}
-              </span>
-              <span style={{ fontSize: '0.7rem', color: '#64748b', display: 'block', textAlign: 'center', marginTop: '0.1rem' }}>
-                {stage.description}
-              </span>
-            </div>
-          )
-        })}
+            )
+          })}
+        </div>
       </div>
     </div>
   )

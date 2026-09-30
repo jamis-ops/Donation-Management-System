@@ -71,34 +71,121 @@
   margin-bottom: 1.5rem;
 }
 
-/* Compact horizontal lifecycle used in the assistance-request modal. */
+/* ============================================
+   Improved Stepper Layout — Request Tracker
+   Fixed overflow, alignment, responsive
+   ============================================ */
+
+/* Container for the tracker */
+.req-tracker-container {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+.req-tracker-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin-bottom: 0.6rem;
+}
+
+.req-tracker-pct {
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: #059669;
+  background: #ecfdf5;
+  padding: 0.18rem 0.55rem;
+  border-radius: 999px;
+  border: 1px solid #a7f3d0;
+  white-space: nowrap;
+}
+
+.req-tracker-bar-wrap {
+  height: 5px;
+  background: #f1f5f9;
+  border-radius: 999px;
+  overflow: hidden;
+  margin: 0 0 1rem;
+}
+
+.req-tracker-bar-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #AF101A 0%, #059669 100%);
+  border-radius: 999px;
+  transition: width 0.4s ease;
+}
+
+.req-tracker-rejected {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.65rem;
+  padding: 0.75rem 0.9rem;
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  border-radius: 8px;
+  color: #991b1b;
+  margin-bottom: 0.75rem;
+  font-size: 0.84rem;
+}
+
+.req-tracker-rejected strong {
+  display: block;
+  font-size: 0.88rem;
+  margin-bottom: 0.1rem;
+}
+
+.req-tracker-rejected p {
+  margin: 0;
+  font-size: 0.79rem;
+  color: #b91c1c;
+}
+
+/* Stepper wrapper — scroll horizontally on mobile */
+.req-stepper-wrap {
+  width: 100%;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  scrollbar-width: thin;
+  scrollbar-color: #e2e8f0 transparent;
+  padding-bottom: 4px;
+}
+
+/* The stepper grid: 4 stages per row, 2 rows for 8 total */
 .req-stepper-grid {
   display: grid;
-  grid-template-columns: repeat(6, minmax(92px, 1fr));
-  gap: 0;
-  overflow-x: auto;
-  padding: 0.4rem 0 0.65rem;
-  scrollbar-width: thin;
+  grid-template-columns: repeat(4, 1fr);
+  grid-template-rows: auto auto;
+  gap: 0.5rem 0;
+  min-width: 360px;
+  padding: 0.25rem 0 0.5rem;
 }
 
 .req-step-item {
   position: relative;
-  min-width: 92px;
-  padding: 0 0.25rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  padding: 0 0.2rem;
+  min-width: 0;
 }
 
+/* Connector line between steps — horizontal */
 .req-step-item::before {
   content: '';
   position: absolute;
-  z-index: 0;
   top: 16px;
   right: 50%;
   width: 100%;
   height: 2px;
   background: #e2e8f0;
+  z-index: 0;
 }
 
-.req-step-item:first-child::before {
+.req-step-item:first-child::before,
+.req-step-item:nth-child(5)::before {
   display: none;
 }
 
@@ -107,14 +194,96 @@
   background: #10b981;
 }
 
-.req-step-item > div:first-child {
+.req-step-dot {
   position: relative;
   z-index: 1;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0 auto 0.35rem;
+  border: 2px solid #e2e8f0;
+  background: #f1f5f9;
+  color: #94a3b8;
+  transition: background 0.2s, border-color 0.2s, box-shadow 0.2s;
 }
 
-@media (max-width: 720px) {
+.req-step-item--completed .req-step-dot {
+  background: #ecfdf5;
+  border-color: #10b981;
+  color: #059669;
+}
+
+.req-step-item--active .req-step-dot {
+  background: #fef2f2;
+  border-color: #AF101A;
+  color: #AF101A;
+  box-shadow: 0 0 0 4px rgba(175, 16, 26, 0.1);
+}
+
+.req-step-item--rejected .req-step-dot {
+  background: #fef2f2;
+  border-color: #ef4444;
+  color: #ef4444;
+}
+
+.req-step-label {
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: #94a3b8;
+  display: block;
+  line-height: 1.25;
+  max-width: 72px;
+}
+
+.req-step-item--active .req-step-label {
+  color: #AF101A;
+  font-weight: 700;
+}
+
+.req-step-item--completed .req-step-label {
+  color: #0f172a;
+  font-weight: 600;
+}
+
+.req-step-desc {
+  font-size: 0.64rem;
+  color: #64748b;
+  display: block;
+  margin-top: 0.08rem;
+  line-height: 1.2;
+  max-width: 72px;
+}
+
+/* On larger screens use single row */
+@media (min-width: 600px) {
   .req-stepper-grid {
-    grid-template-columns: repeat(6, 104px);
+    grid-template-columns: repeat(8, 1fr);
+    grid-template-rows: auto;
+  }
+  .req-step-item:nth-child(5)::before {
+    display: block;
+  }
+}
+
+@media (max-width: 599px) {
+  .req-stepper-grid {
+    min-width: 320px;
+    gap: 0.35rem 0;
+  }
+  .req-step-label,
+  .req-step-desc {
+    max-width: 60px;
+    font-size: 0.62rem;
+  }
+  .req-step-dot {
+    width: 28px;
+    height: 28px;
+  }
+  .req-step-item::before {
+    top: 13px;
   }
 }
 
