@@ -2681,6 +2681,9 @@ function ensure_distribution_schema(PDO $pdo): void
 
   ensure_column($pdo, 'distributions', 'request_id', 'BIGINT NULL AFTER proof_status');
   ensure_column($pdo, 'distributions', 'source_allocation_ids', 'TEXT NULL AFTER request_id');
+  // Delivery Team assignments use the existing task relationship so the same
+  // record powers Admin operations and the assigned volunteer's portal.
+  ensure_column($pdo, 'tasks', 'distribution_id', 'BIGINT UNSIGNED NULL AFTER assignee_user_id');
 }
 
 function ensure_column(PDO $pdo, string $table, string $column, string $typeDef): void

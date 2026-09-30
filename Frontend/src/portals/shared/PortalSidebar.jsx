@@ -6,7 +6,6 @@ import {
   FileBadge,
   ClipboardList,
   CalendarDays,
-  Clock3,
   Award,
   HandHeart,
   Package,
@@ -34,6 +33,7 @@ const portalMenus = {
     items: [
       { to: '/volunteer-portal', label: 'Dashboard', icon: LayoutDashboard, end: true },
       { to: '/volunteer-portal/tasks', label: 'My Tasks', icon: ClipboardList },
+      { to: '/volunteer-portal/distributions', label: 'Assigned Distributions', icon: Truck },
       { to: '/volunteer-portal/schedule', label: 'Schedule', icon: CalendarDays },
       { to: '/volunteer-portal/certificates', label: 'Certificates', icon: Award },
     ],

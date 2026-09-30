@@ -12,6 +12,7 @@ const titles = {
   '/donor/settings': { title: 'Account Settings', sub: 'Update your profile and password.' },
   '/volunteer-portal': { title: 'Volunteer Dashboard', sub: 'Your tasks, schedule, and activities.' },
   '/volunteer-portal/tasks': { title: 'My Tasks', sub: 'Tasks assigned to you.' },
+  '/volunteer-portal/distributions': { title: 'Assigned Distributions', sub: 'Read-only delivery plans assigned to your account.' },
   '/volunteer-portal/schedule': { title: 'Volunteer Schedule', sub: 'Upcoming events and shifts.' },
   '/volunteer-portal/certificates': { title: 'Certificates', sub: 'Service and participation certificates.' },
   '/volunteer-portal/settings': { title: 'Account Settings', sub: 'Update your profile and password.' },

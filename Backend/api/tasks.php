@@ -51,6 +51,38 @@ function ensure_tasks_distribution_column(PDO $pdo): void
   $ready = true;
 }
 
+/** Keep the delivery summary aligned with its current volunteer task links. */
+function sync_distribution_volunteer_count(PDO $pdo, ?int $distributionId): void
+{
+  if (!$distributionId) return;
+  $count = $pdo->prepare(
+    'SELECT COUNT(DISTINCT v.id)
+     FROM tasks t
+     JOIN volunteers v
+       ON v.user_id = t.assignee_user_id
+       OR (t.assignee_user_id IS NULL AND v.full_name = t.assignee)
+     WHERE t.distribution_id = ?'
+  );
+  $count->execute([$distributionId]);
+  $pdo->prepare('UPDATE distributions SET volunteers_count = ? WHERE id = ?')
+    ->execute([(int) $count->fetchColumn(), $distributionId]);
+}
+
+function distribution_assignee_task_exists(PDO $pdo, ?int $distributionId, ?int $userId, string $name, ?int $excludeTaskId = null): bool
+{
+  if (!$distributionId || (!$userId && trim($name) === '')) return false;
+  $sql = 'SELECT id FROM tasks WHERE distribution_id = ? AND ((? > 0 AND assignee_user_id = ?) OR assignee = ?)';
+  $params = [$distributionId, $userId ?: 0, $userId ?: 0, trim($name)];
+  if ($excludeTaskId) {
+    $sql .= ' AND id <> ?';
+    $params[] = $excludeTaskId;
+  }
+  $sql .= ' LIMIT 1';
+  $stmt = $pdo->prepare($sql);
+  $stmt->execute($params);
+  return (bool) $stmt->fetchColumn();
+}
+
 /** Admin workflow statuses volunteers may set on a linked distribution. */
 const VOLUNTEER_DISTRIBUTION_STATUSES = ['In Transit', 'Delivered'];
 
@@ -217,7 +249,14 @@ if ($method === 'GET') {
     $stmt = $pdo->prepare('SELECT * FROM tasks WHERE assignee = ? OR assignee_user_id = ? ORDER BY created_at DESC, id DESC');
     $stmt->execute([$name, $user['id']]);
     $rows = $stmt->fetchAll();
-    json_response(['ok' => true, 'data' => array_map(fn($r) => map_task($pdo, $r), $rows), 'list' => array_map(fn($r) => map_task($pdo, $r), $rows)]);
+    $mapped = array_map(static function ($row) use ($pdo) {
+      $task = map_task($pdo, $row);
+      $task['canMarkInTransit'] = false;
+      $task['canMarkDelivered'] = false;
+      $task['deliveryReadOnly'] = true;
+      return $task;
+    }, $rows);
+    json_response(['ok' => true, 'data' => $mapped, 'list' => $mapped]);
   }
 
   // Staff: default to "my tasks" unless mine=0 (admin-style full list not needed in portal).
@@ -409,6 +448,10 @@ if ($method === 'POST') {
       $vAssigneeUserId = ($volRow && $volRow['user_id']) ? (int) $volRow['user_id'] : null;
       $isVIntern = ($volRow && strcasecmp((string)($volRow['applicant_type'] ?? ''), 'Intern') === 0);
 
+      if (distribution_assignee_task_exists($pdo, $distributionId, $vAssigneeUserId, (string) $vAssignee)) {
+        continue;
+      }
+
       $tModule = $module;
       if (($tModule === null || $tModule === '' || $tModule === 'Volunteer' || $tModule === 'Internship') && !empty($volRow['programs_json'])) {
         $vProgs = json_decode((string) $volRow['programs_json'], true);
@@ -455,6 +498,10 @@ if ($method === 'POST') {
         );
       }
     }
+    sync_distribution_volunteer_count($pdo, $distributionId);
+    if (!$created) {
+      json_response(['ok' => false, 'error' => 'The selected volunteers are already assigned to this distribution.'], 409);
+    }
     json_response(['ok' => true, 'data' => $created[0], 'created' => $created, 'count' => count($created)], 201);
   }
 
@@ -463,6 +510,10 @@ if ($method === 'POST') {
   $finalDutyStart = $isSingleIntern ? $dutyStart : null;
   $finalDutyEnd = $isSingleIntern ? $dutyEnd : null;
   $finalDutyHours = $isSingleIntern ? $dutyHours : null;
+
+  if (distribution_assignee_task_exists($pdo, $distributionId, $assigneeUserId, $assignee)) {
+    json_response(['ok' => false, 'error' => 'This volunteer is already assigned to the selected distribution.'], 409);
+  }
 
   $stmt = $pdo->prepare('INSERT INTO tasks (code, title, assignee, assignee_user_id, distribution_id, priority, due_date, duty_start, duty_end, duty_hours, module, required_skills_json, board_column) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)');
   $stmt->execute([
@@ -503,6 +554,8 @@ if ($method === 'POST') {
       $assigneeUserId
     );
   }
+
+  sync_distribution_volunteer_count($pdo, $distributionId);
 
   json_response(['ok' => true, 'data' => $task], 201);
 }
@@ -589,6 +642,10 @@ if ($method === 'PUT') {
   if (in_array($user['role'], ['Volunteer', 'Staff'], true)) {
     $distributionStatus = trim((string) ($body['distributionStatus'] ?? ''));
     $linkedDistId = !empty($existing['distribution_id']) ? (int) $existing['distribution_id'] : null;
+
+    if ($user['role'] === 'Volunteer' && $distributionStatus !== '') {
+      json_response(['ok' => false, 'error' => 'Delivery details and status are read-only for volunteers.'], 403);
+    }
 
     // Volunteers cannot directly mark tasks completed; only administrators can verify and complete tasks.
     if ($user['role'] === 'Volunteer' && $distributionStatus === '' && ($column === 'done' || $column === 'review')) {
@@ -747,6 +804,10 @@ if ($method === 'PUT') {
     }
   }
 
+  if (distribution_assignee_task_exists($pdo, $distributionId, $assigneeUserId, $assignee, (int) $id)) {
+    json_response(['ok' => false, 'error' => 'This volunteer is already assigned to the selected distribution.'], 409);
+  }
+
   $update = $pdo->prepare("UPDATE tasks SET title = ?, assignee = ?, assignee_user_id = ?, distribution_id = ?, priority = ?, due_date = ?, duty_start = ?, duty_end = ?, duty_hours = ?, module = ?, required_skills_json = ?, board_column = ?, completed_at = {$completedAtSql} WHERE id = ?");
   $update->execute([
     $body['title'] ?? $existing['title'],
@@ -765,6 +826,12 @@ if ($method === 'PUT') {
     $column,
     $id,
   ]);
+
+  $previousDistributionId = !empty($existing['distribution_id']) ? (int) $existing['distribution_id'] : null;
+  sync_distribution_volunteer_count($pdo, $previousDistributionId);
+  if ($distributionId !== $previousDistributionId) {
+    sync_distribution_volunteer_count($pdo, $distributionId);
+  }
 
   if ($column === 'done' && ($existing['board_column'] ?? '') !== 'done' && $dutyHours && $assigneeUserId && $isAssigneeIntern) {
     $pdo->prepare('UPDATE volunteers SET hours = hours + ? WHERE user_id = ? AND applicant_type = "Intern"')
@@ -800,7 +867,11 @@ if ($method === 'DELETE') {
   if ($user['role'] === 'Volunteer') {
     json_response(['ok' => false, 'error' => 'Access denied'], 403);
   }
+  $linked = $pdo->prepare('SELECT distribution_id FROM tasks WHERE id = ? LIMIT 1');
+  $linked->execute([$id]);
+  $linkedDistributionId = (int) ($linked->fetchColumn() ?: 0);
   $pdo->prepare('DELETE FROM tasks WHERE id = ?')->execute([$id]);
+  sync_distribution_volunteer_count($pdo, $linkedDistributionId ?: null);
   json_response(['ok' => true]);
 }
 

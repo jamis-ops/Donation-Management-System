@@ -14,9 +14,6 @@ import {
   Tag,
   X,
   Check,
-  Award,
-  Sparkles,
-  CheckCircle2,
 } from 'lucide-react'
 import StatusBadge from '../../admin/components/shared/StatusBadge'
 import ApiState from '../../admin/components/shared/ApiState'
@@ -24,8 +21,6 @@ import { tasksApi } from '../../api/resources'
 import { useApiList } from '../../hooks/useApiList'
 import { usePagination, DEFAULT_PAGE_SIZE } from '../../hooks/usePagination'
 import Pagination from '../../admin/components/shared/Pagination'
-import { notify, confirmAction, showSuccessModal } from '../../utils/confirm'
-import { useLoading } from '../../context/LoadingContext'
 
 const STATUS_FILTERS = ['All', 'Ongoing', 'Completed', 'Distributions']
 
@@ -70,14 +65,14 @@ export default function VolunteerTasksPage() {
   )
 
   const [statusFilter, setStatusFilter] = useState(() => mapParamToStatus(searchParams.get('status') || searchParams.get('filter')))
-  const { showLoading, hideLoading } = useLoading()
   const [searchQuery, setSearchQuery] = useState(() => searchParams.get('q') || searchParams.get('search') || '')
   const [selectedTask, setSelectedTask] = useState(null)
-  const [saving, setSaving] = useState(false)
 
   useEffect(() => {
     const s = searchParams.get('status') || searchParams.get('filter')
-    if (s) setStatusFilter(mapParamToStatus(s))
+    if (!s) return undefined
+    const timer = window.setTimeout(() => setStatusFilter(mapParamToStatus(s)), 0)
+    return () => window.clearTimeout(timer)
   }, [searchParams])
 
   const stats = useMemo(() => {
@@ -121,43 +116,6 @@ export default function VolunteerTasksPage() {
     Ongoing: stats.ongoing,
     Completed: stats.completed,
     Distributions: stats.distributions,
-  }
-
-  const applyTaskUpdate = (updated) => {
-    if (!updated) {
-      reload()
-      return
-    }
-    setSelectedTask((prev) => (prev && (prev.dbId === updated.dbId) ? { ...prev, ...updated } : prev))
-    reload()
-  }
-
-  const handleDistributionStatus = async (task, distributionStatus) => {
-    if (!task?.dbId || !task.distributionId) return
-    const label = distributionStatus === 'In Transit' ? 'In Transit' : 'Delivered'
-    const ok = await confirmAction({
-      title: 'Update Distribution Status',
-      message: `Update distribution ${task.distributionCode || ''} to “${label}”? This will sync to Admin, Staff, and Barangay portals.`,
-      confirmText: `Set to ${label}`,
-      type: 'primary',
-    })
-    if (!ok) return
-
-    setSaving(true)
-    showLoading('Saving changes…')
-    try {
-      const res = await tasksApi.update(task.dbId, { distributionStatus })
-      showSuccessModal(`Status successfully updated to: ${label}.`)
-      applyTaskUpdate(res?.data)
-      if (distributionStatus === 'Delivered') {
-        setSelectedTask(null)
-      }
-    } catch (err) {
-      notify.error(err.message || 'Failed to update distribution status')
-    } finally {
-      hideLoading()
-      setSaving(false)
-    }
   }
 
   return (
@@ -336,26 +294,6 @@ export default function VolunteerTasksPage() {
                       )}
                     </div>
                     <div className="portal-task-item__actions" onClick={(e) => e.stopPropagation()}>
-                      {isDist && t.canMarkInTransit && (
-                        <button
-                          type="button"
-                          className="btn btn--sm btn--outline"
-                          disabled={saving}
-                          onClick={() => handleDistributionStatus(t, 'In Transit')}
-                        >
-                          <Truck size={14} /> In Transit
-                        </button>
-                      )}
-                      {isDist && t.canMarkDelivered && (
-                        <button
-                          type="button"
-                          className="btn btn--sm btn--primary"
-                          disabled={saving}
-                          onClick={() => handleDistributionStatus(t, 'Delivered')}
-                        >
-                          <PackageCheck size={14} /> Delivered
-                        </button>
-                      )}
                       <button
                         type="button"
                         className="btn btn--sm btn--outline"
@@ -580,7 +518,7 @@ export default function VolunteerTasksPage() {
                     )}
                   </div>
                   <p className="vtask-delivery-card__desc" style={{ marginTop: '0.35rem', paddingTop: '0.45rem', borderTop: '1px solid #ccfbf1' }}>
-                    Tap <strong>In Transit</strong> when leaving for delivery, and <strong>Delivered</strong> once handover to the Barangay is complete.
+                    Delivery details and status are managed by authorized Admin or Staff users. This assignment is read-only.
                   </p>
                 </div>
               )}
@@ -637,30 +575,6 @@ export default function VolunteerTasksPage() {
               >
                 Close
               </button>
-              {(isDistributionTask(selectedTask) && (selectedTask.canMarkInTransit || selectedTask.canMarkDelivered)) && (
-                <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.65rem', flexWrap: 'wrap' }}>
-                  {selectedTask.canMarkInTransit && (
-                    <button
-                      type="button"
-                      className="btn btn--outline"
-                      disabled={saving}
-                      onClick={() => handleDistributionStatus(selectedTask, 'In Transit')}
-                    >
-                      <Truck size={15} /> Mark In Transit
-                    </button>
-                  )}
-                  {selectedTask.canMarkDelivered && (
-                    <button
-                      type="button"
-                      className="btn btn--primary"
-                      disabled={saving}
-                      onClick={() => handleDistributionStatus(selectedTask, 'Delivered')}
-                    >
-                      <PackageCheck size={15} /> Mark Delivered
-                    </button>
-                  )}
-                </div>
-              )}
             </div>
           </div>
         </div>

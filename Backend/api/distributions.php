@@ -8,6 +8,73 @@ ensure_allocation_inventory_schema($pdo);
 $method = request_method();
 $id = get_id_param();
 
+/** Validate and de-duplicate Delivery Team selections against volunteer records. */
+function normalize_delivery_team(PDO $pdo, $rawAssignments): array
+{
+  if (!is_array($rawAssignments)) return [];
+  $normalized = [];
+  foreach ($rawAssignments as $assignment) {
+    if (!is_array($assignment)) continue;
+    $volunteerId = (int) ($assignment['volunteerId'] ?? $assignment['id'] ?? 0);
+    if ($volunteerId <= 0 || isset($normalized[$volunteerId])) continue;
+    $stmt = $pdo->prepare("SELECT v.id, COALESCE(v.user_id, u.id) AS user_id, v.full_name, v.applicant_type, v.status FROM volunteers v LEFT JOIN users u ON v.user_id IS NULL AND u.email = v.email LEFT JOIN roles r ON r.id = u.role_id WHERE v.id = ? AND (u.id IS NULL OR r.name = 'Volunteer') LIMIT 1");
+    $stmt->execute([$volunteerId]);
+    $volunteer = $stmt->fetch();
+    if (!$volunteer) {
+      throw new RuntimeException("Volunteer #{$volunteerId} was not found.");
+    }
+    if (strcasecmp((string) ($volunteer['status'] ?? ''), 'Rejected') === 0) {
+      throw new RuntimeException("{$volunteer['full_name']} cannot be assigned because the volunteer profile is rejected.");
+    }
+    $fallbackRole = strcasecmp((string) ($volunteer['applicant_type'] ?? ''), 'Intern') === 0
+      ? 'Delivery Team Intern'
+      : 'Delivery Team Volunteer';
+    $normalized[$volunteerId] = [
+      'volunteerId' => $volunteerId,
+      'userId' => !empty($volunteer['user_id']) ? (int) $volunteer['user_id'] : null,
+      'name' => (string) $volunteer['full_name'],
+      'type' => (string) ($volunteer['applicant_type'] ?: 'Volunteer'),
+      'role' => trim((string) ($assignment['role'] ?? $assignment['task'] ?? '')) ?: $fallbackRole,
+    ];
+  }
+  return array_values($normalized);
+}
+
+/** Persist one linked task per volunteer so portal visibility follows the assignment. */
+function create_delivery_team_assignments(PDO $pdo, int $distributionId, array $team, array $distribution): void
+{
+  foreach ($team as $member) {
+    $existing = $pdo->prepare('SELECT id FROM tasks WHERE distribution_id = ? AND ((assignee_user_id IS NOT NULL AND assignee_user_id = ?) OR (assignee_user_id IS NULL AND assignee = ?)) LIMIT 1');
+    $existing->execute([$distributionId, $member['userId'] ?: 0, $member['name']]);
+    if ($existing->fetchColumn()) continue;
+
+    $taskCode = generate_code('TSK');
+    $title = (string) $member['role'];
+    $stmt = $pdo->prepare("INSERT INTO tasks (code, title, assignee, assignee_user_id, distribution_id, priority, due_date, duty_start, duty_end, module, board_column) VALUES (?, ?, ?, ?, ?, 'High', ?, ?, ?, 'Distribution', 'todo')");
+    $stmt->execute([
+      $taskCode,
+      $title,
+      $member['name'],
+      $member['userId'],
+      $distributionId,
+      $distribution['distributionDate'] ?: null,
+      $distribution['scheduleTime'] ?: null,
+      null,
+    ]);
+
+    if ($member['userId']) {
+      create_notification(
+        $pdo,
+        'task_assigned',
+        'Assigned to a distribution',
+        "You are assigned to {$distribution['code']} as {$title}.",
+        '/volunteer-portal/distributions',
+        (int) $member['userId']
+      );
+    }
+  }
+}
+
 function map_distribution(PDO $pdo, array $row): array
 {
   $barangay = '';
@@ -240,14 +307,18 @@ function map_distribution(PDO $pdo, array $row): array
 
   $assignedTeam = [];
   try {
-    $tStmt = $pdo->prepare('SELECT id, code, title, assignee, board_column FROM tasks WHERE distribution_id = ? ORDER BY id ASC');
+    $tStmt = $pdo->prepare('SELECT t.id, t.code, t.title, t.assignee, t.assignee_user_id, t.board_column, v.id AS volunteer_id, v.applicant_type FROM tasks t LEFT JOIN volunteers v ON v.user_id = t.assignee_user_id OR (t.assignee_user_id IS NULL AND v.full_name = t.assignee) WHERE t.distribution_id = ? ORDER BY t.id ASC');
     $tStmt->execute([(int) $row['id']]);
     foreach ($tStmt->fetchAll() as $t) {
       $assignedTeam[] = [
         'id' => (int) $t['id'],
         'code' => $t['code'] ?? '',
         'title' => $t['title'] ?? '',
+        'role' => $t['title'] ?? 'Delivery Team Volunteer',
         'assignee' => $t['assignee'] ?? '',
+        'assigneeUserId' => !empty($t['assignee_user_id']) ? (int) $t['assignee_user_id'] : null,
+        'volunteerId' => !empty($t['volunteer_id']) ? (int) $t['volunteer_id'] : null,
+        'type' => $t['applicant_type'] ?? 'Volunteer',
         'status' => $t['board_column'] ?? '',
       ];
     }
@@ -626,9 +697,28 @@ if ($method === 'GET' && (isset($_GET['public']) || isset($_GET['map']))) {
   ]);
 }
 
-$user = require_auth(['Admin', 'Staff', 'Beneficiary']);
+$user = require_auth(['Admin', 'Staff', 'Beneficiary', 'Volunteer']);
 
 if ($method === 'GET') {
+  if ($user['role'] === 'Volunteer') {
+    $volStmt = $pdo->prepare('SELECT full_name FROM volunteers WHERE user_id = ? LIMIT 1');
+    $volStmt->execute([(int) $user['id']]);
+    $volunteerName = (string) ($volStmt->fetchColumn() ?: $user['name']);
+    $stmt = $pdo->prepare('SELECT d.*, t.id AS assignment_task_id, t.title AS assignment_role, t.board_column AS assignment_status FROM distributions d JOIN tasks t ON t.distribution_id = d.id WHERE t.assignee_user_id = ? OR (t.assignee_user_id IS NULL AND t.assignee = ?) ORDER BY d.distribution_date DESC, d.id DESC, t.id DESC');
+    $stmt->execute([(int) $user['id'], $volunteerName]);
+    $assigned = [];
+    foreach ($stmt->fetchAll() as $row) {
+      $distributionId = (int) $row['id'];
+      if (isset($assigned[$distributionId])) continue;
+      $mapped = map_distribution($pdo, $row);
+      $mapped['assignedToMe'] = true;
+      $mapped['volunteerRole'] = $row['assignment_role'] ?: 'Delivery Team Volunteer';
+      $mapped['assignmentTaskId'] = (int) $row['assignment_task_id'];
+      $assigned[$distributionId] = $mapped;
+    }
+    json_response(['ok' => true, 'data' => array_values($assigned)]);
+  }
+
   if ($user['role'] === 'Beneficiary') {
     $benStmt = $pdo->prepare('SELECT * FROM beneficiaries WHERE user_id = ? LIMIT 1');
     $benStmt->execute([$user['id']]);
@@ -857,6 +947,11 @@ if ($method === 'POST') {
   $code = generate_code('DST');
   $proofStatus = $body['proofStatus'] ?? 'Awaiting Proof';
   $isDelivery = ($body['type'] ?? 'Delivery') === 'Delivery';
+  try {
+    $deliveryTeam = normalize_delivery_team($pdo, $body['teamAssignments'] ?? []);
+  } catch (Throwable $e) {
+    json_response(['ok' => false, 'error' => $e->getMessage()], 400);
+  }
 
   // Optional handoff: build distribution from confirmed allocations
   $allocationIds = [];
@@ -994,29 +1089,42 @@ if ($method === 'POST') {
     }
   }
 
-  $stmt = $pdo->prepare('INSERT INTO distributions (code, event_name, location, beneficiary_id, program, distribution_date, schedule_time, beneficiaries_count, volunteers_count, vehicles_count, distance_km, fuel_liters, fuel_cost, status, distribution_type, items_summary, coordinator, notes, proof_status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)');
-  $stmt->execute([
-    $code,
-    $eventName,
-    $location,
-    $beneficiaryId,
-    $program,
-    $distributionDate,
-    $body['scheduleTime'] ?? null,
-    $beneficiariesCount,
-    (int) ($body['volunteers'] ?? 0),
-    (int) ($body['vehicles'] ?? 0),
-    $isDelivery && isset($body['distanceKm']) && $body['distanceKm'] !== '' ? (float) $body['distanceKm'] : null,
-    $isDelivery && isset($body['fuelLiters']) && $body['fuelLiters'] !== '' ? (float) $body['fuelLiters'] : null,
-    $isDelivery && isset($body['fuelCost']) && $body['fuelCost'] !== '' ? (float) $body['fuelCost'] : null,
-    $body['status'] ?? 'Planning',
-    $body['type'] ?? 'Delivery',
-    $itemsSummary !== '' ? $itemsSummary : null,
-    $body['coordinator'] ?? null,
-    $notes,
-    $proofStatus,
-  ]);
-  $newId = (int) $pdo->lastInsertId();
+  try {
+    $pdo->beginTransaction();
+    $stmt = $pdo->prepare('INSERT INTO distributions (code, event_name, location, beneficiary_id, program, distribution_date, schedule_time, beneficiaries_count, volunteers_count, vehicles_count, distance_km, fuel_liters, fuel_cost, status, distribution_type, items_summary, coordinator, notes, proof_status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)');
+    $stmt->execute([
+      $code,
+      $eventName,
+      $location,
+      $beneficiaryId,
+      $program,
+      $distributionDate,
+      $body['scheduleTime'] ?? null,
+      $beneficiariesCount,
+      (int) ($body['volunteers'] ?? 0),
+      (int) ($body['vehicles'] ?? 0),
+      $isDelivery && isset($body['distanceKm']) && $body['distanceKm'] !== '' ? (float) $body['distanceKm'] : null,
+      $isDelivery && isset($body['fuelLiters']) && $body['fuelLiters'] !== '' ? (float) $body['fuelLiters'] : null,
+      $isDelivery && isset($body['fuelCost']) && $body['fuelCost'] !== '' ? (float) $body['fuelCost'] : null,
+      $body['status'] ?? 'Planning',
+      $body['type'] ?? 'Delivery',
+      $itemsSummary !== '' ? $itemsSummary : null,
+      $body['coordinator'] ?? null,
+      $notes,
+      $proofStatus,
+    ]);
+    $newId = (int) $pdo->lastInsertId();
+
+    create_delivery_team_assignments($pdo, $newId, $deliveryTeam, [
+      'code' => $code,
+      'distributionDate' => $distributionDate,
+      'scheduleTime' => $body['scheduleTime'] ?? null,
+    ]);
+    $pdo->commit();
+  } catch (Throwable $e) {
+    if ($pdo->inTransaction()) $pdo->rollBack();
+    json_response(['ok' => false, 'error' => 'The delivery plan could not be saved with its team assignments. Please try again.'], 500);
+  }
 
   if ($fromAllocations) {
     $link = $pdo->prepare("UPDATE allocations SET distribution_id = ?, status = 'Scheduled' WHERE id = ?");
@@ -1050,6 +1158,13 @@ if ($method === 'PUT') {
   $existing = $stmt->fetch();
   if (!$existing) {
     json_response(['ok' => false, 'error' => 'Distribution not found'], 404);
+  }
+
+  if (array_key_exists('teamAssignments', $body)) {
+    json_response(['ok' => false, 'error' => 'The Delivery Team is locked after the delivery plan is created. Use an authorized task reassignment process instead.'], 409);
+  }
+  if (array_key_exists('coordinator', $body) && trim((string) $body['coordinator']) !== trim((string) ($existing['coordinator'] ?? ''))) {
+    json_response(['ok' => false, 'error' => 'The assigned coordinator is locked after the delivery plan is created.'], 409);
   }
 
   $isApproveAction = in_array($body['action'] ?? '', ['approve_proof_and_complete', 'approve-proof'], true);
@@ -1146,7 +1261,7 @@ if ($method === 'PUT') {
     $body['distributionDate'] ?? $existing['distribution_date'],
     array_key_exists('scheduleTime', $body) ? ($body['scheduleTime'] ?: null) : $existing['schedule_time'],
     (int) ($body['beneficiaries'] ?? $existing['beneficiaries_count']),
-    (int) ($body['volunteers'] ?? $existing['volunteers_count']),
+    (int) $existing['volunteers_count'],
     (int) ($body['vehicles'] ?? $existing['vehicles_count']),
     $isDelivery ? (array_key_exists('distanceKm', $body) ? ($body['distanceKm'] !== '' ? (float) $body['distanceKm'] : null) : $existing['distance_km']) : null,
     $isDelivery ? (array_key_exists('fuelLiters', $body) ? ($body['fuelLiters'] !== '' ? (float) $body['fuelLiters'] : null) : $existing['fuel_liters']) : null,
@@ -1154,7 +1269,7 @@ if ($method === 'PUT') {
     $newStatus,
     $type,
     $body['itemsSummary'] ?? $existing['items_summary'],
-    $body['coordinator'] ?? $existing['coordinator'],
+    $existing['coordinator'],
     $body['notes'] ?? $existing['notes'],
     $proofStatus,
     $id,

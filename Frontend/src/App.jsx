@@ -55,6 +55,7 @@ import DonorDonationsPage from './portals/donor/DonorDonationsPage'
 import DonorCertificatesPage from './portals/donor/DonorCertificatesPage'
 import VolunteerDashboard from './portals/volunteer/VolunteerDashboard'
 import VolunteerTasksPage from './portals/volunteer/VolunteerTasksPage'
+import VolunteerDistributionsPage from './portals/volunteer/VolunteerDistributionsPage'
 import VolunteerSchedulePage from './portals/volunteer/VolunteerSchedulePage'
 import VolunteerHoursPage from './portals/volunteer/VolunteerHoursPage'
 import VolunteerCertificatesPage from './portals/volunteer/VolunteerCertificatesPage'
@@ -165,6 +166,7 @@ const router = createBrowserRouter([
     children: [
       { index: true, element: <VolunteerDashboard /> },
       { path: 'tasks', element: <VolunteerTasksPage /> },
+      { path: 'distributions', element: <VolunteerDistributionsPage /> },
       { path: 'schedule', element: <VolunteerSchedulePage /> },
       { path: 'hours', element: <Navigate to="/volunteer-portal/tasks" replace /> },
       { path: 'certificates', element: <VolunteerCertificatesPage /> },

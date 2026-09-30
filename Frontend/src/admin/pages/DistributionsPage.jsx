@@ -414,11 +414,10 @@ export default function DistributionsPage() {
     return locked
   }, [isStep1Complete, isStep2Complete])
 
-  const isDistributionProgram = useMemo(() => {
-    const prog = (form.program || '').toLowerCase()
-    const type = (form.type || '').toLowerCase()
-    return prog.includes('distribution') || type.includes('distribution')
-  }, [form.program, form.type])
+  // The delivery team is selected while a plan is being created. Once the
+  // distribution exists, its coordinator and roster are immutable here; any
+  // exceptional reassignment must go through the authorized task workflow.
+  const isDeliveryTeamLocked = Boolean(editRow)
 
   const validateStep = (stepName) => {
     const errs = {}
@@ -584,6 +583,7 @@ export default function DistributionsPage() {
       id: volId,
       name: vol.name || `${vol.firstName || ''} ${vol.lastName || ''}`.trim() || 'Volunteer',
       type: vol.applicantType || vol.volunteerType || (vol.institution ? 'Intern' : 'Volunteer'),
+      role: vol.deliveryRole || vol.role || ((vol.applicantType || vol.volunteerType) === 'Intern' ? 'Delivery Team Intern' : 'Delivery Team Volunteer'),
       skills: vol.skills || [],
     }
     const updated = [...assignedVolunteers, newVol]
@@ -651,9 +651,22 @@ export default function DistributionsPage() {
       }
     }
 
-    // Parse assigned volunteers from notes if available
-    const parsedVolunteers = []
-    if (row.notes && row.notes.includes('Assigned Team:')) {
+    // Prefer the account-linked assignment records. Notes are retained only as
+    // a compatibility fallback for deliveries created before account linking.
+    const parsedVolunteers = (row.assignedTeam || []).map((member, idx) => {
+      const matchVol = allVolunteers.find((vol) =>
+        String(vol.dbId || vol.id) === String(member.volunteerId || '') ||
+        (vol.name || '').trim().toLowerCase() === (member.assignee || '').trim().toLowerCase()
+      )
+      return {
+        id: member.volunteerId || matchVol?.dbId || matchVol?.id || `assigned-${idx}`,
+        name: member.assignee || matchVol?.name || 'Volunteer',
+        type: member.type || matchVol?.applicantType || 'Volunteer',
+        role: member.role || member.title || 'Delivery Team Volunteer',
+        skills: matchVol?.skills || [],
+      }
+    })
+    if (parsedVolunteers.length === 0 && row.notes && row.notes.includes('Assigned Team:')) {
       const match = row.notes.match(/Assigned Team:\s*([^\n]+)/)
       if (match && match[1]) {
         const parts = match[1].split(',').map((s) => s.trim()).filter(Boolean)
@@ -665,6 +678,7 @@ export default function DistributionsPage() {
             id: matchVol?.dbId || matchVol?.id || `v-${idx}`,
             name: matchVol?.name || cleanName,
             type: matchVol?.applicantType || (isIntern ? 'Intern' : 'Volunteer'),
+            role: isIntern ? 'Delivery Team Intern' : 'Delivery Team Volunteer',
             skills: matchVol?.skills || [],
           })
         })
@@ -788,7 +802,7 @@ export default function DistributionsPage() {
         distributionDate: form.distributionDate,
         scheduleTime: form.scheduleTime || null,
         beneficiaries: Number(form.beneficiaries) || 0,
-        volunteers: Number(form.volunteers) || assignedVolunteers.length || 0,
+        volunteers: assignedVolunteers.length || Number(form.volunteers) || 0,
         vehicles: Number(form.vehicles) || 0,
         distanceKm: '',
         status: 'Preparing',
@@ -803,6 +817,12 @@ export default function DistributionsPage() {
         await distributionsApi.update(editRow.dbId, payload)
         setEditRow(null)
       } else {
+        payload.teamAssignments = assignedVolunteers
+          .map((volunteer) => ({
+            volunteerId: Number(volunteer.id),
+            role: volunteer.role || (volunteer.type === 'Intern' ? 'Delivery Team Intern' : 'Delivery Team Volunteer'),
+          }))
+          .filter((assignment) => Number.isInteger(assignment.volunteerId) && assignment.volunteerId > 0)
         if (form.allocationIds?.length) {
           payload.allocationIds = form.allocationIds.map(Number)
         }
@@ -2173,6 +2193,8 @@ export default function DistributionsPage() {
                               required
                               className={`dist-cl-aligned-input ${stepErrors.logistics?.coordinator ? 'input-error' : ''}`}
                               value={form.coordinator}
+                              readOnly={isDeliveryTeamLocked}
+                              aria-readonly={isDeliveryTeamLocked}
                               onChange={(e) => {
                                 setForm({ ...form, coordinator: e.target.value })
                                 if (stepErrors.logistics?.coordinator) {
@@ -2181,7 +2203,7 @@ export default function DistributionsPage() {
                               }}
                               placeholder="Staff / Coordinator in charge"
                             />
-                            {staffList.length > 0 && (
+                            {!isDeliveryTeamLocked && staffList.length > 0 && (
                               <select
                                 value=""
                                 onChange={(e) => {
@@ -2208,7 +2230,7 @@ export default function DistributionsPage() {
                             <span className="dist-field-error">{stepErrors.logistics.coordinator}</span>
                           )}
 
-                          {staffList.length > 0 && (
+                          {!isDeliveryTeamLocked && staffList.length > 0 && (
                             <div className="dist-cl-sugg-row">
                               <span className="dist-cl-sugg-label">💡 Suggestions:</span>
                               <div className="dist-cl-sugg-chips">
@@ -2265,6 +2287,8 @@ export default function DistributionsPage() {
                                 min="0"
                                 className="dist-cl-aligned-input"
                                 value={form.volunteers}
+                                readOnly={isDeliveryTeamLocked}
+                                aria-readonly={isDeliveryTeamLocked}
                                 onChange={(e) => setForm({ ...form, volunteers: e.target.value })}
                                 placeholder={assignedVolunteers.length ? String(assignedVolunteers.length) : '0'}
                                 title="Target volunteer headcount"
@@ -2291,15 +2315,15 @@ export default function DistributionsPage() {
                           <span className="dist-cl-count-badge">
                             {assignedVolunteers.length}{form.volunteers ? ` / ${form.volunteers}` : ''}
                           </span>
-                          {isDistributionProgram && (
-                            <span className="dist-cl-locked-pill" title="Volunteers are managed via Volunteer Tasks for Distribution programs">
-                              <Lock size={11} /> Locked (Distribution Program)
+                          {isDeliveryTeamLocked && (
+                            <span className="dist-cl-locked-pill" title="The delivery team is locked after the plan is created">
+                              <Lock size={11} /> Locked after planning
                             </span>
                           )}
                         </div>
 
                         {/* Directory dropdown only if NOT locked */}
-                        {!isDistributionProgram && allVolunteers.length > 0 && (
+                        {!isDeliveryTeamLocked && allVolunteers.length > 0 && (
                           <select
                             value=""
                             onChange={(e) => {
@@ -2325,7 +2349,7 @@ export default function DistributionsPage() {
                       <div className="dist-cl-roster">
                         {assignedVolunteers.length > 0 ? (
                           assignedVolunteers.map((v) => (
-                            <span key={v.id} className={`dist-cl-member-chip ${isDistributionProgram ? 'dist-cl-member-chip--locked' : ''}`}>
+                            <span key={v.id} className={`dist-cl-member-chip ${isDeliveryTeamLocked ? 'dist-cl-member-chip--locked' : ''}`}>
                               <span className="dist-cl-member-avatar">
                                 {(v.name || '?').charAt(0).toUpperCase()}
                               </span>
@@ -2333,7 +2357,7 @@ export default function DistributionsPage() {
                               <span className={`vol-role-badge vol-role-badge--${v.type?.toLowerCase() === 'intern' ? 'intern' : 'volunteer'}`}>
                                 {v.type}
                               </span>
-                              {!isDistributionProgram ? (
+                              {!isDeliveryTeamLocked ? (
                                 <button
                                   type="button"
                                   className="dist-cl-remove-btn"
@@ -2343,15 +2367,15 @@ export default function DistributionsPage() {
                                   ×
                                 </button>
                               ) : (
-                                <Lock size={10} style={{ color: '#94a3b8', marginLeft: '2px' }} title="Volunteer assignment is locked for Distribution programs" />
+                                <Lock size={10} style={{ color: '#94a3b8', marginLeft: '2px' }} title="Volunteer assignment is locked after planning" />
                               )}
                             </span>
                           ))
-                        ) : isDistributionProgram ? (
+                        ) : isDeliveryTeamLocked ? (
                           <div className="dist-cl-locked-notice">
                             <Lock size={14} style={{ color: '#AF101A', flexShrink: 0 }} />
                             <span>
-                              Volunteer assignments are locked for Distribution programs. Volunteers are assigned automatically via the Volunteer Tasks &amp; Deployment schedule.
+                              No linked volunteers are recorded for this delivery. The roster is locked after planning; use the authorized assignment workflow if a correction is required.
                             </span>
                           </div>
                         ) : (
@@ -2363,11 +2387,11 @@ export default function DistributionsPage() {
                       </div>
 
                       {/* Locked note or Skills filter & Candidate grid */}
-                      {isDistributionProgram ? (
+                      {isDeliveryTeamLocked ? (
                         assignedVolunteers.length > 0 && (
                           <div className="dist-cl-locked-footer">
                             <Lock size={12} style={{ color: '#64748b' }} />
-                            <span>The assigned volunteer team is locked and managed through Volunteer Tasks for Distribution programs.</span>
+                            <span>The assigned volunteer team and coordinator are read-only after the delivery plan is created.</span>
                           </div>
                         )
                       ) : (
