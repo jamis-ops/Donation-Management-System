@@ -12,11 +12,11 @@ $pdo = db();
 $method = request_method();
 
 const DONATION_UPDATE_STAGES = [
-  'Donation Received',
-  'Sorted',
-  'Scheduled for Distribution',
-  'In Transit',
-  'Delivered',
+  'Donate',
+  'Submit Proof',
+  'Verify Proof',
+  'Completed',
+  'Certificate',
 ];
 
 function map_donation_update(array $row): array

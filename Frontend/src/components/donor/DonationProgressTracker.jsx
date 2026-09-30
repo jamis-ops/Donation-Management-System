@@ -1,71 +1,57 @@
 import { useEffect, useState } from 'react'
-import { Check, Clock, Package, CheckCircle, Truck, MapPin, AlertCircle } from 'lucide-react'
+import { Check, Clock, HeartHandshake, Upload, ShieldCheck, Award, Lock, AlertCircle } from 'lucide-react'
 import { donationUpdatesApi } from '../../api/resources'
 import LoadingSpinner from '../shared/LoadingSpinner'
 import '../../styles/donation-progress-tracker.css'
 
 const WORKFLOW_STAGES = [
   {
-    key: 'submission',
-    label: 'Submission',
-    icon: Package,
-    statuses: ['Submitted', 'Pending Verification', 'Pending'],
-    description: 'Your donation has been received and is awaiting verification',
+    key: 'donate',
+    label: 'Donate',
+    icon: HeartHandshake,
+    description: 'Your donation has been submitted',
   },
   {
-    key: 'verification',
-    label: 'Verification',
-    icon: CheckCircle,
-    statuses: ['Verified', 'Verified & Acknowledged', 'Under Review', 'In Review'],
-    description: 'Our team is verifying your donation details',
+    key: 'submit-proof',
+    label: 'Submit Proof',
+    icon: Upload,
+    description: 'Submit the required donation proof',
   },
   {
-    key: 'allocation',
-    label: 'Allocation',
-    icon: MapPin,
-    statuses: ['In Inventory', 'In Stock', 'Repacked', 'Repacking', 'Partially Allocated', 'Allocated', 'Reserved', 'Assigned'],
-    description: 'Resources are being assigned to beneficiaries',
-  },
-  {
-    key: 'transit',
-    label: 'In Transit',
-    icon: Truck,
-    statuses: ['In Transit', 'Out for Delivery'],
-    description: 'Your donation is on its way to beneficiaries',
-  },
-  {
-    key: 'delivered',
-    label: 'Delivered',
-    icon: MapPin,
-    statuses: ['Distributed', 'Delivered'],
-    description: 'Your donation has reached the beneficiaries!',
+    key: 'verify-proof',
+    label: 'Verify Proof',
+    icon: ShieldCheck,
+    description: 'Our team verifies the submitted proof',
   },
   {
     key: 'completed',
     label: 'Completed',
     icon: Check,
-    statuses: ['Completed'],
-    description: 'The linked delivery has been completed',
+    description: 'The donation process is complete',
+  },
+  {
+    key: 'certificate',
+    label: 'Certificate',
+    icon: Award,
+    description: 'Available after completion',
   },
 ]
 
-function determineCurrentStage(status) {
-  if (!status) return 0
-  const normalized = status.trim().toLowerCase()
-  if (normalized === 'rejected' || normalized === 'cancelled') {
-    return -1
-  }
-  const stageIndex = WORKFLOW_STAGES.findIndex((stage) =>
-    stage.statuses.some((s) => s.toLowerCase() === normalized)
-  )
-  return stageIndex >= 0 ? stageIndex : 0
+const COMPLETED_STATUSES = ['completed', 'certificate / official receipt']
+
+function determineCurrentStage(status, hasProof) {
+  const normalized = String(status || '').trim().toLowerCase()
+  if (normalized === 'certificate / official receipt') return 4
+  if (normalized === 'completed') return 3
+  if (['verified', 'verified & acknowledged', 'in inventory', 'in stock', 'repacked', 'repacking', 'partially allocated', 'allocated', 'reserved', 'assigned', 'scheduled', 'in transit', 'out for delivery', 'distributed', 'delivered', 'received'].includes(normalized)) return 3
+  if (['pending verification', 'under review'].includes(normalized)) return hasProof ? 2 : 1
+  return 0
 }
 
-function calculateProgressPercentage(currentStageIndex, status) {
-  if (currentStageIndex < 0) return 0
-  const normalized = (status || '').trim().toLowerCase()
-  if (normalized === 'completed') return 100
-  return Math.min(100, Math.round(((currentStageIndex + 1) / WORKFLOW_STAGES.length) * 100))
+function getStageStatus(stageIndex, currentIndex) {
+  if (stageIndex < currentIndex) return 'completed'
+  if (stageIndex === currentIndex) return 'active'
+  return 'pending'
 }
 
 export default function DonationProgressTracker({ donation, donationId }) {
@@ -98,12 +84,12 @@ export default function DonationProgressTracker({ donation, donationId }) {
     }
   }, [donationId, donation?.status, autoRefresh])
 
-  const syncedStatus = remoteProgress.donationId === donationId && remoteProgress.status
+  const syncedStatus = remoteProgress.donationId === donationId
     ? remoteProgress.status
-    : (donation?.status || 'Pending Verification')
-  const currentStageIndex = determineCurrentStage(syncedStatus)
-  const progressPercentage = calculateProgressPercentage(currentStageIndex, syncedStatus)
-  const isRejectedOrCancelled = ['rejected', 'cancelled'].includes((syncedStatus || '').toLowerCase())
+    : (donation?.status || '')
+  const certificateUnlocked = COMPLETED_STATUSES.includes(String(syncedStatus).trim().toLowerCase())
+  const currentStageIndex = determineCurrentStage(syncedStatus, donation?.hasProof)
+  const progressPercentage = ((currentStageIndex + 1) / WORKFLOW_STAGES.length) * 100
 
   const latestUpdate = updates.length > 0 ? updates[updates.length - 1] : null
 
@@ -125,9 +111,9 @@ export default function DonationProgressTracker({ donation, donationId }) {
           </div>
         </div>
         <div className="progress-tracker-status">
-          <div className={`progress-tracker-status-badge ${isRejectedOrCancelled ? 'progress-tracker-status-badge--danger' : ''}`}>
+          <div className="progress-tracker-status-badge">
             <Clock size={14} />
-            <span>Current Status: <strong>{syncedStatus || 'Pending Verification'}</strong></span>
+            <span>Current Status: <strong>{syncedStatus || 'Unknown'}</strong></span>
           </div>
           {latestUpdate && (
             <div className="progress-tracker-last-update">
@@ -145,25 +131,21 @@ export default function DonationProgressTracker({ donation, donationId }) {
             style={{ width: `${progressPercentage}%` }}
           />
         </div>
-        <span className="progress-tracker-percentage">{progressPercentage}%</span>
+        <span className="progress-tracker-percentage">{Math.round(progressPercentage)}%</span>
       </div>
 
       {/* Workflow Stages */}
       <div className="progress-tracker-stages">
         {WORKFLOW_STAGES.map((stage, index) => {
-          const isCompleted = currentStageIndex >= 0 && (
-            index < currentStageIndex || (index === currentStageIndex && index === WORKFLOW_STAGES.length - 1)
-          )
-          const isActive = currentStageIndex >= 0 && index === currentStageIndex && index < WORKFLOW_STAGES.length - 1
-          const stageStatus = isCompleted ? 'completed' : (isActive ? 'active' : 'pending')
-          const Icon = stage.icon
-          const connectorReached = currentStageIndex >= 0 && index <= currentStageIndex
+          const stageStatus = getStageStatus(index, currentStageIndex)
+          const certificateLocked = stage.key === 'certificate' && !certificateUnlocked
+          const Icon = certificateLocked ? Lock : stage.icon
+          const isActive = stageStatus === 'active'
+          const isCompleted = stageStatus === 'completed'
+          const connectorReached = index <= currentStageIndex
 
           return (
-            <div
-              key={stage.key}
-              className={`progress-stage progress-stage--${stageStatus} ${isActive ? 'progress-stage--active' : ''} ${isCompleted ? 'progress-stage--completed' : ''}`}
-            >
+            <div key={stage.key} className={`progress-stage progress-stage--${certificateLocked ? 'locked' : stageStatus}${stage.key === 'certificate' && certificateUnlocked ? ' progress-stage--available' : ''}`}>
               <div className="progress-stage-line">
                 {index > 0 && (
                   <div className={`progress-stage-line-segment ${connectorReached ? 'completed' : ''}`} />
@@ -178,11 +160,13 @@ export default function DonationProgressTracker({ donation, donationId }) {
 
               <div className="progress-stage-content">
                 <div className="progress-stage-label">{stage.label}</div>
-                <div className="progress-stage-description">{stage.description}</div>
+                <div className="progress-stage-description">
+                  {stage.key === 'certificate' && certificateUnlocked ? 'Available to request' : stage.description}
+                </div>
                 
                 {isActive && latestUpdate && (
                   <div className="progress-stage-update">
-                    <AlertCircle size={13} style={{ flexShrink: 0, marginTop: '2px' }} />
+                    <AlertCircle size={12} />
                     <span>{latestUpdate.note || latestUpdate.stage || latestUpdate.message || latestUpdate.description}</span>
                   </div>
                 )}
@@ -191,45 +175,6 @@ export default function DonationProgressTracker({ donation, donationId }) {
           )
         })}
       </div>
-
-      {(donation?.type === 'Monetary' || donation?.inventoryBalance?.length > 0) && (
-        <div className="donation-tracking-balance">
-          <h4>Remaining Donation Balance</h4>
-          {donation.type === 'Monetary' ? (
-            <div className="donation-tracking-balance__summary">
-              <span>Allocated: <strong>₱{Number(donation.totalUtilized || 0).toLocaleString('en-PH', { minimumFractionDigits: 2 })}</strong></span>
-              <span>Remaining: <strong>₱{Number(donation.remainingBalance || 0).toLocaleString('en-PH', { minimumFractionDigits: 2 })}</strong></span>
-            </div>
-          ) : (
-            <div className="donation-tracking-balance__items">
-              {donation.inventoryBalance.map((item) => (
-                <div key={item.inventoryItemId} className="donation-tracking-balance__item">
-                  <strong>{[item.brand, item.item, item.variant].filter(Boolean).join(' · ')}</strong>
-                  <span>Remaining: {item.remaining} {item.unit} · Allocated: {item.allocated} / {item.received} {item.unit}</span>
-                </div>
-              ))}
-            </div>
-          )}
-          <p>Remaining stock can be assigned to another request and does not hold back delivery progress.</p>
-        </div>
-      )}
-
-      {donation?.relatedProcesses?.length > 0 && (
-        <div className="donation-linked-activity">
-          <h4>Linked Allocation Activity</h4>
-          {donation.relatedProcesses.map((process, index) => (
-            <div className="donation-linked-activity__row" key={`${process.allocationId || 'allocation'}-${index}`}>
-              <div>
-                <strong>{process.allocationCode || `Allocation #${index + 1}`}</strong>
-                <span>{process.requestCode || 'Relief request'} · {process.beneficiaryName || 'Partner barangay'}</span>
-              </div>
-              <span className="donation-linked-activity__status">
-                {process.distributionStatus || process.requestStatus || process.allocationStatus || 'Allocated'}
-              </span>
-            </div>
-          ))}
-        </div>
-      )}
 
       {/* Recent Activity Timeline */}
       {updates.length > 0 && (

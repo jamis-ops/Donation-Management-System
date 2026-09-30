@@ -128,7 +128,7 @@ export default function DonorDonationsPage() {
     { key: 'beneficiaries', label: 'Beneficiaries', exportValue: (d) => d.beneficiaries || 0 },
   ], [])
 
-  const canRequestCert = selected && !['Pending Verification', 'Cancelled'].includes(selected.status)
+  const canRequestCert = selected?.status === 'Completed' || selected?.status === 'Certificate / Official Receipt'
 
   return (
     <ApiState loading={loading} error={error} onRetry={reload}>

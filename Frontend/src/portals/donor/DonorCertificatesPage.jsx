@@ -8,6 +8,7 @@ import { certificatesApi, donationsApi } from '../../api/resources'
 import { useApiList } from '../../hooks/useApiList'
 import { usePagination, DEFAULT_PAGE_SIZE } from '../../hooks/usePagination'
 import Pagination from '../../admin/components/shared/Pagination'
+import ModalHeader from '../../admin/components/shared/ModalHeader'
 import { notify } from '../../utils/confirm'
 import { useLoading } from '../../context/LoadingContext'
 
@@ -39,7 +40,7 @@ export default function DonorCertificatesPage() {
   const [typeFilter, setTypeFilter] = useState('All')
   const [shareModalOpen, setShareModalOpen] = useState(null)
 
-  const eligibleDonations = donations.filter((d) => d.status !== 'Pending Verification' && d.status !== 'Cancelled')
+  const eligibleDonations = donations.filter((d) => d.status === 'Completed' || d.status === 'Certificate / Official Receipt')
 
   const normalizedType = (type) => {
     if (type === 'Tax Receipt') return 'Certificate of Donation'
@@ -138,7 +139,7 @@ export default function DonorCertificatesPage() {
       <section className="portal-panel">
         <div className="portal-panel__header">
           <h2>Certificates</h2>
-          <button type="button" className="btn btn--sm btn--primary" onClick={() => setShowRequest(true)}>
+          <button type="button" className="btn btn--sm btn--primary" onClick={() => setShowRequest(true)} disabled={eligibleDonations.length === 0}>
             + Request Certificate
           </button>
         </div>
@@ -164,7 +165,7 @@ export default function DonorCertificatesPage() {
             <p>
               {typeFilter !== 'All'
                 ? `No ${typeFilter.toLowerCase()} found`
-                : 'No certificates yet. Request one for a verified donation.'}
+                : 'No certificates yet. Certificates become available when a donation is completed.'}
             </p>
           </div>
         ) : (
@@ -257,7 +258,7 @@ export default function DonorCertificatesPage() {
               <label>
                 For Donation
                 <select value={form.reference} onChange={(e) => setForm({ ...form, reference: e.target.value })}>
-                  <option value="">General (no specific donation)</option>
+                  <option value="">Select a completed donation</option>
                   {eligibleDonations.map((d) => (
                     <option key={d.dbId} value={d.trackingCode}>
                       {d.trackingCode} — {d.amount} ({d.date})
@@ -267,7 +268,7 @@ export default function DonorCertificatesPage() {
               </label>
               <div className="admin-modal__actions">
                 <button type="button" className="btn btn--ghost" onClick={() => setShowRequest(false)}>Cancel</button>
-                <button type="submit" className="btn btn--primary" disabled={busy}>
+                <button type="submit" className="btn btn--primary" disabled={busy || !form.reference}>
                   {busy ? 'Sending...' : 'Send Request'}
                 </button>
               </div>

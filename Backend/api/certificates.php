@@ -107,6 +107,17 @@ function map_certificate(array $row): array
   ];
 }
 
+function donation_certificate_is_available(PDO $pdo, array $certificate): bool
+{
+  $reference = trim((string) ($certificate['reference_code'] ?? ''));
+  if ($reference === '') return true;
+  $stmt = $pdo->prepare('SELECT status FROM donations WHERE tracking_code = ? LIMIT 1');
+  $stmt->execute([$reference]);
+  $status = $stmt->fetchColumn();
+  if ($status === false) return true;
+  return in_array((string) $status, ['Completed', 'Certificate / Official Receipt'], true);
+}
+
 function process_certificate_photo(?string $raw, ?string $existingUrl = null, ?string $existingData = null): array
 {
   if ($raw === null) {
@@ -160,6 +171,9 @@ if ($method === 'GET') {
     if (!$row) {
       json_response(['ok' => false, 'error' => 'Certificate not found'], 404);
     }
+    if (!donation_certificate_is_available($pdo, $row)) {
+      json_response(['ok' => false, 'error' => 'Certificate is locked until the donation is completed.'], 403);
+    }
     $role = (string) ($user['role'] ?? '');
     if (in_array($role, ['Donor', 'Volunteer'], true)) {
       $allowed = false;
@@ -189,7 +203,10 @@ if ($method === 'GET') {
     $stmt = $pdo->query('SELECT * FROM certificates ORDER BY created_at DESC, id DESC');
   }
 
-  $rows = $stmt->fetchAll();
+  $rows = array_values(array_filter(
+    $stmt->fetchAll(),
+    static fn(array $row): bool => donation_certificate_is_available($pdo, $row)
+  ));
   json_response(['ok' => true, 'data' => array_map('map_certificate', $rows)]);
 }
 
@@ -206,12 +223,12 @@ if ($method === 'POST') {
       if (!$donation) {
         json_response(['ok' => false, 'error' => 'That donation reference does not belong to your account'], 403);
       }
-      $allowed = ['Verified', 'Allocated', 'Distributed', 'Completed', 'In Inventory', 'Certificate / Official Receipt'];
+      $allowed = ['Completed', 'Certificate / Official Receipt'];
       if (!in_array($donation['status'], $allowed, true)) {
-        json_response(['ok' => false, 'error' => 'Certificates are only available after the donation has been verified by Admin'], 400);
+        json_response(['ok' => false, 'error' => 'Certificates are only available after the donation is completed'], 400);
       }
     } else {
-      json_response(['ok' => false, 'error' => 'A verified donation reference is required'], 400);
+      json_response(['ok' => false, 'error' => 'A completed donation reference is required'], 400);
     }
     $code = generate_code('CERT');
     $stmt = $pdo->prepare('
@@ -331,11 +348,12 @@ if ($method === 'POST') {
       $d = $pdo->prepare('SELECT status FROM donations WHERE tracking_code = ? LIMIT 1');
       $d->execute([$ref]);
       $dRow = $d->fetch();
-      if ($dRow) {
-        $allowed = ['Verified', 'Allocated', 'Distributed', 'Completed', 'In Inventory', 'Certificate / Official Receipt'];
-        if (!in_array($dRow['status'], $allowed, true)) {
-          json_response(['ok' => false, 'error' => 'Donation must be verified before generating a certificate'], 400);
-        }
+      if (!$dRow) {
+        json_response(['ok' => false, 'error' => 'The referenced donation could not be found'], 400);
+      }
+      $allowed = ['Completed', 'Certificate / Official Receipt'];
+      if (!in_array($dRow['status'], $allowed, true)) {
+        json_response(['ok' => false, 'error' => 'Donation must be completed before generating a certificate'], 400);
       }
     } elseif ($recType === 'Volunteer') {
       $tStmt = $pdo->prepare('SELECT board_column, status FROM tasks WHERE code = ? OR id = ? LIMIT 1');

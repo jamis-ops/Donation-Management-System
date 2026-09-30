@@ -231,6 +231,27 @@
   color: #94a3b8;
 }
 
+.progress-stage--locked .progress-stage-icon {
+  background: #f5f1f2;
+  border: 2px solid #e0d5d7;
+  color: var(--dpt-pending);
+}
+
+.progress-stage--locked .progress-stage-label,
+.progress-stage--locked .progress-stage-description {
+  color: var(--dpt-pending);
+}
+
+.progress-stage--available.progress-stage--pending .progress-stage-icon {
+  background: #ffffff;
+  border-color: var(--dpt-brand);
+  color: var(--dpt-brand);
+}
+
+.progress-stage--available.progress-stage--pending .progress-stage-label {
+  color: var(--dpt-brand);
+}
+
 /* Active Stage */
 .progress-stage--active .progress-stage-icon {
   background: linear-gradient(135deg, var(--dpt-brand, #af101a) 0%, var(--dpt-brand-deep, #8b0000) 100%);
