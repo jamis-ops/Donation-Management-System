@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
-import { Search, AlertCircle, CheckCircle, Clock, XCircle, FileText, Package, Users, Calendar } from 'lucide-react'
+import { Search, AlertCircle, CheckCircle, Clock, XCircle, FileText, Package, Users, Calendar, Truck } from 'lucide-react'
 import StatusBadge from '../../admin/components/shared/StatusBadge'
 import ApiState from '../../admin/components/shared/ApiState'
 import ModalHeader from '../../admin/components/shared/ModalHeader'
@@ -89,7 +89,7 @@ export default function BeneficiaryRequestsPage() {
   const [saving, setSaving] = useState(false)
   const [submitError, setSubmitError] = useState('')
   const [searchQuery, setSearchQuery] = useState(() => searchParams.get('q') || searchParams.get('search') || '')
-  const [statusFilter, setStatusFilter] = useState(() => searchParams.get('status') || 'All')
+  const [statusFilter, setStatusFilter] = useState(() => searchParams.get('status') || 'Pending')
 
   useEffect(() => {
     const st = searchParams.get('status')
@@ -129,16 +129,30 @@ export default function BeneficiaryRequestsPage() {
       (r.type || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
       (r.notes || '').toLowerCase().includes(searchQuery.toLowerCase())
     
-    const matchesStatus = statusFilter === 'All' || r.status === statusFilter
+    const matchesStatus = statusFilter === 'All'
+      ? true
+      : statusFilter === 'Pending'
+      ? ['Submitted', 'Pending Review', 'Pending', 'Under Review', 'In Review', 'Being Reviewed'].includes(r.status)
+      : r.status === statusFilter
     
     return matchesSearch && matchesStatus
   })
 
-  const paging = usePagination(filteredData, DEFAULT_PAGE_SIZE, `${searchQuery}|${statusFilter}`)
+  // Sort: pending/new first, then by date descending
+  const sortedData = [...filteredData].sort((a, b) => {
+    const pendingStatuses = ['Submitted', 'Pending Review', 'Pending', 'Under Review', 'In Review']
+    const aIsPending = pendingStatuses.includes(a.status)
+    const bIsPending = pendingStatuses.includes(b.status)
+    if (aIsPending && !bIsPending) return -1
+    if (!aIsPending && bIsPending) return 1
+    return 0
+  })
+
+  const paging = usePagination(sortedData, DEFAULT_PAGE_SIZE, `${searchQuery}|${statusFilter}`)
 
   const statusCounts = {
     All: data.length,
-    'Under Review': data.filter(r => r.status === 'Under Review').length,
+    'Pending': data.filter(r => ['Submitted', 'Pending Review', 'Pending', 'Under Review', 'In Review', 'Being Reviewed'].includes(r.status)).length,
     'Approved': data.filter(r => r.status === 'Approved').length,
     'Completed': data.filter(r => r.status === 'Completed').length,
     'Rejected': data.filter(r => r.status === 'Rejected').length,
@@ -739,11 +753,43 @@ export default function BeneficiaryRequestsPage() {
 
               {selectedRequest.delivery && (
                 <div style={{ padding: '1rem 1.15rem', background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '10px', marginBottom: '1.25rem' }}>
-                  <strong>Delivery {selectedRequest.delivery.id}</strong>
-                  <p style={{ margin: '0.4rem 0 0', color: '#475569' }}>
-                    {[selectedRequest.delivery.program, selectedRequest.delivery.location, selectedRequest.delivery.date, selectedRequest.delivery.time].filter(Boolean).join(' · ')}
-                  </p>
-                  {selectedRequest.delivery.items && <p style={{ margin: '0.35rem 0 0', color: '#475569' }}>Items: {selectedRequest.delivery.items}</p>}
+                  <span style={{ fontSize: '0.75rem', fontWeight: 700, textTransform: 'uppercase', color: '#475569', display: 'flex', alignItems: 'center', gap: '0.35rem', marginBottom: '0.6rem', letterSpacing: '0.04em' }}>
+                    <Truck size={14} style={{ color: '#AF101A' }} /> Linked Delivery
+                  </span>
+                  <ul style={{ margin: 0, padding: 0, listStyle: 'none', display: 'flex', flexDirection: 'column', gap: '0.3rem' }}>
+                    <li style={{ fontSize: '0.84rem', color: '#374151', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                      <strong style={{ minWidth: 80, color: '#64748b', fontSize: '0.76rem', textTransform: 'uppercase', letterSpacing: '0.03em' }}>Delivery ID</strong>
+                      <span style={{ fontFamily: 'monospace', fontWeight: 700, color: '#AF101A' }}>{selectedRequest.delivery.id}</span>
+                    </li>
+                    {selectedRequest.delivery.program && (
+                      <li style={{ fontSize: '0.84rem', color: '#374151', display: 'flex', alignItems: 'flex-start', gap: '0.4rem' }}>
+                        <strong style={{ minWidth: 80, color: '#64748b', fontSize: '0.76rem', textTransform: 'uppercase', letterSpacing: '0.03em', flexShrink: 0 }}>Program</strong>
+                        <span>{selectedRequest.delivery.program}</span>
+                      </li>
+                    )}
+                    {selectedRequest.delivery.location && (
+                      <li style={{ fontSize: '0.84rem', color: '#374151', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                        <strong style={{ minWidth: 80, color: '#64748b', fontSize: '0.76rem', textTransform: 'uppercase', letterSpacing: '0.03em' }}>Location</strong>
+                        <span>{selectedRequest.delivery.location}</span>
+                      </li>
+                    )}
+                    {selectedRequest.delivery.date && (
+                      <li style={{ fontSize: '0.84rem', color: '#374151', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                        <strong style={{ minWidth: 80, color: '#64748b', fontSize: '0.76rem', textTransform: 'uppercase', letterSpacing: '0.03em' }}>Date</strong>
+                        <span>{selectedRequest.delivery.date}{selectedRequest.delivery.time ? ` · ${selectedRequest.delivery.time}` : ''}</span>
+                      </li>
+                    )}
+                    {selectedRequest.delivery.items && (
+                      <li style={{ fontSize: '0.84rem', color: '#374151', display: 'flex', alignItems: 'flex-start', gap: '0.4rem' }}>
+                        <strong style={{ minWidth: 80, color: '#64748b', fontSize: '0.76rem', textTransform: 'uppercase', letterSpacing: '0.03em', flexShrink: 0 }}>Items</strong>
+                        <span style={{ whiteSpace: 'pre-line' }}>
+                          {selectedRequest.delivery.items.split(';').map((item, i) => (
+                            <span key={i} style={{ display: 'block' }}>• {item.trim()}</span>
+                          ))}
+                        </span>
+                      </li>
+                    )}
+                  </ul>
                 </div>
               )}
 
