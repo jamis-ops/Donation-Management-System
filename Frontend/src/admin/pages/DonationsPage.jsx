@@ -5,7 +5,8 @@ import {
   TrendingUp, Users, MapPin, FileCheck, Printer,
   Calendar, Mail, Award, Coins, CreditCard, ShieldCheck,
   Trash2, ExternalLink, ShoppingCart, XCircle, Copy,
-  ZoomIn, ZoomOut, RotateCcw, AlertCircle, X
+  ZoomIn, ZoomOut, RotateCcw, AlertCircle, X,
+  HeartHandshake, Upload
 } from 'lucide-react'
 import { donationsApi, beneficiariesApi, assistanceRequestsApi, paymentMethodsApi } from '../../api/resources'
 import { getAuthenticatedFileUrl } from '../../api/auth'
@@ -229,55 +230,32 @@ export default function DonationsPage() {
     return { totalRaised, verifiedSum, pendingCount, avgDonation }
   }, [monetaryDonations])
 
-  // Lifecycle stages for modal detail
+  // Canonical 4-stage lifecycle for modal detail (aligned with donor portal)
   const getLifecycleStages = (donation) => {
     if (!donation) return []
-    const isInKind = donation.type === 'In-Kind'
-
-    const inKindStages = [
-      { id: 'submission', label: 'Submission', icon: FileText },
-      { id: 'tracking', label: 'Tracking', icon: FileCheck },
-      { id: 'verification', label: 'Verification', icon: CheckCircle2 },
-      { id: 'inventory', label: 'Inventory Intake', icon: Package },
-      { id: 'allocation', label: 'Allocation', icon: TrendingUp },
-      { id: 'distribution', label: 'Distribution', icon: MapPin },
-      { id: 'certificate', label: 'Certificate / Completion', icon: Award },
+    const stages = [
+      { id: 'donate', label: 'Donate', icon: HeartHandshake },
+      { id: 'submit-proof', label: 'Submit Proof', icon: Upload },
+      { id: 'verify-proof', label: 'Verify Proof', icon: ShieldCheck },
+      { id: 'completed', label: 'Completed', icon: Check },
     ]
 
-    const monetaryStages = [
-      { id: 'submission', label: 'Submission', icon: FileText },
-      { id: 'tracking', label: 'Tracking', icon: FileCheck },
-      { id: 'verification', label: 'Proof Verification', icon: CheckCircle2 },
-      { id: 'allocation', label: 'Fund Allocation', icon: TrendingUp },
-      { id: 'certificate', label: 'Official Receipt / Certificate', icon: Award },
-    ]
+    const status = String(donation.status || '').trim().toLowerCase()
+    const isDone = ['completed', 'certificate / official receipt', 'verified', 'distributed', 'delivered', 'received'].includes(status)
 
-    const stages = isInKind ? inKindStages : monetaryStages
-
-    const inKindStatusMap = {
-      'Pending Verification': 1,
-      'Verified': 3,
-      'In Inventory': 4,
-      'Allocated': 5,
-      'Distributed': 6,
-      'Completed': 7,
+    let currentStageIndex = 0
+    if (isDone) {
+      currentStageIndex = 3
+    } else if (['pending verification', 'under review', 'pending', 'submitted'].includes(status)) {
+      currentStageIndex = donation.hasProof ? 2 : 1
+    } else {
+      currentStageIndex = 0
     }
-
-    const monetaryStatusMap = {
-      'Pending Verification': 1,
-      'Verified': 3,
-      'Partially Allocated': 4,
-      'Allocated': 4,
-      'Completed': 5,
-    }
-
-    const statusMap = isInKind ? inKindStatusMap : monetaryStatusMap
-    const currentStage = statusMap[donation.status] || 0
 
     return stages.map((stage, index) => ({
       ...stage,
-      completed: index < currentStage,
-      current: index === currentStage - 1,
+      completed: index < currentStageIndex || (isDone && index === 3),
+      current: index === currentStageIndex && !isDone,
     }))
   }
 
@@ -315,8 +293,8 @@ export default function DonationsPage() {
     setActionLoading(true)
     showLoading('Verifying donation…')
     try {
-      const res = await donationsApi.update(row.dbId, { status: 'Verified' })
-      const status = res?.data?.status || 'Verified'
+      const res = await donationsApi.update(row.dbId, { status: 'Completed' })
+      const status = res?.data?.status || 'Completed'
       if (res?.accountCreated || res?.credentialsSent) {
         showVerifyResultModal(res, status)
       } else if (res?.message) {
@@ -1045,7 +1023,7 @@ export default function DonationsPage() {
             {/* Donation Lifecycle Progress Stepper */}
             <div className="donation-lifecycle-tracker">
               <h4 className="donation-lifecycle-tracker__title">
-                {selected.type} Lifecycle Progress
+                Donation Journey
               </h4>
               <div className="donation-lifecycle-tracker__steps">
                 {getLifecycleStages(selected).map((stage) => {

@@ -128,7 +128,7 @@ export default function DonorDonationsPage() {
     { key: 'beneficiaries', label: 'Beneficiaries', exportValue: (d) => d.beneficiaries || 0 },
   ], [])
 
-  const canRequestCert = selected?.status === 'Completed' || selected?.status === 'Certificate / Official Receipt'
+  const canRequestCert = selected?.status === 'Completed' || selected?.status === 'Certificate / Official Receipt' || selected?.status === 'Verified'
 
   return (
     <ApiState loading={loading} error={error} onRetry={reload}>
@@ -452,6 +452,7 @@ export default function DonorDonationsPage() {
                   )}
                   {canRequestCert && (
                     <button type="button" className="btn btn--primary" disabled={busy} onClick={() => handleRequestCert(selected)}>
+                      <Award size={15} style={{ marginRight: '6px' }} />
                       Request Certificate
                     </button>
                   )}

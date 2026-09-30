@@ -24,6 +24,9 @@ function ensure_donation_classified_columns(PDO $pdo): void
     ensure_column($pdo, 'donations', 'ai_verification_notes', 'TEXT NULL');
     ensure_column($pdo, 'donations', 'is_amount_manually_adjusted', 'TINYINT(1) NOT NULL DEFAULT 0');
     ensure_column($pdo, 'donations', 'ai_verified_at', 'DATETIME NULL');
+    try {
+      $pdo->exec("UPDATE donations SET status = 'Completed' WHERE status = 'Verified'");
+    } catch (Throwable $e) {}
   } catch (Throwable $e) {}
   $done = true;
 }
@@ -193,13 +196,10 @@ function map_donation(array $row, ?PDO $pdo = null): array
   $remainingAmount = max(0.0, $amountRaw - $totalUtilized);
   $effectiveStatus = (string) ($row['status'] ?? 'Pending Verification');
   if ($pdo && !in_array($effectiveStatus, ['Pending Verification', 'Rejected', 'Cancelled'], true)) {
-    $hasAllocation = !empty($relatedProcesses);
-    $effectiveStatus = $hasAllocation
-      ? resolve_linked_donation_status($pdo, (int) $row['id'], (string) ($row['type'] ?? 'Monetary'))
-      : 'Verified';
-    if ($effectiveStatus !== ($row['status'] ?? '')) {
+    $effectiveStatus = 'Completed';
+    if (($row['status'] ?? '') !== 'Completed') {
       try {
-        $pdo->prepare('UPDATE donations SET status = ? WHERE id = ?')->execute([$effectiveStatus, (int) $row['id']]);
+        $pdo->prepare('UPDATE donations SET status = ? WHERE id = ?')->execute(['Completed', (int) $row['id']]);
       } catch (Throwable $e) {}
     }
   }
@@ -1028,8 +1028,8 @@ if ($method === 'PUT') {
       json_response(['ok' => false, 'error' => 'Please provide at least one item to classify into inventory.'], 400);
     }
 
-    $newStatus = 'Verified';
-    $becomingVerified = $newStatus === 'Verified' && ($existing['status'] ?? '') !== 'Verified';
+    $newStatus = 'Completed';
+    $becomingCompleted = !in_array($existing['status'] ?? '', ['Completed', 'Verified'], true);
 
     try {
       $pdo->exec("ALTER TABLE inventory_items ADD COLUMN item_type VARCHAR(100) NULL AFTER category");
@@ -1144,7 +1144,7 @@ if ($method === 'PUT') {
     ')->execute([$newStatus, $encodedJson, $id]);
 
     $accountProvision = null;
-    if ($becomingVerified) {
+    if ($becomingCompleted) {
       $accountProvision = provision_donor_from_donation($pdo, $existing);
     }
 
@@ -1163,7 +1163,7 @@ if ($method === 'PUT') {
     record_donation_update(
       $pdo,
       (int) $id,
-      'Sorted',
+      'Completed',
       $stageNote,
       $user ?? current_user()
     );
@@ -1195,11 +1195,14 @@ if ($method === 'PUT') {
   }
 
   $status = trim((string) ($body['status'] ?? $existing['status']));
+  if (in_array($status, ['Verified', 'Completed'], true)) {
+    $status = 'Completed';
+  }
   if ($status !== (string) $existing['status']) {
     $allowedVerificationDecision = ($existing['status'] ?? '') === 'Pending Verification'
-      && in_array($status, ['Verified', 'Rejected'], true);
-    if (!$allowedVerificationDecision) {
-      json_response(['ok' => false, 'error' => 'Donation status is system-controlled and follows its allocation, request, and distribution records.'], 409);
+      && in_array($status, ['Completed', 'Verified', 'Rejected'], true);
+    if (!$allowedVerificationDecision && !in_array($existing['status'], ['Completed', 'Verified'], true)) {
+      json_response(['ok' => false, 'error' => 'Donation status is system-controlled.'], 409);
     }
   }
   assert_valid_status_transition(
@@ -1208,7 +1211,8 @@ if ($method === 'PUT') {
     $status,
     WORKFLOW_DONATION_STEPS,
     WORKFLOW_DONATION_TERMINAL,
-    WORKFLOW_DONATION_BRANCHES
+    WORKFLOW_DONATION_BRANCHES,
+    WORKFLOW_DONATION_ALIASES
   );
 
   $donorName = trim((string) ($body['donorName'] ?? $existing['donor_name']));
@@ -1217,7 +1221,7 @@ if ($method === 'PUT') {
   $items = $type === 'In-Kind' ? trim((string) ($body['itemsDescription'] ?? $existing['items_description'])) : null;
   $donationDate = (string) ($body['donationDate'] ?? $existing['donation_date']);
 
-  $becomingVerified = $status === 'Verified' && ($existing['status'] ?? '') !== 'Verified';
+  $becomingCompleted = $status === 'Completed' && !in_array($existing['status'] ?? '', ['Completed', 'Verified'], true);
 
   $category = array_key_exists('category', $body) ? (trim((string) $body['category']) ?: null) : ($existing['category'] ?? null);
   $paymentMethod = array_key_exists('paymentMethod', $body)
@@ -1232,7 +1236,7 @@ if ($method === 'PUT') {
 
   $accountProvision = null;
   $inventoryPosted = false;
-  if ($becomingVerified) {
+  if ($becomingCompleted) {
     $accountProvision = provision_donor_from_donation($pdo, $existing);
     try {
       post_donation_to_inventory_packs($pdo, array_merge($existing, [
@@ -1248,20 +1252,17 @@ if ($method === 'PUT') {
 
   $stmt = $pdo->prepare('SELECT * FROM donations WHERE id = ?');
   $stmt->execute([$id]);
-  $donation = map_donation($stmt->fetch());
+  $donation = map_donation($stmt->fetch(), $pdo);
   if ($status !== $existing['status']) {
     $stageFromStatus = match ($status) {
       'Pending Verification' => 'Donation Received',
-      'Verified' => 'Sorted',
-      'Allocated' => 'Scheduled for Distribution',
-      'Distributed' => 'In Transit',
-      'Completed' => 'Delivered',
+      'Completed' => 'Completed',
       default => $status,
     };
     $note = "Status changed to {$status}.";
-    if ($becomingVerified && !empty($accountProvision['created'])) {
+    if ($becomingCompleted && !empty($accountProvision['created'])) {
       $note .= ' Donor portal account created and credentials emailed.';
-    } elseif ($becomingVerified && empty($accountProvision['created']) && empty($accountProvision['error'])) {
+    } elseif ($becomingCompleted && empty($accountProvision['created']) && empty($accountProvision['error'])) {
       $note .= ' Existing donor account linked.';
     }
     if ($inventoryPosted) {

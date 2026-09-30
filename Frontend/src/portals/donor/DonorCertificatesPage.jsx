@@ -139,7 +139,17 @@ export default function DonorCertificatesPage() {
       <section className="portal-panel">
         <div className="portal-panel__header">
           <h2>Certificates</h2>
-          <button type="button" className="btn btn--sm btn--primary" onClick={() => setShowRequest(true)} disabled={eligibleDonations.length === 0}>
+          <button
+            type="button"
+            className="btn btn--sm btn--primary"
+            onClick={() => {
+              if (eligibleDonations.length === 0) {
+                notify.info('No completed donations available for certificate request.')
+                return
+              }
+              setShowRequest(true)
+            }}
+          >
             + Request Certificate
           </button>
         </div>

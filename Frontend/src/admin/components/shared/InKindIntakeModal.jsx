@@ -121,7 +121,7 @@ export default function InKindIntakeModal({
 
     onConfirm({
       classifiedItems: preparedItems,
-      status: 'Verified',
+      status: 'Completed',
     })
   }
 
@@ -360,10 +360,11 @@ export default function InKindIntakeModal({
             <div className="intake-add-more-row">
               <button
                 type="button"
+                id="intake-add-item-btn"
                 className="btn btn--outline intake-add-btn"
                 onClick={handleAddItemRow}
               >
-                <Plus size={15} /> Add Another Item From This Donation
+                <Plus size={16} /> Add Another Item From This Donation
               </button>
             </div>
           </div>

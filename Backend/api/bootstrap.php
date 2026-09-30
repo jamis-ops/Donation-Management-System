@@ -1750,14 +1750,19 @@ const WORKFLOW_DISTRIBUTION_ALIASES = [
   'Awaiting Proof' => 'Proof Review',
 ];
 
-const WORKFLOW_DONATION_STEPS = ['Pending Verification', 'Verified', 'Allocated', 'In Transit', 'Delivered', 'Completed'];
+const WORKFLOW_DONATION_STEPS = ['Pending Verification', 'Completed'];
 const WORKFLOW_DONATION_TERMINAL = ['Completed', 'Rejected', 'Cancelled'];
 const WORKFLOW_DONATION_BRANCHES = [
-  'Pending Verification' => ['Rejected', 'Cancelled'],
-  'Verified' => ['Allocated', 'Cancelled'],
-  'Allocated' => ['In Transit', 'Delivered', 'Completed', 'Cancelled'],
-  'In Transit' => ['Delivered', 'Completed'],
+  'Pending Verification' => ['Completed', 'Verified', 'Rejected', 'Cancelled'],
+  'Verified' => ['Completed', 'Cancelled'],
+  'In Inventory' => ['Completed', 'Cancelled'],
+  'Allocated' => ['Completed', 'Cancelled'],
+  'In Transit' => ['Completed'],
   'Delivered' => ['Completed'],
+];
+const WORKFLOW_DONATION_ALIASES = [
+  'Verified' => 'Completed',
+  'Certificate / Official Receipt' => 'Completed',
 ];
 
 const WORKFLOW_REQUEST_STEPS = [

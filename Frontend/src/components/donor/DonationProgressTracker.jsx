@@ -67,7 +67,8 @@ function determineCurrentStage(status, hasProof) {
   return 0
 }
 
-function getStageStatus(stageIndex, currentIndex) {
+function getStageStatus(stageIndex, currentIndex, isCompleted) {
+  if (isCompleted) return 'completed'
   if (currentIndex < 0) return 'pending'
   if (stageIndex < currentIndex) return 'completed'
   if (stageIndex === currentIndex) return 'active'
@@ -160,7 +161,7 @@ export default function DonationProgressTracker({ donation, donationId, onReques
       {/* Workflow Stages */}
       <div className="progress-tracker-stages">
         {WORKFLOW_STAGES.map((stage, index) => {
-          const stageStatus = getStageStatus(index, currentStageIndex)
+          const stageStatus = getStageStatus(index, currentStageIndex, isCompleted)
           const Icon = stage.icon
           const isActive = stageStatus === 'active'
           const isStageCompleted = stageStatus === 'completed'
@@ -209,7 +210,7 @@ export default function DonationProgressTracker({ donation, donationId, onReques
               onClick={onRequestCertificate}
             >
               <Award size={16} />
-              Get Certificate
+              Request Certificate
             </button>
           ) : (
             <span className="certificate-action-hint">

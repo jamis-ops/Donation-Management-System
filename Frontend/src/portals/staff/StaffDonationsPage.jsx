@@ -152,8 +152,8 @@ export default function StaffDonationsPage() {
     setBusy(true)
     showLoading('Verifying donation and updating records…')
     try {
-      const res = await donationsApi.update(row.dbId, { status: 'Verified' })
-      const status = res?.data?.status || 'Verified'
+      const res = await donationsApi.update(row.dbId, { status: 'Completed' })
+      const status = res?.data?.status || 'Completed'
       if (res?.accountCreated || res?.credentialsSent) {
         showVerifyResultModal(res, status)
       } else if (res?.message) {
