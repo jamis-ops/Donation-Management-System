@@ -2710,6 +2710,24 @@ function ensure_distribution_schema(PDO $pdo): void
 
   ensure_column($pdo, 'distributions', 'request_id', 'BIGINT NULL AFTER proof_status');
   ensure_column($pdo, 'distributions', 'source_allocation_ids', 'TEXT NULL AFTER request_id');
+  // Keep proof bytes as a durable fallback for serverless/ephemeral filesystems.
+  // The existing file_path remains the primary local-storage path.
+  ensure_column($pdo, 'distribution_proofs', 'file_data', 'LONGBLOB NULL AFTER file_type');
+  try {
+    $missing = $pdo->query("SELECT id, file_path FROM distribution_proofs WHERE file_data IS NULL ORDER BY id ASC LIMIT 50")->fetchAll();
+    $save = $pdo->prepare('UPDATE distribution_proofs SET file_data = ? WHERE id = ? AND file_data IS NULL');
+    foreach ($missing as $proof) {
+      $storedName = basename((string) ($proof['file_path'] ?? ''));
+      $storedPath = __DIR__ . '/uploads/proofs/' . $storedName;
+      if ($storedName !== '' && is_file($storedPath)) {
+        $bytes = file_get_contents($storedPath);
+        if ($bytes !== false) $save->execute([$bytes, (int) $proof['id']]);
+      }
+    }
+  } catch (Throwable $e) {
+    // Existing disk-only installations continue to work if ALTER privileges
+    // are unavailable; new uploads still use the local path fallback.
+  }
   // Delivery Team assignments use the existing task relationship so the same
   // record powers Admin operations and the assigned volunteer's portal.
   ensure_column($pdo, 'tasks', 'distribution_id', 'BIGINT UNSIGNED NULL AFTER assignee_user_id');

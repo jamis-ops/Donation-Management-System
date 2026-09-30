@@ -2933,6 +2933,20 @@ optgroup {
   transition: transform 0.35s ease;
 }
 
+.proof-image-unavailable {
+  width: 100%;
+  min-height: 120px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  color: #64748b;
+  background: #f8fafc;
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
 .proof-card:hover .proof-card__thumb img {
   transform: scale(1.04);
 }

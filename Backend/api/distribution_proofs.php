@@ -21,7 +21,7 @@ if (!function_exists('normalize_proof_status')) {
 
 function map_proof(PDO $pdo, array $row): array
 {
-  $distStmt = $pdo->prepare('SELECT id, code, event_name, location, program, status, distribution_date FROM distributions WHERE id = ?');
+  $distStmt = $pdo->prepare('SELECT id, code, event_name, location, program, status, distribution_date, request_id FROM distributions WHERE id = ?');
   $distStmt->execute([$row['distribution_id']]);
   $distribution = $distStmt->fetch() ?: [];
 
@@ -112,7 +112,7 @@ function map_proof(PDO $pdo, array $row): array
     'fileName' => $fileName,
     'fileType' => $fileType,
     'isImage' => $isImage,
-    'fileUrl' => '/api/file.php?kind=proofs&name=' . rawurlencode(basename((string) $row['file_path'])),
+    'fileUrl' => '/api/file.php?kind=proofs&id=' . (int) $row['id'] . '&distributionId=' . (int) $row['distribution_id'],
     'notes' => $row['notes'],
     'category' => $category,
     'categoryLabel' => $categoryLabel,
@@ -263,11 +263,18 @@ if ($method === 'POST') {
   }
 
   $hasCategoryCol = false;
+  $hasFileDataCol = false;
   try {
     $col = $pdo->query("SHOW COLUMNS FROM distribution_proofs LIKE 'proof_category'");
     $hasCategoryCol = (bool) $col->fetch();
   } catch (Throwable $e) {
     $hasCategoryCol = false;
+  }
+  try {
+    $col = $pdo->query("SHOW COLUMNS FROM distribution_proofs LIKE 'file_data'");
+    $hasFileDataCol = (bool) $col->fetch();
+  } catch (Throwable $e) {
+    $hasFileDataCol = false;
   }
 
   $saved = [];
@@ -283,42 +290,23 @@ if ($method === 'POST') {
     $ext = pathinfo($file['name'], PATHINFO_EXTENSION) ?: 'bin';
     $safeName = 'proof_' . time() . '_' . bin2hex(random_bytes(4)) . '.' . $ext;
     $destPath = $uploadDir . '/' . $safeName;
+    $fileData = file_get_contents($file['tmp']);
+    if ($fileData === false) {
+      json_response(['ok' => false, 'error' => 'Failed to read uploaded file'], 500);
+    }
     if (!move_uploaded_file($file['tmp'], $destPath)) {
       json_response(['ok' => false, 'error' => 'Failed to save file'], 500);
     }
 
-    if ($hasCategoryCol) {
-      $stmt = $pdo->prepare('
-        INSERT INTO distribution_proofs
-          (distribution_id, beneficiary_id, submitted_by_user_id, file_path, file_name, file_type, notes, proof_category, status, review_remarks, reviewed_at, reviewed_by_user_id)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, \'Pending\', NULL, NULL, NULL)
-      ');
-      $stmt->execute([
-        $distributionId,
-        $beneficiary['id'],
-        $user['id'],
-        $safeName,
-        $file['name'],
-        $mime,
-        $notes !== '' ? $notes : null,
-        $file['category'],
-      ]);
-    } else {
-      $stmt = $pdo->prepare('
-        INSERT INTO distribution_proofs
-          (distribution_id, beneficiary_id, submitted_by_user_id, file_path, file_name, file_type, notes, status, review_remarks, reviewed_at, reviewed_by_user_id)
-        VALUES (?, ?, ?, ?, ?, ?, ?, \'Pending\', NULL, NULL, NULL)
-      ');
-      $stmt->execute([
-        $distributionId,
-        $beneficiary['id'],
-        $user['id'],
-        $safeName,
-        $file['name'],
-        $mime,
-        $notes !== '' ? $notes : null,
-      ]);
-    }
+    $columns = ['distribution_id', 'beneficiary_id', 'submitted_by_user_id', 'file_path', 'file_name', 'file_type'];
+    $values = [$distributionId, $beneficiary['id'], $user['id'], $safeName, $file['name'], $mime];
+    if ($hasFileDataCol) { $columns[] = 'file_data'; $values[] = $fileData; }
+    $columns[] = 'notes'; $values[] = $notes !== '' ? $notes : null;
+    if ($hasCategoryCol) { $columns[] = 'proof_category'; $values[] = $file['category']; }
+    $columns[] = 'status'; $values[] = 'Pending';
+    $placeholders = implode(', ', array_fill(0, count($columns), '?'));
+    $stmt = $pdo->prepare('INSERT INTO distribution_proofs (' . implode(', ', $columns) . ") VALUES ({$placeholders})");
+    $stmt->execute($values);
     $saved[] = (int) $pdo->lastInsertId();
   }
 

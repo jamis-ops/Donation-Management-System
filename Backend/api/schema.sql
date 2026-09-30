@@ -509,6 +509,7 @@ CREATE TABLE IF NOT EXISTS distribution_proofs (
   file_path VARCHAR(255) NOT NULL,
   file_name VARCHAR(255) NOT NULL,
   file_type VARCHAR(80) NULL,
+  file_data LONGBLOB NULL,
   notes TEXT NULL,
   proof_category VARCHAR(40) NOT NULL DEFAULT 'other',
   status VARCHAR(40) NOT NULL DEFAULT 'Pending',

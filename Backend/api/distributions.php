@@ -325,7 +325,7 @@ function map_distribution(PDO $pdo, array $row): array
         'fileName' => $fileName,
         'fileType' => $fileType,
         'isImage' => $isImage,
-        'fileUrl' => '/api/file.php?kind=proofs&name=' . rawurlencode(basename((string) $p['file_path'])),
+        'fileUrl' => '/api/file.php?kind=proofs&id=' . (int) $p['id'] . '&distributionId=' . (int) $row['id'],
         'notes' => $p['notes'] ?? '',
         'category' => $cat,
         'categoryLabel' => $catLabel,

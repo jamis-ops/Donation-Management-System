@@ -14,6 +14,14 @@ function isPending(status) {
   return status === 'Pending' || status === 'Pending Review'
 }
 
+function ProofImage({ proof, className = '' }) {
+  const [failed, setFailed] = useState(false)
+  if (failed) {
+    return <span className="proof-image-unavailable"><FileText size={24} /> Preview unavailable</span>
+  }
+  return <img className={className} src={proof.fileUrl} alt={proof.fileName} loading="lazy" onError={() => setFailed(true)} />
+}
+
 export default function AdminProofReview({
   proofs,
   onChanged,
@@ -154,7 +162,7 @@ export default function AdminProofReview({
               <div className="proof-card__media">
                 {p.isImage ? (
                   <button type="button" className="proof-card__thumb" onClick={() => setPreview(p)} aria-label="Preview image">
-                    <img src={p.fileUrl} alt={p.fileName} loading="lazy" />
+                    <ProofImage proof={p} />
                   </button>
                 ) : (
                   <div className="proof-card__file-icon">
@@ -288,7 +296,7 @@ export default function AdminProofReview({
             </div>
             <div className="proof-preview-modal__body">
               {preview.isImage ? (
-                <img src={preview.fileUrl} alt={preview.fileName} />
+                <ProofImage proof={preview} />
               ) : (
                 <div className="proof-preview-modal__doc">
                   <FileText size={40} />

@@ -43,6 +43,12 @@ function proofStatusInfo(status) {
   return { label: status, color: '#64748b', bg: '#f8fafc', icon: Clock3 }
 }
 
+function ProofImage({ proof }) {
+  const [failed, setFailed] = useState(false)
+  if (failed) return <div className="proof-file-card__doc-icon"><FileCheck size={24} /><span>Preview unavailable</span></div>
+  return <img src={proof.fileUrl} alt={proof.fileName} loading="lazy" onError={() => setFailed(true)} />
+}
+
 function getRequestProofStatus(request, proofs) {
   const deliveryDbId = request?.delivery?.dbId
   if (!deliveryDbId) return null
@@ -338,7 +344,7 @@ export default function BeneficiaryProofsPage() {
                           <div className="proof-existing-files__grid">
                             {requestProofs.map((p) => (
                               <div key={p.id} className={`proof-file-card proof-file-card--${(p.status || 'pending').toLowerCase()}`}>
-                                <div className="proof-file-card__preview">{p.isImage ? <img src={p.fileUrl} alt={p.fileName} /> : <div className="proof-file-card__doc-icon"><FileCheck size={24} /></div>}</div>
+                                <div className="proof-file-card__preview">{p.isImage ? <ProofImage proof={p} /> : <div className="proof-file-card__doc-icon"><FileCheck size={24} /></div>}</div>
                                 <div className="proof-file-card__info">
                                   <span className="proof-file-card__category">{p.categoryLabel}</span>
                                   <span className="proof-file-card__name">{p.fileName}</span>

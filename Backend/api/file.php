@@ -10,6 +10,7 @@ require_once __DIR__ . '/bootstrap.php';
 
 $kind = preg_replace('/[^a-z_]/', '', strtolower((string) ($_GET['kind'] ?? ''))) ?: '';
 $name = basename((string) ($_GET['name'] ?? ''));
+$proofId = (int) ($_GET['id'] ?? $_GET['proofId'] ?? 0);
 
 // Public assets (certificates logos/signatures, partners, profiles, and payment_methods) — serve them without requiring auth
 if (in_array($kind, ['certificates', 'partners', 'payment_methods'], true)) {
@@ -146,12 +147,63 @@ $allowed = [
   'volunteer_resumes' => ['Admin', 'Staff', 'Volunteer'],
 ];
 
-if ($kind === '' || $name === '' || !isset($allowed[$kind])) {
+if ($kind === '' || !isset($allowed[$kind]) || ($kind !== 'proofs' && $name === '') || ($kind === 'proofs' && $proofId <= 0)) {
   json_response(['ok' => false, 'error' => 'Invalid file request'], 400);
 }
 if (!in_array((string) ($user['role'] ?? ''), $allowed[$kind], true)
   && empty($user['isSuperAdmin'])) {
   json_response(['ok' => false, 'error' => 'Access denied'], 403);
+}
+
+// Distribution proofs are resolved by their database ID and delivery ID. This
+// prevents filename-based mixups and provides a durable database fallback when
+// the deployment filesystem is ephemeral.
+if ($kind === 'proofs') {
+  $pdo = db();
+  ensure_distribution_schema($pdo);
+  $distributionId = (int) ($_GET['distributionId'] ?? $_GET['distribution_id'] ?? 0);
+  try {
+    $stmt = $pdo->prepare('SELECT id, distribution_id, beneficiary_id, file_path, file_name, file_type, file_data FROM distribution_proofs WHERE id = ? AND (? = 0 OR distribution_id = ?) LIMIT 1');
+    $stmt->execute([$proofId, $distributionId, $distributionId]);
+    $proof = $stmt->fetch();
+  } catch (Throwable $e) {
+    $stmt = $pdo->prepare('SELECT id, distribution_id, beneficiary_id, file_path, file_name, file_type FROM distribution_proofs WHERE id = ? AND (? = 0 OR distribution_id = ?) LIMIT 1');
+    $stmt->execute([$proofId, $distributionId, $distributionId]);
+    $proof = $stmt->fetch();
+  }
+  if (!$proof) {
+    json_response(['ok' => false, 'error' => 'Proof file not found for this delivery'], 404);
+  }
+
+  $role = (string) ($user['role'] ?? '');
+  if ($role === 'Beneficiary') {
+    $access = $pdo->prepare('SELECT 1 FROM beneficiaries WHERE id = ? AND (user_id = ? OR (representative_email IS NOT NULL AND representative_email <> "" AND LOWER(representative_email) = LOWER(?))) LIMIT 1');
+    $access->execute([(int) $proof['beneficiary_id'], (int) ($user['id'] ?? 0), (string) ($user['email'] ?? '')]);
+    if (!$access->fetchColumn()) json_response(['ok' => false, 'error' => 'Access denied'], 403);
+  } elseif ($role === 'Volunteer') {
+    $access = $pdo->prepare('SELECT 1 FROM tasks WHERE distribution_id = ? AND assignee_user_id = ? LIMIT 1');
+    $access->execute([(int) $proof['distribution_id'], (int) ($user['id'] ?? 0)]);
+    if (!$access->fetchColumn()) json_response(['ok' => false, 'error' => 'Access denied'], 403);
+  }
+
+  $storedName = basename((string) ($proof['file_path'] ?? ''));
+  $path = __DIR__ . '/uploads/proofs/' . $storedName;
+  $binary = is_file($path) ? file_get_contents($path) : ($proof['file_data'] ?? null);
+  if (is_resource($binary)) $binary = stream_get_contents($binary);
+  if ($binary === false || $binary === null || $binary === '') {
+    json_response(['ok' => false, 'error' => 'Proof metadata exists, but its stored file is unavailable'], 404);
+  }
+  $mime = (string) ($proof['file_type'] ?? '') ?: (is_file($path) ? (mime_content_type($path) ?: 'application/octet-stream') : 'application/octet-stream');
+  $downloadName = basename((string) ($proof['file_name'] ?? ''));
+  if ($downloadName === '') $downloadName = $storedName !== '' ? $storedName : ('proof-' . $proofId);
+  $disposition = isset($_GET['download']) ? 'attachment' : 'inline';
+  header('Content-Type: ' . $mime);
+  header('Content-Length: ' . (string) strlen($binary));
+  header('Content-Disposition: ' . $disposition . '; filename="' . rawurlencode($downloadName) . '"');
+  header('X-Content-Type-Options: nosniff');
+  header('Cache-Control: private, max-age=3600');
+  echo $binary;
+  exit;
 }
 
 $path = __DIR__ . '/uploads/' . $kind . '/' . $name;

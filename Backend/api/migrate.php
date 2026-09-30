@@ -192,6 +192,7 @@ try {
         file_path VARCHAR(255) NOT NULL,
         file_name VARCHAR(255) NOT NULL,
         file_type VARCHAR(80) NULL,
+        file_data LONGBLOB NULL,
         notes TEXT NULL,
         status VARCHAR(40) NOT NULL DEFAULT 'Pending',
         review_remarks TEXT NULL,
@@ -205,6 +206,7 @@ try {
     ");
     echo "Created distribution_proofs table\n";
   }
+  addColumn($pdo, 'distribution_proofs', 'file_data', 'LONGBLOB NULL AFTER file_type');
 
   if (!tableExists($pdo, 'notifications')) {
     $pdo->exec("

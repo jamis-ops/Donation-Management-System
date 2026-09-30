@@ -4401,6 +4401,24 @@ select.alloc-meta-control:focus {
   margin-top: 0.35rem;
 }
 
+.dist-row-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  white-space: nowrap;
+}
+
+.dist-row-actions .btn {
+  min-height: 34px;
+}
+
+.dist-row-actions__status {
+  width: 34px;
+  min-width: 34px;
+  padding-inline: 0;
+  justify-content: center;
+}
+
 .dist-proof-card {
   background: #ffffff;
   border: 1px solid #e2e8f0;

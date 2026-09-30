@@ -20,7 +20,6 @@ import FilterBar from '../components/shared/FilterBar'
 import ModalHeader from '../components/shared/ModalHeader'
 import SkillTagPicker from '../../components/shared/SkillTagPicker'
 import WizardStepper from '../../components/shared/WizardStepper'
-import RowActionsMenu from '../components/shared/RowActionsMenu'
 import { useSeeMore } from '../../hooks/useSeeMore'
 import { SeeMoreToggle } from '../components/shared/SeeMoreList'
 import { notify, confirmAction, showSuccessModal } from '../../utils/confirm'
@@ -1021,17 +1020,16 @@ export default function DistributionsPage() {
       key: 'actions',
       label: 'Actions',
       render: (row) => (
-        <RowActionsMenu
-          items={[
-            { label: 'View', icon: <Eye size={14} />, onClick: () => setDetailRow(row) },
-            {
-              label: 'Update status',
-              icon: <ArrowRightCircle size={14} />,
-              onClick: () => openStatus(row),
-              hidden: WORKFLOW.indexOf(row.status) >= WORKFLOW.length - 1,
-            },
-          ]}
-        />
+        <div className="dist-row-actions">
+          <button type="button" className="btn btn--outline btn--sm" onClick={() => setDetailRow(row)} title={`View ${row.id || 'delivery'} details`}>
+            <Eye size={14} /> View
+          </button>
+          {WORKFLOW.indexOf(row.status) < WORKFLOW.length - 1 && (
+            <button type="button" className="btn btn--ghost btn--sm dist-row-actions__status" onClick={() => openStatus(row)} title="Update delivery status" aria-label="Update delivery status">
+              <ArrowRightCircle size={15} />
+            </button>
+          )}
+        </div>
       ),
     },
   ]
@@ -1605,19 +1603,19 @@ export default function DistributionsPage() {
                                   {proof.categoryLabel}
                                 </span>
                               )}
-                              <img
-                                src={proof.fileUrl}
-                                alt={proof.fileName || 'Proof photo'}
-                                className="dist-proof-thumb-img"
-                                loading="lazy"
-                                onError={(e) => {
-                                  e.currentTarget.style.display = 'none'
-                                  if (e.currentTarget.nextSibling) {
-                                    e.currentTarget.nextSibling.style.display = 'flex'
-                                  }
-                                }}
-                              />
-                              <div style={{ display: 'none', alignItems: 'center', justifyContent: 'center', width: '100%', height: '100%', color: '#94a3b8' }}>
+                              {proof.isImage ? (
+                                <img
+                                  src={proof.fileUrl}
+                                  alt={proof.fileName || 'Proof photo'}
+                                  className="dist-proof-thumb-img"
+                                  loading="lazy"
+                                  onError={(e) => {
+                                    e.currentTarget.style.display = 'none'
+                                    if (e.currentTarget.nextSibling) e.currentTarget.nextSibling.style.display = 'flex'
+                                  }}
+                                />
+                              ) : null}
+                              <div style={{ display: proof.isImage ? 'none' : 'flex', alignItems: 'center', justifyContent: 'center', width: '100%', height: '100%', color: '#94a3b8' }}>
                                 <FileText size={32} />
                               </div>
                               <div className="dist-proof-overlay">
