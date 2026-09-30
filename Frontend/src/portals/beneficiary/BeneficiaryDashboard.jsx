@@ -106,7 +106,7 @@ export default function BeneficiaryDashboard() {
               let destination = '/beneficiary/requests'
               if (item.label.includes('Received') || item.label.includes('Completed')) {
                 cardModifier = 'volunteer-kpi-card--hours'
-                destination = '/beneficiary/distributions'
+                destination = '/beneficiary/requests'
               } else if (item.label.includes('Total Requests')) {
                 cardModifier = 'volunteer-kpi-card--total'
                 destination = '/beneficiary/requests'
@@ -115,7 +115,7 @@ export default function BeneficiaryDashboard() {
                 destination = '/beneficiary/requests?status=Under+Review'
               } else if (item.label.includes('Deliveries') || item.label.includes('Schedule')) {
                 cardModifier = 'volunteer-kpi-card--ongoing'
-                destination = '/beneficiary/distributions'
+                destination = '/beneficiary/requests'
               }
 
               return (
@@ -147,9 +147,9 @@ export default function BeneficiaryDashboard() {
                 <Inbox size={24} />
                 <span>Submit Relief Request</span>
               </Link>
-              <Link to="/beneficiary/distributions" className="portal-quick-action">
+              <Link to="/beneficiary/requests" className="portal-quick-action">
                 <Calendar size={24} />
-                <span>Distribution Schedule</span>
+                <span>Track Relief Requests</span>
               </Link>
               <Link to="/beneficiary/proofs" className="portal-quick-action">
                 <FileText size={24} />
@@ -174,7 +174,7 @@ export default function BeneficiaryDashboard() {
                     Scheduled turn-overs and relief assistance for your barangay community.
                   </p>
                 </div>
-                <Link to="/beneficiary/distributions" className="portal-panel__link">View All Schedule</Link>
+                <Link to="/beneficiary/requests" className="portal-panel__link">View Request Progress</Link>
               </div>
               <div className="beneficiary-upcoming-events">
                 {data.upcomingSchedule.slice(0, 3).map((schedule, idx) => {

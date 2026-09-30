@@ -42,7 +42,7 @@ const ALLOCATION_STEPS = [
 const PACKS_PER_FAMILY = 1
 
 const filterConfig = {
-  searchKeys: ['resource', 'program', 'beneficiary'],
+  searchKeys: ['resource', 'program', 'beneficiary', 'assistanceRequestCode'],
   filters: [
     { key: 'status', label: 'Status' },
     { key: 'priority', label: 'Priority' },
@@ -1649,6 +1649,8 @@ export default function AllocationPage() {
           beneficiaryId: r.beneficiaryId,
           beneficiary: r.beneficiary,
           program: r.program,
+          assistanceRequestId: r.assistanceRequestId,
+          assistanceRequestCode: r.assistanceRequestCode,
           affectedFamilies: r.affectedFamilies,
         })),
       },
@@ -1940,22 +1942,30 @@ export default function AllocationPage() {
     },
     {
       key: 'resource',
-      label: 'Resource',
-      minWidth: '160px',
+      label: 'Allocated Resources',
+      minWidth: '250px',
+      exportValue: (row) => (row.resourceItems || [row])
+        .map((item) => `${item.resource} × ${item.quantity} ${item.unit || ''}`.trim())
+        .join('; '),
       render: (row) => (
-        <span style={{ fontWeight: 600, color: '#0f172a' }}>
-          {row.resource || '—'}
-        </span>
+        <div className="alloc-grouped-resources">
+          {(row.resourceItems || [row]).map((item) => (
+            <div className="alloc-grouped-resource" key={item.dbId || item.id}>
+              <span>{item.resource || '—'}</span>
+              <strong>{item.quantity} {item.unit || 'units'}</strong>
+            </div>
+          ))}
+        </div>
       ),
     },
     {
       key: 'quantity',
-      label: 'Qty',
+      label: 'Items',
       width: '95px',
       align: 'center',
       render: (row) => (
         <span style={{ fontWeight: 650, color: '#0f172a' }}>
-          {row.quantity} {row.unit ? <small style={{ color: '#64748b', fontWeight: 500 }}>{row.unit}</small> : ''}
+          {row.resourceCount || 1} <small style={{ color: '#64748b', fontWeight: 500 }}>{(row.resourceCount || 1) === 1 ? 'resource' : 'resources'}</small>
         </span>
       ),
     },
@@ -2000,8 +2010,9 @@ export default function AllocationPage() {
       width: '105px',
       align: 'center',
       render: (row) => {
-        const isReadyToPlan = (row.status === 'Allocated' || !row.status) && !row.distributionId
-        const hasDelivery = Boolean(row.distributionId)
+        const isReadyToPlan = canPlan(row)
+        const linkedDistributionId = row.distributionId || row.distributionIds?.[0]
+        const hasDelivery = Boolean(linkedDistributionId)
         return (
           <div className="alloc-row-actions">
             <button
@@ -2040,7 +2051,7 @@ export default function AllocationPage() {
                 style={{ color: '#2563eb' }}
                 onClick={(event) => {
                   event.stopPropagation()
-                  navigate(`/admin/distributions?id=${row.distributionId}#distributions-table`)
+                  navigate(`/admin/distributions?id=${linkedDistributionId}#distributions-table`)
                 }}
               >
                 <ExternalLink size={15} />
@@ -3144,13 +3155,14 @@ function AllocationDetailModal({
     }
   })()
 
-  const isInDistribution = Boolean(detailRow.distributionId || detailRow.status === 'In Distribution')
+  const resourceItems = detailRow.resourceItems?.length ? detailRow.resourceItems : [detailRow]
+  const isInDistribution = Boolean(detailRow.distributionId || detailRow.distributionIds?.length || detailRow.status === 'In Distribution')
 
   return (
     <div className="admin-modal-overlay" onClick={onClose}>
       <div className="admin-modal alloc-detail-modal" onClick={(e) => e.stopPropagation()}>
         <ModalHeader
-          title={`Allocation Details: ${detailRow.code || detailRow.id}`}
+          title={`Allocation Details: ${detailRow.assistanceRequestCode || detailRow.code || detailRow.id}`}
           onClose={onClose}
         />
 
@@ -3195,36 +3207,30 @@ function AllocationDetailModal({
               )}
             </div>
 
-            <h3 className="alloc-cargo-title">{detailRow.resource}</h3>
+            <div className="alloc-detail-resource-list">
+              {resourceItems.map((item) => (
+                <div className="alloc-detail-resource-item" key={item.dbId || item.id}>
+                  <div>
+                    <h3>{item.resource}</h3>
+                    <span>{item.variant || item.inventoryItemCode || 'Warehouse resource'}</span>
+                  </div>
+                  <div className="alloc-detail-resource-qty">
+                    <strong>{item.quantity}</strong>
+                    <span>{item.unit || 'units'}</span>
+                  </div>
+                  {item.inventoryDeducted && (
+                    <span className="alloc-detail-deducted"><CheckCircle2 size={13} /> Deducted</span>
+                  )}
+                </div>
+              ))}
+            </div>
 
             <div className="alloc-cargo-metric-box">
               <div className="alloc-qty-badge">
-                <span>Allocated:</span>
-                <strong>{detailRow.quantity}</strong>
-                <span style={{ fontSize: '0.78rem', fontWeight: 600, color: '#3b82f6' }}>{detailRow.unit || 'units'}</span>
+                <span>Resources:</span>
+                <strong>{resourceItems.length}</strong>
+                <span style={{ fontSize: '0.78rem', fontWeight: 600, color: '#3b82f6' }}>item type{resourceItems.length === 1 ? '' : 's'}</span>
               </div>
-              {detailRow.inventoryDeducted && (
-                <div style={{
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: '5px',
-                  background: '#ecfdf5',
-                  border: '1px solid #a7f3d0',
-                  color: '#065f46',
-                  padding: '0.35rem 0.65rem',
-                  borderRadius: '6px',
-                  fontSize: '0.78rem',
-                  fontWeight: 600
-                }}>
-                  <CheckCircle2 size={14} style={{ color: '#059669' }} />
-                  <span>Deducted from Inventory ({detailRow.deductedQuantity || detailRow.quantity} {detailRow.unit || 'units'})</span>
-                  {detailRow.inventoryItemCode && (
-                    <code style={{ fontSize: '0.72rem', background: '#d1fae5', padding: '1px 5px', borderRadius: '4px' }}>
-                      {detailRow.inventoryItemCode}
-                    </code>
-                  )}
-                </div>
-              )}
               {detailRow.status === 'Cancelled' && (
                 <div style={{
                   display: 'inline-flex',

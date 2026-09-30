@@ -61,7 +61,6 @@ import VolunteerHoursPage from './portals/volunteer/VolunteerHoursPage'
 import VolunteerCertificatesPage from './portals/volunteer/VolunteerCertificatesPage'
 import BeneficiaryDashboard from './portals/beneficiary/BeneficiaryDashboard'
 import BeneficiaryRequestsPage from './portals/beneficiary/BeneficiaryRequestsPage'
-import BeneficiaryDistributionsPage from './portals/beneficiary/BeneficiaryDistributionsPage'
 import BeneficiaryHistoryPage from './portals/beneficiary/BeneficiaryHistoryPage'
 import BeneficiaryProofsPage from './portals/beneficiary/BeneficiaryProofsPage'
 import StaffDashboard from './portals/staff/StaffDashboard'
@@ -183,7 +182,7 @@ const router = createBrowserRouter([
     children: [
       { index: true, element: <BeneficiaryDashboard /> },
       { path: 'requests', element: <BeneficiaryRequestsPage /> },
-      { path: 'distributions', element: <BeneficiaryDistributionsPage /> },
+      { path: 'distributions', element: <Navigate to="/beneficiary/requests" replace /> },
       { path: 'proofs', element: <BeneficiaryProofsPage /> },
       { path: 'history', element: <BeneficiaryHistoryPage /> },
       { path: 'settings', element: <AccountSettingsPage /> },

@@ -18,7 +18,6 @@ const titles = {
   '/volunteer-portal/settings': { title: 'Account Settings', sub: 'Update your profile and password.' },
   '/beneficiary': { title: 'Barangay Dashboard', sub: 'Your requests and assistance status.' },
   '/beneficiary/requests': { title: 'My Assistance Requests', sub: 'Submit and track requests.' },
-  '/beneficiary/distributions': { title: 'Scheduled Distributions', sub: 'Upcoming pickups and deliveries.' },
   '/beneficiary/proofs': { title: 'Submit Distribution Proof', sub: 'Upload photos or documents after receiving relief goods.' },
   '/beneficiary/history': { title: 'Assistance History', sub: 'Past assistance received.' },
   '/beneficiary/settings': { title: 'Account Settings', sub: 'Update your profile and password.' },

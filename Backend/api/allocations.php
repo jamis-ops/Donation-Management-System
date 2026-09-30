@@ -43,7 +43,7 @@ try {
     SET ar.status = CASE
       WHEN d.status = 'In Transit' THEN 'In Transit'
       WHEN d.status IN ('Delivered', 'Awaiting Proof') THEN 'Delivered'
-      WHEN d.status IN ('Planning', 'Preparing', 'Scheduled') THEN 'Preparing'
+      WHEN d.status IN ('Planning', 'Preparing', 'Scheduled') THEN 'Allocated'
       ELSE ar.status
     END
     WHERE a.distribution_id IS NOT NULL 

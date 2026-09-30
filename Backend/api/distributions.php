@@ -75,6 +75,40 @@ function create_delivery_team_assignments(PDO $pdo, int $distributionId, array $
   }
 }
 
+/** Expand any selected request line to its complete logical allocation group. */
+function expand_request_allocation_ids(PDO $pdo, array $allocationIds, ?int $currentDistributionId = null): array
+{
+  $ids = array_values(array_unique(array_filter(array_map('intval', $allocationIds))));
+  if (!$ids) return [];
+
+  $lookup = $pdo->prepare('SELECT assistance_request_id, beneficiary_id, program FROM allocations WHERE id = ? LIMIT 1');
+  foreach ($ids as $allocationId) {
+    $lookup->execute([$allocationId]);
+    $source = $lookup->fetch();
+    if (!$source || empty($source['assistance_request_id'])) continue;
+
+    $sql = "SELECT id FROM allocations
+            WHERE assistance_request_id = ?
+              AND beneficiary_id <=> ?
+              AND program <=> ?
+              AND status <> 'Cancelled'
+              AND (distribution_id IS NULL OR distribution_id = 0";
+    $params = [(int) $source['assistance_request_id'], $source['beneficiary_id'], $source['program']];
+    if ($currentDistributionId) {
+      $sql .= ' OR distribution_id = ?';
+      $params[] = $currentDistributionId;
+    }
+    $sql .= ')';
+    $groupStmt = $pdo->prepare($sql);
+    $groupStmt->execute($params);
+    foreach ($groupStmt->fetchAll(PDO::FETCH_COLUMN) as $groupId) {
+      $ids[] = (int) $groupId;
+    }
+    $ids = array_values(array_unique($ids));
+  }
+  return $ids;
+}
+
 function map_distribution(PDO $pdo, array $row): array
 {
   $barangay = '';
@@ -401,7 +435,7 @@ function distributions_for_beneficiary(PDO $pdo, array $ben, bool $forProof = fa
       if ($proof === 'Proof Rejected' || $proof === 'Proof Submitted' || $proof === 'Awaiting Proof') {
         return true;
       }
-      $eligible = ['Delivered', 'Awaiting Proof', 'In Transit', 'Preparing', 'Completed'];
+      $eligible = ['Delivered', 'Awaiting Proof', 'Proof Review'];
       return in_array($status, $eligible, true);
     }));
   }
@@ -795,6 +829,8 @@ if ($user['role'] === 'Beneficiary') {
       WHERE id = ?
     ');
     $upd->execute(['Received', $qty, $notes !== '' ? $notes : null, $newProof, $newStatus, $id]);
+    $pdo->prepare("UPDATE assistance_requests SET status = 'Proof Review' WHERE id IN (SELECT assistance_request_id FROM allocations WHERE distribution_id = ? AND assistance_request_id IS NOT NULL) AND status NOT IN ('Completed','Rejected','Cancelled')")
+      ->execute([$id]);
     notify_admins(
       $pdo,
       'receipt',
@@ -956,9 +992,9 @@ if ($method === 'POST') {
   // Optional handoff: build distribution from confirmed allocations
   $allocationIds = [];
   if (!empty($body['allocationIds']) && is_array($body['allocationIds'])) {
-    $allocationIds = array_values(array_unique(array_map('intval', $body['allocationIds'])));
+    $allocationIds = expand_request_allocation_ids($pdo, $body['allocationIds']);
   } elseif (!empty($body['allocationId'])) {
-    $allocationIds = [(int) $body['allocationId']];
+    $allocationIds = expand_request_allocation_ids($pdo, [(int) $body['allocationId']]);
   }
 
   $fromAllocations = [];
@@ -1132,11 +1168,11 @@ if ($method === 'POST') {
       $link->execute([$newId, (int) $a['id']]);
     }
 
-    // Also update linked assistance requests to In Distribution
+    // Planning a delivery must not introduce a second request status or regress it to Preparing.
     $reqIds = array_values(array_unique(array_filter(array_map(fn($a) => !empty($a['assistance_request_id']) ? (int) $a['assistance_request_id'] : null, $fromAllocations))));
     if (!empty($reqIds)) {
       $inReq = implode(',', array_fill(0, count($reqIds), '?'));
-      $pdo->prepare("UPDATE assistance_requests SET status = 'In Distribution' WHERE id IN ($inReq) AND status NOT IN ('Completed', 'Rejected', 'Cancelled')")
+      $pdo->prepare("UPDATE assistance_requests SET status = 'Allocated' WHERE id IN ($inReq) AND status NOT IN ('In Transit', 'Delivered', 'Proof Review', 'Completed', 'Rejected', 'Cancelled')")
         ->execute($reqIds);
     }
     sync_donations_for_distribution($pdo, $newId, (string) ($body['status'] ?? 'Planning'));
@@ -1276,7 +1312,7 @@ if ($method === 'PUT') {
   ]);
 
   if (isset($body['allocationIds']) && is_array($body['allocationIds'])) {
-    $allocIds = array_values(array_unique(array_filter(array_map('intval', $body['allocationIds']))));
+    $allocIds = expand_request_allocation_ids($pdo, $body['allocationIds'], (int) $id);
     if (!empty($allocIds)) {
       $inClause = implode(',', array_fill(0, count($allocIds), '?'));
       // Unlink allocations previously linked to this distribution that were removed

@@ -111,6 +111,7 @@ export default function BeneficiaryProofsPage() {
   const selected = events.find((d) => String(d.dbId) === String(form.distributionId))
   const selectedRequest = selected?.request || null
   const selectedCount = Object.values(form.files).filter(Boolean).length
+  const photoCount = [form.files.received_goods, form.files.distribution].filter(Boolean).length
   const focusHistory = deepLink.focus === 'history'
   const contentReady = !distLoading && !proofLoading
   const proofsPaging = usePagination(proofs, DEFAULT_PAGE_SIZE, String(proofs.length))
@@ -134,8 +135,8 @@ export default function BeneficiaryProofsPage() {
       setMessage('Please select the distribution you want to submit proof for.')
       return
     }
-    if (selectedCount === 0) {
-      setMessage('Please upload at least one supporting file (photo or document).')
+    if (photoCount === 0 || !form.files.acknowledgment) {
+      setMessage('Please upload at least one proof photo and the signed acknowledgment/receipt.')
       return
     }
     setUploading(true)
@@ -200,8 +201,7 @@ export default function BeneficiaryProofsPage() {
               </select>
               {events.length === 0 && (
                 <span className="proof-field-hint">
-                  No distributions are ready for proof yet. Confirm Received on the Distributions page first,
-                  or wait until a delivery is assigned to your barangay.
+                  No delivered relief requests are ready for proof yet.
                 </span>
               )}
             </label>
@@ -211,6 +211,15 @@ export default function BeneficiaryProofsPage() {
                 <strong>
                   {selectedRequest?.type || selected.eventName || selected.id}
                 </strong>
+                {selectedRequest?.id && (
+                  <span className="proof-event-summary__row"><FileText size={14} /> Relief Request: {selectedRequest.id}</span>
+                )}
+                {selected.barangay && (
+                  <span className="proof-event-summary__row"><MapPin size={14} /> Barangay: {selected.barangay}</span>
+                )}
+                {selected.program && (
+                  <span className="proof-event-summary__row"><FileCheck size={14} /> Program: {selected.program}</span>
+                )}
                 {selectedRequest?.notes && (
                   <span className="proof-event-summary__row">
                     <FileText size={14} /> {selectedRequest.notes}

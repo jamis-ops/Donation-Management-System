@@ -1,4 +1,4 @@
-import { Check, Clock, FileText, CheckCircle, Package, Truck, MapPin, XCircle } from 'lucide-react'
+import { Check, Clock, FileText, CheckCircle, Package, Truck, MapPin, XCircle, ShieldCheck } from 'lucide-react'
 
 const WORKFLOW_STAGES = [
   {
@@ -37,11 +37,19 @@ const WORKFLOW_STAGES = [
     description: 'Dispatched to site',
   },
   {
-    key: 'completed',
+    key: 'delivered',
     label: 'Delivered',
     icon: MapPin,
-    statuses: ['Completed', 'Done', 'Delivered', 'Distributed'],
+    statuses: ['Delivered', 'Distributed'],
     description: 'Aid received',
+  },
+  {
+    key: 'proof', label: 'Proof Review', icon: ShieldCheck,
+    statuses: ['Proof Review', 'Proof Submitted', 'Awaiting Proof'], description: 'Receipt under review',
+  },
+  {
+    key: 'completed', label: 'Completed', icon: Check,
+    statuses: ['Completed', 'Done'], description: 'Proof approved',
   },
 ]
 
@@ -49,8 +57,9 @@ function determineCurrentStage(status) {
   if (!status) return 0
   if (['Rejected', 'Declined', 'Cancelled'].includes(status)) return 'rejected'
   
+  const normalized = ['Preparing', 'Scheduled', 'In Distribution', 'In Progress'].includes(status) ? 'Allocated' : status
   const stageIndex = WORKFLOW_STAGES.findIndex((stage) =>
-    stage.statuses.some((s) => s.toLowerCase() === status.toLowerCase())
+    stage.statuses.some((s) => s.toLowerCase() === normalized.toLowerCase())
   )
   return stageIndex >= 0 ? stageIndex : 0
 }

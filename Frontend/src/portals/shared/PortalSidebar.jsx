@@ -45,7 +45,6 @@ const portalMenus = {
     items: [
       { to: '/beneficiary', label: 'Dashboard', icon: LayoutDashboard, end: true },
       { to: '/beneficiary/requests', label: 'My Requests', icon: HandHeart },
-      { to: '/beneficiary/distributions', label: 'Distributions', icon: Truck },
       { to: '/beneficiary/proofs', label: 'Submit Proof', icon: Upload },
       { to: '/beneficiary/history', label: 'Assistance History', icon: History },
     ],

@@ -196,6 +196,51 @@ function map_request(array $row, string $beneficiaryName, ?array $extra = null):
   return $mapped;
 }
 
+/** Attach the single delivery lifecycle that belongs to this relief request. */
+function attach_request_delivery(PDO $pdo, array $mapped): array
+{
+  try {
+    $stmt = $pdo->prepare("SELECT d.* FROM distributions d
+      WHERE d.request_id = ?
+         OR EXISTS (SELECT 1 FROM allocations a WHERE a.distribution_id = d.id AND a.assistance_request_id = ?)
+      ORDER BY d.id DESC LIMIT 1");
+    $stmt->execute([(int) $mapped['dbId'], (int) $mapped['dbId']]);
+    $dist = $stmt->fetch();
+    if (!$dist) return $mapped;
+
+    $deliveryStatus = normalize_distribution_status((string) ($dist['status'] ?? 'Planning'));
+    $proofStatus = (string) ($dist['proof_status'] ?? 'Not Required');
+    $effectiveStatus = match ($deliveryStatus) {
+      'Completed' => 'Completed',
+      'Proof Review' => 'Proof Review',
+      'Delivered' => 'Delivered',
+      'In Transit' => 'In Transit',
+      default => $mapped['hasAllocation'] ? 'Allocated' : $mapped['status'],
+    };
+    if (in_array($proofStatus, ['Proof Submitted', 'Proof Rejected'], true)) $effectiveStatus = 'Proof Review';
+    if (!in_array($mapped['status'], ['Rejected', 'Cancelled'], true)) {
+      if ($mapped['status'] !== $effectiveStatus) {
+        $pdo->prepare('UPDATE assistance_requests SET status = ? WHERE id = ?')->execute([$effectiveStatus, (int) $mapped['dbId']]);
+      }
+      $mapped['status'] = $effectiveStatus;
+    }
+
+    $mapped['delivery'] = [
+      'dbId' => (int) $dist['id'], 'id' => (string) $dist['code'], 'status' => $deliveryStatus,
+      'proofStatus' => $proofStatus, 'receiptStatus' => (string) ($dist['receipt_status'] ?? 'Awaiting Confirmation'),
+      'date' => format_date($dist['distribution_date'] ?? null), 'dateRaw' => $dist['distribution_date'] ?? null,
+      'time' => $dist['schedule_time'] ?? null, 'location' => $dist['location'] ?? '',
+      'program' => $dist['program'] ?? '', 'items' => $dist['items_summary'] ?? '',
+      'coordinator' => $dist['coordinator'] ?? '',
+    ];
+    $mapped['canSubmitProof'] = $deliveryStatus === 'Delivered' || $proofStatus === 'Proof Rejected';
+  } catch (Throwable $e) {
+    $mapped['delivery'] = null;
+    $mapped['canSubmitProof'] = false;
+  }
+  return $mapped;
+}
+
 if ($method === 'GET') {
   $user = require_auth(['Admin', 'Staff', 'Beneficiary']);
   ensure_request_columns($pdo);
@@ -560,7 +605,7 @@ if ($method === 'GET') {
       'municipality' => $benCache[$benId]['municipality'] ?? '',
       'representativeName' => $benCache[$benId]['representative_name'] ?? '',
     ];
-    return map_request($r, $r['beneficiary_name'], $extra);
+    return attach_request_delivery($pdo, map_request($r, $r['beneficiary_name'], $extra));
   }, $rows);
 
   json_response(['ok' => true, 'data' => $enriched]);

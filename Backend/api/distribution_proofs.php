@@ -324,6 +324,8 @@ if ($method === 'POST') {
 
   $pdo->prepare("UPDATE distributions SET proof_status = 'Proof Submitted', status = 'Awaiting Proof', receipt_status = CASE WHEN receipt_status = 'Awaiting Confirmation' THEN 'Received' ELSE receipt_status END WHERE id = ?")
     ->execute([$distributionId]);
+  $pdo->prepare("UPDATE assistance_requests SET status = 'Proof Review' WHERE id IN (SELECT assistance_request_id FROM allocations WHERE distribution_id = ? AND assistance_request_id IS NOT NULL) AND status NOT IN ('Completed','Rejected','Cancelled')")
+    ->execute([$distributionId]);
 
   notify_admins(
     $pdo,
@@ -386,6 +388,8 @@ if ($method === 'PUT') {
     complete_distribution($pdo, (int) $proof['distribution_id'], (int) $user['id']);
   } elseif ($status === 'Rejected') {
     $pdo->prepare("UPDATE distributions SET proof_status = 'Proof Rejected', status = 'Proof Review' WHERE id = ?")
+      ->execute([$proof['distribution_id']]);
+    $pdo->prepare("UPDATE assistance_requests SET status = 'Proof Review' WHERE id IN (SELECT assistance_request_id FROM allocations WHERE distribution_id = ? AND assistance_request_id IS NOT NULL) AND status NOT IN ('Completed','Rejected','Cancelled')")
       ->execute([$proof['distribution_id']]);
   }
 

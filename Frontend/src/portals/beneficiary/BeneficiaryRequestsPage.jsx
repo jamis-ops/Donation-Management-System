@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { useSearchParams } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { Search, AlertCircle, CheckCircle, Clock, XCircle, FileText, Package, Users, Calendar } from 'lucide-react'
 import StatusBadge from '../../admin/components/shared/StatusBadge'
 import ApiState from '../../admin/components/shared/ApiState'
@@ -80,6 +80,7 @@ function canCancelRequest(request) {
 
 export default function BeneficiaryRequestsPage() {
   const [searchParams] = useSearchParams()
+  const navigate = useNavigate()
   const { data, loading, error, reload } = useApiList(() => assistanceRequestsApi.list())
   const [showForm, setShowForm] = useState(false)
   const { showLoading, hideLoading } = useLoading()
@@ -94,6 +95,13 @@ export default function BeneficiaryRequestsPage() {
     const st = searchParams.get('status')
     if (st) setStatusFilter(st)
   }, [searchParams])
+
+  useEffect(() => {
+    const requestId = searchParams.get('requestId')
+    if (!requestId || !data.length) return
+    const match = data.find((r) => String(r.dbId) === requestId || r.id === requestId)
+    if (match) setSelectedRequest(match)
+  }, [data, searchParams])
 
   // Keep progress tracker in sync when list reloads or status changes server-side.
   useEffect(() => {
@@ -117,6 +125,7 @@ export default function BeneficiaryRequestsPage() {
   // Filter requests
   const filteredData = data.filter((r) => {
     const matchesSearch = !searchQuery ||
+      (r.id || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
       (r.type || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
       (r.notes || '').toLowerCase().includes(searchQuery.toLowerCase())
     
@@ -416,6 +425,11 @@ export default function BeneficiaryRequestsPage() {
                   </div>
 
                   <div className="beneficiary-request-card__actions">
+                    {r.canSubmitProof && r.delivery?.dbId && (
+                      <button type="button" className="btn btn--sm btn--primary" onClick={() => navigate(`/beneficiary/proofs?distributionId=${r.delivery.dbId}&requestId=${r.dbId}#proof-submit-form`)}>
+                        Submit Proof of Receipt
+                      </button>
+                    )}
                     <button
                       type="button"
                       className="btn btn--sm btn--outline"
@@ -723,8 +737,23 @@ export default function BeneficiaryRequestsPage() {
                 <RequestProgressTracker request={selectedRequest} />
               </div>
 
+              {selectedRequest.delivery && (
+                <div style={{ padding: '1rem 1.15rem', background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '10px', marginBottom: '1.25rem' }}>
+                  <strong>Delivery {selectedRequest.delivery.id}</strong>
+                  <p style={{ margin: '0.4rem 0 0', color: '#475569' }}>
+                    {[selectedRequest.delivery.program, selectedRequest.delivery.location, selectedRequest.delivery.date, selectedRequest.delivery.time].filter(Boolean).join(' · ')}
+                  </p>
+                  {selectedRequest.delivery.items && <p style={{ margin: '0.35rem 0 0', color: '#475569' }}>Items: {selectedRequest.delivery.items}</p>}
+                </div>
+              )}
+
               {/* Actions */}
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '0.65rem', borderTop: '1px solid #e2e8f0', paddingTop: '1.25rem' }}>
+                {selectedRequest.canSubmitProof && selectedRequest.delivery?.dbId && (
+                  <button type="button" className="btn btn--primary" onClick={() => navigate(`/beneficiary/proofs?distributionId=${selectedRequest.delivery.dbId}&requestId=${selectedRequest.dbId}#proof-submit-form`)}>
+                    Submit Proof of Receipt
+                  </button>
+                )}
                 {canCancelRequest(selectedRequest) && (
                   <button
                     type="button"

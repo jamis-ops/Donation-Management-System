@@ -169,9 +169,9 @@ export const REQUEST_WORKFLOW = [
   'Partially Funded',
   'Partially Allocated',
   'Allocated',
-  'Preparing',
   'In Transit',
   'Delivered',
+  'Proof Review',
   'Completed',
 ]
 export const REQUEST_TERMINAL = ['Completed', 'Rejected', 'Cancelled']
@@ -181,17 +181,18 @@ export const REQUEST_BRANCHES = {
   'Approved': ['Ready for Allocation', 'Partially Funded', 'Partially Allocated', 'Allocated', 'Cancelled'],
   'Ready for Allocation': ['Partially Funded', 'Partially Allocated', 'Allocated', 'Cancelled'],
   'Partially Funded': ['Ready for Allocation', 'Partially Allocated', 'Allocated', 'Cancelled'],
-  'Partially Allocated': ['Allocated', 'Preparing', 'In Distribution', 'Cancelled'],
-  'Allocated': ['Preparing', 'In Distribution', 'In Transit', 'Cancelled'],
-  'Preparing': ['In Transit', 'Delivered', 'Cancelled'],
-  'In Distribution': ['In Transit', 'Delivered', 'Completed'],
+  'Partially Allocated': ['Allocated', 'Cancelled'],
+  'Allocated': ['In Transit', 'Cancelled'],
   'In Transit': ['Delivered', 'Completed'],
-  'Delivered': ['Completed'],
+  'Delivered': ['Proof Review', 'Completed'],
+  'Proof Review': ['Delivered', 'Completed'],
 }
 export const REQUEST_ALIASES = {
-  'In Progress': 'In Distribution',
-  'Scheduled': 'Preparing',
-  'Scheduled for Delivery': 'Preparing',
+  'In Progress': 'Allocated',
+  'In Distribution': 'Allocated',
+  'Preparing': 'Allocated',
+  'Scheduled': 'Allocated',
+  'Scheduled for Delivery': 'Allocated',
   'Ready': 'Ready for Allocation',
 }
 

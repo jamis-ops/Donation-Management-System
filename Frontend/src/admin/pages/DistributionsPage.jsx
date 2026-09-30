@@ -383,6 +383,18 @@ export default function DistributionsPage() {
     return list
   }, [editRow, form.allocationIds, allocationsList])
 
+  const linkedAllocationGroupCount = useMemo(() => {
+    if (!form.allocationIds?.length) return 0
+    const keys = new Set()
+    form.allocationIds.forEach((allocationId) => {
+      const allocation = allocationsList.find((item) => Number(item.dbId || item.id) === Number(allocationId))
+      keys.add(allocation?.assistanceRequestId
+        ? `request:${allocation.assistanceRequestId}|program:${allocation.program || ''}|barangay:${allocation.beneficiaryId || ''}`
+        : `allocation:${allocationId}`)
+    })
+    return keys.size
+  }, [form.allocationIds, allocationsList])
+
   const isStep1Complete = useMemo(() => {
     return Boolean(
       form.beneficiaryId &&
@@ -1856,7 +1868,7 @@ export default function DistributionsPage() {
             <form onSubmit={handleFormSubmit} noValidate>
               {form.allocationIds?.length > 0 && (
                 <div className="alloc-handoff-banner" style={{ margin: 0, borderRadius: 0, borderLeft: 'none', borderRight: 'none' }}>
-                  📦 {form.allocationIds.length} Resource Allocation batch(es) linked to this distribution.
+                  📦 {linkedAllocationGroupCount} request allocation{linkedAllocationGroupCount === 1 ? '' : 's'} linked · {form.allocationIds.length} resource item{form.allocationIds.length === 1 ? '' : 's'} included.
                 </div>
               )}
 
@@ -2078,14 +2090,14 @@ export default function DistributionsPage() {
                       </div>
 
                       {/* Cargo Source / Allocations Card */}
-                      <div className="dist-cl-sum-card" title={`Allocations: ${form.allocationIds?.length > 0 ? `${form.allocationIds.length} batch(es) linked` : 'Direct delivery'}`}>
+                      <div className="dist-cl-sum-card" title={`Allocations: ${form.allocationIds?.length > 0 ? `${linkedAllocationGroupCount} request allocation(s) linked` : 'Direct delivery'}`}>
                         <div className={`dist-cl-sum-card__icon ${form.allocationIds?.length > 0 ? 'dist-cl-sum-card__icon--alloc' : 'dist-cl-sum-card__icon--muted'}`}>
                           <Package size={14} />
                         </div>
                         <div className="dist-cl-sum-card__content">
                           <span className="dist-cl-sum-card__label">Allocations</span>
                           <span className="dist-cl-sum-card__value">
-                            {form.allocationIds?.length > 0 ? `${form.allocationIds.length} batch(es) linked` : 'Direct delivery'}
+                            {form.allocationIds?.length > 0 ? `${linkedAllocationGroupCount} request allocation${linkedAllocationGroupCount === 1 ? '' : 's'} · ${form.allocationIds.length} item${form.allocationIds.length === 1 ? '' : 's'}` : 'Direct delivery'}
                           </span>
                         </div>
                       </div>
