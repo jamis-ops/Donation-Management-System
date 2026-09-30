@@ -59,9 +59,17 @@ function donation_accessible(PDO $pdo, array $user, int $donationId): ?array
 /** Resolve the furthest donor-facing stage from the donation and its linked delivery. */
 function resolve_donation_progress_status(PDO $pdo, array $donation, array $updates): string
 {
-  // Timeline entries are descriptive only. The stored status is synchronized
-  // by allocation/distribution operations and is the authoritative value.
-  return trim((string) ($donation['status'] ?? '')) ?: 'Pending Verification';
+  $stored = trim((string) ($donation['status'] ?? '')) ?: 'Pending Verification';
+  if (in_array($stored, ['Pending Verification', 'Rejected', 'Cancelled'], true)) return $stored;
+  try {
+    $resolved = resolve_linked_donation_status($pdo, (int) $donation['id'], (string) ($donation['type'] ?? 'Monetary'));
+    if ($resolved !== $stored) {
+      $pdo->prepare('UPDATE donations SET status = ? WHERE id = ?')->execute([$resolved, (int) $donation['id']]);
+    }
+    return $resolved;
+  } catch (Throwable $e) {
+    return $stored;
+  }
 }
 
 if (!function_exists('record_donation_update')) {

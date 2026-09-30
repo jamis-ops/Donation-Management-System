@@ -112,13 +112,13 @@ function getMonetaryRemainingBalance(donation) {
 
 function canAllocateMonetaryDonation(donation) {
   return donation?.type === 'Monetary'
-    && ['Verified', 'Partially Allocated'].includes(donation.status)
+    && !['Pending Verification', 'Rejected', 'Cancelled'].includes(donation.status)
     && getMonetaryRemainingBalance(donation) > 0.009
 }
 
 function isMonetaryDonationFullyAllocated(donation) {
   return donation?.type === 'Monetary'
-    && (donation.status === 'Allocated' || getMonetaryRemainingBalance(donation) <= 0.009)
+    && getMonetaryRemainingBalance(donation) <= 0.009
 }
 
 export default function DonationsPage() {

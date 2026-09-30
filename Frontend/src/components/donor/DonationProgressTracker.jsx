@@ -26,18 +26,22 @@ const WORKFLOW_STAGES = [
     description: 'Resources are being assigned to beneficiaries',
   },
   {
-    key: 'distribution',
-    label: 'Distribution',
+    key: 'transit',
+    label: 'In Transit',
     icon: Truck,
-    statuses: ['In Transit', 'Out for Delivery', 'Scheduled'],
+    statuses: ['In Transit', 'Out for Delivery'],
     description: 'Your donation is on its way to beneficiaries',
   },
   {
-    key: 'completed',
-    label: 'Completed',
-    icon: Check,
-    statuses: ['Distributed', 'Delivered', 'Completed'],
+    key: 'delivered',
+    label: 'Delivered',
+    icon: MapPin,
+    statuses: ['Distributed', 'Delivered'],
     description: 'Your donation has reached the beneficiaries!',
+  },
+  {
+    key: 'completed', label: 'Completed', icon: Check,
+    statuses: ['Completed'], description: 'The linked delivery has been completed',
   },
 ]
 
@@ -174,6 +178,45 @@ export default function DonationProgressTracker({ donation, donationId }) {
           )
         })}
       </div>
+
+      {(donation?.type === 'Monetary' || donation?.inventoryBalance?.length > 0) && (
+        <div className="donation-tracking-balance">
+          <h4>Remaining Donation Balance</h4>
+          {donation.type === 'Monetary' ? (
+            <div className="donation-tracking-balance__summary">
+              <span>Allocated: <strong>₱{Number(donation.totalUtilized || 0).toLocaleString('en-PH', { minimumFractionDigits: 2 })}</strong></span>
+              <span>Remaining: <strong>₱{Number(donation.remainingBalance || 0).toLocaleString('en-PH', { minimumFractionDigits: 2 })}</strong></span>
+            </div>
+          ) : (
+            <div className="donation-tracking-balance__items">
+              {donation.inventoryBalance.map((item) => (
+                <div key={item.inventoryItemId} className="donation-tracking-balance__item">
+                  <strong>{[item.brand, item.item, item.variant].filter(Boolean).join(' · ')}</strong>
+                  <span>Remaining: {item.remaining} {item.unit} · Allocated: {item.allocated} / {item.received} {item.unit}</span>
+                </div>
+              ))}
+            </div>
+          )}
+          <p>Remaining stock can be assigned to another request and does not hold back delivery progress.</p>
+        </div>
+      )}
+
+      {donation?.relatedProcesses?.length > 0 && (
+        <div className="donation-linked-activity">
+          <h4>Linked Allocation Activity</h4>
+          {donation.relatedProcesses.map((process, index) => (
+            <div className="donation-linked-activity__row" key={`${process.allocationId || 'allocation'}-${index}`}>
+              <div>
+                <strong>{process.allocationCode || `Allocation #${index + 1}`}</strong>
+                <span>{process.requestCode || 'Relief request'} · {process.beneficiaryName || 'Partner barangay'}</span>
+              </div>
+              <span className="donation-linked-activity__status">
+                {process.distributionStatus || process.requestStatus || process.allocationStatus || 'Allocated'}
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
 
       {/* Recent Activity Timeline */}
       {updates.length > 0 && (

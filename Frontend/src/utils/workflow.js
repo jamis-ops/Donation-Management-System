@@ -147,17 +147,18 @@ export function getNextDistributionAction(distribution) {
 export const DONATION_WORKFLOW = [
   'Pending Verification',
   'Verified',
-  'In Inventory',
-  'Partially Allocated',
   'Allocated',
-  'Distributed',
+  'In Transit',
+  'Delivered',
   'Completed',
 ]
 export const DONATION_TERMINAL = ['Completed', 'Rejected', 'Cancelled']
 export const DONATION_BRANCHES = {
   'Pending Verification': ['Rejected', 'Cancelled'],
-  'Verified': ['Partially Allocated', 'Allocated', 'Cancelled'],
-  'Partially Allocated': ['Allocated', 'Cancelled'],
+  'Verified': ['Allocated', 'Cancelled'],
+  'Allocated': ['In Transit', 'Delivered', 'Completed', 'Cancelled'],
+  'In Transit': ['Delivered', 'Completed'],
+  'Delivered': ['Completed'],
 }
 
 // ── 3. Relief / Assistance Requests Workflow ──

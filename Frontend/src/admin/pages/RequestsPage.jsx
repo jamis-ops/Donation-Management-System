@@ -1621,7 +1621,7 @@ export default function RequestsPage() {
     return (donationsData || []).filter(d => 
       d.type === 'Monetary' && 
       Number(d.remainingBalance ?? d.amountRaw ?? 0) > 0 && 
-      d.status !== 'Rejected'
+      !['Pending Verification', 'Rejected', 'Cancelled'].includes(d.status)
     );
   }, [donationsData]);
 

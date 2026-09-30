@@ -1750,12 +1750,14 @@ const WORKFLOW_DISTRIBUTION_ALIASES = [
   'Awaiting Proof' => 'Proof Review',
 ];
 
-const WORKFLOW_DONATION_STEPS = ['Pending Verification', 'Verified', 'In Inventory', 'Partially Allocated', 'Allocated', 'Distributed', 'Completed'];
+const WORKFLOW_DONATION_STEPS = ['Pending Verification', 'Verified', 'Allocated', 'In Transit', 'Delivered', 'Completed'];
 const WORKFLOW_DONATION_TERMINAL = ['Completed', 'Rejected', 'Cancelled'];
 const WORKFLOW_DONATION_BRANCHES = [
   'Pending Verification' => ['Rejected', 'Cancelled'],
-  'Verified' => ['Partially Allocated', 'Allocated', 'Cancelled'],
-  'Partially Allocated' => ['Allocated', 'Cancelled'],
+  'Verified' => ['Allocated', 'Cancelled'],
+  'Allocated' => ['In Transit', 'Delivered', 'Completed', 'Cancelled'],
+  'In Transit' => ['Delivered', 'Completed'],
+  'Delivered' => ['Completed'],
 ];
 
 const WORKFLOW_REQUEST_STEPS = [
@@ -2259,6 +2261,53 @@ function release_donation_inventory_sources(PDO $pdo, int $allocationId, ?int $q
   sync_in_kind_donation_statuses($pdo, $touched);
 }
 
+/** Resolve a donation lifecycle from its linked allocation rows. */
+function resolve_donation_status_from_process_rows(array $rows): string
+{
+  if (!$rows) return 'Verified';
+  $active = [];
+  $hasCompleted = false;
+  foreach ($rows as $row) {
+    $distribution = normalize_distribution_status((string) ($row['distribution_status'] ?? ''));
+    $allocation = trim((string) ($row['allocation_status'] ?? ''));
+    $stage = match (true) {
+      $distribution === 'Completed' => 'Completed',
+      in_array($distribution, ['Delivered', 'Proof Review'], true) => 'Delivered',
+      $distribution === 'In Transit' => 'In Transit',
+      in_array($allocation, ['Delivered', 'Completed'], true) => $allocation === 'Completed' ? 'Completed' : 'Delivered',
+      default => 'Allocated',
+    };
+    if ($stage === 'Completed') $hasCompleted = true;
+    else $active[] = $stage;
+  }
+  if (!$active) return $hasCompleted ? 'Completed' : 'Allocated';
+  $rank = ['Allocated' => 1, 'In Transit' => 2, 'Delivered' => 3];
+  usort($active, static fn($a, $b) => ($rank[$b] ?? 0) <=> ($rank[$a] ?? 0));
+  return $active[0] ?? 'Allocated';
+}
+
+/** Resolve progress from linked batches; remaining stock is balance data only. */
+function resolve_linked_donation_status(PDO $pdo, int $donationId, string $type): string
+{
+  if ($donationId <= 0) return 'Verified';
+  if ($type === 'In-Kind') {
+    $stmt = $pdo->prepare("SELECT a.id allocation_id, a.status allocation_status, d.status distribution_status
+      FROM allocation_donation_sources ads JOIN allocations a ON a.id = ads.allocation_id
+      LEFT JOIN distributions d ON d.id = a.distribution_id
+      WHERE ads.donation_id = ? AND a.status <> 'Cancelled'
+      GROUP BY a.id, a.status, d.status ORDER BY a.id ASC");
+  } else {
+    $stmt = $pdo->prepare("SELECT a.id allocation_id, a.status allocation_status, d.status distribution_status
+      FROM donation_procurements dp LEFT JOIN allocations a ON a.id = dp.allocation_id
+      LEFT JOIN distributions d ON d.id = a.distribution_id
+      WHERE dp.donation_id = ? AND (a.id IS NULL OR a.status <> 'Cancelled')
+      GROUP BY a.id, a.status, d.status, dp.id ORDER BY COALESCE(a.id, dp.id) ASC");
+  }
+  $stmt->execute([$donationId]);
+  $rows = $stmt->fetchAll();
+  return resolve_donation_status_from_process_rows($rows);
+}
+
 function sync_in_kind_donation_statuses(PDO $pdo, array $donationIds): void
 {
   foreach (array_values(array_unique(array_filter(array_map('intval', $donationIds)))) as $donationId) {
@@ -2268,19 +2317,7 @@ function sync_in_kind_donation_statuses(PDO $pdo, array $donationIds): void
       $source = $totals->fetch() ?: [];
       $received = (int) ($source['received'] ?? 0);
       $allocated = (int) ($source['allocated'] ?? 0);
-      $status = $allocated <= 0 ? 'Verified' : ($allocated < $received ? 'Partially Allocated' : 'Allocated');
-      $progress = $pdo->prepare('SELECT d.status FROM allocation_donation_sources ads JOIN allocations a ON a.id = ads.allocation_id LEFT JOIN distributions d ON d.id = a.distribution_id WHERE ads.donation_id = ? AND a.status <> \'Cancelled\'');
-      $progress->execute([$donationId]);
-      $distributionStatuses = $progress->fetchAll(PDO::FETCH_COLUMN);
-      $allCompleted = !empty($distributionStatuses);
-      $allDistributed = !empty($distributionStatuses);
-      foreach ($distributionStatuses as $distributionStatus) {
-        $normalized = normalize_distribution_status((string) $distributionStatus);
-        $allCompleted = $allCompleted && $normalized === 'Completed';
-        $allDistributed = $allDistributed && in_array($normalized, ['In Transit', 'Delivered', 'Completed'], true);
-      }
-      if ($status === 'Allocated' && $allCompleted) $status = 'Completed';
-      elseif ($status === 'Allocated' && $allDistributed) $status = 'Distributed';
+      $status = $allocated <= 0 ? 'Verified' : resolve_linked_donation_status($pdo, $donationId, 'In-Kind');
       $pdo->prepare("UPDATE donations SET status = ? WHERE id = ? AND status NOT IN ('Pending Verification','Rejected','Cancelled')")
         ->execute([$status, $donationId]);
     } catch (Throwable $e) {}
@@ -2303,17 +2340,11 @@ function sync_donations_for_distribution(PDO $pdo, int $distributionId, string $
         sync_in_kind_donation_statuses($pdo, [$donationId]);
         continue;
       }
-      $procStmt = $pdo->prepare('SELECT dp.total_amount, d.status distribution_status FROM donation_procurements dp LEFT JOIN allocations a ON a.id = dp.allocation_id LEFT JOIN distributions d ON d.id = a.distribution_id WHERE dp.donation_id = ?');
+      $procStmt = $pdo->prepare('SELECT dp.total_amount FROM donation_procurements dp WHERE dp.donation_id = ?');
       $procStmt->execute([$donationId]);
       $processes = $procStmt->fetchAll();
       $utilized = array_sum(array_map(static fn($p) => (float) $p['total_amount'], $processes));
-      $remaining = max(0.0, (float) $donation['amount'] - $utilized);
-      $status = $utilized <= 0.009 ? 'Verified' : ($remaining > 0.009 ? 'Partially Allocated' : 'Allocated');
-      if ($status === 'Allocated' && $processes) {
-        $states = array_map(static fn($p) => normalize_distribution_status((string) ($p['distribution_status'] ?? '')), $processes);
-        if (count(array_filter($states, static fn($s) => $s === 'Completed')) === count($states)) $status = 'Completed';
-        elseif (count(array_filter($states, static fn($s) => in_array($s, ['In Transit', 'Delivered', 'Completed'], true))) === count($states)) $status = 'Distributed';
-      }
+      $status = $utilized <= 0.009 ? 'Verified' : resolve_linked_donation_status($pdo, $donationId, 'Monetary');
       $pdo->prepare('UPDATE donations SET status = ? WHERE id = ?')->execute([$status, $donationId]);
     }
   } catch (Throwable $e) {}

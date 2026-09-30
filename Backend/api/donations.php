@@ -84,6 +84,9 @@ function map_donation(array $row, ?PDO $pdo = null): array
   $totalUtilized = 0.0;
   $familiesSupported = 0;
   $relatedProcesses = [];
+  $inventoryBalance = [];
+  $receivedQuantity = 0;
+  $allocatedQuantity = 0;
   if ($pdo) {
     ensure_procurement_table($pdo);
     try {
@@ -143,7 +146,7 @@ function map_donation(array $row, ?PDO $pdo = null): array
 
     if (($row['type'] ?? '') === 'In-Kind') {
       try {
-        $stmt = $pdo->prepare("SELECT DISTINCT ar.id request_id, ar.reference_code request_code, ar.status request_status, a.id allocation_id, a.code allocation_code, a.status allocation_status, d.code distribution_code, d.status distribution_status, b.full_name beneficiary_name FROM allocation_donation_sources ads JOIN allocations a ON a.id = ads.allocation_id LEFT JOIN assistance_requests ar ON ar.id = a.assistance_request_id LEFT JOIN distributions d ON d.id = a.distribution_id LEFT JOIN beneficiaries b ON b.id = a.beneficiary_id WHERE ads.donation_id = ? AND a.status <> 'Cancelled' ORDER BY a.id DESC");
+        $stmt = $pdo->prepare("SELECT ar.id request_id, ar.reference_code request_code, ar.status request_status, a.id allocation_id, a.code allocation_code, a.status allocation_status, d.code distribution_code, d.status distribution_status, b.full_name beneficiary_name, SUM(ads.quantity) source_quantity FROM allocation_donation_sources ads JOIN allocations a ON a.id = ads.allocation_id LEFT JOIN assistance_requests ar ON ar.id = a.assistance_request_id LEFT JOIN distributions d ON d.id = a.distribution_id LEFT JOIN beneficiaries b ON b.id = a.beneficiary_id WHERE ads.donation_id = ? AND a.status <> 'Cancelled' GROUP BY ar.id, ar.reference_code, ar.status, a.id, a.code, a.status, d.code, d.status, b.full_name ORDER BY a.id DESC");
         $stmt->execute([(int) $row['id']]);
         foreach ($stmt->fetchAll() as $p) {
           $relatedProcesses[] = [
@@ -156,6 +159,30 @@ function map_donation(array $row, ?PDO $pdo = null): array
             'distributionCode' => $p['distribution_code'] ?? null,
             'distributionStatus' => $p['distribution_status'] ?? null,
             'beneficiaryName' => $p['beneficiary_name'] ?? null,
+            'quantity' => (int) ($p['source_quantity'] ?? 0),
+          ];
+        }
+      } catch (Throwable $e) {}
+      try {
+        $balances = $pdo->prepare("SELECT dis.inventory_item_id, dis.received_quantity, dis.allocated_quantity,
+          i.item_name, i.brand, i.variant, i.unit
+          FROM donation_inventory_sources dis JOIN inventory_items i ON i.id = dis.inventory_item_id
+          WHERE dis.donation_id = ? ORDER BY dis.id ASC");
+        $balances->execute([(int) $row['id']]);
+        foreach ($balances->fetchAll() as $balance) {
+          $received = (int) $balance['received_quantity'];
+          $allocated = min($received, (int) $balance['allocated_quantity']);
+          $receivedQuantity += $received;
+          $allocatedQuantity += $allocated;
+          $inventoryBalance[] = [
+            'inventoryItemId' => (int) $balance['inventory_item_id'],
+            'item' => $balance['item_name'] ?? 'Donated item',
+            'brand' => $balance['brand'] ?? '',
+            'variant' => $balance['variant'] ?? '',
+            'unit' => $balance['unit'] ?? 'pcs',
+            'received' => $received,
+            'allocated' => $allocated,
+            'remaining' => max(0, $received - $allocated),
           ];
         }
       } catch (Throwable $e) {}
@@ -165,24 +192,12 @@ function map_donation(array $row, ?PDO $pdo = null): array
   $amountRaw = (float) ($row['amount'] ?? 0);
   $remainingAmount = max(0.0, $amountRaw - $totalUtilized);
   $effectiveStatus = (string) ($row['status'] ?? 'Pending Verification');
-  if (!in_array($effectiveStatus, ['Pending Verification', 'Rejected', 'Cancelled'], true)) {
-    if (($row['type'] ?? '') === 'Monetary') {
-      $effectiveStatus = $totalUtilized <= 0.009
-        ? 'Verified'
-        : ($remainingAmount > 0.009 ? 'Partially Allocated' : 'Allocated');
-    }
-    $allCompleted = !empty($relatedProcesses);
-    $allDistributed = !empty($relatedProcesses);
-    foreach ($relatedProcesses as $process) {
-      $workflowStatus = (string) ($process['distributionStatus'] ?? $process['requestStatus'] ?? $process['allocationStatus'] ?? '');
-      $normalized = strtolower(trim($workflowStatus));
-      $allCompleted = $allCompleted && $normalized === 'completed';
-      $allDistributed = $allDistributed && in_array($normalized, ['in transit', 'delivered', 'distributed', 'completed'], true);
-      if ($normalized !== '' && $effectiveStatus === 'Verified') $effectiveStatus = 'Allocated';
-    }
-    if ($effectiveStatus === 'Allocated' && $allCompleted) $effectiveStatus = 'Completed';
-    elseif ($effectiveStatus === 'Allocated' && $allDistributed) $effectiveStatus = 'Distributed';
-    if ($pdo && $effectiveStatus !== ($row['status'] ?? '')) {
+  if ($pdo && !in_array($effectiveStatus, ['Pending Verification', 'Rejected', 'Cancelled'], true)) {
+    $hasAllocation = !empty($relatedProcesses);
+    $effectiveStatus = $hasAllocation
+      ? resolve_linked_donation_status($pdo, (int) $row['id'], (string) ($row['type'] ?? 'Monetary'))
+      : 'Verified';
+    if ($effectiveStatus !== ($row['status'] ?? '')) {
       try {
         $pdo->prepare('UPDATE donations SET status = ? WHERE id = ?')->execute([$effectiveStatus, (int) $row['id']]);
       } catch (Throwable $e) {}
@@ -201,6 +216,10 @@ function map_donation(array $row, ?PDO $pdo = null): array
     'amountRaw' => $amountRaw,
     'totalUtilized' => $totalUtilized,
     'remainingBalance' => $remainingAmount,
+    'inventoryBalance' => $inventoryBalance,
+    'receivedQuantity' => $receivedQuantity,
+    'allocatedQuantity' => $allocatedQuantity,
+    'remainingQuantity' => max(0, $receivedQuantity - $allocatedQuantity),
     'familiesSupported' => $familiesSupported,
     'procurements' => $procurements,
     'relatedProcesses' => $relatedProcesses,
@@ -367,7 +386,7 @@ if ($method === 'POST') {
       if ($donation['type'] !== 'Monetary') {
         throw new Exception('Only monetary donations can be allocated through fund procurement.');
       }
-      if (!in_array($donation['status'], ['Verified', 'Partially Allocated'], true)) {
+      if (in_array($donation['status'], ['Pending Verification', 'Rejected', 'Cancelled'], true)) {
         throw new Exception("Donation cannot be allocated because its current status is {$donation['status']}.");
       }
 
@@ -641,8 +660,9 @@ if ($method === 'POST') {
       ]);
       $procurementId = (int) $pdo->lastInsertId();
 
-      // 6. Update Donation status & remaining balance
-      $newDonationStatus = ($newRemainingBalance <= 0.01) ? 'Allocated' : 'Partially Allocated';
+      // 6. A new allocation is active regardless of the remaining fund balance.
+      // The linked distribution will advance this to In Transit/Delivered/Completed.
+      $newDonationStatus = 'Allocated';
       $pdo->prepare('UPDATE donations SET status = ? WHERE id = ?')->execute([$newDonationStatus, $donationId]);
 
       // 7. Update Relief Request status accurately
