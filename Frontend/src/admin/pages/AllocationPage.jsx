@@ -233,6 +233,80 @@ function requestItemsFrom(request, fallbackGoods = []) {
   return Array.from(byName.values())
 }
 
+const ALLOCATION_STATUS_RANK = {
+  Pending: 0,
+  Reserved: 1,
+  Allocated: 2,
+  Scheduled: 3,
+  'In Distribution': 4,
+  'In Transit': 5,
+  Delivered: 6,
+  Completed: 7,
+  Cancelled: -1,
+}
+
+const ALLOCATION_PRIORITY_RANK = { Low: 0, Medium: 1, High: 2, Critical: 3, Urgent: 4 }
+
+/**
+ * Allocations remain itemized in the database for inventory traceability. This
+ * creates one request-level view model while retaining every underlying row ID.
+ */
+function groupAllocationRecords(rows = []) {
+  const groups = new Map()
+
+  rows.forEach((row) => {
+    const requestKey = row.assistanceRequestId || row.assistanceRequestCode
+    const beneficiaryKey = row.beneficiaryId || String(row.beneficiary || '').toLowerCase().trim()
+    const programKey = String(row.program || '').toLowerCase().trim()
+    const key = requestKey
+      ? `request:${requestKey}|barangay:${beneficiaryKey}|program:${programKey}`
+      : `allocation:${row.dbId || row.id}`
+
+    if (!groups.has(key)) groups.set(key, [])
+    groups.get(key).push(row)
+  })
+
+  return Array.from(groups.entries()).map(([groupKey, items]) => {
+    const first = items[0]
+    const statuses = [...new Set(items.map((item) => item.status).filter(Boolean))]
+    const priorities = items.map((item) => item.priority || 'Low')
+    const distributionIds = [...new Set(items.map((item) => item.distributionId).filter(Boolean))]
+    const activeStatuses = statuses.filter((status) => status !== 'Cancelled')
+    const overallStatus = (activeStatuses.length ? activeStatuses : statuses)
+      .sort((left, right) => (ALLOCATION_STATUS_RANK[right] ?? 0) - (ALLOCATION_STATUS_RANK[left] ?? 0))[0]
+      || first.status
+    const overallPriority = priorities
+      .sort((left, right) => (ALLOCATION_PRIORITY_RANK[right] ?? 0) - (ALLOCATION_PRIORITY_RANK[left] ?? 0))[0]
+      || first.priority
+    const resourceItems = items.map((item) => ({
+      ...item,
+      allocationId: item.dbId,
+      allocationCode: item.id,
+    }))
+
+    return {
+      ...first,
+      dbId: items.length > 1 ? groupKey : first.dbId,
+      groupId: groupKey,
+      grouped: items.length > 1,
+      allocationIds: items.map((item) => item.dbId).filter(Boolean),
+      allocationCodes: items.map((item) => item.id).filter(Boolean),
+      resourceItems,
+      resourceCount: resourceItems.length,
+      resource: resourceItems.map((item) => `${item.resource} × ${item.quantity} ${item.unit || ''}`.trim()).join('; '),
+      quantity: resourceItems.reduce((sum, item) => sum + (Number(item.quantity) || 0), 0),
+      priority: overallPriority,
+      status: overallStatus,
+      statuses,
+      distributionId: distributionIds.length === 1 ? distributionIds[0] : null,
+      distributionIds,
+      inventoryDeducted: resourceItems.every((item) => item.inventoryDeducted),
+      deductedQuantity: resourceItems.reduce((sum, item) => sum + (Number(item.deductedQuantity) || 0), 0),
+      notes: [...new Set(resourceItems.map((item) => item.notes).filter(Boolean))].join('\n'),
+    }
+  })
+}
+
 /** Parse structured notes written by the barangay request form or enriched API fields. */
 function parseRequestDetails(request) {
   if (!request) return null
@@ -1029,21 +1103,21 @@ export default function AllocationPage() {
   const [activeTab, setActiveTab] = useState('active') // 'active' | 'inDistribution' | 'all'
 
   const activeAllocations = useMemo(() => {
-    return (data || []).filter(
+    return groupAllocationRecords((data || []).filter(
       (a) => !['In Distribution', 'Scheduled', 'In Transit', 'Delivered', 'Cancelled'].includes(a.status) && !a.distributionId
-    )
+    ))
   }, [data])
 
   const inDistributionAllocations = useMemo(() => {
-    return (data || []).filter(
+    return groupAllocationRecords((data || []).filter(
       (a) => ['In Distribution', 'Scheduled', 'In Transit'].includes(a.status) || (Boolean(a.distributionId) && !['Delivered', 'Cancelled'].includes(a.status))
-    )
+    ))
   }, [data])
 
   const tabData = useMemo(() => {
     if (activeTab === 'active') return activeAllocations
     if (activeTab === 'inDistribution') return inDistributionAllocations
-    return data || []
+    return groupAllocationRecords(data || [])
   }, [activeTab, activeAllocations, inDistributionAllocations, data])
 
   const [badgeCounts, setBadgeCounts] = useState({})
@@ -1088,7 +1162,11 @@ export default function AllocationPage() {
   const filters = useFilters(tabData, filterConfig)
   const bulk = useBulkSelection(
     filters.filtered,
-    (id) => allocationsApi.remove(id),
+    (id) => {
+      const row = filters.filtered.find((allocation) => String(allocation.dbId) === String(id))
+      const ids = row?.allocationIds?.length ? row.allocationIds : [id]
+      return Promise.all(ids.map((allocationId) => allocationsApi.remove(allocationId)))
+    },
     reload,
     'allocations',
   )
@@ -1549,10 +1627,11 @@ export default function AllocationPage() {
   }
 
   const planDistribution = (rows) => {
-    const list = Array.isArray(rows) ? rows : [rows]
+    const selected = Array.isArray(rows) ? rows : [rows]
+    const list = selected.flatMap((row) => row?.resourceItems?.length ? row.resourceItems : [row])
     const ready = list.filter((r) => ['Reserved', 'Allocated'].includes(r.status) && !r.distributionId)
-    if (!ready.length) {
-      notify.warning('Select Reserved/Allocated items that are not yet linked to a distribution.')
+    if (!ready.length || ready.length !== list.length) {
+      notify.warning('The whole allocation must be Reserved/Allocated and not yet linked to a distribution.')
       return
     }
     const benIds = [...new Set(ready.map((r) => r.beneficiaryId).filter(Boolean))]
@@ -1809,9 +1888,13 @@ export default function AllocationPage() {
 
 
   const handleDelete = async (row) => {
+    const allocationIds = row.allocationIds?.length ? row.allocationIds : [row.dbId]
+    const resourceLabel = row.resourceItems?.length
+      ? `${row.resourceItems.length} allocated resources`
+      : `"${row.resource}"`
     const ok = await confirmAction({
       title: 'Delete Allocation',
-      message: `Permanently delete allocation ${row.id} for "${row.resource}"? This cannot be undone.`,
+      message: `Permanently delete this request allocation and its ${resourceLabel}? This cannot be undone.`,
       confirmText: 'Delete Allocation',
       type: 'danger',
     })
@@ -1819,13 +1902,13 @@ export default function AllocationPage() {
 
     showLoading('Deleting…')
     try {
-      await allocationsApi.remove(row.dbId)
-      notify.success(`Allocation ${row.id} deleted.`)
+      await Promise.all(allocationIds.map((allocationId) => allocationsApi.remove(allocationId)))
+      notify.success(`Allocation ${row.assistanceRequestCode || row.id} deleted.`)
       showSuccessModal('Successfully deleted.')
       reload()
       if (typeof reloadInventory === 'function') reloadInventory()
       notifyBadgesChanged()
-      if (detailRow?.dbId === row.dbId) setDetailRow(null)
+      if (detailRow?.groupId === row.groupId || detailRow?.dbId === row.dbId) setDetailRow(null)
     } catch (err) {
       notify.error(err.message || 'Failed to delete allocation')
     } finally {
@@ -1838,7 +1921,10 @@ export default function AllocationPage() {
     return (requests || []).find((r) => Number(r.dbId) === Number(row.assistanceRequestId))
   }
 
-  const canPlan = (row) => Boolean(row && !row.distributionId && ['Reserved', 'Allocated'].includes(row.status))
+  const canPlan = (row) => Boolean(
+    row && (row.resourceItems?.length ? row.resourceItems : [row])
+      .every((item) => !item.distributionId && ['Reserved', 'Allocated'].includes(item.status))
+  )
 
   const columns = [
     {
