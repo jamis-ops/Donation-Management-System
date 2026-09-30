@@ -822,6 +822,24 @@
   vertical-align: middle;
 }
 
+.inv-stock-quantity {
+  white-space: nowrap;
+}
+
+.inv-deducted-indicator {
+  display: inline-flex;
+  margin-top: 0.25rem;
+  padding: 0.15rem 0.45rem;
+  border: 1px solid #fed7aa;
+  border-radius: 999px;
+  background: #fff7ed;
+  color: #9a3412;
+  font-size: 0.68rem;
+  font-weight: 600;
+  line-height: 1.2;
+  white-space: nowrap;
+}
+
 .inv-table-row:hover {
   background-color: #f8fafc;
 }

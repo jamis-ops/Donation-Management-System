@@ -588,11 +588,11 @@ if ($method === 'POST') {
               $invCheck->execute([$itemName]);
               $existingInvId = (int) $invCheck->fetchColumn();
               if ($existingInvId > 0) {
-                $pdo->prepare('UPDATE inventory_items SET quantity = quantity + ? WHERE id = ?')->execute([$itemQty, $existingInvId]);
+                $pdo->prepare('UPDATE inventory_items SET quantity = quantity + ?, total_quantity = total_quantity + ? WHERE id = ?')->execute([$itemQty, $itemQty, $existingInvId]);
               } else {
                 $itemCode = generate_code('INV');
-                $pdo->prepare('INSERT INTO inventory_items (code, item_name, category, quantity, unit, low_stock_threshold, stock_state) VALUES (?, ?, ?, ?, ?, ?, ?)')
-                  ->execute([$itemCode, $itemName, $donation['category'] ?: 'Relief Goods', $itemQty, $itemUnit, 10, 'Available']);
+                $pdo->prepare('INSERT INTO inventory_items (code, item_name, category, quantity, total_quantity, unit, low_stock_threshold, stock_state) VALUES (?, ?, ?, ?, ?, ?, ?, ?)')
+                  ->execute([$itemCode, $itemName, $donation['category'] ?: 'Relief Goods', $itemQty, $itemQty, $itemUnit, 10, 'Available']);
               }
             } catch (Throwable $e) {}
           }
@@ -1048,7 +1048,7 @@ if ($method === 'PUT') {
       $itemSummaryList[] = "{$qty} {$unit} {$itemName}";
 
       $findStmt = $pdo->prepare('
-        SELECT id, quantity FROM inventory_items
+        SELECT id, quantity, total_quantity, allocated FROM inventory_items
         WHERE LOWER(TRIM(item_name)) = LOWER(TRIM(?))
         LIMIT 1
       ');
@@ -1057,14 +1057,16 @@ if ($method === 'PUT') {
 
       if ($invRow) {
         update_inventory_stock_state($pdo, (int) $invRow['id'], (int) $invRow['quantity'] + $qty, (int) ($invRow['allocated'] ?? 0), 'Available');
+        $pdo->prepare('UPDATE inventory_items SET total_quantity = COALESCE(total_quantity, 0) + ? WHERE id = ?')
+          ->execute([$qty, (int) $invRow['id']]);
         $inventoryItemId = (int) $invRow['id'];
       } else {
         try {
           $insertInv = $pdo->prepare('
             INSERT INTO inventory_items (
               code, item_name, category, item_type, brand, variant, 
-              quantity, unit, stock_state, low_stock_threshold
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, \'Available\', ?)
+              quantity, total_quantity, unit, stock_state, low_stock_threshold
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, \'Available\', ?)
           ');
           $insertInv->execute([
             generate_code('INV'),
@@ -1073,6 +1075,7 @@ if ($method === 'PUT') {
             $itemType,
             $brand,
             $variant,
+            $qty,
             $qty,
             $unit,
             $lowStock
@@ -1083,8 +1086,8 @@ if ($method === 'PUT') {
             $insertInv = $pdo->prepare('
               INSERT INTO inventory_items (
                 code, item_name, category, item_type, brand, variant, 
-                quantity, unit, low_stock_threshold
-              ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                quantity, total_quantity, unit, low_stock_threshold
+              ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ');
             $insertInv->execute([
               generate_code('INV'),
@@ -1093,6 +1096,7 @@ if ($method === 'PUT') {
               $itemType,
               $brand,
               $variant,
+              $qty,
               $qty,
               $unit,
               $lowStock

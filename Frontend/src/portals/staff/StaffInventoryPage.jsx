@@ -114,6 +114,8 @@ export default function StaffInventoryPage() {
       { key: 'item', label: 'Item Name', exportValue: (i) => i.item || '—' },
       { key: 'category', label: 'Category' },
       { key: 'currentStock', label: 'Current Stock', exportValue: (i) => `${i.currentStock ?? i.quantity ?? 0} ${i.unit || 'units'}`.trim() },
+      { key: 'totalQuantity', label: 'Total Received', exportValue: (i) => `${i.totalQuantity ?? i.quantity ?? 0} ${i.unit || 'units'}`.trim() },
+      { key: 'deductedQuantity', label: 'Allocated / Deducted', exportValue: (i) => `${i.deductedQuantity ?? 0} ${i.unit || 'units'}`.trim() },
       { key: 'minStock', label: 'Min Level', exportValue: (i) => i.minStock ?? i.lowStockThreshold ?? 0 },
       { key: 'maxStock', label: 'Max Level', exportValue: (i) => i.maxStock ?? 0 },
       { key: 'reorderAmount', label: 'Reorder Amount', exportValue: (i) => `${i.reorderAmount ?? 0} ${i.unit || 'units'}` },
@@ -186,6 +188,8 @@ export default function StaffInventoryPage() {
     try {
       const res = await inventoryApi.update(selectedItem.dbId, {
         quantity: newStock,
+        stockAction,
+        stockAmount: amount,
         notes: stockNotes || undefined,
       })
       showSuccessModal(`Stock successfully updated to ${newStock} ${selectedItem.unit || 'units'}.`)
@@ -382,6 +386,8 @@ export default function StaffInventoryPage() {
                   const min = Number(item.minStock ?? item.lowStockThreshold ?? 10)
                   const max = Number(item.maxStock ?? min * 4 ?? 100)
                   const unit = item.unit || 'pcs'
+                  const totalQty = Math.max(qty, Number(item.totalQuantity ?? qty))
+                  const deductedQty = Math.max(0, Number(item.deductedQuantity ?? (totalQty - qty)))
                   const stockPercentage = Math.min(100, Math.round((qty / (max || 1)) * 100))
                   const needsReorder = qty <= min
                   const reorderAmount = Number(item.reorderAmount) > 0 ? item.reorderAmount : Math.max(10, min * 2 - qty)
@@ -432,11 +438,15 @@ export default function StaffInventoryPage() {
                         <div style={{ marginBottom: '0.85rem' }}>
                           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: '0.35rem' }}>
                             <span style={{ fontSize: '1.45rem', fontWeight: 800, color: '#0f172a' }}>
-                              {qty.toLocaleString()} <span style={{ fontSize: '0.95rem', fontWeight: 500, color: '#64748b' }}>{unit}</span>
+                              {qty.toLocaleString()} <span style={{ fontSize: '0.95rem', fontWeight: 500, color: '#64748b' }}>{unit} available</span>
                             </span>
                             <span style={{ fontSize: '0.76rem', color: '#64748b' }}>
                               Min: {min} • Max: {max}
                             </span>
+                          </div>
+                          <div style={{ display: 'flex', gap: '0.45rem', flexWrap: 'wrap', marginTop: '0.45rem', fontSize: '0.74rem' }}>
+                            <span style={{ color: '#475569', fontWeight: 600 }}>Total: {totalQty.toLocaleString()} {unit}</span>
+                            {deductedQty > 0 && <span className="inv-deducted-indicator">{deductedQty.toLocaleString()} {unit} allocated/deducted</span>}
                           </div>
                           <div style={{ width: '100%', height: '7px', background: '#e2e8f0', borderRadius: '999px', overflow: 'hidden' }}>
                             <div
@@ -569,11 +579,23 @@ export default function StaffInventoryPage() {
                 <h4 style={{ margin: '0 0 0.65rem', fontSize: '0.85rem', textTransform: 'uppercase', color: '#475569', fontWeight: 700 }}>
                   Stock Information
                 </h4>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem', fontSize: '0.85rem' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: '0.75rem', fontSize: '0.85rem' }}>
                   <div>
-                    <span style={{ fontSize: '0.72rem', color: '#64748b', display: 'block' }}>CURRENT STOCK</span>
+                    <span style={{ fontSize: '0.72rem', color: '#64748b', display: 'block' }}>AVAILABLE</span>
                     <strong style={{ fontSize: '1.1rem', color: '#0f172a' }}>
                       {Number(selectedItem.currentStock ?? selectedItem.quantity ?? 0).toLocaleString()} {selectedItem.unit || 'pcs'}
+                    </strong>
+                  </div>
+                  <div>
+                    <span style={{ fontSize: '0.72rem', color: '#64748b', display: 'block' }}>TOTAL RECEIVED</span>
+                    <strong style={{ fontSize: '1.1rem', color: '#0f172a' }}>
+                      {Number(selectedItem.totalQuantity ?? selectedItem.quantity ?? 0).toLocaleString()} {selectedItem.unit || 'pcs'}
+                    </strong>
+                  </div>
+                  <div>
+                    <span style={{ fontSize: '0.72rem', color: '#9a3412', display: 'block' }}>ALLOCATED / DEDUCTED</span>
+                    <strong style={{ fontSize: '1.1rem', color: '#c2410c' }}>
+                      {Number(selectedItem.deductedQuantity ?? 0).toLocaleString()} {selectedItem.unit || 'pcs'}
                     </strong>
                   </div>
                   <div>

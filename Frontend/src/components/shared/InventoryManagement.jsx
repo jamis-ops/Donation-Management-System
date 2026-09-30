@@ -461,13 +461,21 @@ export default function InventoryManagement() {
     },
     {
       key: 'stock',
-      label: 'Stock Level',
+      label: 'Available Stock',
       render: (row) => (
         <StockLevelBar level={row.stockLevel} percent={row.stockPercent} quantity={row.quantity} unit={row.unit} />
       ),
     },
-    { key: 'available', label: 'Available' },
-    { key: 'allocated', label: 'Allocated' },
+    { key: 'totalQuantity', label: 'Total Received', render: (row) => <span><strong>{row.totalQuantity ?? row.quantity}</strong> {row.unit}</span> },
+    {
+      key: 'deductedQuantity',
+      label: 'Allocated / Deducted',
+      render: (row) => (
+        <span className={Number(row.deductedQuantity) > 0 ? 'inv-deducted-indicator' : 'text-muted'}>
+          {row.deductedQuantity || 0} {row.unit}
+        </span>
+      ),
+    },
     { key: 'distributed', label: 'Distributed' },
     { key: 'status', label: 'Status', render: (row) => <StatusBadge status={row.status} level={row.stockLevel} /> },
     {
@@ -878,7 +886,7 @@ export default function InventoryManagement() {
                   </div>
                   <div style={{ fontSize: '1.25rem', fontWeight: 700, color: '#0f172a', marginTop: '2px' }}>
                     <span style={{ color: '#AF101A' }}>{viewDetailItem.available ?? viewDetailItem.quantity}</span>
-                    <span style={{ color: '#94a3b8', fontSize: '0.95rem' }}> / {viewDetailItem.quantity} {viewDetailItem.unit}</span>
+                    <span style={{ color: '#94a3b8', fontSize: '0.95rem' }}> / {viewDetailItem.totalQuantity ?? viewDetailItem.quantity} {viewDetailItem.unit}</span>
                   </div>
                 </div>
               </div>
@@ -908,23 +916,29 @@ export default function InventoryManagement() {
                 <div style={{ fontSize: '0.85rem', fontWeight: 700, color: '#1e293b', marginBottom: '0.75rem', display: 'flex', alignItems: 'center', gap: '6px' }}>
                   <Package size={15} color="#AF101A" /> Stock Breakdown
                 </div>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '0.75rem', textAlign: 'center' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(105px, 1fr))', gap: '0.75rem', textAlign: 'center' }}>
                   <div style={{ padding: '0.5rem', background: '#f8fafc', borderRadius: '6px' }}>
                     <div style={{ fontSize: '0.72rem', color: '#64748b', fontWeight: 600 }}>Available</div>
                     <div style={{ fontSize: '1.1rem', fontWeight: 700, color: '#16a34a', marginTop: '2px' }}>
-                      {viewDetailItem.available ?? viewDetailItem.quantity}
+                      {viewDetailItem.available ?? viewDetailItem.quantity} {viewDetailItem.unit}
                     </div>
                   </div>
                   <div style={{ padding: '0.5rem', background: '#f8fafc', borderRadius: '6px' }}>
-                    <div style={{ fontSize: '0.72rem', color: '#64748b', fontWeight: 600 }}>Allocated</div>
+                    <div style={{ fontSize: '0.72rem', color: '#64748b', fontWeight: 600 }}>Total Received</div>
                     <div style={{ fontSize: '1.1rem', fontWeight: 700, color: '#d97706', marginTop: '2px' }}>
-                      {viewDetailItem.allocated || 0}
+                      {viewDetailItem.totalQuantity ?? viewDetailItem.quantity} {viewDetailItem.unit}
+                    </div>
+                  </div>
+                  <div style={{ padding: '0.5rem', background: '#fff7ed', borderRadius: '6px' }}>
+                    <div style={{ fontSize: '0.72rem', color: '#9a3412', fontWeight: 600 }}>Allocated / Deducted</div>
+                    <div style={{ fontSize: '1.1rem', fontWeight: 700, color: '#c2410c', marginTop: '2px' }}>
+                      {viewDetailItem.deductedQuantity || 0} {viewDetailItem.unit}
                     </div>
                   </div>
                   <div style={{ padding: '0.5rem', background: '#f8fafc', borderRadius: '6px' }}>
                     <div style={{ fontSize: '0.72rem', color: '#64748b', fontWeight: 600 }}>Distributed</div>
                     <div style={{ fontSize: '1.1rem', fontWeight: 700, color: '#2563eb', marginTop: '2px' }}>
-                      {viewDetailItem.distributed || 0}
+                      {viewDetailItem.distributed || 0} {viewDetailItem.unit}
                     </div>
                   </div>
                 </div>

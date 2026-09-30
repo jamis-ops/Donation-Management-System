@@ -1102,32 +1102,34 @@ function post_donation_to_inventory_packs(PDO $pdo, array $donationRow): void
   $row = $find->fetch();
   if ($row) {
     try {
-      $pdo->prepare("UPDATE inventory_items SET quantity = quantity + ?, unit = 'packs', stock_state = 'Available' WHERE id = ?")
-        ->execute([$qty, (int) $row['id']]);
+      $pdo->prepare("UPDATE inventory_items SET quantity = quantity + ?, total_quantity = total_quantity + ?, unit = 'packs', stock_state = 'Available' WHERE id = ?")
+        ->execute([$qty, $qty, (int) $row['id']]);
     } catch (PDOException $e) {
       if (str_contains($e->getMessage(), 'stock_state') || $e->getCode() === '42S22' || str_contains((string) $e->getCode(), '1054')) {
-        $pdo->prepare("UPDATE inventory_items SET quantity = quantity + ?, unit = 'packs' WHERE id = ?")
-          ->execute([$qty, (int) $row['id']]);
+        $pdo->prepare("UPDATE inventory_items SET quantity = quantity + ?, total_quantity = total_quantity + ?, unit = 'packs' WHERE id = ?")
+          ->execute([$qty, $qty, (int) $row['id']]);
       } else {
         throw $e;
       }
     }
   } else {
     try {
-      $pdo->prepare("INSERT INTO inventory_items (code, item_name, category, quantity, unit, stock_state, low_stock_threshold) VALUES (?, ?, ?, ?, 'packs', 'Available', 10)")
+      $pdo->prepare("INSERT INTO inventory_items (code, item_name, category, quantity, total_quantity, unit, stock_state, low_stock_threshold) VALUES (?, ?, ?, ?, ?, 'packs', 'Available', 10)")
         ->execute([
           generate_code('INV'),
           $itemName,
           trim((string) ($donationRow['category'] ?? 'Donated Goods')) ?: 'Donated Goods',
           $qty,
+          $qty,
         ]);
     } catch (PDOException $e) {
       if (str_contains($e->getMessage(), 'stock_state') || $e->getCode() === '42S22' || str_contains((string) $e->getCode(), '1054')) {
-        $pdo->prepare("INSERT INTO inventory_items (code, item_name, category, quantity, unit, low_stock_threshold) VALUES (?, ?, ?, ?, 'packs', 10)")
+        $pdo->prepare("INSERT INTO inventory_items (code, item_name, category, quantity, total_quantity, unit, low_stock_threshold) VALUES (?, ?, ?, ?, ?, 'packs', 10)")
           ->execute([
             generate_code('INV'),
             $itemName,
             trim((string) ($donationRow['category'] ?? 'Donated Goods')) ?: 'Donated Goods',
+            $qty,
             $qty,
           ]);
       } else {
@@ -2098,6 +2100,26 @@ function ensure_allocation_inventory_schema(PDO $pdo): void
   try {
     $pdo->exec("ALTER TABLE inventory_items ADD COLUMN moderate_stock_threshold INT UNSIGNED NULL AFTER low_stock_threshold");
   } catch (Throwable $e) {}
+  try {
+    $pdo->exec("ALTER TABLE inventory_items ADD COLUMN total_quantity INT UNSIGNED NOT NULL DEFAULT 0 AFTER quantity");
+  } catch (Throwable $e) {}
+  try {
+    $pdo->exec("ALTER TABLE inventory_items MODIFY COLUMN total_quantity INT UNSIGNED NOT NULL DEFAULT 0");
+  } catch (Throwable $e) {}
+
+  // `quantity` is the available balance. Preserve a separate received-stock
+  // baseline for legacy rows using every stock bucket we can still account for.
+  try {
+    $pdo->exec("
+      UPDATE inventory_items
+      SET total_quantity = GREATEST(
+        COALESCE(total_quantity, 0),
+        COALESCE(quantity, 0) + COALESCE(allocated, 0) + COALESCE(distributed, 0)
+      )
+      WHERE total_quantity IS NULL
+         OR total_quantity < COALESCE(quantity, 0) + COALESCE(allocated, 0) + COALESCE(distributed, 0)
+    ");
+  } catch (Throwable $e) {}
 
   try {
     $pdo->exec("ALTER TABLE allocations ADD COLUMN inventory_item_id BIGINT UNSIGNED NULL AFTER beneficiary_id");
@@ -2147,11 +2169,11 @@ function ensure_allocation_inventory_schema(PDO $pdo): void
         INDEX idx_ref_code (reference_code)
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
     ");
-  } catch (Throwable $e) {}
-
-  // Normalize legacy inventory rows where allocated > quantity
-  try {
-    $pdo->exec("UPDATE inventory_items SET allocated = quantity WHERE allocated > quantity");
+    $transactionTypeColumn = $pdo->query("SHOW COLUMNS FROM inventory_transactions LIKE 'transaction_type'")->fetch(PDO::FETCH_ASSOC);
+    $transactionType = strtolower((string) ($transactionTypeColumn['Type'] ?? ''));
+    if (!str_contains($transactionType, "'intake'") || !str_contains($transactionType, "'repacking'")) {
+      $pdo->exec("ALTER TABLE inventory_transactions MODIFY COLUMN transaction_type ENUM('Intake','Allocation','Restoration','Distribution','Adjustment','Repacking') NOT NULL");
+    }
   } catch (Throwable $e) {}
 
   // Preserve which verified in-kind donation supplied stock. Inventory remains
@@ -2316,6 +2338,37 @@ function update_inventory_stock_state(PDO $pdo, int $itemId, int $quantity, int 
       throw $e;
     }
   }
+}
+
+/** Record one auditable inventory movement without changing stock. */
+function record_inventory_transaction(
+  PDO $pdo,
+  int $inventoryItemId,
+  string $type,
+  int $quantity,
+  int $balanceAfter,
+  ?string $referenceCode = null,
+  ?string $destination = null,
+  ?string $notes = null
+): void {
+  if ($inventoryItemId <= 0 || $quantity <= 0) return;
+  $allowed = ['Intake', 'Allocation', 'Restoration', 'Distribution', 'Adjustment', 'Repacking'];
+  $safeType = in_array($type, $allowed, true) ? $type : 'Adjustment';
+  $stmt = $pdo->prepare('
+    INSERT INTO inventory_transactions (
+      inventory_item_id, transaction_type, quantity, balance_after,
+      reference_code, destination, notes
+    ) VALUES (?, ?, ?, ?, ?, ?, ?)
+  ');
+  $stmt->execute([
+    $inventoryItemId,
+    $safeType,
+    $quantity,
+    $balanceAfter,
+    $referenceCode,
+    $destination,
+    $notes,
+  ]);
 }
 
 

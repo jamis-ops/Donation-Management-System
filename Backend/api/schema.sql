@@ -215,6 +215,7 @@ CREATE TABLE IF NOT EXISTS inventory_items (
   brand VARCHAR(80) NULL,
   variant VARCHAR(100) NULL,
   quantity INT UNSIGNED NOT NULL DEFAULT 0,
+  total_quantity INT UNSIGNED NOT NULL DEFAULT 0,
   unit VARCHAR(30) NOT NULL DEFAULT 'units',
   stock_state VARCHAR(40) NOT NULL DEFAULT 'Available',
   low_stock_threshold INT UNSIGNED NOT NULL DEFAULT 100,
@@ -223,6 +224,22 @@ CREATE TABLE IF NOT EXISTS inventory_items (
   distributed INT UNSIGNED NOT NULL DEFAULT 0,
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- Every allocation, restoration, distribution, and manual/repacking
+-- adjustment is recorded here so the remaining balance is traceable.
+CREATE TABLE IF NOT EXISTS inventory_transactions (
+  id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  inventory_item_id BIGINT UNSIGNED NOT NULL,
+  transaction_type ENUM('Intake','Allocation','Restoration','Distribution','Adjustment','Repacking') NOT NULL,
+  quantity INT NOT NULL,
+  balance_after INT NOT NULL,
+  reference_code VARCHAR(50) NULL,
+  destination VARCHAR(180) NULL,
+  notes TEXT NULL,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  INDEX idx_inv_item (inventory_item_id),
+  INDEX idx_ref_code (reference_code)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- ---------- REPACKING ----------

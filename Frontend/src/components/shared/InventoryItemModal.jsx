@@ -655,7 +655,7 @@ export default function InventoryItemModal({
             <div className="form-row form-row--2">
               <label>
                 <span className="form-label-with-icon">
-                  <span className="form-label-title">Stock Quantity</span>
+                  <span className="form-label-title">{isEditing ? 'Available Quantity' : 'Initial Quantity Received'}</span>
                   <span className="text-red-600 font-bold ml-0.5">*</span>
                 </span>
                 <input
@@ -666,6 +666,11 @@ export default function InventoryItemModal({
                   onChange={(e) => setQuantity(e.target.value)}
                   className="form-input-enhanced"
                 />
+                {isEditing && (
+                  <span className="field-hint-inline">
+                    Original total received: {initialData?.totalQuantity ?? initialData?.quantity ?? 0} {initialData?.unit || unit}
+                  </span>
+                )}
               </label>
 
               {!isCustomUnit ? (
@@ -762,22 +767,24 @@ export default function InventoryItemModal({
             {isEditing && (
               <div className="form-row form-row--2 mt-2 pt-2 border-t border-gray-100">
                 <label>
-                  <span>Allocated Stock</span>
+                  <span>Currently Allocated (System-Controlled)</span>
                   <input
                     type="number"
                     min="0"
                     value={allocated}
-                    onChange={(e) => setAllocated(e.target.value)}
+                    readOnly
+                    disabled
                     className="form-input-enhanced"
                   />
                 </label>
                 <label>
-                  <span>Distributed Stock</span>
+                  <span>Distributed Stock (System-Controlled)</span>
                   <input
                     type="number"
                     min="0"
                     value={distributed}
-                    onChange={(e) => setDistributed(e.target.value)}
+                    readOnly
+                    disabled
                     className="form-input-enhanced"
                   />
                 </label>

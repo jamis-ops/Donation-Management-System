@@ -30,6 +30,10 @@ import {
 import StatusBadge from '../../admin/components/shared/StatusBadge'
 import ModalHeader from '../../admin/components/shared/ModalHeader'
 
+const availableQuantity = (item) => Number(item?.available ?? item?.currentStock ?? item?.quantity ?? 0)
+const totalQuantity = (item) => Math.max(availableQuantity(item), Number(item?.totalQuantity ?? item?.quantity ?? 0))
+const deductedQuantity = (item) => Math.max(0, Number(item?.deductedQuantity ?? (totalQuantity(item) - availableQuantity(item))))
+
 // Enhanced Category Theme definition with colors, backgrounds, borders, gradients, and vibrant SVG icons
 export function getCategoryTheme(catName = '') {
   const c = (catName || '').toLowerCase().trim()
@@ -215,13 +219,15 @@ export default function InventoryCategoryExplorer({
           name: cat,
           items: [],
           totalQuantity: 0,
+          availableQuantity: 0,
           lowStockCount: 0,
           itemTypeSet: new Set(),
         })
       }
       const group = map.get(cat)
       group.items.push(item)
-      group.totalQuantity += Number(item.quantity) || 0
+      group.totalQuantity += totalQuantity(item)
+      group.availableQuantity += availableQuantity(item)
       if (item.stockLevel === 'low' || item.status === 'Low Stock' || item.status === 'Low') {
         group.lowStockCount += 1
       }
@@ -246,6 +252,7 @@ export default function InventoryCategoryExplorer({
         name: selectedCategory,
         items: [],
         totalQuantity: 0,
+        availableQuantity: 0,
         lowStockCount: 0,
         itemTypeSet: new Set(),
       }
@@ -268,13 +275,15 @@ export default function InventoryCategoryExplorer({
           name: type,
           items: [],
           totalQuantity: 0,
+          availableQuantity: 0,
           lowStockCount: 0,
           brandSet: new Set(),
         })
       }
       const g = map.get(type)
       g.items.push(item)
-      g.totalQuantity += Number(item.quantity) || 0
+      g.totalQuantity += totalQuantity(item)
+      g.availableQuantity += availableQuantity(item)
       if (item.stockLevel === 'low' || item.status === 'Low Stock' || item.status === 'Low') {
         g.lowStockCount += 1
       }
@@ -483,9 +492,9 @@ export default function InventoryCategoryExplorer({
                     </div>
 
                     <div className="inv-cat-card__stock-tag">
-                      <span className="inv-cat-card__stock-label">Total In Stock:</span>
+                      <span className="inv-cat-card__stock-label">Available / Total:</span>
                       <strong className="inv-cat-card__stock-val" style={{ color: theme.primary }}>
-                        {cat.totalQuantity.toLocaleString()}
+                        {cat.availableQuantity.toLocaleString()} / {cat.totalQuantity.toLocaleString()}
                       </strong>
                       <span className="inv-cat-card__stock-unit">units</span>
                     </div>
@@ -557,7 +566,7 @@ export default function InventoryCategoryExplorer({
                   </div>
                   <div className="inv-stat-pill inv-stat-pill--stock">
                     <span className="inv-stat-dot" style={{ backgroundColor: currentTheme.primary }} />
-                    <span><strong>{currentCategoryData.totalQuantity.toLocaleString()}</strong> Units In Stock</span>
+                    <span><strong>{currentCategoryData.availableQuantity.toLocaleString()}</strong> / {currentCategoryData.totalQuantity.toLocaleString()} Units Available</span>
                   </div>
                   {currentCategoryData.lowStockCount > 0 && (
                     <div className="inv-stat-pill inv-stat-pill--alert">
@@ -682,8 +691,13 @@ export default function InventoryCategoryExplorer({
                           )}
                         </td>
                         <td>
-                          <strong style={{ color: currentTheme.primary }}>{item.quantity}</strong>{' '}
-                          <span className="text-muted text-xs">{item.unit}</span>
+                          <div className="inv-stock-quantity">
+                            <strong style={{ color: currentTheme.primary }}>{availableQuantity(item)}</strong>
+                            <span className="text-xs text-gray-400"> / {totalQuantity(item)} {item.unit}</span>
+                          </div>
+                          {deductedQuantity(item) > 0 && (
+                            <span className="inv-deducted-indicator">{deductedQuantity(item)} {item.unit} allocated/deducted</span>
+                          )}
                         </td>
                         <td>
                           <StatusBadge status={item.status} level={item.stockLevel} />
@@ -806,9 +820,9 @@ export default function InventoryCategoryExplorer({
                         }}
                       >
                         <div className="inv-type-card__stock-num">
-                          <span className="inv-type-card__qty-label">Total Quantity</span>
+                          <span className="inv-type-card__qty-label">Available / Total</span>
                           <div className="inv-type-card__big-qty" style={{ color: currentTheme.primary }}>
-                            {g.totalQuantity.toLocaleString()}
+                            {g.availableQuantity.toLocaleString()} / {g.totalQuantity.toLocaleString()}
                           </div>
                         </div>
                         <div className="inv-type-card__var-badge">
@@ -918,8 +932,8 @@ export default function InventoryCategoryExplorer({
                     <span className="inv-stat-dot" style={{ backgroundColor: currentTheme.primary }} />
                     <span>
                       <strong>
-                        {visibleItems.reduce((acc, curr) => acc + (Number(curr.quantity) || 0), 0).toLocaleString()}
-                      </strong> Units Total
+                        {visibleItems.reduce((acc, curr) => acc + availableQuantity(curr), 0).toLocaleString()}
+                      </strong> / {visibleItems.reduce((acc, curr) => acc + totalQuantity(curr), 0).toLocaleString()} Units Available
                     </span>
                   </div>
                 </div>
@@ -1033,8 +1047,13 @@ export default function InventoryCategoryExplorer({
                         )}
                       </td>
                       <td>
-                        <strong style={{ color: currentTheme.primary }}>{item.available ?? item.quantity}</strong>
-                        <span className="text-xs text-gray-400"> / {item.quantity}</span>
+                        <div className="inv-stock-quantity">
+                          <strong style={{ color: currentTheme.primary }}>{availableQuantity(item)}</strong>
+                          <span className="text-xs text-gray-400"> / {totalQuantity(item)}</span>
+                        </div>
+                        {deductedQuantity(item) > 0 && (
+                          <span className="inv-deducted-indicator">{deductedQuantity(item)} {item.unit} allocated/deducted</span>
+                        )}
                       </td>
                       <td>{item.unit}</td>
                       <td>
@@ -1114,8 +1133,8 @@ export default function InventoryCategoryExplorer({
                     Available / Total
                   </div>
                   <div style={{ fontSize: '1.25rem', fontWeight: 700, color: '#0f172a', marginTop: '2px' }}>
-                    <span style={{ color: '#AF101A' }}>{detailItem.available ?? detailItem.quantity}</span>
-                    <span style={{ color: '#94a3b8', fontSize: '0.95rem' }}> / {detailItem.quantity} {detailItem.unit}</span>
+                    <span style={{ color: '#AF101A' }}>{availableQuantity(detailItem)}</span>
+                    <span style={{ color: '#94a3b8', fontSize: '0.95rem' }}> / {totalQuantity(detailItem)} {detailItem.unit}</span>
                   </div>
                 </div>
               </div>
@@ -1145,23 +1164,29 @@ export default function InventoryCategoryExplorer({
                 <div style={{ fontSize: '0.85rem', fontWeight: 700, color: '#1e293b', marginBottom: '0.75rem', display: 'flex', alignItems: 'center', gap: '6px' }}>
                   <Package size={15} color="#AF101A" /> Stock Breakdown
                 </div>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '0.75rem', textAlign: 'center' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(105px, 1fr))', gap: '0.75rem', textAlign: 'center' }}>
                   <div style={{ padding: '0.5rem', background: '#f8fafc', borderRadius: '6px' }}>
                     <div style={{ fontSize: '0.72rem', color: '#64748b', fontWeight: 600 }}>Available</div>
                     <div style={{ fontSize: '1.1rem', fontWeight: 700, color: '#16a34a', marginTop: '2px' }}>
-                      {detailItem.available ?? detailItem.quantity}
+                      {availableQuantity(detailItem)} {detailItem.unit}
                     </div>
                   </div>
                   <div style={{ padding: '0.5rem', background: '#f8fafc', borderRadius: '6px' }}>
-                    <div style={{ fontSize: '0.72rem', color: '#64748b', fontWeight: 600 }}>Allocated</div>
+                    <div style={{ fontSize: '0.72rem', color: '#64748b', fontWeight: 600 }}>Total Received</div>
                     <div style={{ fontSize: '1.1rem', fontWeight: 700, color: '#d97706', marginTop: '2px' }}>
-                      {detailItem.allocated || 0}
+                      {totalQuantity(detailItem)} {detailItem.unit}
+                    </div>
+                  </div>
+                  <div style={{ padding: '0.5rem', background: '#fff7ed', borderRadius: '6px' }}>
+                    <div style={{ fontSize: '0.72rem', color: '#9a3412', fontWeight: 600 }}>Allocated / Deducted</div>
+                    <div style={{ fontSize: '1.1rem', fontWeight: 700, color: '#c2410c', marginTop: '2px' }}>
+                      {deductedQuantity(detailItem)} {detailItem.unit}
                     </div>
                   </div>
                   <div style={{ padding: '0.5rem', background: '#f8fafc', borderRadius: '6px' }}>
                     <div style={{ fontSize: '0.72rem', color: '#64748b', fontWeight: 600 }}>Distributed</div>
                     <div style={{ fontSize: '1.1rem', fontWeight: 700, color: '#2563eb', marginTop: '2px' }}>
-                      {detailItem.distributed || 0}
+                      {detailItem.distributed || 0} {detailItem.unit}
                     </div>
                   </div>
                 </div>

@@ -160,6 +160,9 @@ try {
   addColumn($pdo, 'distributions', 'proof_status', "ENUM('Not Required','Awaiting Proof','Proof Submitted','Proof Verified') NOT NULL DEFAULT 'Not Required' AFTER notes");
 
   addColumn($pdo, 'inventory_items', 'moderate_stock_threshold', 'INT UNSIGNED NULL AFTER low_stock_threshold');
+  addColumn($pdo, 'inventory_items', 'total_quantity', 'INT UNSIGNED NOT NULL DEFAULT 0 AFTER quantity');
+  $pdo->exec('UPDATE inventory_items SET total_quantity = GREATEST(COALESCE(total_quantity, 0), COALESCE(quantity, 0) + COALESCE(allocated, 0) + COALESCE(distributed, 0)) WHERE total_quantity IS NULL OR total_quantity < COALESCE(quantity, 0) + COALESCE(allocated, 0) + COALESCE(distributed, 0)');
+  $pdo->exec('ALTER TABLE inventory_items MODIFY COLUMN total_quantity INT UNSIGNED NOT NULL DEFAULT 0');
 
   // v4: Inventory detail + functional repacking
   addColumn($pdo, 'inventory_items', 'category', 'VARCHAR(60) NULL AFTER item_name');
