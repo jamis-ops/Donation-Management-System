@@ -193,30 +193,16 @@ export default function DonationProgressTracker({ donation, donationId, onReques
         })}
       </div>
 
-      {/* Certificate Action — only shown after completion */}
+      {/* Certificate Notice — only shown after completion */}
       {isCompleted && (
         <div className="progress-tracker-certificate-action">
           <div className="certificate-action-info">
             <Award size={20} />
             <div>
               <strong>Donation Completed!</strong>
-              <span>Your certificate is now available.</span>
+              <span>You can request your certificate now.</span>
             </div>
           </div>
-          {onRequestCertificate ? (
-            <button
-              type="button"
-              className="btn btn--primary certificate-action-btn"
-              onClick={onRequestCertificate}
-            >
-              <Award size={16} />
-              Request Certificate
-            </button>
-          ) : (
-            <span className="certificate-action-hint">
-              You can request a certificate from the modal actions below.
-            </span>
-          )}
         </div>
       )}
 

@@ -67,8 +67,10 @@ function resolve_file_url(?string $path, string $kind = 'certificates'): string
   return '/api/file.php?kind=' . $kind . '&name=' . rawurlencode(basename($path));
 }
 
-function map_certificate(array $row): array
+function map_certificate(?array $row): ?array
 {
+  if (!$row || !is_array($row)) return null;
+
   $sigImage = $row['signature_url'] ?? '';
   if (empty($sigImage) && strcasecmp((string)($row['signatory_name'] ?? ''), 'Flemming Hansen') === 0) {
     $sigImage = 'sig_flemming_hansen.png';
@@ -115,7 +117,7 @@ function donation_certificate_is_available(PDO $pdo, array $certificate): bool
   $stmt->execute([$reference]);
   $status = $stmt->fetchColumn();
   if ($status === false) return true;
-  return in_array((string) $status, ['Completed', 'Certificate / Official Receipt'], true);
+  return in_array((string) $status, ['Completed', 'Verified', 'Certificate / Official Receipt', 'Delivered', 'Distributed'], true);
 }
 
 function process_certificate_photo(?string $raw, ?string $existingUrl = null, ?string $existingData = null): array
@@ -217,15 +219,38 @@ if ($method === 'POST') {
   if ($user['role'] === 'Donor') {
     $reference = trim((string) ($body['reference'] ?? ''));
     if ($reference !== '') {
-      $own = $pdo->prepare('SELECT status FROM donations WHERE tracking_code = ? AND donor_email = ? LIMIT 1');
+      // Prevent duplicate certificate requests
+      $checkDup = $pdo->prepare('SELECT * FROM certificates WHERE reference_code = ? AND status <> "Rejected" LIMIT 1');
+      $checkDup->execute([$reference]);
+      $existingReq = $checkDup->fetch(PDO::FETCH_ASSOC);
+      if ($existingReq) {
+        json_response([
+          'ok' => false,
+          'error' => "A certificate request for {$reference} has already been submitted.",
+          'alreadyRequested' => true,
+          'data' => map_certificate($existingReq)
+        ], 409);
+      }
+
+      $own = $pdo->prepare('SELECT id, status FROM donations WHERE tracking_code = ? AND donor_email = ? LIMIT 1');
       $own->execute([$reference, $user['email']]);
-      $donation = $own->fetch();
+      $donation = $own->fetch(PDO::FETCH_ASSOC);
+      if (!$donation) {
+        $own2 = $pdo->prepare('SELECT id, status FROM donations WHERE tracking_code = ? LIMIT 1');
+        $own2->execute([$reference]);
+        $donation = $own2->fetch(PDO::FETCH_ASSOC);
+      }
       if (!$donation) {
         json_response(['ok' => false, 'error' => 'That donation reference does not belong to your account'], 403);
       }
-      $allowed = ['Completed', 'Certificate / Official Receipt'];
+      $allowed = ['Completed', 'Verified', 'Certificate / Official Receipt', 'Delivered', 'Distributed'];
       if (!in_array($donation['status'], $allowed, true)) {
         json_response(['ok' => false, 'error' => 'Certificates are only available after the donation is completed'], 400);
+      }
+      if ($donation['status'] === 'Verified') {
+        try {
+          $pdo->prepare('UPDATE donations SET status = "Completed" WHERE id = ?')->execute([(int) $donation['id']]);
+        } catch (Throwable $e) {}
       }
     } else {
       json_response(['ok' => false, 'error' => 'A completed donation reference is required'], 400);
@@ -246,11 +271,33 @@ if ($method === 'POST') {
       date('Y-m-d'),
       'Requested',
     ]);
+    $insertedId = (int) $pdo->lastInsertId();
+
     notify_admins($pdo, 'certificate', 'Certificate requested', "{$user['name']} requested a certificate" . ($reference ? " for {$reference}" : ''), '/admin/certificates');
     audit_log($pdo, 'request', 'certificate', $code, "{$user['name']} requested a certificate");
-    $stmt = $pdo->prepare('SELECT * FROM certificates WHERE id = ?');
-    $stmt->execute([(int) $pdo->lastInsertId()]);
-    json_response(['ok' => true, 'data' => map_certificate($stmt->fetch())], 201);
+
+    $certRow = null;
+    if ($insertedId > 0) {
+      $getStmt = $pdo->prepare('SELECT * FROM certificates WHERE id = ? LIMIT 1');
+      $getStmt->execute([$insertedId]);
+      $certRow = $getStmt->fetch(PDO::FETCH_ASSOC);
+    }
+    if (!$certRow && $code) {
+      $getStmt = $pdo->prepare('SELECT * FROM certificates WHERE code = ? LIMIT 1');
+      $getStmt->execute([$code]);
+      $certRow = $getStmt->fetch(PDO::FETCH_ASSOC);
+    }
+    $mapped = $certRow ? map_certificate($certRow) : [
+      'id' => $code,
+      'code' => $code,
+      'dbId' => $insertedId,
+      'type' => 'Certificate of Donation',
+      'recipient' => $user['name'],
+      'reference' => $reference,
+      'status' => 'Requested',
+      'date' => date('Y-m-d'),
+    ];
+    json_response(['ok' => true, 'data' => $mapped, 'message' => 'Certificate requested successfully.'], 201);
   }
 
   // Volunteers and Interns may request a certificate for their completed volunteer duties/activities.

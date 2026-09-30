@@ -10395,11 +10395,15 @@ button:disabled,
   background: #ffffff !important;
   border: 1px solid #e2e8f0 !important;
   border-radius: 10px !important;
-  padding: 1rem 1.25rem !important;
+  padding: 1.15rem 1.25rem !important;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04) !important;
   display: flex !important;
   flex-direction: column !important;
-  gap: 0.75rem !important;
+  gap: 0.85rem !important;
+  box-sizing: border-box !important;
+  width: 100% !important;
+  min-width: 0 !important;
+  overflow: visible !important;
 }
 
 .intake-item-row-card__header {
@@ -10408,12 +10412,16 @@ button:disabled,
   align-items: center !important;
   padding-bottom: 0.5rem !important;
   border-bottom: 1px dashed #e2e8f0 !important;
+  gap: 0.75rem !important;
+  flex-wrap: wrap !important;
 }
 
 .intake-item-row-card__title-group {
   display: flex !important;
   align-items: center !important;
   gap: 0.5rem !important;
+  min-width: 0 !important;
+  flex: 1 1 auto !important;
 }
 
 .intake-row-number {
@@ -10423,26 +10431,31 @@ button:disabled,
   font-weight: 700 !important;
   padding: 0.15rem 0.45rem !important;
   border-radius: 4px !important;
+  flex-shrink: 0 !important;
 }
 
 .intake-row-title {
   font-size: 0.88rem !important;
   color: #1e293b !important;
   font-weight: 600 !important;
+  word-break: break-word !important;
+  overflow-wrap: break-word !important;
+  white-space: normal !important;
 }
 
 .intake-form-grid {
   display: grid !important;
-  grid-template-columns: minmax(130px, 1.3fr) minmax(140px, 1.4fr) minmax(120px, 1.2fr) minmax(120px, 1.2fr) minmax(75px, 0.75fr) minmax(95px, 0.95fr) !important;
-  gap: 0.65rem !important;
+  grid-template-columns: minmax(130px, 1.3fr) minmax(140px, 1.4fr) minmax(120px, 1.2fr) minmax(120px, 1.2fr) minmax(80px, 0.8fr) minmax(100px, 1fr) !important;
+  gap: 0.75rem !important;
   align-items: start !important;
   width: 100% !important;
+  box-sizing: border-box !important;
 }
 
 .intake-field {
   display: flex !important;
   flex-direction: column !important;
-  gap: 0.3rem !important;
+  gap: 0.35rem !important;
   width: 100% !important;
   min-width: 0 !important;
 }
@@ -10451,13 +10464,13 @@ button:disabled,
   display: flex !important;
   align-items: center !important;
   gap: 0.25rem !important;
-  font-size: 0.78rem !important;
+  font-size: 0.8rem !important;
   font-weight: 600 !important;
   color: #334155 !important;
   line-height: 1.2 !important;
   white-space: nowrap !important;
   margin: 0 !important;
-  min-height: 1rem !important;
+  min-height: 1.1rem !important;
 }
 
 .intake-label-opt {
@@ -10469,17 +10482,22 @@ button:disabled,
 
 .intake-select,
 .intake-input {
-  height: 38px !important;
-  min-height: 38px !important;
-  line-height: 38px !important;
-  padding: 0 0.65rem !important;
-  font-size: 0.84rem !important;
+  height: 42px !important;
+  min-height: 42px !important;
+  line-height: normal !important;
+  padding: 0.5rem 0.75rem !important;
+  font-size: 0.875rem !important;
   border: 1.5px solid #cbd5e1 !important;
-  border-radius: 7px !important;
+  border-radius: 8px !important;
   background: #ffffff !important;
   color: #1e293b !important;
   box-sizing: border-box !important;
   width: 100% !important;
+  vertical-align: middle !important;
+}
+
+.intake-select {
+  padding-right: 2.25rem !important;
 }
 
 .intake-select:focus,
@@ -10489,30 +10507,12 @@ button:disabled,
   outline: none !important;
 }
 
-.intake-add-btn {
-  height: 38px !important;
-  display: inline-flex !important;
-  align-items: center !important;
-  gap: 0.35rem !important;
-  font-size: 0.82rem !important;
-  font-weight: 600 !important;
-  border-color: #af101a !important;
-  color: #af101a !important;
-  background: #ffffff !important;
-  padding: 0 1rem !important;
-  border-radius: 7px !important;
-}
-
-.intake-add-btn:hover {
-  background: #fff5f5 !important;
-  border-color: #8E0D15 !important;
-  color: #8E0D15 !important;
-}
-
 .intake-add-more-row {
   flex: 0 0 auto !important;
-  margin: 0.5rem 0 1.5rem 0 !important;
+  margin: 0.75rem 0 1.5rem 0 !important;
   padding: 0.25rem 0 !important;
+  display: flex !important;
+  width: 100% !important;
 }
 
 .intake-add-btn {
@@ -10520,6 +10520,8 @@ button:disabled,
   align-items: center !important;
   justify-content: center !important;
   gap: 0.5rem !important;
+  height: 42px !important;
+  min-height: 42px !important;
   padding: 0.65rem 1.25rem !important;
   font-weight: 600 !important;
   font-size: 0.875rem !important;
@@ -10541,6 +10543,13 @@ button:disabled,
   transform: translateY(-1px) !important;
 }
 
+@media (max-width: 1080px) {
+  .intake-form-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+    gap: 0.75rem !important;
+  }
+}
+
 @media (max-width: 920px) {
   .in-kind-intake-modal {
     width: calc(100vw - 1.5rem) !important;
@@ -10549,7 +10558,7 @@ button:disabled,
   }
 
   .intake-form-grid {
-    grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
     gap: 0.75rem !important;
   }
 }
@@ -10576,7 +10585,8 @@ button:disabled,
   }
 
   .intake-form-grid {
-    grid-template-columns: 1fr 1fr !important;
+    grid-template-columns: 1fr !important;
+    gap: 0.65rem !important;
   }
   .intake-field--qty,
   .intake-field--unit {
