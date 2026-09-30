@@ -1,6 +1,7 @@
 /* ==========================================
    Donation Progress Tracker
-   Theme: Rise Above crimson (#AF101A) — layout unchanged
+   Theme: Rise Above crimson (#AF101A)
+   4-stage journey: Donate → Submit Proof → Verify Proof → Completed
    ========================================== */
 
 .donation-progress-tracker {
@@ -152,38 +153,54 @@
   text-align: right;
 }
 
-/* Workflow Stages */
+/* Workflow Stages — 4 columns */
 .progress-tracker-stages {
   display: grid;
-  grid-template-columns: repeat(6, minmax(0, 1fr));
+  grid-template-columns: repeat(4, 1fr);
   gap: 0;
-  margin-bottom: 2rem;
+  margin-bottom: 0.5rem;
   position: relative;
-  overflow-x: auto;
-  padding: 0.5rem 0 0.85rem;
-  scrollbar-width: thin;
+  padding: 0.5rem 0 1rem;
 }
 
+/* Stage container */
 .progress-stage {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 0.5rem;
+  gap: 0.6rem;
   position: relative;
-  transition: transform 0.25s ease;
   min-width: 0;
-  padding: 0 0.3rem;
+  padding: 0.5rem 0.5rem;
   text-align: center;
+  cursor: default;
+  border-radius: 12px;
+  transition:
+    transform 0.28s cubic-bezier(0.34, 1.56, 0.64, 1),
+    background 0.25s ease,
+    box-shadow 0.25s ease;
 }
 
 .progress-stage:hover {
-  transform: translateY(-2px);
+  transform: translateY(-3px) scale(1.02);
+  background: rgba(175, 16, 26, 0.03);
+  box-shadow: 0 6px 20px rgba(175, 16, 26, 0.08);
 }
 
+.progress-stage--completed:hover {
+  background: rgba(175, 16, 26, 0.05);
+}
+
+.progress-stage--active:hover {
+  background: rgba(175, 16, 26, 0.06);
+  box-shadow: 0 6px 24px rgba(175, 16, 26, 0.14);
+}
+
+/* Connector line between stages */
 .progress-stage-line {
   position: absolute;
   right: 50%;
-  top: 23px;
+  top: 28px;
   transform: translateY(-50%);
   width: 100%;
   height: 3px;
@@ -199,13 +216,14 @@
   width: 100%;
   height: 100%;
   background: var(--dpt-line, #e2d8d9);
-  transition: background 0.4s ease;
+  transition: background 0.5s ease;
 }
 
 .progress-stage-line-segment.completed {
   background: linear-gradient(90deg, var(--dpt-brand, #af101a) 0%, var(--dpt-brand-deep, #8b0000) 100%);
 }
 
+/* Stage icon */
 .progress-stage-icon-wrapper {
   flex-shrink: 0;
   position: relative;
@@ -213,15 +231,23 @@
 }
 
 .progress-stage-icon {
-  width: 46px;
-  height: 46px;
+  width: 48px;
+  height: 48px;
   border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: all 0.3s ease;
   position: relative;
   box-sizing: border-box;
+  transition:
+    transform 0.3s ease,
+    box-shadow 0.3s ease,
+    background 0.3s ease,
+    border-color 0.3s ease;
+}
+
+.progress-stage:hover .progress-stage-icon {
+  transform: scale(1.08);
 }
 
 /* Pending Stage */
@@ -231,25 +257,9 @@
   color: #94a3b8;
 }
 
-.progress-stage--locked .progress-stage-icon {
-  background: #f5f1f2;
-  border: 2px solid #e0d5d7;
-  color: var(--dpt-pending);
-}
-
-.progress-stage--locked .progress-stage-label,
-.progress-stage--locked .progress-stage-description {
-  color: var(--dpt-pending);
-}
-
-.progress-stage--available.progress-stage--pending .progress-stage-icon {
-  background: #ffffff;
-  border-color: var(--dpt-brand);
-  color: var(--dpt-brand);
-}
-
-.progress-stage--available.progress-stage--pending .progress-stage-label {
-  color: var(--dpt-brand);
+.progress-stage--pending:hover .progress-stage-icon {
+  border-color: #a0aec0;
+  box-shadow: 0 0 0 4px rgba(148, 163, 184, 0.12);
 }
 
 /* Active Stage */
@@ -264,12 +274,16 @@
   animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
 }
 
+.progress-stage--active:hover .progress-stage-icon {
+  box-shadow: 0 0 0 6px rgba(175, 16, 26, 0.22);
+}
+
 @keyframes pulse {
   0%, 100% {
     box-shadow: 0 0 0 4px rgba(175, 16, 26, 0.18);
   }
   50% {
-    box-shadow: 0 0 0 8px rgba(175, 16, 26, 0.32);
+    box-shadow: 0 0 0 10px rgba(175, 16, 26, 0.08);
   }
 }
 
@@ -280,6 +294,11 @@
   color: #ffffff;
 }
 
+.progress-stage--completed:hover .progress-stage-icon {
+  box-shadow: 0 0 0 4px rgba(175, 16, 26, 0.15);
+}
+
+/* Stage content text */
 .progress-stage-content {
   width: 100%;
   display: flex;
@@ -287,14 +306,16 @@
   align-items: center;
   text-align: center;
   padding-top: 0;
+  transition: opacity 0.25s ease;
 }
 
 .progress-stage-label {
-  font-size: 0.86rem;
+  font-size: 0.88rem;
   font-weight: 700;
   color: var(--dpt-ink, #0f172a);
   margin-bottom: 0.2rem;
   white-space: nowrap;
+  transition: color 0.25s ease;
 }
 
 .progress-stage--pending .progress-stage-label {
@@ -309,38 +330,90 @@
   color: #0f172a;
 }
 
+.progress-stage:hover .progress-stage-label {
+  color: var(--dpt-brand);
+}
+
 .progress-stage-description {
-  font-size: 0.72rem;
+  font-size: 0.74rem;
   color: var(--dpt-muted, #64748b);
-  line-height: 1.35;
-  margin-bottom: 0.35rem;
-  max-width: 135px;
+  line-height: 1.4;
+  max-width: 150px;
+  transition: color 0.25s ease;
 }
 
-.progress-stage-update {
+.progress-stage:hover .progress-stage-description {
+  color: #475569;
+}
+
+/* ==============================
+   Certificate Action Section
+   ============================== */
+.progress-tracker-certificate-action {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 1rem;
+  margin-top: 1.5rem;
+  padding: 1.15rem 1.35rem;
+  background: linear-gradient(135deg, #fef7f7 0%, #fdf2f2 50%, #fef7f7 100%);
+  border: 1px solid rgba(175, 16, 26, 0.18);
+  border-radius: 12px;
+  animation: certSlideIn 0.45s ease-out;
+}
+
+.certificate-action-info {
+  display: flex;
+  align-items: center;
+  gap: 0.85rem;
+}
+
+.certificate-action-info svg {
+  color: var(--dpt-brand);
+  flex-shrink: 0;
+}
+
+.certificate-action-info strong {
+  display: block;
+  font-size: 0.95rem;
+  color: var(--dpt-ink);
+  margin-bottom: 0.15rem;
+}
+
+.certificate-action-info span {
+  font-size: 0.82rem;
+  color: var(--dpt-muted);
+}
+
+.certificate-action-btn {
   display: inline-flex;
-  align-items: flex-start;
-  gap: 0.4rem;
-  padding: 0.5rem 0.65rem;
-  background: #fef2f2;
-  border: 1px solid #fecaca;
-  border-left: 3px solid var(--dpt-brand, #af101a);
-  border-radius: 6px;
-  font-size: 0.76rem;
-  color: #991b1b;
-  margin-top: 0.45rem;
-  text-align: left;
-  line-height: 1.35;
-  width: 100%;
-  max-width: 165px;
-  animation: slideIn 0.35s ease-out;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0.6rem 1.25rem !important;
+  font-weight: 600;
+  font-size: 0.88rem;
+  border-radius: 8px;
+  transition:
+    transform 0.2s ease,
+    box-shadow 0.2s ease;
 }
 
-@keyframes slideIn {
+.certificate-action-btn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 14px rgba(175, 16, 26, 0.25);
+}
+
+.certificate-action-hint {
+  font-size: 0.82rem;
+  color: var(--dpt-muted);
+  font-style: italic;
+}
+
+@keyframes certSlideIn {
   from {
     opacity: 0;
-    transform: translateY(-10px);
+    transform: translateY(10px);
   }
   to {
     opacity: 1;
@@ -348,80 +421,9 @@
   }
 }
 
-/* Recent Activity Timeline */
-.progress-tracker-timeline {
-  margin-top: 2.5rem;
-  padding-top: 2rem;
-  border-top: 1px solid rgba(175, 16, 26, 0.1);
-}
-
-.progress-tracker-timeline h4 {
-  margin: 0 0 1.5rem 0;
-  font-size: 1.15rem;
-  font-weight: 700;
-  color: var(--dpt-ink);
-}
-
-.progress-timeline {
-  display: flex;
-  flex-direction: column;
-  gap: 1rem;
-}
-
-.progress-timeline-item {
-  display: flex;
-  gap: 1rem;
-  position: relative;
-  padding-left: 2rem;
-}
-
-.progress-timeline-item::before {
-  content: '';
-  position: absolute;
-  left: 7px;
-  top: 24px;
-  bottom: -16px;
-  width: 2px;
-  background: #edd8da;
-}
-
-.progress-timeline-item:last-child::before {
-  display: none;
-}
-
-.progress-timeline-marker {
-  position: absolute;
-  left: 0;
-  top: 6px;
-  width: 16px;
-  height: 16px;
-  border-radius: 50%;
-  background: var(--dpt-brand);
-  border: 3px solid #ffffff;
-  box-shadow: 0 0 0 2px rgba(175, 16, 26, 0.18);
-  flex-shrink: 0;
-}
-
-.progress-timeline-content {
-  flex: 1;
-  padding-bottom: 0.5rem;
-}
-
-.progress-timeline-title {
-  font-size: 0.9rem;
-  font-weight: 600;
-  color: var(--dpt-ink);
-  margin-bottom: 0.25rem;
-  line-height: 1.4;
-}
-
-.progress-timeline-meta {
-  font-size: 0.8rem;
-  color: var(--dpt-muted);
-}
-
-
-/* Responsive Design */
+/* ==============================
+   Responsive Design
+   ============================== */
 @media (max-width: 768px) {
   .donation-progress-tracker {
     padding: 1.25rem 1rem;
@@ -448,15 +450,16 @@
   }
 
   .progress-tracker-stages {
-    grid-template-columns: repeat(6, minmax(110px, 1fr));
-    min-width: 660px;
-    margin-right: -0.5rem;
-    padding-right: 0.5rem;
+    grid-template-columns: repeat(4, minmax(90px, 1fr));
+    min-width: 380px;
+    overflow-x: auto;
     padding-bottom: 1rem;
+    scrollbar-width: thin;
   }
 
   .progress-stage {
     gap: 0.45rem;
+    padding: 0.4rem 0.25rem;
   }
 
   .progress-stage-icon {
@@ -465,7 +468,7 @@
   }
 
   .progress-stage-line {
-    top: 21px;
+    top: 24px;
   }
 
   .progress-stage-label {
@@ -475,5 +478,41 @@
   .progress-stage-description {
     font-size: 0.7rem;
     max-width: 105px;
+  }
+
+  .progress-tracker-certificate-action {
+    flex-direction: column;
+    align-items: stretch;
+    text-align: center;
+  }
+
+  .certificate-action-info {
+    flex-direction: column;
+    text-align: center;
+  }
+
+  .certificate-action-btn {
+    justify-content: center;
+    width: 100%;
+  }
+}
+
+@media (max-width: 480px) {
+  .progress-tracker-stages {
+    grid-template-columns: repeat(4, minmax(80px, 1fr));
+    min-width: 340px;
+  }
+
+  .progress-stage-icon {
+    width: 38px;
+    height: 38px;
+  }
+
+  .progress-stage-line {
+    top: 22px;
+  }
+
+  .progress-stage-description {
+    display: none;
   }
 }

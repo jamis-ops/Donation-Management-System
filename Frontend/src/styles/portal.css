@@ -3334,8 +3334,8 @@
 /* Donation Cards Grid */
 .donor-donations-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
-  gap: 1rem;
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  gap: 1.15rem;
   align-items: stretch;
 }
 
@@ -3348,24 +3348,30 @@
   padding: 0;
   background: #fff;
   border: 1px solid #e5e7eb;
-  border-radius: 12px;
+  border-left: 3px solid transparent;
+  border-radius: 14px;
   overflow: hidden;
   box-sizing: border-box;
-  transition: border-color 0.15s, box-shadow 0.15s;
+  transition:
+    border-color 0.25s ease,
+    box-shadow 0.3s cubic-bezier(0.4, 0, 0.2, 1),
+    transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 
 .donor-donation-card:hover {
-  border-color: rgba(175, 16, 26, 0.25);
-  box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+  border-color: rgba(175, 16, 26, 0.2);
+  border-left-color: #AF101A;
+  box-shadow: 0 8px 28px rgba(175, 16, 26, 0.08), 0 2px 8px rgba(0, 0, 0, 0.04);
+  transform: translateY(-2px);
 }
 
 .donor-donation-card__header {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   justify-content: space-between;
   gap: 0.75rem;
   flex-wrap: wrap;
-  padding: 1.15rem 1.15rem 0.65rem;
+  padding: 1.25rem 1.25rem 0.75rem;
   min-width: 0;
 }
 
@@ -3376,47 +3382,48 @@
 }
 
 .donor-donation-card__tracking strong {
-  font-size: 0.9rem;
-  color: #111827;
+  font-size: 0.92rem;
+  color: #0f172a;
+  letter-spacing: 0.01em;
 }
 
 .donor-donation-type {
   display: inline-flex;
-  padding: 0.15rem 0.6rem;
+  padding: 0.2rem 0.65rem;
   border-radius: 6px;
-  font-size: 0.7rem;
+  font-size: 0.68rem;
   font-weight: 700;
   text-transform: uppercase;
-  letter-spacing: 0.04em;
+  letter-spacing: 0.05em;
 }
 
 .donor-donation-type--monetary {
-  background: rgba(175, 16, 26, 0.1);
+  background: rgba(175, 16, 26, 0.08);
   color: #AF101A;
 }
 
 .donor-donation-type--in-kind {
-  background: rgba(37, 99, 235, 0.1);
+  background: rgba(37, 99, 235, 0.08);
   color: #2563eb;
 }
 
 .donor-donation-card__body {
   display: flex;
   flex-direction: column;
-  gap: 0.75rem;
+  gap: 0.85rem;
   flex: 1 1 auto;
-  padding: 0 1.15rem 1rem;
+  padding: 0.25rem 1.25rem 1.15rem;
   min-width: 0;
-  min-height: 6rem;
+  min-height: 5rem;
 }
 
 .donor-donation-card__amount {
   display: flex;
   align-items: center;
   gap: 0.5rem;
-  font-size: 1.1rem;
+  font-size: 1.15rem;
   font-weight: 700;
-  color: #111827;
+  color: #0f172a;
 }
 
 .donor-donation-card__amount svg {
@@ -3426,38 +3433,58 @@
 .donor-donation-card__details {
   display: flex;
   flex-direction: column;
-  gap: 0.4rem;
-  font-size: 0.8rem;
-  color: #6b7280;
+  gap: 0.35rem;
+  font-size: 0.82rem;
+  color: #64748b;
 }
 
 .donor-donation-card__details > span {
   display: flex;
   align-items: center;
-  gap: 0.35rem;
+  gap: 0.4rem;
 }
 
 .donor-donation-card__program {
   font-weight: 600;
-  color: #2563eb;
+  color: #334155;
 }
 
 .donor-donation-card__date,
 .donor-donation-card__impact {
-  color: #6b7280;
+  color: #64748b;
+}
+
+.donor-donation-card__impact svg {
+  color: #AF101A;
 }
 
 .donor-donation-card__actions {
   display: flex;
   align-items: center;
-  justify-content: flex-start;
+  justify-content: flex-end;
   flex-wrap: wrap;
   gap: 0.5rem;
   margin-top: auto;
-  padding: 0.85rem 1.15rem;
+  padding: 0.85rem 1.25rem;
   border-top: 1px solid #f1f5f9;
   background: #fafafa;
   box-sizing: border-box;
+}
+
+.donor-donation-card__track-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-weight: 600;
+  transition:
+    transform 0.2s ease,
+    box-shadow 0.2s ease,
+    gap 0.2s ease;
+}
+
+.donor-donation-card__track-btn:hover {
+  gap: 0.65rem;
+  transform: translateX(1px);
 }
 
 .donor-tax-badge {

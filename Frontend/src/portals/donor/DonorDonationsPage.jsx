@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
-import { Search, Download, TrendingUp, Coins, Package, Calendar, Users, MapPin, Heart } from 'lucide-react'
+import { Search, Download, TrendingUp, Coins, Package, Calendar, Users, MapPin, Heart, Award, ArrowRight } from 'lucide-react'
 import StatusBadge from '../../admin/components/shared/StatusBadge'
 import ApiState from '../../admin/components/shared/ApiState'
 import { donationsApi, certificatesApi } from '../../api/resources'
@@ -291,7 +291,6 @@ export default function DonorDonationsPage() {
                     </div>
                     
                     <div className="donor-donation-card__details">
-                      <span className="donor-donation-card__program">{d.program}</span>
                       <span className="donor-donation-card__date">
                         <Calendar size={14} /> {d.date}
                       </span>
@@ -306,10 +305,11 @@ export default function DonorDonationsPage() {
                   <div className="donor-donation-card__actions">
                     <button 
                       type="button" 
-                      className="btn btn--sm btn--outline" 
+                      className="btn btn--sm btn--primary donor-donation-card__track-btn" 
                       onClick={() => setSelected(d)}
                     >
-                      Track Details
+                      Track Donation
+                      <ArrowRight size={14} />
                     </button>
                   </div>
                 </div>
@@ -439,7 +439,7 @@ export default function DonorDonationsPage() {
             )}
 
             {/* Live Progress Tracker */}
-            <DonationProgressTracker donation={selected} donationId={selected.dbId} />
+            <DonationProgressTracker donation={selected} donationId={selected.dbId} onRequestCertificate={canRequestCert ? () => handleRequestCert(selected) : null} />
 
             <div className="admin-modal__actions">
               <button type="button" className="btn btn--ghost" onClick={() => setSelected(null)}>Close</button>

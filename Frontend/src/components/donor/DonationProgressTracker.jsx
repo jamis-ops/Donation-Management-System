@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Check, Clock, HeartHandshake, Upload, ShieldCheck, Award, Lock, AlertCircle } from 'lucide-react'
+import { Check, Clock, HeartHandshake, Upload, ShieldCheck, Award, AlertCircle } from 'lucide-react'
 import { donationUpdatesApi } from '../../api/resources'
 import LoadingSpinner from '../shared/LoadingSpinner'
 import '../../styles/donation-progress-tracker.css'
@@ -29,32 +29,52 @@ const WORKFLOW_STAGES = [
     icon: Check,
     description: 'The donation process is complete',
   },
-  {
-    key: 'certificate',
-    label: 'Certificate',
-    icon: Award,
-    description: 'Available after completion',
-  },
 ]
 
-const COMPLETED_STATUSES = ['completed', 'certificate / official receipt']
+/* Statuses the backend can return that mean the donation is fully done */
+const COMPLETED_STATUSES = [
+  'completed',
+  'certificate / official receipt',
+  'verified',
+  'verified & acknowledged',
+  'in inventory',
+  'in stock',
+  'repacked',
+  'repacking',
+  'partially allocated',
+  'allocated',
+  'reserved',
+  'assigned',
+  'scheduled',
+  'in transit',
+  'out for delivery',
+  'distributed',
+  'delivered',
+  'received',
+]
 
 function determineCurrentStage(status, hasProof) {
   const normalized = String(status || '').trim().toLowerCase()
-  if (normalized === 'certificate / official receipt') return 4
-  if (normalized === 'completed') return 3
-  if (['verified', 'verified & acknowledged', 'in inventory', 'in stock', 'repacked', 'repacking', 'partially allocated', 'allocated', 'reserved', 'assigned', 'scheduled', 'in transit', 'out for delivery', 'distributed', 'delivered', 'received'].includes(normalized)) return 3
+  if (!normalized) return 0
+
+  // If the status means the donation is verified / processed / delivered → Completed
+  if (COMPLETED_STATUSES.includes(normalized)) return 3
+
+  // Still being verified
   if (['pending verification', 'under review'].includes(normalized)) return hasProof ? 2 : 1
+
+  // Fallback: submitted
   return 0
 }
 
 function getStageStatus(stageIndex, currentIndex) {
+  if (currentIndex < 0) return 'pending'
   if (stageIndex < currentIndex) return 'completed'
   if (stageIndex === currentIndex) return 'active'
   return 'pending'
 }
 
-export default function DonationProgressTracker({ donation, donationId }) {
+export default function DonationProgressTracker({ donation, donationId, onRequestCertificate }) {
   const [updates, setUpdates] = useState([])
   const [remoteProgress, setRemoteProgress] = useState({ donationId: null, status: '' })
   const [loading, setLoading] = useState(true)
@@ -84,12 +104,15 @@ export default function DonationProgressTracker({ donation, donationId }) {
     }
   }, [donationId, donation?.status, autoRefresh])
 
-  const syncedStatus = remoteProgress.donationId === donationId
+  const syncedStatus = remoteProgress.donationId === donationId && remoteProgress.status
     ? remoteProgress.status
     : (donation?.status || '')
-  const certificateUnlocked = COMPLETED_STATUSES.includes(String(syncedStatus).trim().toLowerCase())
+
   const currentStageIndex = determineCurrentStage(syncedStatus, donation?.hasProof)
-  const progressPercentage = ((currentStageIndex + 1) / WORKFLOW_STAGES.length) * 100
+  const isCompleted = currentStageIndex === 3
+  const progressPercentage = isCompleted
+    ? 100
+    : Math.round(((currentStageIndex + 1) / WORKFLOW_STAGES.length) * 100)
 
   const latestUpdate = updates.length > 0 ? updates[updates.length - 1] : null
 
@@ -131,71 +154,68 @@ export default function DonationProgressTracker({ donation, donationId }) {
             style={{ width: `${progressPercentage}%` }}
           />
         </div>
-        <span className="progress-tracker-percentage">{Math.round(progressPercentage)}%</span>
+        <span className="progress-tracker-percentage">{progressPercentage}%</span>
       </div>
 
       {/* Workflow Stages */}
       <div className="progress-tracker-stages">
         {WORKFLOW_STAGES.map((stage, index) => {
           const stageStatus = getStageStatus(index, currentStageIndex)
-          const certificateLocked = stage.key === 'certificate' && !certificateUnlocked
-          const Icon = certificateLocked ? Lock : stage.icon
+          const Icon = stage.icon
           const isActive = stageStatus === 'active'
-          const isCompleted = stageStatus === 'completed'
+          const isStageCompleted = stageStatus === 'completed'
           const connectorReached = index <= currentStageIndex
 
           return (
-            <div key={stage.key} className={`progress-stage progress-stage--${certificateLocked ? 'locked' : stageStatus}${stage.key === 'certificate' && certificateUnlocked ? ' progress-stage--available' : ''}`}>
+            <div
+              key={stage.key}
+              className={`progress-stage progress-stage--${stageStatus}`}
+            >
               <div className="progress-stage-line">
                 {index > 0 && (
                   <div className={`progress-stage-line-segment ${connectorReached ? 'completed' : ''}`} />
                 )}
               </div>
-              
+
               <div className="progress-stage-icon-wrapper">
                 <div className={`progress-stage-icon ${isActive ? 'pulse' : ''}`}>
-                  {isCompleted ? <Check size={18} /> : <Icon size={18} />}
+                  {isStageCompleted ? <Check size={18} /> : <Icon size={18} />}
                 </div>
               </div>
 
               <div className="progress-stage-content">
                 <div className="progress-stage-label">{stage.label}</div>
-                <div className="progress-stage-description">
-                  {stage.key === 'certificate' && certificateUnlocked ? 'Available to request' : stage.description}
-                </div>
-                
-                {isActive && latestUpdate && (
-                  <div className="progress-stage-update">
-                    <AlertCircle size={12} />
-                    <span>{latestUpdate.note || latestUpdate.stage || latestUpdate.message || latestUpdate.description}</span>
-                  </div>
-                )}
+                <div className="progress-stage-description">{stage.description}</div>
               </div>
             </div>
           )
         })}
       </div>
 
-      {/* Recent Activity Timeline */}
-      {updates.length > 0 && (
-        <div className="progress-tracker-timeline">
-          <h4>Recent Activity</h4>
-          <div className="progress-timeline">
-            {updates.slice(0, 5).map((update, idx) => (
-              <div key={idx} className="progress-timeline-item">
-                <div className="progress-timeline-marker" />
-                <div className="progress-timeline-content">
-                  <div className="progress-timeline-title">
-                    {update.note || update.stage || update.message || update.description || 'Status updated'}
-                  </div>
-                  <div className="progress-timeline-meta">
-                    <span>{new Date(update.createdAt || update.date).toLocaleString()}</span>
-                    {update.updatedBy && <span> • By {update.updatedBy}</span>}
-                  </div>
-                </div>
-              </div>
-            ))}
+      {/* Certificate Action — only shown after completion */}
+      {isCompleted && (
+        <div className="progress-tracker-certificate-action">
+          <div className="certificate-action-info">
+            <Award size={20} />
+            <div>
+              <strong>Donation Completed!</strong>
+              <span>Your certificate is now available.</span>
+            </div>
           </div>
+          {onRequestCertificate ? (
+            <button
+              type="button"
+              className="btn btn--primary certificate-action-btn"
+              onClick={onRequestCertificate}
+            >
+              <Award size={16} />
+              Get Certificate
+            </button>
+          ) : (
+            <span className="certificate-action-hint">
+              You can request a certificate from the modal actions below.
+            </span>
+          )}
         </div>
       )}
 
