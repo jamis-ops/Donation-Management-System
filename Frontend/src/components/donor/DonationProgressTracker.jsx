@@ -2,20 +2,21 @@ import { useEffect, useState } from 'react'
 import { Check, Clock, Package, CheckCircle, Truck, MapPin, AlertCircle } from 'lucide-react'
 import { donationUpdatesApi } from '../../api/resources'
 import LoadingSpinner from '../shared/LoadingSpinner'
+import '../../styles/donation-progress-tracker.css'
 
 const WORKFLOW_STAGES = [
   {
     key: 'submission',
     label: 'Submission',
     icon: Package,
-    statuses: ['Submitted', 'Pending Verification'],
+    statuses: ['Submitted', 'Pending Verification', 'Pending'],
     description: 'Your donation has been received and is awaiting verification',
   },
   {
     key: 'verification',
     label: 'Verification',
     icon: CheckCircle,
-    statuses: ['Verified', 'Verified & Acknowledged', 'Under Review'],
+    statuses: ['Verified', 'Verified & Acknowledged', 'Under Review', 'In Review'],
     description: 'Our team is verifying your donation details',
   },
   {
@@ -40,25 +41,31 @@ const WORKFLOW_STAGES = [
     description: 'Your donation has reached the beneficiaries!',
   },
   {
-    key: 'completed', label: 'Completed', icon: Check,
-    statuses: ['Completed'], description: 'The linked delivery has been completed',
+    key: 'completed',
+    label: 'Completed',
+    icon: Check,
+    statuses: ['Completed'],
+    description: 'The linked delivery has been completed',
   },
 ]
 
 function determineCurrentStage(status) {
-  if (!status) return -1
-  
+  if (!status) return 0
+  const normalized = status.trim().toLowerCase()
+  if (normalized === 'rejected' || normalized === 'cancelled') {
+    return -1
+  }
   const stageIndex = WORKFLOW_STAGES.findIndex((stage) =>
-    stage.statuses.some((s) => s.toLowerCase() === status.toLowerCase())
+    stage.statuses.some((s) => s.toLowerCase() === normalized)
   )
-  
   return stageIndex >= 0 ? stageIndex : 0
 }
 
-function getStageStatus(stageIndex, currentIndex) {
-  if (stageIndex < currentIndex) return 'completed'
-  if (stageIndex === currentIndex) return 'active'
-  return 'pending'
+function calculateProgressPercentage(currentStageIndex, status) {
+  if (currentStageIndex < 0) return 0
+  const normalized = (status || '').trim().toLowerCase()
+  if (normalized === 'completed') return 100
+  return Math.min(100, Math.round(((currentStageIndex + 1) / WORKFLOW_STAGES.length) * 100))
 }
 
 export default function DonationProgressTracker({ donation, donationId }) {
@@ -91,11 +98,12 @@ export default function DonationProgressTracker({ donation, donationId }) {
     }
   }, [donationId, donation?.status, autoRefresh])
 
-  const syncedStatus = remoteProgress.donationId === donationId
+  const syncedStatus = remoteProgress.donationId === donationId && remoteProgress.status
     ? remoteProgress.status
-    : (donation?.status || '')
+    : (donation?.status || 'Pending Verification')
   const currentStageIndex = determineCurrentStage(syncedStatus)
-  const progressPercentage = ((currentStageIndex + 1) / WORKFLOW_STAGES.length) * 100
+  const progressPercentage = calculateProgressPercentage(currentStageIndex, syncedStatus)
+  const isRejectedOrCancelled = ['rejected', 'cancelled'].includes((syncedStatus || '').toLowerCase())
 
   const latestUpdate = updates.length > 0 ? updates[updates.length - 1] : null
 
@@ -117,9 +125,9 @@ export default function DonationProgressTracker({ donation, donationId }) {
           </div>
         </div>
         <div className="progress-tracker-status">
-          <div className="progress-tracker-status-badge">
+          <div className={`progress-tracker-status-badge ${isRejectedOrCancelled ? 'progress-tracker-status-badge--danger' : ''}`}>
             <Clock size={14} />
-            <span>Current Status: <strong>{syncedStatus || 'Unknown'}</strong></span>
+            <span>Current Status: <strong>{syncedStatus || 'Pending Verification'}</strong></span>
           </div>
           {latestUpdate && (
             <div className="progress-tracker-last-update">
@@ -137,20 +145,25 @@ export default function DonationProgressTracker({ donation, donationId }) {
             style={{ width: `${progressPercentage}%` }}
           />
         </div>
-        <span className="progress-tracker-percentage">{Math.round(progressPercentage)}%</span>
+        <span className="progress-tracker-percentage">{progressPercentage}%</span>
       </div>
 
       {/* Workflow Stages */}
       <div className="progress-tracker-stages">
         {WORKFLOW_STAGES.map((stage, index) => {
-          const status = getStageStatus(index, currentStageIndex)
+          const isCompleted = currentStageIndex >= 0 && (
+            index < currentStageIndex || (index === currentStageIndex && index === WORKFLOW_STAGES.length - 1)
+          )
+          const isActive = currentStageIndex >= 0 && index === currentStageIndex && index < WORKFLOW_STAGES.length - 1
+          const stageStatus = isCompleted ? 'completed' : (isActive ? 'active' : 'pending')
           const Icon = stage.icon
-          const isActive = status === 'active'
-          const isCompleted = status === 'completed'
-          const connectorReached = index <= currentStageIndex
+          const connectorReached = currentStageIndex >= 0 && index <= currentStageIndex
 
           return (
-            <div key={stage.key} className={`progress-stage progress-stage--${status}`}>
+            <div
+              key={stage.key}
+              className={`progress-stage progress-stage--${stageStatus} ${isActive ? 'progress-stage--active' : ''} ${isCompleted ? 'progress-stage--completed' : ''}`}
+            >
               <div className="progress-stage-line">
                 {index > 0 && (
                   <div className={`progress-stage-line-segment ${connectorReached ? 'completed' : ''}`} />
@@ -169,7 +182,7 @@ export default function DonationProgressTracker({ donation, donationId }) {
                 
                 {isActive && latestUpdate && (
                   <div className="progress-stage-update">
-                    <AlertCircle size={12} />
+                    <AlertCircle size={13} style={{ flexShrink: 0, marginTop: '2px' }} />
                     <span>{latestUpdate.note || latestUpdate.stage || latestUpdate.message || latestUpdate.description}</span>
                   </div>
                 )}

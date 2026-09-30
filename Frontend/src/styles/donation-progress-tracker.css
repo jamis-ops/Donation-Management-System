@@ -155,12 +155,12 @@
 /* Workflow Stages */
 .progress-tracker-stages {
   display: grid;
-  grid-template-columns: repeat(5, minmax(116px, 1fr));
+  grid-template-columns: repeat(6, minmax(0, 1fr));
   gap: 0;
   margin-bottom: 2rem;
   position: relative;
   overflow-x: auto;
-  padding: 0.4rem 0 0.75rem;
+  padding: 0.5rem 0 0.85rem;
   scrollbar-width: thin;
 }
 
@@ -168,10 +168,10 @@
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 0.55rem;
+  gap: 0.5rem;
   position: relative;
-  transition: all 0.3s ease;
-  min-width: 104px;
+  transition: transform 0.25s ease;
+  min-width: 0;
   padding: 0 0.3rem;
   text-align: center;
 }
@@ -183,9 +183,12 @@
 .progress-stage-line {
   position: absolute;
   right: 50%;
-  top: 22px;
+  top: 23px;
+  transform: translateY(-50%);
   width: 100%;
-  height: 2px;
+  height: 3px;
+  z-index: 0;
+  pointer-events: none;
 }
 
 .progress-stage:first-child .progress-stage-line {
@@ -195,17 +198,18 @@
 .progress-stage-line-segment {
   width: 100%;
   height: 100%;
-  background: var(--dpt-line);
-  transition: background 0.5s ease;
+  background: var(--dpt-line, #e2d8d9);
+  transition: background 0.4s ease;
 }
 
 .progress-stage-line-segment.completed {
-  background: linear-gradient(180deg, var(--dpt-brand) 0%, var(--dpt-brand-deep) 100%);
+  background: linear-gradient(90deg, var(--dpt-brand, #af101a) 0%, var(--dpt-brand-deep, #8b0000) 100%);
 }
 
 .progress-stage-icon-wrapper {
   flex-shrink: 0;
-  z-index: 1;
+  position: relative;
+  z-index: 2;
 }
 
 .progress-stage-icon {
@@ -217,21 +221,22 @@
   justify-content: center;
   transition: all 0.3s ease;
   position: relative;
+  box-sizing: border-box;
 }
 
 /* Pending Stage */
 .progress-stage--pending .progress-stage-icon {
-  background: #f5f1f2;
-  border: 2px solid #e0d5d7;
-  color: var(--dpt-pending);
+  background: #f8fafc;
+  border: 2px solid #cbd5e1;
+  color: #94a3b8;
 }
 
 /* Active Stage */
 .progress-stage--active .progress-stage-icon {
-  background: linear-gradient(135deg, var(--dpt-brand) 0%, var(--dpt-brand-deep) 100%);
-  border: 3px solid #f0c4c7;
+  background: linear-gradient(135deg, var(--dpt-brand, #af101a) 0%, var(--dpt-brand-deep, #8b0000) 100%);
+  border: 3px solid #fecaca;
   color: #ffffff;
-  box-shadow: 0 0 0 4px var(--dpt-brand-ring);
+  box-shadow: 0 0 0 4px rgba(175, 16, 26, 0.18);
 }
 
 .progress-stage--active .progress-stage-icon.pulse {
@@ -240,59 +245,75 @@
 
 @keyframes pulse {
   0%, 100% {
-    box-shadow: 0 0 0 4px var(--dpt-brand-ring);
+    box-shadow: 0 0 0 4px rgba(175, 16, 26, 0.18);
   }
   50% {
-    box-shadow: 0 0 0 8px var(--dpt-brand-ring-strong);
+    box-shadow: 0 0 0 8px rgba(175, 16, 26, 0.32);
   }
 }
 
 /* Completed Stage */
 .progress-stage--completed .progress-stage-icon {
-  background: linear-gradient(145deg, #c42832 0%, var(--dpt-brand-deep) 100%);
-  border: 2px solid #e8a0a5;
+  background: linear-gradient(145deg, #c42832 0%, var(--dpt-brand-deep, #8b0000) 100%);
+  border: 2px solid #fca5a5;
   color: #ffffff;
 }
 
 .progress-stage-content {
   width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
   padding-top: 0;
 }
 
 .progress-stage-label {
-  font-size: 0.9rem;
+  font-size: 0.86rem;
   font-weight: 700;
-  color: var(--dpt-ink);
-  margin-bottom: 0.25rem;
+  color: var(--dpt-ink, #0f172a);
+  margin-bottom: 0.2rem;
+  white-space: nowrap;
 }
 
 .progress-stage--pending .progress-stage-label {
-  color: var(--dpt-pending);
+  color: #64748b;
 }
 
 .progress-stage--active .progress-stage-label {
-  color: var(--dpt-brand);
+  color: var(--dpt-brand, #af101a);
+}
+
+.progress-stage--completed .progress-stage-label {
+  color: #0f172a;
 }
 
 .progress-stage-description {
   font-size: 0.72rem;
-  color: var(--dpt-muted);
+  color: var(--dpt-muted, #64748b);
   line-height: 1.35;
-  margin-bottom: 0.5rem;
+  margin-bottom: 0.35rem;
+  max-width: 135px;
 }
 
 .progress-stage-update {
   display: inline-flex;
   align-items: flex-start;
-  gap: 0.5rem;
-  padding: 0.5rem 0.75rem;
-  background: var(--dpt-brand-muted);
-  border-left: 3px solid var(--dpt-brand);
-  border-radius: 4px;
-  font-size: 0.85rem;
-  color: var(--dpt-brand-deep);
-  margin-top: 0.75rem;
-  animation: slideIn 0.4s ease-out;
+  gap: 0.4rem;
+  padding: 0.5rem 0.65rem;
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  border-left: 3px solid var(--dpt-brand, #af101a);
+  border-radius: 6px;
+  font-size: 0.76rem;
+  color: #991b1b;
+  margin-top: 0.45rem;
+  text-align: left;
+  line-height: 1.35;
+  width: 100%;
+  max-width: 165px;
+  animation: slideIn 0.35s ease-out;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
 }
 
 @keyframes slideIn {
@@ -382,7 +403,7 @@
 /* Responsive Design */
 @media (max-width: 768px) {
   .donation-progress-tracker {
-    padding: 1.25rem;
+    padding: 1.25rem 1rem;
   }
 
   .progress-tracker-title {
@@ -406,29 +427,32 @@
   }
 
   .progress-tracker-stages {
-    grid-template-columns: repeat(5, 124px);
+    grid-template-columns: repeat(6, minmax(110px, 1fr));
+    min-width: 660px;
     margin-right: -0.5rem;
     padding-right: 0.5rem;
+    padding-bottom: 1rem;
   }
 
   .progress-stage {
-    gap: 0.5rem;
+    gap: 0.45rem;
   }
 
   .progress-stage-icon {
-    width: 40px;
-    height: 40px;
+    width: 42px;
+    height: 42px;
   }
 
   .progress-stage-line {
-    top: 19px;
+    top: 21px;
   }
 
   .progress-stage-label {
-    font-size: 1rem;
+    font-size: 0.82rem;
   }
 
   .progress-stage-description {
-    font-size: 0.8rem;
+    font-size: 0.7rem;
+    max-width: 105px;
   }
 }
