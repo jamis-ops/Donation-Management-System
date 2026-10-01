@@ -14,7 +14,7 @@ export default function FilterBar({ controller, searchPlaceholder = 'Search reco
     config, search, setSearch, values, setValue,
     dateFrom, setDateFrom, dateTo, setDateTo, reset, activeCount, options,
   } = controller
-  const { searchKeys, filters, dateKey } = config
+  const { searchKeys, filters, dateKey, dateFromLabel = 'From', dateToLabel = 'To' } = config
 
   return (
     <div className="filter-bar">
@@ -58,7 +58,7 @@ export default function FilterBar({ controller, searchPlaceholder = 'Search reco
         {dateKey && (
           <div className="filter-bar__dates">
             <label className="filter-bar__field">
-              <span className="filter-bar__field-label">From</span>
+              <span className="filter-bar__field-label">{dateFromLabel}</span>
               <input
                 type="date"
                 value={dateFrom}
@@ -68,7 +68,7 @@ export default function FilterBar({ controller, searchPlaceholder = 'Search reco
               />
             </label>
             <label className="filter-bar__field">
-              <span className="filter-bar__field-label">To</span>
+              <span className="filter-bar__field-label">{dateToLabel}</span>
               <input
                 type="date"
                 value={dateTo}

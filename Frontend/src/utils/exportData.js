@@ -50,6 +50,19 @@ function htmlEscape(value) {
   return String(value ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
 }
 
+function reportMetaRows(meta) {
+  if (!meta) return []
+  if (Array.isArray(meta)) {
+    return meta
+      .map((item) => ({ label: String(item?.label ?? ''), value: cellValue(item?.value) }))
+      .filter((item) => item.label)
+  }
+  if (typeof meta === 'object') {
+    return Object.entries(meta).map(([label, value]) => ({ label, value: cellValue(value) }))
+  }
+  return []
+}
+
 /**
  * Reads active authenticated user from localStorage cache if available.
  */
@@ -148,6 +161,12 @@ export function exportCsv(filename, columns, rows, options = {}) {
     lines.push(header.map(csvEscape).join(','))
     // Data rows
     body.forEach((r) => lines.push(r.map(csvEscape).join(',')))
+    const metaRows = reportMetaRows(opt.meta)
+    if (metaRows.length) {
+      lines.push('')
+      lines.push('Report Summary,')
+      metaRows.forEach((item) => lines.push(`${csvEscape(item.label)},${csvEscape(item.value)}`))
+    }
     lines.push('')
     lines.push(`Prepared By,"${csvEscape(preparedBy)}"`)
     lines.push('')
@@ -222,6 +241,18 @@ export async function exportExcel(filename, columns, rows, options = {}) {
     const subRow = worksheet.addRow(['', 'Donation & Operations Management System · Official Report'])
     subRow.getCell(2).font = { name: 'Calibri', size: 9, italic: true, color: { argb: 'FF64748B' } }
 
+    const metaRows = reportMetaRows(opt.meta)
+    if (metaRows.length) {
+      worksheet.addRow([])
+      const summaryTitleRow = worksheet.addRow(['Report Summary'])
+      summaryTitleRow.getCell(1).font = { name: 'Calibri', size: 11, bold: true, color: { argb: 'FFAF101A' } }
+      metaRows.forEach((item) => {
+        const summaryRow = worksheet.addRow([item.label, item.value])
+        summaryRow.getCell(1).font = { name: 'Calibri', size: 10, bold: true, color: { argb: 'FF475569' } }
+        summaryRow.getCell(2).font = { name: 'Calibri', size: 10, color: { argb: 'FF0F172A' } }
+      })
+    }
+
     worksheet.addRow([]) // spacer before table
 
     // 3. Table Column Headers
@@ -285,6 +316,12 @@ export async function exportExcel(filename, columns, rows, options = {}) {
       // Clamped width between 14 and 48 characters
       column.width = Math.min(Math.max(maxLen + 4, 16), 48)
     })
+    if (metaRows.length) {
+      const maxMetaLabel = Math.max(...metaRows.map((item) => item.label.length), 0)
+      const maxMetaValue = Math.max(...metaRows.map((item) => item.value.length), 0)
+      worksheet.getColumn(1).width = Math.max(worksheet.getColumn(1).width || 0, Math.min(maxMetaLabel + 4, 48))
+      worksheet.getColumn(2).width = Math.max(worksheet.getColumn(2).width || 0, Math.min(maxMetaValue + 4, 48))
+    }
 
     // 6. Sign-off below the table and document date in the footer.
     worksheet.addRow([])
@@ -417,6 +454,10 @@ export function printPdf(title, sections, options = {}) {
 
   const logoUrl = new URL(logo, window.location.origin).href
   const orientation = opt.orientation || 'landscape'
+  const metaRows = reportMetaRows(opt.meta)
+  const metaBlock = metaRows.length
+    ? `<section class="report-summary"><h2>Report Summary</h2><div class="report-summary__grid">${metaRows.map((item) => `<div class="report-summary__item"><span>${htmlEscape(item.label)}</span><strong>${htmlEscape(item.value)}</strong></div>`).join('')}</div></section>`
+    : ''
   const blocks = sections
     .filter((s) => s.rows && s.rows.length)
     .map((s) => {
@@ -496,6 +537,32 @@ export function printPdf(title, sections, options = {}) {
         border-left: 3.5px solid #AF101A;
         padding-left: 8px;
       }
+      .report-summary { margin-bottom: 16px; }
+      .report-summary__grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(165px, 1fr));
+        gap: 8px;
+      }
+      .report-summary__item {
+        border: 1px solid #e2e8f0;
+        border-radius: 7px;
+        background: #f8fafc;
+        padding: 8px 10px;
+        display: flex;
+        flex-direction: column;
+        gap: 3px;
+      }
+      .report-summary__item span {
+        color: #64748b;
+        font-size: 0.68rem;
+        font-weight: 700;
+        text-transform: uppercase;
+      }
+      .report-summary__item strong {
+        color: #0f172a;
+        font-size: 0.82rem;
+        overflow-wrap: anywhere;
+      }
       table.report-table {
         width: 100%;
         border-collapse: collapse;
@@ -570,6 +637,7 @@ export function printPdf(title, sections, options = {}) {
         </div>
       </div>
     </header>
+    ${metaBlock}
     ${blocks || '<p style="color:#64748b; font-size:0.9rem; padding: 20px 0;">No data to export.</p>'}
     <div class="report-signoff"><strong>Prepared By:</strong> ${htmlEscape(preparedBy)}</div>
     <footer class="report-footer">

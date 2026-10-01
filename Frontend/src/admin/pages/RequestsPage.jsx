@@ -1514,6 +1514,13 @@ function timeAgo(dateString) {
   return `${diffDays} day${diffDays !== 1 ? 's' : ''} ago`;
 }
 
+function formatRangeDate(value) {
+  if (!value) return '';
+  const date = new Date(`${value}T00:00:00`);
+  if (Number.isNaN(date.getTime())) return value;
+  return date.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
+}
+
 const NEED_ICONS = {
   Food: Utensils,
   Water: Droplets,
@@ -1632,21 +1639,7 @@ export default function RequestsPage() {
     return () => s.remove();
   }, []);
 
-  // Requests that have been allocated, partially allocated, or entered distribution
-  // have left the intake review queue — they continue in Resource Allocation & Logistics.
-  const ALLOCATED_OR_DONE_STATUSES = [
-    'Allocated',
-    'Partially Allocated',
-    'Partially Funded',
-    'In Distribution',
-    'In Transit',
-    'Delivered',
-    'Distributed',
-    'Completed',
-    'Done',
-    'Cancelled'
-  ];
-
+  // Enrich every request before report filtering so every lifecycle status remains available.
   const enrichedData = useMemo(() => {
     if (!requestsData || !beneficiariesData) return requestsData || [];
     const bMap = new Map(beneficiariesData.map(b => [b.dbId, b]));
@@ -1679,18 +1672,6 @@ export default function RequestsPage() {
     });
   }, [requestsData, beneficiariesData]);
 
-  const activeReliefData = useMemo(() => {
-    return (enrichedData || []).filter((r) => {
-      // 1. Exclude any status that represents an allocated, in-distribution, or completed request
-      if (ALLOCATED_OR_DONE_STATUSES.includes(r.status)) return false;
-      // 2. Exclude any request that has linked allocation or procurement records
-      if (r.hasAllocation || (r.allocationCount && r.allocationCount > 0) || (r.procurementCount && r.procurementCount > 0)) {
-        return false;
-      }
-      return true;
-    });
-  }, [enrichedData]);
-
   useEffect(() => {
     const targetId = location.state?.openRequestId || new URLSearchParams(location.search).get('id') || new URLSearchParams(location.search).get('requestId');
     if (targetId && enrichedData && enrichedData.length > 0) {
@@ -1707,13 +1688,34 @@ export default function RequestsPage() {
 
   const filterConfig = useMemo(() => ({
     searchKeys: ['beneficiary', 'id', 'type', 'notes'],
+    dateKey: 'requestDate',
+    dateFromLabel: 'From Date',
+    dateToLabel: 'To Date',
     filters: [
       { key: 'priority', label: 'Priority', options: ['Critical', 'High', 'Medium', 'Low'] },
-      { key: 'status', label: 'Status', options: ['Pending Review', 'Under Review', 'Ready for Allocation', 'Approved', 'Partially Allocated', 'Allocated', 'Preparing', 'In Transit', 'Delivered', 'Completed', 'Rejected'] }
+      {
+        key: 'status',
+        label: 'Status',
+        deriveOptions: (rows) => Array.from(new Set(rows.map((row) => row.status).filter(Boolean))).sort(),
+      }
     ]
   }), []);
 
-  const filterController = useFilters(activeReliefData, filterConfig);
+  // Report and filter across the full relief-request lifecycle.
+  const filterController = useFilters(enrichedData, filterConfig);
+
+  const dateRangeData = useMemo(() => {
+    const from = filterController.dateFrom;
+    const to = filterController.dateTo;
+    if (!from && !to) return enrichedData;
+    return enrichedData.filter((request) => {
+      const requestDate = String(request.requestDate || '').slice(0, 10);
+      if (!requestDate) return false;
+      if (from && requestDate < from) return false;
+      if (to && requestDate > to) return false;
+      return true;
+    });
+  }, [enrichedData, filterController.dateFrom, filterController.dateTo]);
 
   const sortedData = useMemo(() => {
     const arr = [...filterController.filtered];
@@ -1744,20 +1746,32 @@ export default function RequestsPage() {
   const paging = usePagination(
     sortedData,
     DEFAULT_PAGE_SIZE,
-    `${filterController.search}|${filterController.values?.priority || ''}|${filterController.values?.status || ''}`,
+    `${filterController.search}|${filterController.values?.priority || ''}|${filterController.values?.status || ''}|${filterController.dateFrom}|${filterController.dateTo}`,
   );
 
   const stats = useMemo(() => {
     let pending = 0;
     let approved = 0;
     let critical = 0;
-    activeReliefData.forEach(r => {
+    dateRangeData.forEach(r => {
       if (r.status === 'Pending Review' || r.status === 'Under Review') pending++;
       if (r.status === 'Approved' || r.status === 'Ready for Allocation') approved++;
       if (r.priority === 'Critical' && r.status !== 'Rejected') critical++;
     });
-    return { total: activeReliefData.length, pending, approved, critical };
-  }, [activeReliefData]);
+    return { total: dateRangeData.length, pending, approved, critical };
+  }, [dateRangeData]);
+
+  const reportDateRange = filterController.dateFrom || filterController.dateTo
+    ? `${filterController.dateFrom ? formatRangeDate(filterController.dateFrom) : 'Earliest'} to ${filterController.dateTo ? formatRangeDate(filterController.dateTo) : 'Latest'}`
+    : 'All Dates';
+
+  const reportMeta = [
+    { label: 'Relief Request Date Range', value: reportDateRange },
+    { label: 'Total Relief Requests', value: stats.total },
+    { label: 'Pending Review', value: stats.pending },
+    { label: 'Approved / Ready for Allocation', value: stats.approved },
+    { label: 'Critical Alerts', value: stats.critical },
+  ];
 
   const toggleEmergency = (dbId, e) => {
     e.stopPropagation();
@@ -1979,6 +1993,7 @@ export default function RequestsPage() {
             title: 'Assistance Requests Report',
             columns: exportColumns,
             rows: sortedData,
+            meta: reportMeta,
           }}
         />
 

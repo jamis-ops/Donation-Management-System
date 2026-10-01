@@ -24,7 +24,10 @@ function getInitialValues(filters, searchStr) {
  * Generic client-side filtering for list/table modules with URL query sync.
  */
 export function useFilters(data, config = {}) {
-  const { searchKeys = [], filters = [], dateKey = null } = config
+  const {
+    searchKeys = [], filters = [], dateKey = null,
+    dateFromLabel = 'From', dateToLabel = 'To',
+  } = config
   const location = useLocation()
 
   const [search, setSearch] = useState(() => {
@@ -129,6 +132,6 @@ export function useFilters(data, config = {}) {
     reset,
     activeCount,
     options,
-    config: { searchKeys, filters, dateKey },
+    config: { searchKeys, filters, dateKey, dateFromLabel, dateToLabel },
   }
 }
