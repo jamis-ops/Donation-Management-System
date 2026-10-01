@@ -388,7 +388,7 @@ export default function ContentPage() {
                                 <RotateCcw size={14} />
                               </button>
                             )}
-                            <button type="button" className="btn btn--sm btn--danger" onClick={() => handleDelete(row)} title="Delete">
+                            <button type="button" className="btn btn--sm btn--ghost" onClick={() => handleDelete(row)} title="Delete">
                               <Trash2 size={14} />
                             </button>
                           </>

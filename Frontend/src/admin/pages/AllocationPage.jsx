@@ -3085,7 +3085,7 @@ export default function AllocationPage() {
               <div className="admin-modal__actions alloc-create-footer">
                 {editRow ? (
                   <>
-                    <button type="button" className="btn btn--danger" onClick={closeForm} disabled={saving}>Cancel</button>
+                    <button type="button" className="btn btn--ghost" onClick={closeForm} disabled={saving}>Cancel</button>
                     <button type="submit" className="btn btn--primary" disabled={saving || !canConfirmAllocation}>
                       {saving ? 'Saving…' : 'Save Changes'}
                     </button>
@@ -3095,7 +3095,7 @@ export default function AllocationPage() {
                     <span className="alloc-create-footer__context">Step {allocationStep} of {ALLOCATION_STEPS.length}</span>
                     <div className="alloc-create-footer__actions">
                       {allocationStep === 1 ? (
-                        <button type="button" className="btn btn--danger" onClick={closeForm} disabled={saving}>Cancel</button>
+                        <button type="button" className="btn btn--ghost" onClick={closeForm} disabled={saving}>Cancel</button>
                       ) : (
                         <button type="button" className="btn btn--outline" onClick={goBackAllocation} disabled={saving}>Back</button>
                       )}

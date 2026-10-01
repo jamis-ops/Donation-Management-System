@@ -1157,7 +1157,7 @@ export default function DistributionsPage() {
                   <div style={{ display: 'flex', gap: '8px', marginTop: '12px' }}>
                     <button
                       type="button"
-                      className="btn btn--outline btn--sm"
+                      className="btn btn--primary btn--sm"
                       style={{ flex: 1 }}
                       onClick={() => openEdit(draft)}
                     >
@@ -1849,7 +1849,7 @@ export default function DistributionsPage() {
                 </label>
               </div>
               <div className="dist-modal-footer">
-                <button type="button" className="btn btn--danger btn--sm" onClick={() => setStatusRow(null)}>Cancel</button>
+                <button type="button" className="btn btn--ghost btn--sm" onClick={() => setStatusRow(null)}>Cancel</button>
                 <button type="submit" className="btn btn--primary btn--sm" disabled={saving}>{saving ? 'Saving...' : 'Update Status'}</button>
               </div>
             </form>
@@ -2661,12 +2661,12 @@ export default function DistributionsPage() {
               <div className="dist-modal-footer">
                 {formTab === 'destination' && (
                   <>
-                    <button type="button" className="btn btn--danger btn--sm" onClick={closeForm}>
+                    <button type="button" className="btn btn--ghost btn--sm" onClick={closeForm}>
                       Cancel
                     </button>
                     <button
                       type="button"
-                      className="btn btn--outline btn--sm"
+                      className="btn btn--primary btn--sm"
                       onClick={() => handleGoToStep('logistics')}
                       disabled={!isStep1Complete || saving}
                     >
@@ -2678,7 +2678,7 @@ export default function DistributionsPage() {
                 {formTab === 'logistics' && (
                   <>
                     <div style={{ display: 'flex', gap: '0.5rem' }}>
-                      <button type="button" className="btn btn--danger btn--sm" onClick={closeForm}>
+                      <button type="button" className="btn btn--ghost btn--sm" onClick={closeForm}>
                         Cancel
                       </button>
                       <button
@@ -2691,7 +2691,7 @@ export default function DistributionsPage() {
                     </div>
                     <button
                       type="button"
-                      className="btn btn--outline btn--sm"
+                      className="btn btn--primary btn--sm"
                       onClick={() => handleGoToStep('requirements')}
                       disabled={!isStep1Complete || !isStep2Complete || saving}
                     >
@@ -2703,7 +2703,7 @@ export default function DistributionsPage() {
                 {formTab === 'requirements' && (
                   <>
                     <div style={{ display: 'flex', gap: '0.5rem' }}>
-                      <button type="button" className="btn btn--danger btn--sm" onClick={closeForm}>
+                      <button type="button" className="btn btn--ghost btn--sm" onClick={closeForm}>
                         Cancel
                       </button>
                       <button

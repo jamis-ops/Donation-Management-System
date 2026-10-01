@@ -776,7 +776,7 @@ export default function DonorsPage() {
 
               {/* Modal Actions */}
               <div className="admin-modal__actions">
-                <button type="button" className="btn btn--danger" onClick={() => setMode(null)}>Cancel</button>
+                <button type="button" className="btn btn--ghost" onClick={() => setMode(null)}>Cancel</button>
                 <button
                   type="submit"
                   className="btn btn--primary"

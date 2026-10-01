@@ -107,7 +107,7 @@ export async function updateAccount(payload) {
   })
 }
 
-export async function changePassword({ currentPassword, newPassword, acceptedTerms, acceptedPrivacy }) {
-  return updateAccount({ currentPassword, newPassword, acceptedTerms, acceptedPrivacy })
+export async function changePassword({ currentPassword, newPassword }) {
+  return updateAccount({ currentPassword, newPassword })
 }
 

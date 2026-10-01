@@ -446,7 +446,7 @@ export default function DonorDonationsPage() {
               {(canRequestCert || selected.status === 'Pending Verification') && (
                 <div className="admin-modal__actions-group">
                   {selected.status === 'Pending Verification' && (
-                    <button type="button" className="btn btn--danger" disabled={busy} onClick={() => handleCancel(selected)}>
+                    <button type="button" className="btn btn--outline" disabled={busy} onClick={() => handleCancel(selected)}>
                       Cancel Donation
                     </button>
                   )}

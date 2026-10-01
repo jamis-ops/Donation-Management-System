@@ -314,7 +314,7 @@ export default function AdminProofReview({
                 <div className="proof-preview-modal__doc">
                   <FileText size={40} />
                   <p>This file type can’t be previewed inline.</p>
-                  <button type="button" className="btn btn--outline" onClick={() => openProofFile(preview)}>Open / Download</button>
+                  <button type="button" className="btn btn--primary" onClick={() => openProofFile(preview)}>Open / Download</button>
                 </div>
               )}
             </div>
@@ -352,7 +352,7 @@ export default function AdminProofReview({
                 />
               </label>
               <div className="admin-modal__actions">
-                <button type="button" className="btn btn--danger" onClick={() => setRejecting(null)}>Cancel</button>
+                <button type="button" className="btn btn--ghost" onClick={() => setRejecting(null)}>Cancel</button>
                 <button type="submit" className="btn btn--danger" disabled={busyId === rejecting.id}>
                   {busyId === rejecting.id ? 'Rejecting…' : 'Confirm Reject'}
                 </button>

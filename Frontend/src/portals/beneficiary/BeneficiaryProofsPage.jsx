@@ -389,7 +389,7 @@ export default function BeneficiaryProofsPage() {
                           </label>
                           {message && <p className={`proof-message${/success|Pending|submitted/i.test(message) ? ' proof-message--success' : ' proof-message--error'}`}>{message}</p>}
                           <div className="proof-upload-form__actions">
-                            <button type="button" className="btn btn--danger btn--sm" onClick={() => handleToggleExpand(request.dbId)}><X size={14} /> Cancel</button>
+                            <button type="button" className="btn btn--ghost btn--sm" onClick={() => handleToggleExpand(request.dbId)}><X size={14} /> Cancel</button>
                             <button type="submit" className="btn btn--primary btn--sm" disabled={uploading}><Upload size={14} />{uploading ? 'Uploading...' : hasRejection ? 'Resubmit Proof' : 'Submit Proof'}</button>
                           </div>
                         </form>

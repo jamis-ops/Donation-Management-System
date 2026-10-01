@@ -151,27 +151,27 @@ address { font-style: normal; }
 .btn:active { transform: translateY(0); }
 
 .btn--primary {
-  background: #16a34a;
+  background: var(--color-brand);
   color: #fff;
-  border-color: #16a34a;
-  box-shadow: 0 2px 8px rgba(22, 163, 74, 0.25);
+  border-color: var(--color-brand);
+  box-shadow: 0 2px 8px rgba(175, 16, 26, 0.25);
 }
 .btn--primary:hover {
-  background: #15803d;
-  border-color: #15803d;
+  background: var(--color-brand-dark);
+  border-color: var(--color-brand-dark);
   color: #fff;
-  box-shadow: 0 4px 16px rgba(22, 163, 74, 0.32);
+  box-shadow: 0 4px 16px rgba(175, 16, 26, 0.32);
 }
 
 .btn--outline {
   background: transparent;
-  color: #334155;
-  border-color: #cbd5e1;
+  color: var(--color-brand);
+  border-color: var(--color-brand);
 }
 .btn--outline:hover {
-  background: #f8fafc;
-  color: #0f172a;
-  border-color: #94a3b8;
+  background: var(--color-brand);
+  color: #fff;
+  border-color: var(--color-brand);
 }
 
 .btn--ghost {
@@ -436,29 +436,28 @@ address { font-style: normal; }
 
 .site-nav__actions .btn--outline {
   background: transparent;
-  color: #334155;
-  border: 1.5px solid #cbd5e1;
+  color: var(--color-brand);
+  border: 1.5px solid var(--color-brand);
 }
 
 .site-nav__actions .btn--outline:hover {
-  background: #f8fafc;
-  color: #0f172a;
-  border-color: #94a3b8;
+  background: var(--color-brand);
+  color: #ffffff;
   transform: translateY(-1px);
 }
 
 .site-nav__actions .btn--primary {
-  background: #16a34a;
+  background: var(--color-brand);
   color: #ffffff;
-  border: 1.5px solid #16a34a;
-  box-shadow: 0 2px 8px rgba(22, 163, 74, 0.22);
+  border: 1.5px solid var(--color-brand);
+  box-shadow: 0 2px 8px rgba(175, 16, 26, 0.22);
 }
 
 .site-nav__actions .btn--primary:hover {
-  background: #15803d;
-  border-color: #15803d;
+  background: var(--color-brand-dark);
+  border-color: var(--color-brand-dark);
   transform: translateY(-1px);
-  box-shadow: 0 4px 14px rgba(22, 163, 74, 0.32);
+  box-shadow: 0 4px 14px rgba(175, 16, 26, 0.32);
 }
 
 .nav-account {

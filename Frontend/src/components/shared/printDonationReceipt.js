@@ -332,7 +332,7 @@ export function printDonationReceipt(donation, options = {}) {
 
   <div style="margin-top: 24px; padding-top: 14px; border-top: 1px dashed #cbd5e1; font-size: 12px; color: #475569; line-height: 1.6;">
     <div><strong>Prepared By:</strong> ${preparedByUser}</div>
-    <div style="text-align: right;"><strong>Date Prepared:</strong> ${reportDateTime}</div>
+    <div><strong>Date:</strong> ${reportDateTime}</div>
   </div>
 
   <script>
