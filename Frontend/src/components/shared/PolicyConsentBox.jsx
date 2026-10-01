@@ -14,12 +14,15 @@ export default function PolicyConsentBox({
   onTermsChange,
   acceptedPrivacy = false,
   onPrivacyChange,
+  requireReview = true,
+  idPrefix = 'policy-consent',
+  actionLabel = 'create credentials',
   title = 'Data Privacy & Terms Agreement',
   description = 'Please read and accept the Data Privacy Policy and Terms & Conditions before creating credentials.',
 }) {
   const [activeModal, setActiveModal] = useState(null) // 'privacy' | 'terms' | null
-  const [reviewedTerms, setReviewedTerms] = useState(() => Boolean(acceptedTerms))
-  const [reviewedPrivacy, setReviewedPrivacy] = useState(() => Boolean(acceptedPrivacy))
+  const [reviewedTerms, setReviewedTerms] = useState(() => !requireReview || Boolean(acceptedTerms))
+  const [reviewedPrivacy, setReviewedPrivacy] = useState(() => !requireReview || Boolean(acceptedPrivacy))
 
   useEffect(() => {
     if (acceptedTerms && !reviewedTerms) {
@@ -83,10 +86,12 @@ export default function PolicyConsentBox({
         {/* 1. Terms & Conditions */}
         <label className="policy-consent-item">
           <input
+            id={`${idPrefix}-terms`}
+            name="acceptedTerms"
             type="checkbox"
             className="policy-consent-item__checkbox"
             checked={Boolean(acceptedTerms)}
-            disabled={!reviewedTerms}
+            disabled={requireReview && !reviewedTerms}
             onClick={handleCheckboxClick('terms')}
             onChange={(e) => onTermsChange?.(e.target.checked)}
             required
@@ -110,10 +115,12 @@ export default function PolicyConsentBox({
         {/* 2. Data Privacy Policy */}
         <label className="policy-consent-item">
           <input
+            id={`${idPrefix}-privacy`}
+            name="acceptedPrivacy"
             type="checkbox"
             className="policy-consent-item__checkbox"
             checked={Boolean(acceptedPrivacy)}
-            disabled={!reviewedPrivacy}
+            disabled={requireReview && !reviewedPrivacy}
             onClick={handleCheckboxClick('privacy')}
             onChange={(e) => onPrivacyChange?.(e.target.checked)}
             required
@@ -139,16 +146,16 @@ export default function PolicyConsentBox({
         {isBothAccepted ? (
           <span className="policy-consent-status policy-consent-status--ready">
             <CheckCircle2 size={14} />
-            <span>Data Privacy Policy and Terms & Conditions accepted. Ready to create credentials.</span>
+            <span>Data Privacy Policy and Terms & Conditions accepted. Ready to {actionLabel}.</span>
           </span>
         ) : (
           <span className="policy-consent-status policy-consent-status--locked">
             <Lock size={14} />
             <span>
               {!reviewedTerms && !reviewedPrivacy
-                ? 'Click each policy to view and enable its checkbox, then check both to create credentials.'
+                ? `Click each policy to view and enable its checkbox, then check both to ${actionLabel}.`
                 : !acceptedTerms || !acceptedPrivacy
-                ? 'Please check both agreements above to create credentials.'
+                ? `Please check both agreements above to ${actionLabel}.`
                 : 'Please complete both requirements above.'}
             </span>
           </span>
