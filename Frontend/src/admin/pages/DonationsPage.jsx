@@ -1352,7 +1352,7 @@ export default function DonationsPage() {
 
                         <button
                           type="button"
-                          className="btn btn--danger-outline"
+                          className="btn btn--danger"
                           disabled={actionLoading}
                           onClick={() => {
                             if (window.confirm(`Are you sure you want to mark donation ${selected.trackingCode} as Rejected?`)) {
@@ -1360,7 +1360,7 @@ export default function DonationsPage() {
                             }
                           }}
                         >
-                          <XCircle size={15} /> Reject Donation
+                          <XCircle size={16} /> Reject Donation
                         </button>
                       </>
                     ) : (
@@ -1534,7 +1534,7 @@ export default function DonationsPage() {
                     </button>
                     <button
                       type="button"
-                      className="btn btn--danger-outline"
+                      className="btn btn--danger"
                       disabled={actionLoading}
                       onClick={() => {
                         if (window.confirm(`Are you sure you want to mark donation ${selected.trackingCode} as Rejected?`)) {
@@ -1542,7 +1542,7 @@ export default function DonationsPage() {
                         }
                       }}
                     >
-                      <XCircle size={15} /> Reject Donation
+                      <XCircle size={16} /> Reject Donation
                     </button>
                   </div>
                 )}

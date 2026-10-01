@@ -556,6 +556,26 @@
 
 .proof-primary-actions .btn {
   min-height: 42px;
+  font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+}
+
+.proof-primary-actions .btn--danger,
+.donation-actions-primary-group .btn--danger {
+  background: #dc2626 !important;
+  border: 1px solid #dc2626 !important;
+  color: #ffffff !important;
+  box-shadow: 0 2px 6px rgba(220, 38, 38, 0.25);
+}
+
+.proof-primary-actions .btn--danger:hover:not(:disabled),
+.donation-actions-primary-group .btn--danger:hover:not(:disabled) {
+  background: #b91c1c !important;
+  border-color: #b91c1c !important;
+  color: #ffffff !important;
+  box-shadow: 0 4px 10px rgba(185, 28, 28, 0.35);
 }
 
 .proof-status-row {
