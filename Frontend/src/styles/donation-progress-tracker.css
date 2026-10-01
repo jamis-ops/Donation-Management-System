@@ -156,7 +156,7 @@
 /* Workflow Stages — 4 columns */
 .progress-tracker-stages {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(5, 1fr);
   gap: 0;
   margin-bottom: 0.5rem;
   position: relative;
@@ -450,8 +450,8 @@
   }
 
   .progress-tracker-stages {
-    grid-template-columns: repeat(4, minmax(90px, 1fr));
-    min-width: 380px;
+    grid-template-columns: repeat(5, minmax(90px, 1fr));
+    min-width: 450px;
     overflow-x: auto;
     padding-bottom: 1rem;
     scrollbar-width: thin;

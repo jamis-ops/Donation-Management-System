@@ -2,13 +2,13 @@ import { useState, useMemo, useEffect } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { 
   Eye, CheckCircle2, Download, FileText, Check, Clock, Package, 
-  TrendingUp, Users, MapPin, FileCheck, Printer,
-  Calendar, Mail, Award, Coins, CreditCard, ShieldCheck,
+  TrendingUp, Users, FileCheck, Printer,
+  Calendar, Mail, Coins, CreditCard, ShieldCheck,
   Trash2, ExternalLink, ShoppingCart, XCircle, Copy,
   ZoomIn, ZoomOut, RotateCcw, AlertCircle, X,
   HeartHandshake, Upload
 } from 'lucide-react'
-import { donationsApi, beneficiariesApi, assistanceRequestsApi, paymentMethodsApi } from '../../api/resources'
+import { donationsApi, beneficiariesApi, assistanceRequestsApi, paymentMethodsApi, needTypesApi } from '../../api/resources'
 import { getAuthenticatedFileUrl } from '../../api/auth'
 import ProcurementModal from '../components/donations/ProcurementModal'
 import InKindIntakeModal from '../components/shared/InKindIntakeModal'
@@ -25,6 +25,7 @@ import { notify, confirmAction, showSuccessModal } from '../../utils/confirm'
 import { notifyBadgesChanged } from '../../utils/badgeSync'
 import { useLoading } from '../../context/LoadingContext'
 import { printDonationReceipt } from '../../components/shared/printDonationReceipt'
+import { DONATION_STATUSES } from '../../constants/options'
 
 const IN_KIND_CATEGORIES = [
   'Food',
@@ -133,6 +134,7 @@ export default function DonationsPage() {
   const { data: donations, loading, error, reload } = useApiList(() => donationsApi.list())
   const { data: beneficiaries } = useApiList(() => beneficiariesApi.list())
   const { data: assistanceRequests } = useApiList(() => assistanceRequestsApi.list())
+  const { data: reliefCategories } = useApiList(() => needTypesApi.list())
   const [selected, setSelected] = useState(null)
   const [procuringDonation, setProcuringDonation] = useState(null)
   const [intakeModalDonation, setIntakeModalDonation] = useState(null)
@@ -170,9 +172,46 @@ export default function DonationsPage() {
   const inKindDonations = useMemo(() => (donations || []).filter(d => d.type === 'In-Kind'), [donations])
   const monetaryDonations = useMemo(() => (donations || []).filter(d => d.type === 'Monetary'), [donations])
 
+  const categoryOptions = useMemo(() => {
+    const categories = new Set()
+    ;(reliefCategories || []).forEach((item) => {
+      const label = typeof item === 'string' ? item : item?.label
+      if (label) categories.add(label)
+    })
+    ;(donations || []).forEach((donation) => {
+      if (donation.category) categories.add(donation.category)
+    })
+    return Array.from(categories).sort((a, b) => a.localeCompare(b))
+  }, [reliefCategories, donations])
+
+  const filterOptions = useMemo(() => ({
+    statuses: DONATION_STATUSES,
+    categories: categoryOptions,
+  }), [categoryOptions])
+
+  const inKindFiltersConfig = useMemo(() => ({
+    ...inKindFilterConfig,
+    filters: inKindFilterConfig.filters.map((filter) => ({
+      ...filter,
+      options: filter.key === 'status' ? filterOptions.statuses : filterOptions.categories,
+    })),
+  }), [filterOptions])
+
+  const monetaryFiltersConfig = useMemo(() => ({
+    ...monetaryFilterConfig,
+    filters: monetaryFilterConfig.filters.map((filter) => ({
+      ...filter,
+      options: filter.key === 'status'
+        ? filterOptions.statuses
+        : filter.key === 'category'
+          ? filterOptions.categories
+          : undefined,
+    })),
+  }), [filterOptions])
+
   // Filter controllers for each section
-  const inKindFilters = useFilters(inKindDonations, inKindFilterConfig)
-  const monetaryFilters = useFilters(monetaryDonations, monetaryFilterConfig)
+  const inKindFilters = useFilters(inKindDonations, inKindFiltersConfig)
+  const monetaryFilters = useFilters(monetaryDonations, monetaryFiltersConfig)
 
   const currentFilters = activeSection === 'in-kind' ? inKindFilters : monetaryFilters
 

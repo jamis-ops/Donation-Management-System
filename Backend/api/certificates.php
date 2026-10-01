@@ -262,21 +262,11 @@ if ($method === 'POST') {
       $own->execute([$reference, $user['email']]);
       $donation = $own->fetch(PDO::FETCH_ASSOC);
       if (!$donation) {
-        $own2 = $pdo->prepare('SELECT id, status FROM donations WHERE tracking_code = ? LIMIT 1');
-        $own2->execute([$reference]);
-        $donation = $own2->fetch(PDO::FETCH_ASSOC);
-      }
-      if (!$donation) {
         json_response(['ok' => false, 'error' => 'That donation reference does not belong to your account'], 403);
       }
-      $allowed = ['Completed', 'Verified', 'Certificate / Official Receipt', 'Delivered', 'Distributed'];
+      $allowed = ['Completed', 'Certificate / Official Receipt'];
       if (!in_array($donation['status'], $allowed, true)) {
         json_response(['ok' => false, 'error' => 'Certificates are only available after the donation is completed'], 400);
-      }
-      if ($donation['status'] === 'Verified') {
-        try {
-          $pdo->prepare('UPDATE donations SET status = "Completed" WHERE id = ?')->execute([(int) $donation['id']]);
-        } catch (Throwable $e) {}
       }
     } else {
       json_response(['ok' => false, 'error' => 'A completed donation reference is required'], 400);
