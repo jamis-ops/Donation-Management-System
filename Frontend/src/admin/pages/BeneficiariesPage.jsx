@@ -581,7 +581,7 @@ export default function BeneficiariesPage() {
               <div className="beneficiaries-review-actions">
                 <button
                   type="button"
-                  className="btn btn--sm btn--success"
+                  className="btn btn--sm btn--primary"
                   title="Approve application"
                   disabled={busy}
                   onClick={(e) => handleApprove(e, row)}
@@ -940,7 +940,7 @@ export default function BeneficiariesPage() {
               </label>
 
               <div className="admin-modal__actions">
-                <button type="button" className="btn btn--danger" onClick={() => setModalMode(null)}>Cancel</button>
+                <button type="button" className="btn btn--ghost" onClick={() => setModalMode(null)}>Cancel</button>
                 <button type="submit" className="btn btn--primary" disabled={saving}>
                   {saving ? 'Sending…' : 'Send Invitation'}
                 </button>
@@ -1071,7 +1071,7 @@ export default function BeneficiariesPage() {
               )}
 
               <div className="admin-modal__actions">
-                <button type="button" className="btn btn--danger" onClick={() => setModalMode(null)}>Cancel</button>
+                <button type="button" className="btn btn--ghost" onClick={() => setModalMode(null)}>Cancel</button>
                 <button type="submit" className="btn btn--primary" disabled={saving}>
                   Save Barangay
                 </button>

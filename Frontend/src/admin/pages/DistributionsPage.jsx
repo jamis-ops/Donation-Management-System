@@ -2716,7 +2716,7 @@ export default function DistributionsPage() {
                     </div>
                     <button
                       type="submit"
-                      className="btn btn--success btn--sm"
+                      className="btn btn--primary btn--sm"
                       disabled={saving || !isStep1Complete || !isStep2Complete}
                     >
                       {saving ? 'Saving...' : 'Confirm & Save Delivery'}

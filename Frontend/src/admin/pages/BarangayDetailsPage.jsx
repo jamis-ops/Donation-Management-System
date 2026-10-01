@@ -1031,7 +1031,7 @@ export default function BarangayDetailsPage() {
                 </label>
               </div>
               <div className="admin-modal__actions" style={{ marginTop: '1.25rem' }}>
-                <button type="button" className="btn btn--danger" onClick={() => setIsEditModalOpen(false)}>Cancel</button>
+                <button type="button" className="btn btn--ghost" onClick={() => setIsEditModalOpen(false)}>Cancel</button>
                 <button type="submit" className="btn btn--primary" disabled={saving}>Save Changes</button>
               </div>
             </form>

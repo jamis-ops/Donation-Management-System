@@ -374,7 +374,7 @@ export default function StaffTasksPage() {
                         {isTodo && (
                           <button
                             type="button"
-                            className="btn btn--sm btn--success"
+                            className="btn btn--sm btn--primary"
                             style={{ flex: 1.2 }}
                             disabled={saving}
                             onClick={() => handleUpdateStatus(task, 'inProgress', 'Start Task')}
@@ -386,7 +386,7 @@ export default function StaffTasksPage() {
                         {isProgress && (
                           <button
                             type="button"
-                            className="btn btn--sm btn--success"
+                            className="btn btn--sm btn--primary"
                             style={{ flex: 1.2 }}
                             disabled={saving}
                             onClick={() => handleUpdateStatus(task, 'done', 'Complete Task')}
@@ -566,7 +566,7 @@ export default function StaffTasksPage() {
                         </button>
                         <button
                           type="button"
-                          className="btn btn--success"
+                          className="btn btn--primary"
                           disabled={saving}
                           onClick={() => handleUpdateStatus(selectedTask, 'done', 'Complete Task')}
                         >
@@ -578,7 +578,7 @@ export default function StaffTasksPage() {
                     {isReview && (
                       <button
                         type="button"
-                        className="btn btn--success"
+                        className="btn btn--primary"
                         disabled={saving}
                         onClick={() => handleUpdateStatus(selectedTask, 'done', 'Complete Task')}
                       >

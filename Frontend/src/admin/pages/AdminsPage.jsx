@@ -481,7 +481,7 @@ export default function AdminsPage() {
               </p>
 
               <div className="admin-modal__actions" style={{ marginTop: '1.25rem' }}>
-                <button type="button" className="btn btn--danger" onClick={() => setShowForm(false)}>Cancel</button>
+                <button type="button" className="btn btn--ghost" onClick={() => setShowForm(false)}>Cancel</button>
                 <button
                   type="submit"
                   className="btn btn--primary"

@@ -2246,7 +2246,7 @@ export default function VolunteersPage() {
                                           <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '0.65rem' }}>
                                             <button
                                               type="button"
-                                              className="btn btn--sm btn--success"
+                                              className="btn btn--sm btn--primary"
                                               onClick={() => handleAdminCompleteTask(t)}
                                               disabled={saving}
                                               style={{ padding: '0.25rem 0.65rem', fontSize: '0.78rem', display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}
@@ -2527,7 +2527,7 @@ export default function VolunteersPage() {
                                     <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '0.65rem' }}>
                                       <button
                                         type="button"
-                                        className="btn btn--sm btn--success"
+                                        className="btn btn--sm btn--primary"
                                         onClick={() => handleAdminCompleteTask(t)}
                                         disabled={saving}
                                         style={{ padding: '0.25rem 0.65rem', fontSize: '0.78rem', display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}
