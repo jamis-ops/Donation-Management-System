@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useLocation, useNavigate, useSearchParams } from 'react-router-dom'
-import { Mail, Plus, Users, Activity, Clock, AlertCircle, Eye, Pencil, Trash2, Send, CheckCircle2, XCircle, Shield, Building, Phone, HeartHandshake, FileText, UserCheck, MapPin } from 'lucide-react'
+import { Mail, Users, Activity, Clock, AlertCircle, Eye, CheckCircle2, XCircle, Shield, Building, Phone, HeartHandshake, FileText, UserCheck, MapPin } from 'lucide-react'
 import { beneficiariesApi, assistanceRequestsApi } from '../../api/resources'
 import { useApiList } from '../../hooks/useApiList'
 import { useFilters } from '../../hooks/useFilters'
@@ -17,32 +17,33 @@ import NeedsPicker from '../../components/shared/NeedsPicker'
 import { useCatalogOptions } from '../../hooks/useCatalogOptions'
 import { NEEDS as FALLBACK_NEEDS } from '../../constants/options'
 import ApiState from '../components/shared/ApiState'
-import { emptyNameParts, formatFullName, parseFullName } from '../../utils/personName'
+import { emptyNameParts, formatFullName } from '../../utils/personName'
 import { BENEFICIARIES_CHANGED, notifyBeneficiariesChanged } from '../../utils/beneficiariesSync'
-import { canInviteBarangay, canStartOrRefreshInvite, isAwaitingBarangayApproval } from '../../utils/barangayInvite'
-import { useBulkSelection } from '../../hooks/useBulkSelection'
-import { notify, suppressNotificationToast, confirmAction, showSuccessModal } from '../../utils/confirm'
+import { canStartOrRefreshInvite, isAwaitingBarangayApproval } from '../../utils/barangayInvite'
+import { notify, suppressNotificationToast, showSuccessModal } from '../../utils/confirm'
 import { useHashScroll, useQueryFocus } from '../../hooks/useDeepLinkFocus'
 import PhoneInput from '../../components/shared/PhoneInput'
 import PasswordRequirements from '../../components/shared/PasswordRequirements'
 import { phoneError, emailError, passwordError } from '../../utils/validation'
 import { useLoading } from '../../context/LoadingContext'
+import ReliefRequestModal from '../components/requests/ReliefRequestModal'
 
-const STATUS_OPTIONS = ['Active', 'Approved', 'Pending Approval', 'Suspended', 'Rejected']
 /** Create-only statuses — Edit never changes partnership status. */
 const CREATE_STATUS_OPTIONS = ['Active', 'Pending Approval', 'Suspended']
-const PRIORITY_RANK = { Critical: 4, High: 3, Medium: 2, Low: 1 }
 
 const filterConfig = {
-  searchKeys: ['barangay', 'municipality', 'representativeName', 'name', 'representativeEmail'],
+  searchKeys: ['id', 'barangay', 'municipality', 'type', 'notes'],
   filters: [
-    { key: 'status', label: 'Status', options: STATUS_OPTIONS },
+    {
+      key: 'status',
+      label: 'Status',
+      deriveOptions: (rows) => Array.from(new Set(rows.map((row) => row.status).filter(Boolean))).sort(),
+    },
+    { key: 'priority', label: 'Priority', options: ['Critical', 'High', 'Medium', 'Low'] },
   ],
-  sorts: [
-    { key: 'barangay', label: 'Name' },
-    { key: 'municipality', label: 'Municipality' },
-    { key: 'status', label: 'Status' },
-  ],
+  dateKey: 'requestDate',
+  dateFromLabel: 'From Date',
+  dateToLabel: 'To Date',
 }
 
 const emptyCreateForm = {
@@ -71,30 +72,6 @@ const emptyInviteForm = {
   barangay: '',
   municipality: '',
   province: 'Cebu',
-}
-
-function formFromRow(row) {
-  const hasParts = Boolean(row.representativeLastName || row.representativeFirstName)
-  const nameParts = hasParts
-    ? {
-        lastName: row.representativeLastName || '',
-        firstName: row.representativeFirstName || '',
-        middleInitial: row.representativeMiddleInitial || '',
-      }
-    : parseFullName(row.representativeName || '')
-
-  return {
-    barangay: row.barangay || row.name || '',
-    municipality: row.municipality || '',
-    address: row.address || '',
-    needs: normalizeNeeds(row.needs),
-    nameParts,
-    representativePosition: row.representativePosition || '',
-    representativePhone: row.representativePhone || '',
-    representativeEmail: row.representativeEmail || '',
-    notes: row.notes || '',
-    status: row.status || 'Active',
-  }
 }
 
 function showInviteResultModal(res, email) {
@@ -144,7 +121,12 @@ export default function BeneficiariesPage() {
     focus: searchParams.get('focus') || '',
   }))
   const { data: beneficiaries, loading, error, reload, setData } = useApiList(() => beneficiariesApi.list())
-  const { data: requests } = useApiList(() => assistanceRequestsApi.list())
+  const {
+    data: requests,
+    loading: requestsLoading,
+    error: requestsError,
+    reload: reloadRequests,
+  } = useApiList(() => assistanceRequestsApi.list())
   const { showLoading, hideLoading } = useLoading()
 
   useEffect(() => {
@@ -175,13 +157,25 @@ export default function BeneficiariesPage() {
     return () => window.removeEventListener(BENEFICIARIES_CHANGED, onChanged)
   }, [reload, setData])
 
-  const filters = useFilters(beneficiaries, filterConfig)
-  const bulk = useBulkSelection(
-    filters.filtered,
-    (id) => beneficiariesApi.remove(id),
-    reload,
-    'barangays',
-  )
+  const requestRows = useMemo(() => {
+    const barangayMap = new Map((beneficiaries || []).map((row) => [Number(row.dbId), row]))
+    return (requests || [])
+      .map((request) => {
+        const barangay = barangayMap.get(Number(request.beneficiaryId))
+        return {
+          ...request,
+          barangay: barangay?.barangay || barangay?.name || request.beneficiary || '—',
+          municipality: barangay?.municipality || request.municipality || '—',
+          requestDate: request.requestDate || request.date || request.createdAt || '',
+        }
+      })
+      .sort((a, b) => {
+        const dateDiff = new Date(b.requestDate || 0) - new Date(a.requestDate || 0)
+        return dateDiff || Number(b.dbId || 0) - Number(a.dbId || 0)
+      })
+  }, [beneficiaries, requests])
+
+  const filters = useFilters(requestRows, filterConfig)
 
   const contentReady = !loading && Array.isArray(beneficiaries)
   const shouldScrollTable = Boolean(
@@ -222,7 +216,7 @@ export default function BeneficiariesPage() {
   }, [contentReady, deepLink.id, deepLink.status, deepLink.focus])
 
   const [modalMode, setModalMode] = useState(null)
-  const [activeId, setActiveId] = useState(null)
+  const activeId = null
   const [createForm, setCreateForm] = useState(emptyCreateForm)
   const [inviteForm, setInviteForm] = useState(emptyInviteForm)
   const [saving, setSaving] = useState(false)
@@ -240,6 +234,7 @@ export default function BeneficiariesPage() {
   const [useCustomPass, setUseCustomPass] = useState(false)
   const [customPassword, setCustomPassword] = useState('')
   const [rejectionReason, setRejectionReason] = useState('')
+  const [selectedRequest, setSelectedRequest] = useState(null)
 
   const { options: needOptions, applyList: applyNeeds } = useCatalogOptions('needs', FALLBACK_NEEDS)
 
@@ -248,119 +243,52 @@ export default function BeneficiariesPage() {
     [beneficiaries],
   )
 
-  const totalBeneficiaries = beneficiaries.length
-  const activeBeneficiaries = beneficiaries.filter((b) => b.status === 'Active' || b.status === 'Approved').length
-  const pendingInvites = pendingSubmissions.length
-
-  const urgentNeedsCount = useMemo(() => {
-    if (!requests) return 0
-    return requests.filter((r) => (
-      ['Pending Review', 'Under Review'].includes(r.status)
-      && ['High', 'Critical'].includes(r.priority)
-    )).length
-  }, [requests])
-
-  const latestRequestsMap = useMemo(() => {
-    const map = {}
-    ;(requests || []).forEach((req) => {
-      const bId = req.beneficiaryId
-      if (!map[bId] || new Date(req.date) > new Date(map[bId].date)) {
-        map[bId] = req
-      }
+  const dateRangeRequests = useMemo(() => {
+    const from = filters.dateFrom
+    const to = filters.dateTo
+    if (!from && !to) return requestRows
+    return requestRows.filter((request) => {
+      const requestDate = String(request.requestDate || '').slice(0, 10)
+      if (!requestDate) return false
+      if (from && requestDate < from) return false
+      if (to && requestDate > to) return false
+      return true
     })
-    return map
-  }, [requests])
+  }, [requestRows, filters.dateFrom, filters.dateTo])
 
-  const openPriorityMap = useMemo(() => {
-    const map = {}
-    ;(requests || []).forEach((req) => {
-      if (['Completed', 'Done', 'Rejected', 'Cancelled'].includes(req.status)) return
-      const bId = req.beneficiaryId
-      const rank = PRIORITY_RANK[req.priority] || 0
-      if (!map[bId] || rank > (PRIORITY_RANK[map[bId]] || 0)) {
-        map[bId] = req.priority || 'Low'
-      }
-    })
-    return map
-  }, [requests])
+  const requestStats = useMemo(() => {
+    const closed = new Set(['Completed', 'Done', 'Rejected', 'Cancelled'])
+    return dateRangeRequests.reduce((summary, request) => {
+      summary.total += 1
+      if (!closed.has(request.status)) summary.active += 1
+      if (['Pending', 'Pending Review', 'Under Review'].includes(request.status)) summary.pending += 1
+      if (!closed.has(request.status) && ['High', 'Critical'].includes(request.priority)) summary.urgent += 1
+      return summary
+    }, { total: 0, active: 0, pending: 0, urgent: 0 })
+  }, [dateRangeRequests])
+
+  const reportDateRange = filters.dateFrom || filters.dateTo
+    ? `${filters.dateFrom || 'Earliest'} to ${filters.dateTo || 'Latest'}`
+    : 'All Dates'
+
+  const reportMeta = [
+    { label: 'Relief Request Date Range', value: reportDateRange },
+    { label: 'Total Relief Requests', value: requestStats.total },
+    { label: 'Active Requests', value: requestStats.active },
+    { label: 'Pending Review', value: requestStats.pending },
+    { label: 'Urgent Open Needs', value: requestStats.urgent },
+  ]
 
   const openInvite = () => {
     setInviteForm(emptyInviteForm)
     setModalMode('invite')
   }
 
-  const openCreate = () => {
-    setCreateForm(emptyCreateForm)
-    setModalMode('create')
-  }
-
-  const openEdit = (row) => {
-    if (['Active', 'Approved'].includes(row.status)) {
-      notify.warning('Approved barangays are locked from full edit. Open the barangay profile to review details, or suspend the partnership first.')
-      navigate(`/admin/beneficiaries/${row.dbId}`)
-      return
-    }
-    setActiveId(row.dbId)
-    setCreateForm(formFromRow(row))
-    setModalMode('edit')
-  }
-
-  const handleRowClick = (row) => {
-    navigate(`/admin/beneficiaries/${row.dbId}`)
-  }
-
-  const handleDelete = async (e, row) => {
-    e.stopPropagation()
-    const ok = await confirmAction({
-      title: 'Delete Beneficiary',
-      message: `Permanently delete beneficiary "${row.barangay || row.name}"? This cannot be undone.`,
-      confirmText: 'Delete Beneficiary',
-      type: 'danger',
+  const handleRequestRowClick = (request) => {
+    const requestId = request.dbId || request.id
+    navigate(`/admin/beneficiaries/${request.beneficiaryId}?requestId=${encodeURIComponent(requestId)}`, {
+      state: { reliefRequestId: requestId },
     })
-    showLoading('Deleting…')
-    try {
-      await beneficiariesApi.remove(row.dbId)
-      setData((prev) => (prev || []).filter((b) => Number(b.dbId) !== Number(row.dbId)))
-      notifyBeneficiariesChanged({ removedId: row.dbId })
-      showSuccessModal('Successfully deleted.')
-      reload()
-    } catch (err) {
-      notify.error(err.message)
-    } finally {
-      hideLoading()
-    }
-  }
-
-  const handleReinvite = async (e, row) => {
-    e.stopPropagation()
-    const email = String(row.representativeEmail || '').trim()
-    if (!email) {
-      notify.warning('Add a representative email before sending an invite.')
-      return
-    }
-    const ok = await confirmAction({
-      title: 'Send Barangay Invitation',
-      message: `Send partnership invitation email to ${email} for ${row.barangay || row.name}?`,
-      confirmText: 'Send Invitation',
-      type: 'primary',
-    })
-    if (!ok) return
-
-    showLoading('Sending…')
-    try {
-      const res = await beneficiariesApi.reinvite(row.dbId, {
-        email,
-        barangay: row.barangay || row.name,
-        municipality: row.municipality || '',
-      })
-      showInviteResultModal(res, email)
-      notifyBeneficiariesChanged()
-      reload()
-    } catch (err) {
-      notify.error(err.message || 'Failed to send invitation')
-    } finally {
-      hideLoading()
-    }
   }
 
   const handleApprove = (e, row) => {
@@ -553,80 +481,47 @@ export default function BeneficiariesPage() {
 
   const columns = [
     {
-      key: 'barangay',
-      label: 'Barangay Name',
-      render: (row) => <span className="beneficiaries-name">{row.barangay || row.name || '—'}</span>,
+      key: 'id',
+      label: 'Relief Request ID',
+      render: (row) => <span className="beneficiaries-name">{row.id || `#${row.dbId}`}</span>,
     },
+    { key: 'barangay', label: 'Barangay', render: (row) => row.barangay || '—' },
     { key: 'municipality', label: 'Municipality / City', render: (row) => row.municipality || '—' },
-    { key: 'representativeName', label: 'Representative', render: (row) => row.representativeName || '—' },
+    {
+      key: 'requestDate',
+      label: 'Request Date',
+      render: (row) => {
+        if (!row.requestDate) return '—'
+        const date = new Date(row.requestDate)
+        return Number.isNaN(date.getTime()) ? row.requestDate : date.toLocaleDateString('en-US')
+      },
+    },
+    {
+      key: 'affectedFamilies',
+      label: 'Affected Families',
+      render: (row) => Number(row.affectedFamilies || row.familiesAffected || 0).toLocaleString(),
+    },
     {
       key: 'priority',
       label: 'Priority',
-      render: (row) => {
-        const priority = openPriorityMap[row.dbId]
-        if (!priority) return <span className={priorityClass('none')}>None</span>
-        return <span className={priorityClass(priority)}>{priority}</span>
-      },
+      render: (row) => <span className={priorityClass(row.priority)}>{row.priority || 'None'}</span>,
     },
+    { key: 'status', label: 'Status', render: (row) => <StatusBadge status={row.status} /> },
     {
       key: 'actions',
       label: 'Actions',
-      render: (row) => {
-        const awaitingReview = isAwaitingBarangayApproval(row)
-        const showInvite = canInviteBarangay(row)
-        const busy = actionBusyId === row.dbId
-        return (
-          <div className="table-actions" onClick={(e) => e.stopPropagation()}>
-            {awaitingReview ? (
-              <div className="beneficiaries-review-actions">
-                <button
-                  type="button"
-                  className="btn btn--sm btn--success"
-                  title="Approve application"
-                  disabled={busy}
-                  onClick={(e) => handleApprove(e, row)}
-                >
-                  <CheckCircle2 size={14} /> Approve
-                </button>
-                <button
-                  type="button"
-                  className="btn btn--sm btn--outline-danger"
-                  title="Reject application"
-                  disabled={busy}
-                  onClick={(e) => handleReject(e, row)}
-                >
-                  <XCircle size={14} /> Reject
-                </button>
-              </div>
-            ) : (
-              <>
-                <button type="button" className="icon-btn" title="View details" onClick={() => handleRowClick(row)}>
-                  <Eye size={16} />
-                </button>
-                {!['Active', 'Approved'].includes(row.status) && (
-                  <button type="button" className="icon-btn" title="Edit" onClick={() => openEdit(row)}>
-                    <Pencil size={16} />
-                  </button>
-                )}
-                {showInvite && (
-                  <button
-                    type="button"
-                    className="icon-btn"
-                    title={row.representativeEmail ? 'Resend invitation' : 'Add representative email first'}
-                    disabled={!row.representativeEmail || busy}
-                    onClick={(e) => handleReinvite(e, row)}
-                  >
-                    <Send size={16} />
-                  </button>
-                )}
-                <button type="button" className="icon-btn icon-btn--danger" title="Delete" onClick={(e) => handleDelete(e, row)}>
-                  <Trash2 size={16} />
-                </button>
-              </>
-            )}
-          </div>
-        )
-      },
+      render: (row) => (
+        <div className="table-actions" onClick={(e) => e.stopPropagation()}>
+          <button
+            type="button"
+            className="btn btn--sm btn--outline"
+            title="View relief request details"
+            onClick={() => setSelectedRequest(row)}
+          >
+            <Eye size={14} /> View
+          </button>
+        </div>
+      ),
     },
   ]
 
@@ -634,7 +529,7 @@ export default function BeneficiariesPage() {
     <div className="beneficiaries-page">
       <PageHeader
         title="Barangays"
-        description="Select a barangay from the side panel to view its full profile, or manage partners below."
+        description="Review relief requests across partner barangays or select a barangay to open its full overview."
         actions={(
           <button type="button" className="btn btn--outline" onClick={openInvite}>
             <Mail size={16} /> Invite Barangay
@@ -644,10 +539,11 @@ export default function BeneficiariesPage() {
 
       <div className="beneficiaries-stats">
         <div
-          className={`beneficiaries-stat beneficiaries-stat--clickable ${activeSection === 'overview' && !filters.values.status ? 'beneficiaries-stat--active' : ''}`}
+          className={`beneficiaries-stat beneficiaries-stat--clickable ${activeSection === 'overview' && filters.values.status === 'all' && filters.values.priority === 'all' ? 'beneficiaries-stat--active' : ''}`}
           onClick={() => {
             setActiveSection('overview')
-            filters.reset()
+            filters.setValue('status', 'all')
+            filters.setValue('priority', 'all')
           }}
           role="button"
           tabIndex={0}
@@ -655,66 +551,58 @@ export default function BeneficiariesPage() {
             if (e.key === 'Enter' || e.key === ' ') {
               e.preventDefault()
               setActiveSection('overview')
-              filters.reset()
+              filters.setValue('status', 'all')
+              filters.setValue('priority', 'all')
             }
           }}
-          title="View all barangays overview"
+          title="View all relief requests"
         >
           <div className="beneficiaries-stat__icon beneficiaries-stat__icon--brand"><Users size={22} /></div>
           <div>
-            <span className="beneficiaries-stat__value">{totalBeneficiaries}</span>
-            <span className="beneficiaries-stat__label">Total Beneficiaries</span>
+            <span className="beneficiaries-stat__value">{requestStats.total}</span>
+            <span className="beneficiaries-stat__label">Total Relief Requests</span>
           </div>
         </div>
         <div
-          className={`beneficiaries-stat beneficiaries-stat--clickable ${activeSection === 'overview' && filters.values.status === 'Active' ? 'beneficiaries-stat--active' : ''}`}
+          className="beneficiaries-stat"
+          title="Open relief requests in the selected date range"
+        >
+          <div className="beneficiaries-stat__icon beneficiaries-stat__icon--success"><Activity size={22} /></div>
+          <div>
+            <span className="beneficiaries-stat__value">{requestStats.active}</span>
+            <span className="beneficiaries-stat__label">Active Requests</span>
+          </div>
+        </div>
+        <div
+          className={`beneficiaries-stat beneficiaries-stat--clickable ${activeSection === 'overview' && filters.values.status === 'Pending Review' ? 'beneficiaries-stat--active' : ''}`}
           onClick={() => {
             setActiveSection('overview')
-            filters.setValue('status', filters.values.status === 'Active' ? 'all' : 'Active')
+            filters.setValue('status', filters.values.status === 'Pending Review' ? 'all' : 'Pending Review')
           }}
-          role="button"
-          tabIndex={0}
           onKeyDown={(e) => {
             if (e.key === 'Enter' || e.key === ' ') {
               e.preventDefault()
               setActiveSection('overview')
-              filters.setValue('status', filters.values.status === 'Active' ? 'all' : 'Active')
+              filters.setValue('status', filters.values.status === 'Pending Review' ? 'all' : 'Pending Review')
             }
           }}
-          title="Filter by Active partner barangays"
-        >
-          <div className="beneficiaries-stat__icon beneficiaries-stat__icon--success"><Activity size={22} /></div>
-          <div>
-            <span className="beneficiaries-stat__value">{activeBeneficiaries}</span>
-            <span className="beneficiaries-stat__label">Active</span>
-          </div>
-        </div>
-        <div
-          className={`beneficiaries-stat beneficiaries-stat--clickable ${activeSection === 'submissions' ? 'beneficiaries-stat--active' : ''}`}
-          onClick={() => setActiveSection('submissions')}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter' || e.key === ' ') {
-              e.preventDefault()
-              setActiveSection('submissions')
-            }
-          }}
-          title="Click to view pending barangay registration submissions"
+          title="Filter by pending relief requests"
           role="button"
           tabIndex={0}
         >
           <div className="beneficiaries-stat__icon beneficiaries-stat__icon--warning"><Clock size={22} /></div>
           <div>
-            <span className="beneficiaries-stat__value">{pendingInvites}</span>
-            <span className="beneficiaries-stat__label">Pending Approval</span>
+            <span className="beneficiaries-stat__value">{requestStats.pending}</span>
+            <span className="beneficiaries-stat__label">Pending Review</span>
           </div>
         </div>
         <div
           className="beneficiaries-stat beneficiaries-stat--clickable"
-          onClick={() => navigate('/admin/requests?priority=Critical')}
+          onClick={() => filters.setValue('priority', filters.values.priority === 'Critical' ? 'all' : 'Critical')}
           onKeyDown={(e) => {
             if (e.key === 'Enter' || e.key === ' ') {
               e.preventDefault()
-              navigate('/admin/requests?priority=Critical')
+              filters.setValue('priority', filters.values.priority === 'Critical' ? 'all' : 'Critical')
             }
           }}
           title="View critical open relief requests from barangays"
@@ -723,7 +611,7 @@ export default function BeneficiariesPage() {
         >
           <div className="beneficiaries-stat__icon beneficiaries-stat__icon--danger"><AlertCircle size={22} /></div>
           <div>
-            <span className="beneficiaries-stat__value">{urgentNeedsCount}</span>
+            <span className="beneficiaries-stat__value">{requestStats.urgent}</span>
             <span className="beneficiaries-stat__label">Urgent Open Needs</span>
           </div>
         </div>
@@ -761,30 +649,32 @@ export default function BeneficiariesPage() {
         <div id="barangays-overview-section">
           <FilterBar
             controller={filters}
-            searchPlaceholder="Search by barangay, municipality, or representative…"
+            searchPlaceholder="Search request ID, barangay, municipality, or type…"
             exportConfig={{
-              filename: 'beneficiaries-report',
-              title: 'Beneficiary Barangays Report',
+              filename: 'barangay-relief-requests-report',
+              title: 'Barangay Relief Requests Report',
               columns,
               rows: filters.filtered,
+              meta: reportMeta,
             }}
           />
 
           <div id="barangays-table">
-            <ApiState loading={loading} error={error} message="Loading barangays…" onRetry={reload}>
+            <ApiState
+              loading={loading || requestsLoading}
+              error={error || requestsError}
+              message="Loading relief requests…"
+              onRetry={() => { reload(); reloadRequests() }}
+            >
               <DataTable
                 columns={columns}
                 data={filters.filtered}
-                onRowClick={handleRowClick}
-                rowClassName={(row) => (isAwaitingBarangayApproval(row) ? 'data-table__row--pending-review' : '')}
+                onRowClick={handleRequestRowClick}
                 pageSize={10}
-                resetKey={`${filters.search}|${JSON.stringify(filters.values)}`}
-                selectable
-                selectedIds={bulk.selectedIds}
-                onSelectionChange={bulk.setSelectedIds}
-                onBulkDelete={bulk.handleBulkDelete}
-                deleting={bulk.deleting}
-                bulkDeleteLabel="Delete Selected"
+                resetKey={`${filters.search}|${JSON.stringify(filters.values)}|${filters.dateFrom}|${filters.dateTo}`}
+                noun="relief requests"
+                emptyTitle="No relief requests found"
+                emptyDescription="There are no relief requests matching the current search and filters."
               />
             </ApiState>
           </div>
@@ -884,6 +774,20 @@ export default function BeneficiariesPage() {
             </div>
           )}
         </section>
+      )}
+
+      {selectedRequest && (
+        <ReliefRequestModal
+          request={selectedRequest}
+          onClose={() => setSelectedRequest(null)}
+          onUpdated={async () => {
+            await reloadRequests()
+          }}
+          onDeleted={async () => {
+            setSelectedRequest(null)
+            await reloadRequests()
+          }}
+        />
       )}
 
       {modalMode === 'invite' && (

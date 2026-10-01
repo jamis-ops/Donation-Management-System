@@ -79,6 +79,8 @@ const inKindFilterConfig = {
     { key: 'category', label: 'Category' },
   ],
   dateKey: 'date',
+  dateFromLabel: 'From Date',
+  dateToLabel: 'To Date',
 }
 
 const monetaryFilterConfig = {
@@ -89,6 +91,8 @@ const monetaryFilterConfig = {
     { key: 'category', label: 'Category' },
   ],
   dateKey: 'date',
+  dateFromLabel: 'From Date',
+  dateToLabel: 'To Date',
 }
 
 function showVerifyResultModal(res, status) {

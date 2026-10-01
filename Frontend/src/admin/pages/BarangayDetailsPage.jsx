@@ -192,7 +192,7 @@ export default function BarangayDetailsPage() {
     return distributions.filter((d) => Number(d.beneficiaryId) === Number(beneficiary.dbId))
   }, [distributions, beneficiary])
 
-  const [searchParams] = useSearchParams()
+  const [searchParams, setSearchParams] = useSearchParams()
   const { showLoading, hideLoading } = useLoading()
   const [reqFilter, setReqFilter] = useState('All')
   const [selectedRequestModal, setSelectedRequestModal] = useState(null)
@@ -221,6 +221,24 @@ export default function BarangayDetailsPage() {
       status: beneficiary.status || 'Pending Approval',
     })
   }, [beneficiary])
+
+  const requestFromNavigation = useMemo(() => {
+    const requestId = searchParams.get('requestId')
+    if (!requestId) return null
+    return requests.find((request) => (
+      String(request.dbId) === String(requestId) || String(request.id) === String(requestId)
+    )) || null
+  }, [requests, searchParams])
+
+  const activeRequestModal = selectedRequestModal || requestFromNavigation
+
+  const closeSelectedRequest = () => {
+    setSelectedRequestModal(null)
+    if (!searchParams.has('requestId')) return
+    const next = new URLSearchParams(searchParams)
+    next.delete('requestId')
+    setSearchParams(next, { replace: true })
+  }
 
   const pageReady = Boolean(beneficiary) && !benLoading
   const focusReview = searchParams.get('focus') === 'review'
@@ -958,10 +976,10 @@ export default function BarangayDetailsPage() {
       </div>{/* end .barangay-details__content */}
 
       {/* ── Relief Request Modal (Shared clean UI) ── */}
-      {selectedRequestModal && (
+      {activeRequestModal && (
         <ReliefRequestModal
-          request={selectedRequestModal}
-          onClose={() => setSelectedRequestModal(null)}
+          request={activeRequestModal}
+          onClose={closeSelectedRequest}
           onUpdated={async () => {
             await reloadReqs()
           }}
