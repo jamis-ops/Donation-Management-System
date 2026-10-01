@@ -3203,7 +3203,7 @@ export default function VolunteersPage() {
                   {generalTaskStep < 4 ? (
                     <button
                       type="button"
-                      className="btn btn--primary"
+                      className="btn btn--success"
                       onClick={handleGeneralStepNext}
                       disabled={
                         (generalTaskStep === 1 && !isGeneralStep1Valid) ||
