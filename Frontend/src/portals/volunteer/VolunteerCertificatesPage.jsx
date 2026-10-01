@@ -347,6 +347,8 @@ export default function VolunteerCertificatesPage() {
                 <label>
                   Certificate Type
                   <select
+                    id="volunteer-certificate-type"
+                    name="type"
                     value={form.type}
                     onChange={(e) => setForm({ ...form, type: e.target.value })}
                   >
@@ -361,6 +363,8 @@ export default function VolunteerCertificatesPage() {
                 <label>
                   For Duty / Activity <span style={{ color: '#dc2626' }}>*</span>
                   <select
+                    id="volunteer-certificate-reference"
+                    name="reference"
                     required
                     value={form.reference}
                     onChange={(e) => setForm({ ...form, reference: e.target.value })}
@@ -382,6 +386,8 @@ export default function VolunteerCertificatesPage() {
                 <label>
                   Purpose / Notes (Optional)
                   <textarea
+                    id="volunteer-certificate-details"
+                    name="details"
                     rows={3}
                     value={form.details}
                     onChange={(e) => setForm({ ...form, details: e.target.value })}
@@ -488,6 +494,8 @@ export default function VolunteerCertificatesPage() {
                   <h4>Copy verification link</h4>
                   <div className="share-modal-link">
                     <input
+                      id="volunteer-certificate-share-link"
+                      name="certificateShareLink"
                       type="text"
                       readOnly
                       value={`${window.location.origin}/certificates/verify/${shareModalOpen.reference || shareModalOpen.id}`}

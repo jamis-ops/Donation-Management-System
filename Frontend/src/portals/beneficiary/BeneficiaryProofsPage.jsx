@@ -5,12 +5,13 @@ import {
   Clock3, Download, FileText, Camera, ClipboardSignature, Package,
   ChevronDown, ChevronUp, Eye, RefreshCw, X, AlertCircle, Users, Send,
 } from 'lucide-react'
-import { assistanceRequestsApi, getDistributionProofs, uploadDistributionProof } from '../../api/resources'
+import { assistanceRequestsApi, getDistributionProofs, openApiFile, uploadDistributionProof } from '../../api/resources'
 import { useApiList } from '../../hooks/useApiList'
 import ApiState from '../../admin/components/shared/ApiState'
 import StatusBadge from '../../admin/components/shared/StatusBadge'
 import { notify } from '../../utils/confirm'
 import { useLoading } from '../../context/LoadingContext'
+import AuthenticatedImage from '../../components/shared/AuthenticatedImage'
 
 const PROOF_SLOTS = [
   { key: 'received_goods', label: 'Received Goods Photos', hint: 'Show the goods after they arrived at your barangay.', icon: Package, accept: 'image/jpeg,image/png,image/webp,image/gif' },
@@ -44,9 +45,14 @@ function proofStatusInfo(status) {
 }
 
 function ProofImage({ proof }) {
-  const [failed, setFailed] = useState(false)
-  if (failed) return <div className="proof-file-card__doc-icon"><FileCheck size={24} /><span>Preview unavailable</span></div>
-  return <img src={proof.fileUrl} alt={proof.fileName} loading="lazy" onError={() => setFailed(true)} />
+  return (
+    <AuthenticatedImage
+      src={proof.fileUrl}
+      alt={proof.fileName}
+      loading="lazy"
+      fallback={<div className="proof-file-card__doc-icon"><FileCheck size={24} /><span>Loading preview…</span></div>}
+    />
+  )
 }
 
 function getRequestProofStatus(request, proofs) {
@@ -201,6 +207,7 @@ export default function BeneficiaryProofsPage() {
                 </label>
                 <select
                   id="proof-request-select"
+                  name="requestId"
                   className="proof-top-form__select"
                   value={topForm.selectedRequestId}
                   onChange={(e) => { setTopForm((prev) => ({ ...prev, selectedRequestId: e.target.value, files: emptyFiles(), notes: '' })); setTopMessage('') }}
@@ -243,7 +250,7 @@ export default function BeneficiaryProofsPage() {
                   return (
                     <label key={slot.key} className={`proof-slot${file ? ' proof-slot--filled' : ''}`}>
                       <span className="proof-slot__head"><Icon size={16} /><span><strong>{slot.label}</strong><em>{slot.hint}</em></span></span>
-                      <input type="file" accept={slot.accept} onChange={(e) => setTopFile(slot.key, e.target.files?.[0] || null)} />
+                      <input id={`top-proof-${slot.key}`} name={`proof_${slot.key}`} type="file" accept={slot.accept} onChange={(e) => setTopFile(slot.key, e.target.files?.[0] || null)} />
                       {file ? <span className="proof-file-name"><Image size={13} /> {file.name}</span> : <span className="proof-slot__choose">Choose file...</span>}
                     </label>
                   )
@@ -252,7 +259,7 @@ export default function BeneficiaryProofsPage() {
 
               <label className="proof-upload-form__remarks-label">
                 Remarks <span style={{ fontSize: '0.75rem', color: '#94a3b8', fontWeight: 400 }}>(optional)</span>
-                <textarea rows={2} value={topForm.notes} onChange={(e) => setTopForm((prev) => ({ ...prev, notes: e.target.value }))} placeholder="Brief description (e.g. goods received at barangay hall on [date])..." />
+                <textarea id="top-proof-remarks" name="proofRemarks" rows={2} value={topForm.notes} onChange={(e) => setTopForm((prev) => ({ ...prev, notes: e.target.value }))} placeholder="Brief description (e.g. goods received at barangay hall on [date])..." />
               </label>
 
               {topMessage && (
@@ -353,7 +360,7 @@ export default function BeneficiaryProofsPage() {
                                   {p.status === 'Rejected' && <span className="proof-file-card__status proof-file-card__status--rejected"><AlertTriangle size={12} /> Rejected{p.reviewRemarks && <em> â€” {p.reviewRemarks}</em>}</span>}
                                   {p.status === 'Pending' && <span className="proof-file-card__status proof-file-card__status--pending"><Clock3 size={12} /> Pending Review</span>}
                                 </div>
-                                <div className="proof-file-card__actions"><a href={p.fileUrl} target="_blank" rel="noreferrer" className="btn btn--sm btn--outline"><Download size={13} /> View</a></div>
+                                <div className="proof-file-card__actions"><button type="button" className="btn btn--sm btn--outline" onClick={async () => { try { await openApiFile(p.fileUrl, { fileName: p.fileName }) } catch (error) { notify.error(error.message || 'Unable to open the proof file.') } }}><Download size={13} /> View</button></div>
                               </div>
                             ))}
                           </div>
@@ -370,7 +377,7 @@ export default function BeneficiaryProofsPage() {
                               return (
                                 <label key={slot.key} className={`proof-slot proof-slot--sm${file ? ' proof-slot--filled' : ''}`}>
                                   <span className="proof-slot__head"><Icon size={16} /><span><strong>{slot.label}</strong><em>{slot.hint}</em></span></span>
-                                  <input type="file" accept={slot.accept} onChange={(e) => setFile(slot.key, e.target.files?.[0] || null)} />
+                                  <input id={`request-${request.dbId}-proof-${slot.key}`} name={`proof_${slot.key}`} type="file" accept={slot.accept} onChange={(e) => setFile(slot.key, e.target.files?.[0] || null)} />
                                   {file ? <span className="proof-file-name"><Image size={13} /> {file.name}</span> : <span className="proof-slot__choose">Choose file...</span>}
                                 </label>
                               )
@@ -378,7 +385,7 @@ export default function BeneficiaryProofsPage() {
                           </div>
                           <label className="proof-upload-form__remarks-label">
                             Remarks <span style={{ fontSize: '0.75rem', color: '#94a3b8', fontWeight: 400 }}>(optional)</span>
-                            <textarea rows={2} value={uploadForm.notes} onChange={(e) => setUploadForm((prev) => ({ ...prev, notes: e.target.value }))} placeholder="Brief description (e.g. goods received at barangay hall on [date])..." />
+                            <textarea id={`request-${request.dbId}-proof-remarks`} name="proofRemarks" rows={2} value={uploadForm.notes} onChange={(e) => setUploadForm((prev) => ({ ...prev, notes: e.target.value }))} placeholder="Brief description (e.g. goods received at barangay hall on [date])..." />
                           </label>
                           {message && <p className={`proof-message${/success|Pending|submitted/i.test(message) ? ' proof-message--success' : ' proof-message--error'}`}>{message}</p>}
                           <div className="proof-upload-form__actions">

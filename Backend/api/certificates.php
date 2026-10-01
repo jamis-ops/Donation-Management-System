@@ -2,6 +2,18 @@
 declare(strict_types=1);
 require_once __DIR__ . '/bootstrap.php';
 
+// Certificate endpoints must never leak PHP warnings or HTML error pages into
+// responses consumed as JSON by the SPA. Detailed failures remain in the
+// server log while callers receive a stable JSON error shape.
+ini_set('display_errors', '0');
+set_exception_handler(static function (Throwable $error): void {
+  error_log('[certificates] ' . $error->getMessage());
+  json_response([
+    'ok' => false,
+    'error' => 'The certificate service could not complete the request. Please try again or contact an administrator.',
+  ], 500);
+});
+
 $pdo = db();
 $method = request_method();
 $id = get_id_param();
@@ -12,38 +24,52 @@ function ensure_certificates_schema(PDO $pdo): void
   if ($ensured) return;
   $ensured = true;
 
-  try {
-    $cols = $pdo->query("SHOW COLUMNS FROM certificates")->fetchAll(PDO::FETCH_COLUMN);
-    $colList = array_map('strtolower', $cols);
+  $columns = $pdo->query('SHOW COLUMNS FROM certificates')->fetchAll(PDO::FETCH_COLUMN);
+  $columnList = array_map(static fn($column) => strtolower((string) $column), $columns);
 
-    if (!in_array('template_id', $colList, true)) {
-      $pdo->exec("ALTER TABLE certificates ADD COLUMN template_id VARCHAR(50) NOT NULL DEFAULT 'modern_classic' AFTER cert_type");
-    }
-    if (!in_array('signatory_id', $colList, true)) {
-      $pdo->exec("ALTER TABLE certificates ADD COLUMN signatory_id BIGINT UNSIGNED NULL AFTER signatory_title");
-    }
-    if (!in_array('signature_url', $colList, true)) {
-      $pdo->exec("ALTER TABLE certificates ADD COLUMN signature_url VARCHAR(255) NULL AFTER signatory_id");
-    }
-    if (!in_array('photo_url', $colList, true)) {
-      $pdo->exec("ALTER TABLE certificates ADD COLUMN photo_url VARCHAR(255) NULL AFTER signature_url");
-    }
-    if (!in_array('photo_data', $colList, true)) {
-      $pdo->exec("ALTER TABLE certificates ADD COLUMN photo_data LONGTEXT NULL AFTER photo_url");
-    }
-    if (!in_array('photo_layout', $colList, true)) {
-      $pdo->exec("ALTER TABLE certificates ADD COLUMN photo_layout VARCHAR(50) NOT NULL DEFAULT 'none' AFTER photo_data");
-    }
-    if (!in_array('contribution_details', $colList, true)) {
-      $pdo->exec("ALTER TABLE certificates ADD COLUMN contribution_details TEXT NULL AFTER photo_layout");
-    }
-    if (!in_array('location', $colList, true)) {
-      $pdo->exec("ALTER TABLE certificates ADD COLUMN location VARCHAR(150) NOT NULL DEFAULT 'Cebu City, Philippines' AFTER cert_date");
-    }
+  // These are additive compatibility migrations for installations created
+  // from an older schema. Each ALTER is independently guarded by the actual
+  // table metadata, so an existing column or certificate record is untouched.
+  $additions = [
+    'status' => "VARCHAR(50) NOT NULL DEFAULT 'Pending' AFTER cert_date",
+    'template_id' => "VARCHAR(50) NOT NULL DEFAULT 'modern_classic' AFTER cert_type",
+    'signatory_id' => 'BIGINT UNSIGNED NULL AFTER signatory_title',
+    'signature_url' => 'VARCHAR(255) NULL AFTER signatory_id',
+    'photo_url' => 'VARCHAR(255) NULL AFTER signature_url',
+    'photo_data' => 'LONGTEXT NULL AFTER photo_url',
+    'photo_layout' => "VARCHAR(50) NOT NULL DEFAULT 'none' AFTER photo_data",
+    'contribution_details' => 'TEXT NULL AFTER photo_layout',
+    'location' => "VARCHAR(150) NOT NULL DEFAULT 'Cebu City, Philippines' AFTER cert_date",
+  ];
 
-    // Repair any corrupted photo_url filenames
-    $pdo->exec("UPDATE certificates SET photo_url = SUBSTRING_INDEX(photo_url, 'name=', -1) WHERE photo_url LIKE '%name=%'");
-  } catch (Throwable) {}
+  foreach ($additions as $column => $definition) {
+    if (in_array($column, $columnList, true)) continue;
+    try {
+      $pdo->exec("ALTER TABLE certificates ADD COLUMN {$column} {$definition}");
+      $columnList[] = $column;
+    } catch (Throwable $error) {
+      error_log("[certificates] Could not add missing {$column} column: " . $error->getMessage());
+    }
+  }
+
+  // Status is part of the original certificate workflow and is required for
+  // request/approval/generation persistence. Stop with valid JSON if the
+  // database account cannot repair a schema-drifted table.
+  $verified = array_map(
+    static fn($column) => strtolower((string) $column),
+    $pdo->query('SHOW COLUMNS FROM certificates')->fetchAll(PDO::FETCH_COLUMN)
+  );
+  if (!in_array('status', $verified, true)) {
+    throw new RuntimeException('The certificates table is missing its required status column.');
+  }
+
+  if (in_array('photo_url', $verified, true)) {
+    try {
+      $pdo->exec("UPDATE certificates SET photo_url = SUBSTRING_INDEX(photo_url, 'name=', -1) WHERE photo_url LIKE '%name=%'");
+    } catch (Throwable $error) {
+      error_log('[certificates] Photo URL cleanup skipped: ' . $error->getMessage());
+    }
+  }
 }
 
 ensure_certificates_schema($pdo);
@@ -105,7 +131,7 @@ function map_certificate(?array $row): ?array
     'date' => format_date($row['cert_date']),
     'certDate' => $row['cert_date'],
     'location' => $row['location'] ?? 'Cebu City, Philippines',
-    'status' => $row['status'],
+    'status' => $row['status'] ?? 'Pending',
   ];
 }
 

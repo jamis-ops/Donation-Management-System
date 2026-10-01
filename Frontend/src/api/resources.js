@@ -81,6 +81,52 @@ export async function apiFetch(path, options = {}) {
   return executeFetch()
 }
 
+/** Fetch a protected file with the same session/bearer authentication as API JSON. */
+export async function apiFetchBlob(path) {
+  const token = getStoredToken()
+  const res = await fetch(apiUrl(path), {
+    credentials: 'include',
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+  })
+  if (!res.ok) {
+    let message = `File request failed (${res.status})`
+    try {
+      const payload = await res.json()
+      if (payload?.error) message = payload.error
+    } catch {
+      // The response may not be JSON; retain the safe status message.
+    }
+    throw new Error(message)
+  }
+  return res.blob()
+}
+
+/** Open or download a protected file without losing bearer-token authentication. */
+export async function openApiFile(path, { fileName = 'download', download = false } = {}) {
+  const pendingWindow = download ? null : window.open('about:blank', '_blank')
+  if (pendingWindow) pendingWindow.opener = null
+  try {
+    const blob = await apiFetchBlob(path)
+    const objectUrl = URL.createObjectURL(blob)
+    if (download) {
+      const anchor = document.createElement('a')
+      anchor.href = objectUrl
+      anchor.download = fileName || 'download'
+      document.body.appendChild(anchor)
+      anchor.click()
+      anchor.remove()
+    } else if (pendingWindow) {
+      pendingWindow.location.href = objectUrl
+    } else {
+      window.open(objectUrl, '_blank', 'noopener,noreferrer')
+    }
+    window.setTimeout(() => URL.revokeObjectURL(objectUrl), 60_000)
+  } catch (error) {
+    if (pendingWindow) pendingWindow.close()
+    throw error
+  }
+}
+
 export function resourceApi(basePath) {
   return {
     list: (query = '') => apiFetch(`${basePath}${query}`),

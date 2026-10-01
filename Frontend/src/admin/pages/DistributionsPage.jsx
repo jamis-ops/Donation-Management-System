@@ -6,7 +6,7 @@ import {
   Sparkles, Check, Plus, X, UserCheck, ShieldCheck, RefreshCw, AlertCircle,
   FileText, Lock, Trash2, Maximize2, ExternalLink, Camera, Clock,
 } from 'lucide-react'
-import { distributionsApi, beneficiariesApi, volunteerMatchApi, volunteersApi, getStaff, allocationsApi } from '../../api/resources'
+import { distributionsApi, beneficiariesApi, volunteerMatchApi, volunteersApi, getStaff, allocationsApi, openApiFile } from '../../api/resources'
 import { getTodayDateString, isPastDateString } from '../../utils/date'
 import { useApiList } from '../../hooks/useApiList'
 import { useFilters } from '../../hooks/useFilters'
@@ -36,6 +36,7 @@ import {
   getNextDistributionAction,
 } from '../../utils/workflow'
 import { useLoading } from '../../context/LoadingContext'
+import AuthenticatedImage from '../../components/shared/AuthenticatedImage'
 
 const WORKFLOW = DISTRIBUTION_WORKFLOW
 const PROOF_STATUS = ['Not Required', 'Awaiting Proof', 'Proof Submitted', 'Proof Verified', 'Proof Rejected']
@@ -1109,6 +1110,8 @@ export default function DistributionsPage() {
                   <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: '10px' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                       <input
+                        id={`distribution-draft-${draft.dbId}`}
+                        name="selectedDistributionDrafts"
                         type="checkbox"
                         checked={isSelected}
                         onChange={(e) => {
@@ -1604,15 +1607,12 @@ export default function DistributionsPage() {
                                 </span>
                               )}
                               {proof.isImage ? (
-                                <img
+                                <AuthenticatedImage
                                   src={proof.fileUrl}
                                   alt={proof.fileName || 'Proof photo'}
                                   className="dist-proof-thumb-img"
                                   loading="lazy"
-                                  onError={(e) => {
-                                    e.currentTarget.style.display = 'none'
-                                    if (e.currentTarget.nextSibling) e.currentTarget.nextSibling.style.display = 'flex'
-                                  }}
+                                  fallback={<div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '100%', height: '100%', color: '#94a3b8' }}><FileText size={32} /></div>}
                                 />
                               ) : null}
                               <div style={{ display: proof.isImage ? 'none' : 'flex', alignItems: 'center', justifyContent: 'center', width: '100%', height: '100%', color: '#94a3b8' }}>
@@ -1760,15 +1760,20 @@ export default function DistributionsPage() {
               </div>
               <div className="dist-lightbox-actions">
                 {activePhoto.fileUrl && (
-                  <a
-                    href={activePhoto.fileUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      try {
+                        await openApiFile(activePhoto.fileUrl, { fileName: activePhoto.fileName })
+                      } catch (error) {
+                        notify.error(error.message || 'Unable to open the proof file.')
+                      }
+                    }}
                     className="btn btn--ghost btn--sm"
                     style={{ color: '#cbd5e1', borderColor: 'rgba(255,255,255,0.2)' }}
                   >
                     <ExternalLink size={13} /> Open Original
-                  </a>
+                  </button>
                 )}
                 <button
                   type="button"
@@ -1783,10 +1788,11 @@ export default function DistributionsPage() {
 
             <div className="dist-lightbox-body">
               {activePhoto.isImage !== false ? (
-                <img
+                <AuthenticatedImage
                   src={activePhoto.fileUrl}
                   alt={activePhoto.fileName || 'Turnover Proof'}
                   className="dist-lightbox-img"
+                  fallback={<div style={{ color: '#cbd5e1', textAlign: 'center', padding: '2rem' }}><FileText size={48} /><p>Unable to load this proof image.</p></div>}
                 />
               ) : (
                 <div style={{ color: '#cbd5e1', textAlign: 'center', padding: '2rem' }}>
@@ -1831,7 +1837,7 @@ export default function DistributionsPage() {
                 </div>
                 <label>
                   Advance to Next Status
-                  <select required value={statusValue} onChange={(e) => setStatusValue(e.target.value)}>
+                  <select id="distribution-next-status" name="status" required value={statusValue} onChange={(e) => setStatusValue(e.target.value)}>
                     {getAvailableNextStatuses({
                       currentStatus: statusRow.status,
                       allStatuses: WORKFLOW,
@@ -1905,6 +1911,8 @@ export default function DistributionsPage() {
                       <label>
                         Delivery Event / Operation Name
                         <input
+                          id="distribution-event-name"
+                          name="eventName"
                           value={form.eventName}
                           onChange={(e) => {
                             setForm({ ...form, eventName: e.target.value })
@@ -1918,6 +1926,8 @@ export default function DistributionsPage() {
                       <label>
                         Destination Barangay <span style={{ color: '#AF101A' }}>*</span>
                         <select
+                          id="distribution-beneficiary"
+                          name="beneficiaryId"
                           required
                           disabled={form.allocationIds?.length > 0}
                           className={stepErrors.destination?.beneficiaryId ? 'input-error' : ''}
@@ -1962,6 +1972,8 @@ export default function DistributionsPage() {
                       <label>
                         Drop-off Address / Specific Venue <span style={{ color: '#AF101A' }}>*</span>
                         <input
+                          id="distribution-location"
+                          name="location"
                           required
                           className={stepErrors.destination?.location ? 'input-error' : ''}
                           value={form.location}
@@ -1981,6 +1993,8 @@ export default function DistributionsPage() {
                       <label>
                         Affiliated Program / Project <span style={{ color: '#AF101A' }}>*</span>
                         <select
+                          id="distribution-program"
+                          name="program"
                           required
                           className={stepErrors.destination?.program ? 'input-error' : ''}
                           value={form.program}
@@ -2006,6 +2020,8 @@ export default function DistributionsPage() {
                       <label>
                         Distribution Date <span style={{ color: '#AF101A' }}>*</span>
                         <input
+                          id="distribution-date"
+                          name="distributionDate"
                           type="date"
                           required
                           min={editRow ? undefined : getTodayDateString()}
@@ -2025,6 +2041,8 @@ export default function DistributionsPage() {
                       <label>
                         Schedule Time
                         <input
+                          id="distribution-time"
+                          name="scheduleTime"
                           type="time"
                           value={form.scheduleTime}
                           onChange={(e) => setForm({ ...form, scheduleTime: e.target.value })}
@@ -2035,13 +2053,15 @@ export default function DistributionsPage() {
                     <div className="dist-form-grid-2">
                       <label>
                         Delivery Type
-                        <select value={form.type} onChange={(e) => setForm({ ...form, type: e.target.value })}>
+                        <select id="distribution-type" name="type" value={form.type} onChange={(e) => setForm({ ...form, type: e.target.value })}>
                           {['Delivery', 'Pickup', 'Mobile Distribution'].map((t) => <option key={t} value={t}>{t}</option>)}
                         </select>
                       </label>
                       <label>
                         Target Families / Beneficiaries
                         <input
+                          id="distribution-beneficiary-count"
+                          name="beneficiaries"
                           type="number"
                           min="0"
                           value={form.beneficiaries}
@@ -2200,6 +2220,8 @@ export default function DistributionsPage() {
 
                           <div className="dist-cl-coord-combo">
                             <input
+                              id="distribution-coordinator"
+                              name="coordinator"
                               required
                               className={`dist-cl-aligned-input ${stepErrors.logistics?.coordinator ? 'input-error' : ''}`}
                               value={form.coordinator}
@@ -2215,6 +2237,8 @@ export default function DistributionsPage() {
                             />
                             {!isDeliveryTeamLocked && staffList.length > 0 && (
                               <select
+                                id="distribution-coordinator-picker"
+                                name="coordinatorPicker"
                                 value=""
                                 onChange={(e) => {
                                   if (e.target.value) {
@@ -2277,6 +2301,8 @@ export default function DistributionsPage() {
                                 Vehicles {form.type === 'Delivery' && <span className="dist-cl-req-star">*</span>}
                               </label>
                               <input
+                                id="distribution-vehicle-count"
+                                name="vehicles"
                                 type="number"
                                 min="0"
                                 className={`dist-cl-aligned-input ${stepErrors.logistics?.vehicles ? 'input-error' : ''}`}
@@ -2293,6 +2319,8 @@ export default function DistributionsPage() {
                             <div className="dist-cl-fleet-cell">
                               <label className="dist-cl-fleet-cell__label">Volunteers</label>
                               <input
+                                id="distribution-volunteer-count"
+                                name="volunteers"
                                 type="number"
                                 min="0"
                                 className="dist-cl-aligned-input"
@@ -2335,6 +2363,8 @@ export default function DistributionsPage() {
                         {/* Directory dropdown only if NOT locked */}
                         {!isDeliveryTeamLocked && allVolunteers.length > 0 && (
                           <select
+                            id="distribution-volunteer-picker"
+                            name="volunteerPicker"
                             value=""
                             onChange={(e) => {
                               const found = allVolunteers.find((v) => String(v.dbId || v.id) === String(e.target.value))
@@ -2615,6 +2645,8 @@ export default function DistributionsPage() {
                         Logistics Notes &amp; Dispatch Instructions
                       </span>
                       <textarea
+                        id="distribution-notes"
+                        name="notes"
                         rows={3}
                         value={form.notes}
                         onChange={(e) => setForm({ ...form, notes: e.target.value })}

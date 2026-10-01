@@ -4,7 +4,8 @@ import {
 } from 'lucide-react'
 import StatusBadge from './StatusBadge'
 import ModalHeader from './ModalHeader'
-import { reviewProof } from '../../../api/resources'
+import { openApiFile, reviewProof } from '../../../api/resources'
+import AuthenticatedImage from '../../../components/shared/AuthenticatedImage'
 import { useSeeMore } from '../../../hooks/useSeeMore'
 import { SeeMoreToggle } from './SeeMoreList'
 import { notify, confirmAction, showSuccessModal } from '../../../utils/confirm'
@@ -15,11 +16,23 @@ function isPending(status) {
 }
 
 function ProofImage({ proof, className = '' }) {
-  const [failed, setFailed] = useState(false)
-  if (failed) {
-    return <span className="proof-image-unavailable"><FileText size={24} /> Preview unavailable</span>
+  return (
+    <AuthenticatedImage
+      className={className}
+      src={proof.fileUrl}
+      alt={proof.fileName}
+      loading="lazy"
+      fallback={<span className="proof-image-unavailable"><FileText size={24} /> Loading preview…</span>}
+    />
+  )
+}
+
+async function openProofFile(proof, download = false) {
+  try {
+    await openApiFile(proof.fileUrl, { fileName: proof.fileName, download })
+  } catch (error) {
+    notify.error(error.message || 'Unable to open the proof file.')
   }
-  return <img className={className} src={proof.fileUrl} alt={proof.fileName} loading="lazy" onError={() => setFailed(true)} />
 }
 
 export default function AdminProofReview({
@@ -141,7 +154,7 @@ export default function AdminProofReview({
         {!hideBarangayFilter && !lockedBarangay && !lockedBeneficiaryId && (
           <label className="proof-review__barangay-filter">
             Barangay
-            <select value={barangayFilter} onChange={(e) => setBarangayFilter(e.target.value)}>
+            <select id="proof-review-barangay-filter" name="barangayFilter" value={barangayFilter} onChange={(e) => setBarangayFilter(e.target.value)}>
               <option value="">All barangays</option>
               {barangays.map((b) => <option key={b} value={b}>{b}</option>)}
             </select>
@@ -200,9 +213,9 @@ export default function AdminProofReview({
                 <button type="button" className="btn btn--sm btn--outline" onClick={() => setPreview(p)}>
                   <Eye size={14} /> View
                 </button>
-                <a href={p.fileUrl} download={p.fileName} className="btn btn--sm btn--outline" target="_blank" rel="noreferrer">
+                <button type="button" className="btn btn--sm btn--outline" onClick={() => openProofFile(p, true)}>
                   <Download size={14} /> Download
-                </a>
+                </button>
                 {isPending(p.status) && (
                   <>
                     <button
@@ -301,16 +314,16 @@ export default function AdminProofReview({
                 <div className="proof-preview-modal__doc">
                   <FileText size={40} />
                   <p>This file type can’t be previewed inline.</p>
-                  <a href={preview.fileUrl} target="_blank" rel="noreferrer" className="btn btn--primary">Open / Download</a>
+                  <button type="button" className="btn btn--primary" onClick={() => openProofFile(preview)}>Open / Download</button>
                 </div>
               )}
             </div>
             <div className="admin-modal__actions">
               <button type="button" className="btn btn--ghost" onClick={() => setPreview(null)}>Close</button>
               <div className="admin-modal__actions-group">
-                <a href={preview.fileUrl} download={preview.fileName} className="btn btn--outline" target="_blank" rel="noreferrer">
+                <button type="button" className="btn btn--outline" onClick={() => openProofFile(preview, true)}>
                   <Download size={14} /> Download
-                </a>
+                </button>
               </div>
             </div>
           </div>
@@ -329,6 +342,8 @@ export default function AdminProofReview({
               <label>
                 Reason / remarks
                 <textarea
+                  id="proof-rejection-remarks"
+                  name="reviewRemarks"
                   required
                   rows={4}
                   value={remarks}

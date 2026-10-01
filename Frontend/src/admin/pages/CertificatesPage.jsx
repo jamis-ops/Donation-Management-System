@@ -872,6 +872,8 @@ export default function CertificatesPage() {
                       <label>
                         <span className="cert-field-label">Recipient Type</span>
                         <select
+                          id="certificate-recipient-type"
+                          name="recipientType"
                           value={form.recipientType}
                           disabled={Boolean(form.isFromApprovedRequest)}
                           onChange={(e) => {
@@ -894,6 +896,8 @@ export default function CertificatesPage() {
                       <label>
                         <span className="cert-field-label">Select From Database</span>
                         <select
+                          id="certificate-recipient-record"
+                          name="recipientKey"
                           value={form.recipientKey}
                           disabled={Boolean(form.isFromApprovedRequest)}
                           onChange={(e) => handleRecipientPick(e.target.value)}
@@ -912,6 +916,8 @@ export default function CertificatesPage() {
                       <label>
                         <span className="cert-field-label">Recipient Name</span>
                         <input
+                          id="certificate-recipient-name"
+                          name="recipient"
                           required
                           disabled={Boolean(form.isFromApprovedRequest)}
                           value={form.recipient}
@@ -924,6 +930,8 @@ export default function CertificatesPage() {
                           Reference Code {form.recipientType === 'Volunteer' ? <span style={{ color: '#0f766e', fontSize: '0.72rem', fontWeight: 500 }}>(Completed Duty)</span> : null}
                         </span>
                         <input
+                          id="certificate-reference-code"
+                          name="reference"
                           disabled={Boolean(form.isFromApprovedRequest)}
                           value={form.reference}
                           onChange={(e) => setForm({ ...form, reference: e.target.value })}
@@ -949,6 +957,8 @@ export default function CertificatesPage() {
                       <label>
                         <span className="cert-field-label">Certificate Type</span>
                         <select
+                          id="certificate-type"
+                          name="type"
                           value={form.type}
                           disabled={editRow && isTerminalStatus(editRow.status, CERTIFICATE_TERMINAL)}
                           onChange={(e) => setForm({ ...form, type: e.target.value })}
@@ -960,6 +970,8 @@ export default function CertificatesPage() {
                       <label>
                         <span className="cert-field-label">Date Issued</span>
                         <input
+                          id="certificate-date-issued"
+                          name="certDate"
                           type="date"
                           value={form.certDate}
                           onChange={(e) => setForm({ ...form, certDate: e.target.value })}
@@ -1042,6 +1054,8 @@ export default function CertificatesPage() {
                     {/* Optional Custom AI Guidance */}
                     <div className="cert-ai-custom-prompt">
                       <input
+                        id="certificate-ai-guidance"
+                        name="aiInstruction"
                         className="cert-ai-custom-input"
                         value={aiInstruction}
                         onChange={(e) => setAiInstruction(e.target.value)}
@@ -1069,6 +1083,8 @@ export default function CertificatesPage() {
                         Certificate Caption / Recognition Message (Editable)
                       </span>
                       <textarea
+                        id="certificate-caption"
+                        name="details"
                         className="cert-caption-textarea"
                         rows={4}
                         value={form.details}
@@ -1111,6 +1127,8 @@ export default function CertificatesPage() {
                           </div>
                         </div>
                         <input
+                          id="certificate-contribution-photo"
+                          name="contributionPhoto"
                           type="file"
                           accept="image/*"
                           style={{ display: 'none' }}
@@ -1130,6 +1148,8 @@ export default function CertificatesPage() {
                           <label className="btn btn--xs btn--outline" style={{ cursor: 'pointer', margin: 0 }}>
                             Replace Image
                             <input
+                              id="certificate-replacement-photo"
+                              name="replacementContributionPhoto"
                               type="file"
                               accept="image/*"
                               style={{ display: 'none' }}
@@ -1179,6 +1199,8 @@ export default function CertificatesPage() {
                       <label>
                         <span className="cert-field-label">Official Signatory</span>
                         <select
+                          id="certificate-signatory"
+                          name="signatoryId"
                           value={form.signatoryId || ''}
                           onChange={(e) => handleSignatoryChange(e.target.value)}
                         >
@@ -1193,6 +1215,8 @@ export default function CertificatesPage() {
                       <label>
                         <span className="cert-field-label">Location</span>
                         <input
+                          id="certificate-location"
+                          name="location"
                           value={form.location}
                           onChange={(e) => setForm({ ...form, location: e.target.value })}
                           placeholder="Cebu City, Philippines"
@@ -1210,6 +1234,8 @@ export default function CertificatesPage() {
                   <div className="cert-section-card" style={{ marginTop: '0.75rem' }}>
                     <label>Workflow Status
                       <select
+                        id="certificate-workflow-status"
+                        name="status"
                         value={form.status}
                         disabled={editRow && isTerminalStatus(editRow.status, CERTIFICATE_TERMINAL)}
                         onChange={(e) => setForm({ ...form, status: e.target.value })}
@@ -1456,6 +1482,8 @@ export default function CertificatesPage() {
                   <div className="form-row">
                     <label>Signatory Full Name
                       <input
+                        id="signatory-full-name"
+                        name="signatoryName"
                         required
                         value={newSigForm.name}
                         onChange={(e) => setNewSigForm({ ...newSigForm, name: e.target.value })}
@@ -1464,6 +1492,8 @@ export default function CertificatesPage() {
                     </label>
                     <label>Position / Title
                       <input
+                        id="signatory-title"
+                        name="signatoryTitle"
                         required
                         value={newSigForm.title}
                         onChange={(e) => setNewSigForm({ ...newSigForm, title: e.target.value })}
@@ -1475,6 +1505,8 @@ export default function CertificatesPage() {
                   <div className="form-row">
                     <label>Organization
                       <input
+                        id="signatory-organization"
+                        name="signatoryOrganization"
                         value={newSigForm.organization}
                         onChange={(e) => setNewSigForm({ ...newSigForm, organization: e.target.value })}
                         placeholder="Rise Above Foundation Cebu, Inc."
@@ -1482,6 +1514,8 @@ export default function CertificatesPage() {
                     </label>
                     <label>Signature File (PNG / JPG / WEBP)
                       <input
+                        id="signatory-signature-file"
+                        name="signatureFile"
                         type="file"
                         accept="image/*"
                         onChange={(e) => {
@@ -1499,6 +1533,8 @@ export default function CertificatesPage() {
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: '0.75rem' }}>
                     <label style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', cursor: 'pointer', fontSize: '0.8rem' }}>
                       <input
+                        id="signatory-is-default"
+                        name="isDefault"
                         type="checkbox"
                         checked={newSigForm.isDefault}
                         onChange={(e) => setNewSigForm({ ...newSigForm, isDefault: e.target.checked })}

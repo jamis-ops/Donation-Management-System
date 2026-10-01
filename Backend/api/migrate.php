@@ -177,6 +177,7 @@ try {
   addColumn($pdo, 'repacking_jobs', 'sufficiency_status', "ENUM('Insufficient','Partial','Sufficient','Excess') NULL AFTER families_targeted");
 
   // v3: Certificate management fields
+  addColumn($pdo, 'certificates', 'status', "VARCHAR(50) NOT NULL DEFAULT 'Pending' AFTER cert_date");
   addColumn($pdo, 'certificates', 'recipient_type', "VARCHAR(30) NOT NULL DEFAULT 'Donor' AFTER cert_type");
   addColumn($pdo, 'certificates', 'details', 'TEXT NULL AFTER reference_code');
   addColumn($pdo, 'certificates', 'signatory_name', "VARCHAR(120) NULL AFTER details");

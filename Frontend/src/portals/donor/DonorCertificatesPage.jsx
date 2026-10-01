@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Award, Download, Eye, Printer, X, Share2, FileText, BadgeCheck } from 'lucide-react'
 import StatusBadge from '../../admin/components/shared/StatusBadge'
+import ModalHeader from '../../admin/components/shared/ModalHeader'
 import ApiState from '../../admin/components/shared/ApiState'
 import CertificateView from '../../components/shared/CertificateView'
 import { printCertificate } from '../../components/shared/printCertificate'
@@ -8,7 +9,6 @@ import { certificatesApi, donationsApi } from '../../api/resources'
 import { useApiList } from '../../hooks/useApiList'
 import { usePagination, DEFAULT_PAGE_SIZE } from '../../hooks/usePagination'
 import Pagination from '../../admin/components/shared/Pagination'
-import ModalHeader from '../../admin/components/shared/ModalHeader'
 import { notify } from '../../utils/confirm'
 import { useLoading } from '../../context/LoadingContext'
 
@@ -260,14 +260,14 @@ export default function DonorCertificatesPage() {
             <form onSubmit={handleRequest}>
               <label>
                 Document Type
-                <select value={form.type} onChange={(e) => setForm({ ...form, type: e.target.value })}>
+                <select id="donor-certificate-type" name="type" value={form.type} onChange={(e) => setForm({ ...form, type: e.target.value })}>
                   <option>Certificate of Appreciation</option>
                   <option>Certificate of Donation</option>
                 </select>
               </label>
               <label>
                 For Donation
-                <select value={form.reference} onChange={(e) => setForm({ ...form, reference: e.target.value })}>
+                <select id="donor-certificate-reference" name="reference" value={form.reference} onChange={(e) => setForm({ ...form, reference: e.target.value })}>
                   <option value="">Select a completed donation</option>
                   {eligibleDonations.map((d) => (
                     <option key={d.dbId} value={d.trackingCode}>
@@ -331,6 +331,8 @@ export default function DonorCertificatesPage() {
                   <h4>Copy verification link</h4>
                   <div className="share-modal-link">
                     <input
+                      id="donor-certificate-share-link"
+                      name="certificateShareLink"
                       type="text"
                       readOnly
                       value={`${window.location.origin}/certificates/verify/${shareModalOpen.reference}`}
