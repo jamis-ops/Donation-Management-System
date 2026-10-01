@@ -803,9 +803,8 @@ export default function InventoryItemModal({
             </button>
             <button
               type="submit"
-              className="btn btn--primary"
+              className="btn btn--success"
               disabled={saving || !effectiveItemName.trim()}
-              style={{ backgroundColor: '#AF101A' }}
             >
               {saving ? 'Saving...' : isEditing ? 'Save Changes' : '+ Add to Inventory'}
             </button>

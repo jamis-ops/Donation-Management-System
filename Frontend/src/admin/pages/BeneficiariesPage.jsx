@@ -941,7 +941,7 @@ export default function BeneficiariesPage() {
 
               <div className="admin-modal__actions">
                 <button type="button" className="btn btn--danger" onClick={() => setModalMode(null)}>Cancel</button>
-                <button type="submit" className="btn btn--primary" disabled={saving}>
+                <button type="submit" className="btn btn--success" disabled={saving}>
                   {saving ? 'Sending…' : 'Send Invitation'}
                 </button>
               </div>

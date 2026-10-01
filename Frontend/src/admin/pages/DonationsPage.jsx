@@ -1002,7 +1002,7 @@ export default function DonationsPage() {
                 <button type="button" className="btn btn--danger" onClick={() => setShowForm(false)}>
                   Cancel
                 </button>
-                <button type="submit" className="btn btn--primary" disabled={saving}>
+                <button type="submit" className="btn btn--success" disabled={saving}>
                   {saving ? 'Saving...' : `Save ${form.type} Donation`}
                 </button>
               </div>

@@ -8852,6 +8852,17 @@ button:disabled,
   box-shadow: 0 2px 6px rgba(22, 163, 74, 0.25) !important;
 }
 
+.btn--success:disabled,
+.btn--success[disabled],
+.admin-modal .admin-modal__actions .btn--success:disabled,
+.admin-modal .admin-modal__actions .btn--success[disabled] {
+  background: #94a3b8 !important;
+  border-color: #94a3b8 !important;
+  color: #f8fafc !important;
+  box-shadow: none !important;
+  cursor: not-allowed;
+}
+
 .admin-modal .admin-modal__actions .btn--ghost {
   background: #ffffff;
   color: #475569;

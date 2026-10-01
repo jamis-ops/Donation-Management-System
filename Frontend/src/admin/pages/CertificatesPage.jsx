@@ -1307,7 +1307,7 @@ export default function CertificatesPage() {
                 <button
                   type="submit"
                   form="cert-form"
-                  className={`btn ${editRow ? 'btn--success' : 'btn--primary'}`}
+                  className="btn btn--success"
                   disabled={saving || (editRow && isTerminalStatus(editRow.status, CERTIFICATE_TERMINAL))}
                 >
                   <Award size={14} /> {saving ? 'Saving...' : editRow ? 'Save Changes' : 'Issue Certificate'}

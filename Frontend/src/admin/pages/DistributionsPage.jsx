@@ -2666,7 +2666,7 @@ export default function DistributionsPage() {
                     </button>
                     <button
                       type="button"
-                      className="btn btn--primary btn--sm"
+                      className="btn btn--success btn--sm"
                       onClick={() => handleGoToStep('logistics')}
                       disabled={!isStep1Complete || saving}
                     >
@@ -2691,7 +2691,7 @@ export default function DistributionsPage() {
                     </div>
                     <button
                       type="button"
-                      className="btn btn--primary btn--sm"
+                      className="btn btn--success btn--sm"
                       onClick={() => handleGoToStep('requirements')}
                       disabled={!isStep1Complete || !isStep2Complete || saving}
                     >

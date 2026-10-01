@@ -3082,7 +3082,7 @@ export default function AllocationPage() {
             )}
             <form onSubmit={handleSave} className="alloc-create-form">
               <div className="alloc-create-body">{editRow ? FormFields : CreateAllocationFields}</div>
-              <div className="admin-modal__actions alloc-create-footer">
+              <div className={`admin-modal__actions alloc-create-footer${editRow ? '' : ' alloc-create-footer--wizard'}`}>
                 {editRow ? (
                   <>
                     <button type="button" className="btn btn--danger" onClick={closeForm} disabled={saving}>Cancel</button>
@@ -3092,17 +3092,18 @@ export default function AllocationPage() {
                   </>
                 ) : (
                   <>
-                    <span className="alloc-create-footer__context">Step {allocationStep} of {ALLOCATION_STEPS.length}</span>
-                    <div className="alloc-create-footer__actions">
-                      {allocationStep === 1 ? (
-                        <button type="button" className="btn btn--danger" onClick={closeForm} disabled={saving}>Cancel</button>
-                      ) : (
+                    <div className="alloc-create-footer__left">
+                      <button type="button" className="btn btn--danger" onClick={closeForm} disabled={saving}>Cancel</button>
+                      {allocationStep > 1 && (
                         <button type="button" className="btn btn--outline" onClick={goBackAllocation} disabled={saving}>Back</button>
                       )}
+                    </div>
+                    <span className="alloc-create-footer__context">Step {allocationStep} of {ALLOCATION_STEPS.length}</span>
+                    <div className="alloc-create-footer__actions">
                       {allocationStep < 3 ? (
                         <button
                           type="button"
-                          className="btn btn--primary"
+                          className="btn btn--success"
                           onClick={continueAllocation}
                           disabled={saving || (allocationStep === 1 ? !isStepOneComplete : !canConfirmAllocation)}
                           title={allocationStep === 1 && !isStepOneComplete

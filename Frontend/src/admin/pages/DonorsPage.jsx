@@ -779,7 +779,7 @@ export default function DonorsPage() {
                 <button type="button" className="btn btn--danger" onClick={() => setMode(null)}>Cancel</button>
                 <button
                   type="submit"
-                  className="btn btn--primary"
+                  className="btn btn--success"
                   disabled={saving}
                 >
                   {saving ? 'Saving…' : form.createAccount ? 'Create & Save Donor' : 'Save Donor'}

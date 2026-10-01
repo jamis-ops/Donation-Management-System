@@ -381,7 +381,7 @@ export default function InKindIntakeModal({
             </button>
             <button
               type="submit"
-              className="btn btn--primary"
+              className="btn btn--success"
               disabled={saving}
             >
               {saving ? 'Verifying & Posting...' : 'Verify & Add to Warehouse Inventory'}

@@ -3563,7 +3563,7 @@ export default function VolunteersPage() {
                 </button>
                 <button
                   type="submit"
-                  className="btn btn--primary"
+                  className="btn btn--success"
                   disabled={volunteerSaving}
                 >
                   {volunteerSaving ? 'Saving…' : '+ Add Volunteer'}
@@ -3783,7 +3783,7 @@ export default function VolunteersPage() {
                 </button>
                 <button
                   type="submit"
-                  className="btn btn--primary"
+                  className="btn btn--success"
                   disabled={internSaving}
                 >
                   {internSaving ? 'Saving…' : '+ Add Intern'}
