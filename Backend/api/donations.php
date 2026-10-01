@@ -294,6 +294,40 @@ function save_donation_proof_upload(): ?array
   ];
 }
 
+function verified_payment_proof_result(?array $proof): ?array
+{
+  if (!$proof || empty($proof['path'])) {
+    return null;
+  }
+
+  $proofPath = __DIR__ . '/uploads/donation_proofs/' . basename((string) $proof['path']);
+  if (!is_file($proofPath)) {
+    return null;
+  }
+
+  $proofHash = hash_file('sha256', $proofPath);
+  if (!$proofHash) {
+    return null;
+  }
+
+  $recordPath = __DIR__ . '/uploads/donation_proof_verifications/' . $proofHash . '.json';
+  if (!is_file($recordPath)) {
+    return null;
+  }
+
+  $record = json_decode((string) file_get_contents($recordPath), true);
+  if (!is_array($record)
+    || !hash_equals((string) ($record['proofSha256'] ?? ''), $proofHash)
+    || ($record['status'] ?? '') !== 'verified'
+    || !is_numeric($record['amount'] ?? null)
+    || (float) $record['amount'] <= 0
+    || trim((string) ($record['referenceNumber'] ?? '')) === '') {
+    return null;
+  }
+
+  return $record;
+}
+
 if ($method === 'GET') {
   $user = require_auth(['Admin', 'Staff', 'Donor']);
 
@@ -811,6 +845,21 @@ if ($method === 'POST') {
   $aiConfidence = trim((string) ($body['aiConfidence'] ?? $body['ai_confidence'] ?? '')) ?: null;
   $aiVerificationNotes = trim((string) ($body['aiVerificationNotes'] ?? $body['ai_verification_notes'] ?? '')) ?: null;
   $isAmountAdjusted = !empty($body['isAmountManuallyAdjusted']) || !empty($body['is_amount_manually_adjusted']);
+
+  // A verified proof is authoritative. Never accept browser-edited amount or
+  // reference values for the same proof, even if the client omits its token or
+  // tampers with the other AI-related form fields.
+  $verifiedProof = ($public && $type === 'Monetary') ? verified_payment_proof_result($proof) : null;
+  if ($verifiedProof) {
+    $amount = round((float) $verifiedProof['amount'], 2);
+    $paymentReference = trim((string) $verifiedProof['referenceNumber']);
+    $aiExtractedAmount = $amount;
+    $aiExtractedReference = $paymentReference;
+    $aiExtractedMethod = trim((string) ($verifiedProof['paymentMethod'] ?? '')) ?: $paymentMethod;
+    $aiVerificationStatus = 'verified';
+    $aiVerificationNotes = 'Amount and payment reference were confirmed from the server-verified payment proof.';
+    $isAmountAdjusted = false;
+  }
   if ($aiExtractedAmount !== null && $amount !== null && abs($amount - $aiExtractedAmount) > 0.009) {
     $isAmountAdjusted = true;
   }

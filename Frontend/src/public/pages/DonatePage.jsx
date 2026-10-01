@@ -4,7 +4,7 @@ import {
   Building2, User, MapPin, CreditCard, Copy, Check, QrCode, 
   Landmark, Wallet, Globe, ShieldCheck, Info, FileText,
   Edit3, HeartHandshake, AlertCircle, RefreshCw, CheckCircle2,
-  Package, LogIn, UploadCloud, AlertTriangle, XCircle, Trash2, Edit2
+  Package, LogIn, UploadCloud, AlertTriangle, XCircle, Trash2, Edit2, Lock
 } from 'lucide-react'
 import { submitPublicDonation, getDonorProfile, paymentMethodsApi, verifyPaymentProof } from '../../api/resources'
 import { useAuth } from '../../context/AuthContext'
@@ -430,6 +430,15 @@ export default function DonatePage() {
     setIsAmountManuallyAdjusted(false)
   }
 
+  const verifiedProofAmount = aiResult?.amount ?? aiResult?.extractedAmount
+  const verifiedProofReference = aiResult?.referenceNumber ?? aiResult?.reference_number
+  const hasLockedVerifiedProof = (
+    (aiState === 'success' || aiState === 'verified')
+    && Boolean(tempProofToken)
+    && Number(verifiedProofAmount) > 0
+    && Boolean(String(verifiedProofReference || '').trim())
+  )
+
   const isCompany = form.donorType === 'Company'
 
   const availableRegions = useMemo(() => {
@@ -529,10 +538,14 @@ export default function DonatePage() {
       fd.append('acceptedPolicies', '1')
       fd.append('type', form.type === 'in-kind' ? 'In-Kind' : 'Monetary')
       if (form.type === 'monetary') {
-        fd.append('amount', String(form.amount))
+        const submittedAmount = hasLockedVerifiedProof ? verifiedProofAmount : form.amount
+        const submittedReference = hasLockedVerifiedProof
+          ? String(verifiedProofReference).trim()
+          : form.paymentReference.trim()
+        fd.append('amount', String(submittedAmount))
         fd.append('paymentMethod', selectedMethod ? selectedMethod.name : form.paymentMethod)
-        if (form.paymentReference?.trim()) {
-          fd.append('paymentReference', form.paymentReference.trim())
+        if (submittedReference) {
+          fd.append('paymentReference', submittedReference)
         }
       } else {
         const itemsStr = form.selectedNeeds
@@ -1560,23 +1573,30 @@ export default function DonatePage() {
                           required
                           placeholder="e.g. 1500.00"
                           value={form.amount}
+                          readOnly={hasLockedVerifiedProof}
+                          aria-readonly={hasLockedVerifiedProof}
+                          title={hasLockedVerifiedProof ? 'Locked to the amount extracted from the verified payment proof' : undefined}
                           onChange={(e) => {
+                            if (hasLockedVerifiedProof) return
                             setForm({ ...form, amount: e.target.value })
                             if (aiResult?.extractedAmount !== null && aiResult?.extractedAmount !== undefined) {
                               setIsAmountManuallyAdjusted(true)
                             }
                           }}
                           style={{
-                            borderColor: (aiState === 'verified' && !isAmountManuallyAdjusted) ? '#16a34a' : undefined,
+                            borderColor: hasLockedVerifiedProof ? '#16a34a' : undefined,
+                            background: hasLockedVerifiedProof ? '#f0fdf4' : undefined,
+                            color: hasLockedVerifiedProof ? '#166534' : undefined,
+                            cursor: hasLockedVerifiedProof ? 'not-allowed' : undefined,
                           }}
                         />
                       </div>
 
                       {/* Badges indicating extraction state */}
-                      {aiState === 'verified' && !isAmountManuallyAdjusted && Boolean(aiResult?.extractedAmount) && (
+                      {hasLockedVerifiedProof && (
                         <div className="field-ai-badge field-ai-badge--extracted">
-                          <CheckCircle2 size={13} />
-                          <span>Amount extracted from payment proof</span>
+                          <Lock size={13} />
+                          <span>Verified amount locked from payment proof</span>
                         </div>
                       )}
 
@@ -1602,13 +1622,25 @@ export default function DonatePage() {
                         type="text"
                         placeholder="e.g. GCash Ref No., Bank Ref / Trace No., or Check No."
                         value={form.paymentReference}
-                        onChange={(e) => setForm({ ...form, paymentReference: e.target.value })}
+                        readOnly={hasLockedVerifiedProof}
+                        aria-readonly={hasLockedVerifiedProof}
+                        title={hasLockedVerifiedProof ? 'Locked to the reference extracted from the verified payment proof' : undefined}
+                        onChange={(e) => {
+                          if (hasLockedVerifiedProof) return
+                          setForm({ ...form, paymentReference: e.target.value })
+                        }}
                         required={Boolean(selectedMethod?.requiresReference)}
+                        style={hasLockedVerifiedProof ? {
+                          borderColor: '#16a34a',
+                          background: '#f0fdf4',
+                          color: '#166534',
+                          cursor: 'not-allowed',
+                        } : undefined}
                       />
-                      {aiResult?.referenceNumber && form.paymentReference === aiResult.referenceNumber ? (
+                      {hasLockedVerifiedProof ? (
                         <div className="field-ai-badge field-ai-badge--extracted">
-                          <CheckCircle2 size={13} />
-                          <span>Reference extracted from payment proof</span>
+                          <Lock size={13} />
+                          <span>Verified reference locked from payment proof</span>
                         </div>
                       ) : (
                         <span className="field-hint" style={{ fontSize: '0.8rem', color: '#64748b', marginTop: '0.25rem' }}>

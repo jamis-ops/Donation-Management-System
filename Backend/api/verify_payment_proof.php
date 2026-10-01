@@ -494,6 +494,38 @@ if ($hasAmount && ($hasReference || $hasMethod)) {
   $extractionStatus = 'failed';
 }
 
+// Persist successful amount/reference extraction server-side, keyed to the
+// exact proof bytes. The public donation endpoint uses this record as the
+// authoritative source instead of trusting values posted by the browser.
+// Keeping these records outside the served proof directory also prevents a
+// caller from downloading or changing the extracted values.
+if ($extractionStatus === 'success' && $hasAmount && $hasReference) {
+  $proofHash = hash_file('sha256', $savedFilePath);
+  $verificationDir = __DIR__ . '/uploads/donation_proof_verifications';
+  if ($proofHash && (is_dir($verificationDir) || @mkdir($verificationDir, 0755, true))) {
+    $verificationRecord = [
+      'version' => 1,
+      'proofSha256' => $proofHash,
+      'amount' => round((float) $extracted['amount'], 2),
+      'referenceNumber' => trim((string) $extracted['referenceNumber']),
+      'paymentMethod' => $extracted['paymentMethod'],
+      'status' => 'verified',
+      'engine' => $engineSource,
+      'createdAt' => gmdate('c'),
+    ];
+    $recordPath = $verificationDir . '/' . $proofHash . '.json';
+    $encodedRecord = json_encode($verificationRecord, JSON_UNESCAPED_SLASHES);
+    if ($encodedRecord === false || @file_put_contents($recordPath, $encodedRecord, LOCK_EX) === false) {
+      error_log('[PAYMENT_PROOF_OCR] Could not persist authoritative verification record.');
+      // Do not present the result as lockable if the server cannot enforce it.
+      $extractionStatus = 'partial';
+    }
+  } else {
+    error_log('[PAYMENT_PROOF_OCR] Could not create verification record directory.');
+    $extractionStatus = 'partial';
+  }
+}
+
 // Log telemetry for debugging
 error_log(sprintf(
   "[PAYMENT_PROOF_OCR] engine=%s status=%s amount=%s ref=%s rec=%s method=%s",

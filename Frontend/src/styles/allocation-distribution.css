@@ -1824,6 +1824,8 @@
 .dist-cargo-context-grid {
   gap: 0;
   overflow: hidden;
+  flex: 0 0 auto;
+  align-items: stretch;
   background: #ffffff;
   border: 1px solid #e2e8f0;
   border-radius: 10px;
@@ -1831,11 +1833,39 @@
 
 .dist-cargo-context-grid .dist-context-tile {
   min-width: 0;
-  padding: 0.7rem 0.85rem;
+  min-height: 4.75rem;
+  height: auto;
+  padding: 0.85rem;
+  overflow: visible;
   background: transparent;
   border: 0;
   border-radius: 0;
   box-shadow: none;
+}
+
+.dist-cargo-context-grid .dist-info-tile__label {
+  display: block;
+  flex: 0 0 auto;
+  line-height: 1.35;
+  margin-bottom: 0.2rem;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+.dist-cargo-context-grid .dist-info-tile__value,
+.dist-cargo-context-grid .dist-info-tile__value > * {
+  min-width: 0;
+  height: auto;
+  line-height: 1.45;
+  white-space: normal;
+  overflow: visible;
+  overflow-wrap: anywhere;
+  word-break: normal;
+}
+
+.dist-cargo-context-grid .dist-info-tile__value svg {
+  flex: 0 0 auto;
+  margin-top: 0.15rem;
 }
 
 .dist-cargo-context-grid .dist-context-tile + .dist-context-tile {
