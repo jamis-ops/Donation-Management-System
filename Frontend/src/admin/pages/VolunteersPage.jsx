@@ -437,7 +437,7 @@ export default function VolunteersPage() {
       title: `Approve ${typeLabel} Application`,
       message: `Approve application for "${row.name}" and provision their portal account?`,
       confirmText: `Approve ${typeLabel}`,
-      type: 'primary',
+      type: 'success',
     })
     if (!ok) return
 
@@ -1004,7 +1004,7 @@ export default function VolunteersPage() {
         ? `Mark task "${task.title}" as completed for ${selected.name}? This will verify duty hours and credit them to the intern profile record.`
         : `Mark task "${task.title}" as completed for ${selected.name}?`,
       confirmText: 'Mark Completed',
-      type: 'primary',
+      type: 'success',
     })
     if (!ok) return
 
@@ -1583,7 +1583,7 @@ export default function VolunteersPage() {
                                   href={selected.resumeUrl}
                                   target="_blank"
                                   rel="noreferrer"
-                                  className="btn btn--sm btn--primary admin-resume-card__btn"
+                                  className="btn btn--sm btn--outline admin-resume-card__btn"
                                 >
                                   <ExternalLink size={13} aria-hidden /> View CV
                                 </a>
@@ -1685,7 +1685,7 @@ export default function VolunteersPage() {
                                 href={selected.resumeUrl}
                                 target="_blank"
                                 rel="noreferrer"
-                                className="btn btn--sm btn--primary admin-resume-card__btn"
+                                className="btn btn--sm btn--outline admin-resume-card__btn"
                               >
                                 <ExternalLink size={13} aria-hidden /> View Cover Letter or Resume
                               </a>
@@ -2246,7 +2246,7 @@ export default function VolunteersPage() {
                                           <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '0.65rem' }}>
                                             <button
                                               type="button"
-                                              className="btn btn--sm btn--primary"
+                                              className="btn btn--sm btn--success"
                                               onClick={() => handleAdminCompleteTask(t)}
                                               disabled={saving}
                                               style={{ padding: '0.25rem 0.65rem', fontSize: '0.78rem', display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}
@@ -2527,7 +2527,7 @@ export default function VolunteersPage() {
                                     <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '0.65rem' }}>
                                       <button
                                         type="button"
-                                        className="btn btn--sm btn--primary"
+                                        className="btn btn--sm btn--success"
                                         onClick={() => handleAdminCompleteTask(t)}
                                         disabled={saving}
                                         style={{ padding: '0.25rem 0.65rem', fontSize: '0.78rem', display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}
@@ -3180,7 +3180,7 @@ export default function VolunteersPage() {
                   {generalTaskStep === 1 ? (
                     <button
                       type="button"
-                      className="btn btn--ghost"
+                      className="btn btn--danger"
                       onClick={handleCloseGeneralModal}
                     >
                       Cancel
@@ -3418,7 +3418,7 @@ export default function VolunteersPage() {
               <div className="admin-modal__actions">
                 <button
                   type="button"
-                  className="btn btn--ghost"
+                  className="btn btn--danger"
                   onClick={() => setShowDirectTaskModal(false)}
                 >
                   Cancel
@@ -3556,7 +3556,7 @@ export default function VolunteersPage() {
               <div className="admin-modal__actions" style={{ marginTop: '1.25rem' }}>
                 <button
                   type="button"
-                  className="btn btn--ghost"
+                  className="btn btn--danger"
                   onClick={() => setShowAddVolunteerModal(false)}
                 >
                   Cancel
@@ -3776,7 +3776,7 @@ export default function VolunteersPage() {
               <div className="admin-modal__actions" style={{ marginTop: '1.25rem' }}>
                 <button
                   type="button"
-                  className="btn btn--ghost"
+                  className="btn btn--danger"
                   onClick={() => setShowAddInternModal(false)}
                 >
                   Cancel
@@ -3823,7 +3823,7 @@ export default function VolunteersPage() {
               <div className="admin-modal__actions" style={{ marginTop: '1.25rem' }}>
                 <button
                   type="button"
-                  className="btn btn--outline"
+                  className="btn btn--danger"
                   onClick={() => setShowEditAvailabilityModal(false)}
                   disabled={saving}
                 >
@@ -3831,7 +3831,7 @@ export default function VolunteersPage() {
                 </button>
                 <button
                   type="submit"
-                  className="btn btn--primary"
+                  className="btn btn--success"
                   disabled={saving}
                 >
                   {saving ? 'Saving…' : 'Save Availability'}

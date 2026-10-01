@@ -1793,7 +1793,7 @@ export default function RequestsPage() {
           title: 'Approve Relief Request',
           message: `Approve relief request from ${existing?.beneficiary || 'barangay'} for ${existing?.type || 'relief assistance'} (${existing?.affectedFamilies || 0} families)?`,
           confirmText: 'Approve Request',
-          type: 'primary',
+          type: 'success',
         });
         if (!ok) return;
       } else if (updates.status === 'Rejected') {

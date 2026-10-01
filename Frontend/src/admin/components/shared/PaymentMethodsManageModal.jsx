@@ -830,12 +830,12 @@ export default function PaymentMethodsManageModal({ open, onClose }) {
               <div style={{ display: 'flex', gap: '0.75rem', justifyContent: 'flex-end', marginTop: '1.5rem' }}>
                 <button
                   type="button"
-                  className="btn btn--outline"
+                  className="btn btn--danger"
                   onClick={() => setShowFormModal(false)}
                 >
                   Cancel
                 </button>
-                <button type="submit" className="btn btn--primary">
+                <button type="submit" className={`btn ${editingItem ? 'btn--success' : 'btn--primary'}`}>
                   {editingItem ? 'Save Changes' : 'Create Payment Method'}
                 </button>
               </div>

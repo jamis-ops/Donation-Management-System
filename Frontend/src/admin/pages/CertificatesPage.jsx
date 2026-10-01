@@ -479,7 +479,7 @@ export default function CertificatesPage() {
       title: 'Approve Certificate Request',
       message: `Approve the certificate request for ${row.recipient} (${row.type})? Once approved, you can generate the official certificate for this duty.`,
       confirmText: 'Approve Request',
-      type: 'primary',
+      type: 'success',
     })
     if (!ok) return
 
@@ -1293,7 +1293,7 @@ export default function CertificatesPage() {
 
             {/* MODAL FOOTER ACTIONS */}
             <div className="cert-creator-footer">
-              <button type="button" className="btn btn--ghost" onClick={() => setShowForm(false)}>
+              <button type="button" className="btn btn--danger" onClick={() => setShowForm(false)}>
                 Cancel
               </button>
               <div className="cert-creator-footer__group">
@@ -1307,7 +1307,7 @@ export default function CertificatesPage() {
                 <button
                   type="submit"
                   form="cert-form"
-                  className="btn btn--primary"
+                  className={`btn ${editRow ? 'btn--success' : 'btn--primary'}`}
                   disabled={saving || (editRow && isTerminalStatus(editRow.status, CERTIFICATE_TERMINAL))}
                 >
                   <Award size={14} /> {saving ? 'Saving...' : editRow ? 'Save Changes' : 'Issue Certificate'}
@@ -1366,7 +1366,7 @@ export default function CertificatesPage() {
                     <button type="button" className="btn btn--sm btn--outline" onClick={() => printCertificate(preview)}>
                       <Printer size={14} /> Print
                     </button>
-                    <button type="button" className="btn btn--sm btn--primary" onClick={() => printCertificate(preview)}>
+                    <button type="button" className="btn btn--sm btn--outline" onClick={() => printCertificate(preview)}>
                       <Download size={14} /> Download PDF
                     </button>
                   </>

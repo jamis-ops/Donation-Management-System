@@ -10,6 +10,7 @@ import PasswordRequirements from '../../components/shared/PasswordRequirements'
 import { heroBg } from '../../assets'
 import { useLoading } from '../../context/LoadingContext'
 import LoadingSpinner from '../../components/shared/LoadingSpinner'
+import PolicyConsentBox from '../../components/shared/PolicyConsentBox'
 
 export default function ChangePasswordPage() {
   const { user, loading: authLoading, isAuthenticated, changePassword, refreshUser } = useAuth()
@@ -23,6 +24,9 @@ export default function ChangePasswordPage() {
   const [showConfirmPassword, setShowConfirmPassword] = useState(false)
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
+  const [acceptedTerms, setAcceptedTerms] = useState(false)
+  const [acceptedPrivacy, setAcceptedPrivacy] = useState(false)
+  const isFirstTimeChange = Boolean(user?.mustChangePassword)
 
   if (authLoading) {
     return <LoadingSpinner message="Loading your account…" />
@@ -44,10 +48,18 @@ export default function ChangePasswordPage() {
       setError('New password and confirmation do not match.')
       return
     }
+    if (isFirstTimeChange && (!acceptedTerms || !acceptedPrivacy)) {
+      setError('Please read and accept both the Terms & Conditions and Data Privacy Policy.')
+      return
+    }
     setLoading(true)
     showLoading('Saving changes…')
     try {
-      await changePassword({ currentPassword, newPassword })
+      await changePassword({
+        currentPassword,
+        newPassword,
+        ...(isFirstTimeChange ? { acceptedTerms, acceptedPrivacy } : {}),
+      })
       await refreshUser()
       navigate(getHomeForRole(user?.role), { replace: true })
     } catch (err) {
@@ -162,7 +174,23 @@ export default function ChangePasswordPage() {
               </div>
             </label>
 
-            <button type="submit" className="btn btn--primary btn--lg auth-form__submit" disabled={loading}>
+            {isFirstTimeChange && (
+              <PolicyConsentBox
+                acceptedTerms={acceptedTerms}
+                onTermsChange={setAcceptedTerms}
+                acceptedPrivacy={acceptedPrivacy}
+                onPrivacyChange={setAcceptedPrivacy}
+                title="Required agreements"
+                description="Review and accept both policies before replacing your temporary password."
+                actionLabel="continue"
+              />
+            )}
+
+            <button
+              type="submit"
+              className="btn btn--primary btn--lg auth-form__submit"
+              disabled={loading || (isFirstTimeChange && (!acceptedTerms || !acceptedPrivacy))}
+            >
               {loading ? 'Saving...' : 'Update Password'}
             </button>
           </form>

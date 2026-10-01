@@ -373,7 +373,7 @@ export default function InKindIntakeModal({
           <div className="admin-modal__actions in-kind-intake-modal__footer">
             <button
               type="button"
-              className="btn btn--ghost"
+              className="btn btn--danger"
               onClick={onClose}
               disabled={saving}
             >

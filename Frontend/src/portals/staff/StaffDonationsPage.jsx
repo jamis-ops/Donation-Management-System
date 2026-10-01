@@ -145,7 +145,7 @@ export default function StaffDonationsPage() {
       title: 'Verify & Confirm Funds',
       message: `Verify monetary donation ${row.trackingCode} (${row.amount}) from ${row.donor}?${proofNotice}`,
       confirmText: 'Verify & Confirm Funds',
-      type: 'primary',
+      type: 'success',
     })
     if (!ok) return
 
@@ -420,7 +420,7 @@ export default function StaffDonationsPage() {
                               <>
                                 <button
                                   type="button"
-                                  className="btn btn--sm btn--primary"
+                                  className="btn btn--sm btn--success"
                                   disabled={busy}
                                   onClick={() => handleVerify(d)}
                                   title={d.type === 'In-Kind' ? 'Verify & Intake Items' : 'Verify & Confirm Funds'}
@@ -925,7 +925,7 @@ export default function StaffDonationsPage() {
                           href={getAuthenticatedFileUrl(selected.proofUrl)}
                           target="_blank"
                           rel="noreferrer"
-                          className="btn btn--primary btn--sm"
+                          className="btn btn--outline btn--sm"
                           style={{ marginTop: '0.75rem' }}
                         >
                           <ExternalLink size={14} /> Open File Directly
@@ -952,7 +952,7 @@ export default function StaffDonationsPage() {
                   {selected.status === 'Pending Verification' && (
                     <button
                       type="button"
-                      className="btn btn--primary btn--sm"
+                      className="btn btn--success btn--sm"
                       onClick={() => handleVerify(selected)}
                       disabled={busy}
                     >
@@ -1011,7 +1011,7 @@ export default function StaffDonationsPage() {
                     href={getAuthenticatedFileUrl(selected.proofUrl)}
                     target="_blank"
                     rel="noreferrer"
-                    className="btn btn--sm btn--primary"
+                    className="btn btn--sm btn--outline"
                     download={selected.proofFileName || 'proof'}
                   >
                     <Download size={14} />

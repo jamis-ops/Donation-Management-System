@@ -109,7 +109,7 @@ export default function AdminsPage() {
       title: 'Create Admin Account',
       message: `Create a database Admin account for ${formatFullName(form)} (${form.email}) and email their temporary password?`,
       confirmText: 'Create & Email Credentials',
-      type: 'primary',
+      type: 'success',
     })
     if (!ok) return
 
@@ -406,7 +406,7 @@ export default function AdminsPage() {
                     >
                       <Trash2 size={14} /> Delete Account
                     </button>
-                    <button type="submit" className="btn btn--primary" disabled={saving}>Save Profile</button>
+                    <button type="submit" className="btn btn--success" disabled={saving}>Save Profile</button>
                   </div>
                 </div>
               </form>
@@ -481,10 +481,10 @@ export default function AdminsPage() {
               </p>
 
               <div className="admin-modal__actions" style={{ marginTop: '1.25rem' }}>
-                <button type="button" className="btn btn--ghost" onClick={() => setShowForm(false)}>Cancel</button>
+                <button type="button" className="btn btn--danger" onClick={() => setShowForm(false)}>Cancel</button>
                 <button
                   type="submit"
-                  className="btn btn--primary"
+                  className="btn btn--success"
                   disabled={saving}
                 >
                   Create & Email Credentials

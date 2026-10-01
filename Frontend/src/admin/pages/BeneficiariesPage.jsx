@@ -581,7 +581,7 @@ export default function BeneficiariesPage() {
               <div className="beneficiaries-review-actions">
                 <button
                   type="button"
-                  className="btn btn--sm btn--primary"
+                  className="btn btn--sm btn--success"
                   title="Approve application"
                   disabled={busy}
                   onClick={(e) => handleApprove(e, row)}
@@ -940,7 +940,7 @@ export default function BeneficiariesPage() {
               </label>
 
               <div className="admin-modal__actions">
-                <button type="button" className="btn btn--ghost" onClick={() => setModalMode(null)}>Cancel</button>
+                <button type="button" className="btn btn--danger" onClick={() => setModalMode(null)}>Cancel</button>
                 <button type="submit" className="btn btn--primary" disabled={saving}>
                   {saving ? 'Sending…' : 'Send Invitation'}
                 </button>
@@ -1071,8 +1071,8 @@ export default function BeneficiariesPage() {
               )}
 
               <div className="admin-modal__actions">
-                <button type="button" className="btn btn--ghost" onClick={() => setModalMode(null)}>Cancel</button>
-                <button type="submit" className="btn btn--primary" disabled={saving}>
+                <button type="button" className="btn btn--danger" onClick={() => setModalMode(null)}>Cancel</button>
+                <button type="submit" className="btn btn--success" disabled={saving}>
                   Save Barangay
                 </button>
               </div>
@@ -1338,7 +1338,7 @@ export default function BeneficiariesPage() {
               <div className="admin-modal__actions" style={{ marginTop: '1.25rem' }}>
                 <button
                   type="button"
-                  className="btn btn--ghost"
+                  className="btn btn--danger"
                   onClick={() => setApproveTarget(null)}
                   disabled={actionBusyId === approveTarget.dbId}
                 >
@@ -1386,7 +1386,7 @@ export default function BeneficiariesPage() {
               <div className="admin-modal__actions">
                 <button
                   type="button"
-                  className="btn btn--ghost"
+                  className="btn btn--danger"
                   onClick={() => setRejectTarget(null)}
                   disabled={actionBusyId === rejectTarget.dbId}
                 >

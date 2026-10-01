@@ -165,7 +165,7 @@ export default function ReliefRequestModal({
         title: 'Approve Relief Request',
         message: `Approve relief request for ${liveRequest.beneficiary || liveRequest.barangay || 'barangay'}? Once approved, approval and rejection actions are permanently completed.`,
         confirmText: 'Approve Request',
-        type: 'primary',
+        type: 'success',
       })
       if (!ok) return
     } else if (nextStatus === 'Rejected') {

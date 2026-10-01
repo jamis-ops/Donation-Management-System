@@ -123,7 +123,7 @@ export default function StaffTasksPage() {
       title: `${actionLabel}`,
       message: `Update task "${task.title}" status to "${actionLabel}"? This update will persist to the database.`,
       confirmText: actionLabel,
-      type: nextColumn === 'done' ? 'primary' : 'primary',
+      type: nextColumn === 'done' ? 'success' : 'primary',
     })
     if (!ok) return
 
@@ -374,7 +374,7 @@ export default function StaffTasksPage() {
                         {isTodo && (
                           <button
                             type="button"
-                            className="btn btn--sm btn--primary"
+                            className="btn btn--sm btn--success"
                             style={{ flex: 1.2 }}
                             disabled={saving}
                             onClick={() => handleUpdateStatus(task, 'inProgress', 'Start Task')}
@@ -386,7 +386,7 @@ export default function StaffTasksPage() {
                         {isProgress && (
                           <button
                             type="button"
-                            className="btn btn--sm btn--primary"
+                            className="btn btn--sm btn--success"
                             style={{ flex: 1.2 }}
                             disabled={saving}
                             onClick={() => handleUpdateStatus(task, 'done', 'Complete Task')}
@@ -398,7 +398,7 @@ export default function StaffTasksPage() {
                         {isReview && (
                           <button
                             type="button"
-                            className="btn btn--sm btn--primary"
+                            className="btn btn--sm btn--success"
                             style={{ flex: 1.2 }}
                             disabled={saving}
                             onClick={() => handleUpdateStatus(task, 'done', 'Complete Task')}
@@ -566,7 +566,7 @@ export default function StaffTasksPage() {
                         </button>
                         <button
                           type="button"
-                          className="btn btn--primary"
+                          className="btn btn--success"
                           disabled={saving}
                           onClick={() => handleUpdateStatus(selectedTask, 'done', 'Complete Task')}
                         >
@@ -578,7 +578,7 @@ export default function StaffTasksPage() {
                     {isReview && (
                       <button
                         type="button"
-                        className="btn btn--primary"
+                        className="btn btn--success"
                         disabled={saving}
                         onClick={() => handleUpdateStatus(selectedTask, 'done', 'Complete Task')}
                       >

@@ -103,6 +103,7 @@ function ConfirmDialog({ dialog, onResolve }) {
 
   const getConfirmBtnClass = () => {
     if (type === 'danger' && !isAlert) return 'btn btn--danger confirm-dialog__btn-confirm'
+    if (type === 'success' && !isAlert) return 'btn btn--success confirm-dialog__btn-confirm'
     return 'btn btn--primary confirm-dialog__btn-confirm'
   }
 

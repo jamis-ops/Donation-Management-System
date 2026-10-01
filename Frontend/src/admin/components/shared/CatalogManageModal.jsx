@@ -227,10 +227,10 @@ export default function CatalogManageModal({
                             }
                           }}
                         />
-                        <button type="button" className="btn btn--sm btn--primary" disabled={busy} onClick={() => saveEdit(row)}>
+                        <button type="button" className="btn btn--sm btn--success" disabled={busy} onClick={() => saveEdit(row)}>
                           Save
                         </button>
-                        <button type="button" className="btn btn--sm btn--ghost" disabled={busy} onClick={cancelEdit}>
+                        <button type="button" className="btn btn--sm btn--danger" disabled={busy} onClick={cancelEdit}>
                           Cancel
                         </button>
                       </div>

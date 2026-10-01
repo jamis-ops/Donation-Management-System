@@ -134,8 +134,7 @@ export async function getLogoBase64() {
 }
 
 /**
- * Official CSV Export with BOM, top sign-off (Prepared By & Date Prepared),
- * and clean data rows without duplicate footers.
+ * Official CSV export with a bottom sign-off and dated footer.
  */
 export function exportCsv(filename, columns, rows, options = {}) {
   showGlobalLoading('Exporting CSV…')
@@ -145,15 +144,14 @@ export function exportCsv(filename, columns, rows, options = {}) {
     const { header, body } = buildMatrix(columns, rows)
     const lines = []
 
-    // Top Metadata: Prepared By & Date Prepared (Shown only once)
-    lines.push(`Prepared By,"${csvEscape(preparedBy)}"`)
-    lines.push(`Date Prepared,"${csvEscape(dateStr)}"`)
-    lines.push('') // Blank line before data table
-
     // Column headers
     lines.push(header.map(csvEscape).join(','))
     // Data rows
     body.forEach((r) => lines.push(r.map(csvEscape).join(',')))
+    lines.push('')
+    lines.push(`Prepared By,"${csvEscape(preparedBy)}"`)
+    lines.push('')
+    lines.push(`Date,"${csvEscape(dateStr)}"`)
 
     const cleanName = filename.replace(/\.csv$/i, '')
     // BOM so Excel reads UTF-8 (₱, accents) correctly.
@@ -169,8 +167,8 @@ export function exportCsv(filename, columns, rows, options = {}) {
 
 /**
  * Official Excel (.xlsx) Export with embedded Rise Above Foundation Cebu logo,
- * professional header banner, top sign-off (Prepared By & Date Prepared), custom column widths,
- * text wrapping, borders, and clean single-instance sign-off.
+ * professional header banner, bottom sign-off, custom column widths,
+ * text wrapping, borders, and clean single-instance metadata.
  */
 export async function exportExcel(filename, columns, rows, options = {}) {
   showGlobalLoading('Generating Excel report…')
@@ -224,18 +222,7 @@ export async function exportExcel(filename, columns, rows, options = {}) {
     const subRow = worksheet.addRow(['', 'Donation & Operations Management System · Official Report'])
     subRow.getCell(2).font = { name: 'Calibri', size: 9, italic: true, color: { argb: 'FF64748B' } }
 
-    worksheet.addRow([]) // Row 5: spacer
-
-    // Top Metadata: Prepared By & Date Prepared placed clearly before the table (shown only once)
-    const prepRowTop = worksheet.addRow(['Prepared By:', preparedBy])
-    prepRowTop.getCell(1).font = { name: 'Calibri', size: 10, bold: true, color: { argb: 'FF475569' } }
-    prepRowTop.getCell(2).font = { name: 'Calibri', size: 10, bold: true, color: { argb: 'FF0F172A' } }
-
-    const dateRowTop = worksheet.addRow(['Date Prepared:', dateStr])
-    dateRowTop.getCell(1).font = { name: 'Calibri', size: 10, bold: true, color: { argb: 'FF475569' } }
-    dateRowTop.getCell(2).font = { name: 'Calibri', size: 10, color: { argb: 'FF334155' } }
-
-    worksheet.addRow([]) // Row 8: spacer before table
+    worksheet.addRow([]) // spacer before table
 
     // 3. Table Column Headers
     const { header, body } = buildMatrix(columns, rows)
@@ -299,10 +286,19 @@ export async function exportExcel(filename, columns, rows, options = {}) {
       column.width = Math.min(Math.max(maxLen + 4, 16), 48)
     })
 
-    // 6. Bottom Confidential Footer (Single instance of Prepared By & Date at top; not duplicated here)
-    worksheet.addRow([]) // blank row
+    // 6. Sign-off below the table and document date in the footer.
+    worksheet.addRow([])
+    const prepRow = worksheet.addRow(['Prepared By:', preparedBy])
+    prepRow.getCell(1).font = { name: 'Calibri', size: 10, bold: true, color: { argb: 'FF475569' } }
+    prepRow.getCell(2).font = { name: 'Calibri', size: 10, bold: true, color: { argb: 'FF0F172A' } }
+
+    worksheet.addRow([])
     const footerRow = worksheet.addRow(['Rise Above Foundation Cebu · Official System Export · Confidential'])
     footerRow.getCell(1).font = { name: 'Calibri', size: 9, italic: true, color: { argb: 'FF94A3B8' } }
+    footerRow.getCell(3).value = `Date: ${dateStr}`
+    footerRow.getCell(3).font = { name: 'Calibri', size: 9, color: { argb: 'FF64748B' } }
+    footerRow.getCell(3).alignment = { horizontal: 'right' }
+    worksheet.headerFooter.oddFooter = `&LRise Above Foundation Cebu · Confidential&COfficial System Export&RDate: ${dateStr}`
 
     // 7. Write to Buffer & Trigger Download
     const buffer = await workbook.xlsx.writeBuffer()
@@ -337,7 +333,7 @@ export const INVENTORY_EXPORT_COLUMNS = [
 /**
  * Dedicated Inventory Excel (.xlsx) export with accurate columns,
  * date-stamped filename (e.g. Inventory_Export_YYYY-MM-DD.xlsx),
- * and Top Metadata Block (Prepared By & Date Prepared, shown only once).
+ * and consistent bottom report metadata.
  */
 export async function exportInventoryExcel(items, user = null, options = {}) {
   const todayIso = new Date().toISOString().slice(0, 10)
@@ -355,7 +351,7 @@ export async function exportInventoryExcel(items, user = null, options = {}) {
 /**
  * Dedicated Inventory CSV (.csv) export with accurate columns,
  * date-stamped filename (e.g. Inventory_Export_YYYY-MM-DD.csv),
- * and Top Metadata Block (Prepared By & Date Prepared, shown only once).
+ * and consistent bottom report metadata.
  */
 export function exportInventoryCsv(items, user = null, options = {}) {
   const todayIso = new Date().toISOString().slice(0, 10)
@@ -372,7 +368,7 @@ export function exportInventoryCsv(items, user = null, options = {}) {
 
 /**
  * Dedicated Inventory PDF export with properly sized landscape report layout,
- * accurate columns without cut-off, and Top Metadata Block (Prepared By & Date Prepared, shown only once).
+ * accurate columns without cut-off, a bottom sign-off, and a dated footer.
  */
 export function exportInventoryPdf(items, user = null, options = {}) {
   const activeUser = user || getStoredCurrentUser()
@@ -406,8 +402,8 @@ export async function exportInventory(format, items, user = null, options = {}) 
 /**
  * Open a print-ready window and trigger the browser print dialog (Save as PDF).
  * sections: [{ heading, columns, rows }] — supports multi-table reports.
- * Includes Rise Above Foundation Cebu header, single-instance top metadata
- * (Prepared By & Date Prepared), properly sized landscape layout, and clean footer.
+ * Includes a Rise Above Foundation Cebu header, bottom sign-off,
+ * properly sized landscape layout, and a dated footer.
  */
 export function printPdf(title, sections, options = {}) {
   const opt = typeof options === 'string' ? { preparedBy: options } : (options || {})
@@ -450,7 +446,7 @@ export function printPdf(title, sections, options = {}) {
       }
       .report-header {
         display: flex;
-        justify-content: space-between;
+        justify-content: flex-start;
         align-items: center;
         border-bottom: 2.5px solid #AF101A;
         padding-bottom: 12px;
@@ -487,19 +483,10 @@ export function printPdf(title, sections, options = {}) {
         color: #AF101A;
         line-height: 1.2;
       }
-      .report-header__meta {
-        text-align: right;
-        font-size: 0.8rem;
-        color: #334155;
-        line-height: 1.45;
-      }
-      .report-header__meta strong {
-        color: #0f172a;
-      }
       .report-header__meta-status {
         font-size: 0.7rem;
         color: #64748b;
-        margin-top: 2px;
+        margin-top: 3px;
       }
       h2 {
         font-size: 0.98rem;
@@ -549,6 +536,19 @@ export function printPdf(title, sections, options = {}) {
         font-size: 0.72rem;
         color: #94a3b8;
       }
+      .report-signoff {
+        margin-top: 18px;
+        padding-top: 10px;
+        border-top: 1px dashed #cbd5e1;
+        font-size: 0.8rem;
+        color: #334155;
+      }
+      .report-signoff strong { color: #0f172a; }
+      @media (max-width: 640px) {
+        body { padding: 16px; }
+        .report-header__title { font-size: 1.05rem; }
+        .report-footer { align-items: flex-start; gap: 6px; flex-direction: column; }
+      }
       @media print {
         @page {
           size: ${orientation};
@@ -566,18 +566,15 @@ export function printPdf(title, sections, options = {}) {
         <div class="report-header__info">
           <div class="report-header__org">Rise Above Foundation Cebu</div>
           <h1 class="report-header__title">${htmlEscape(title)}</h1>
+          <div class="report-header__meta-status">Donation & Operations Management · Official Export</div>
         </div>
-      </div>
-      <div class="report-header__meta">
-        <div><strong>Prepared By:</strong> ${htmlEscape(preparedBy)}</div>
-        <div><strong>Date Prepared:</strong> ${htmlEscape(dateStr)}</div>
-        <div class="report-header__meta-status">Donation & Operations Management · Official Export</div>
       </div>
     </header>
     ${blocks || '<p style="color:#64748b; font-size:0.9rem; padding: 20px 0;">No data to export.</p>'}
+    <div class="report-signoff"><strong>Prepared By:</strong> ${htmlEscape(preparedBy)}</div>
     <footer class="report-footer">
       <span>Rise Above Foundation Cebu · Official System Export</span>
-      <span>Confidential</span>
+      <span>Date: ${htmlEscape(dateStr)} · Confidential</span>
     </footer>
     </body></html>`)
   win.document.close()

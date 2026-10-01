@@ -84,7 +84,7 @@ export default function AdminProofReview({
       title: 'Approve Delivery Proof',
       message: `Approve delivery proof from ${proof.barangay} for "${proof.eventName || proof.distributionCode}"?`,
       confirmText: 'Approve Proof',
-      type: 'primary',
+      type: 'success',
     })
     if (!ok) return
 
@@ -220,7 +220,7 @@ export default function AdminProofReview({
                   <>
                     <button
                       type="button"
-                      className="btn btn--sm btn--primary"
+                      className="btn btn--sm btn--success"
                       disabled={busyId === p.id}
                       onClick={() => approve(p)}
                     >
@@ -314,7 +314,7 @@ export default function AdminProofReview({
                 <div className="proof-preview-modal__doc">
                   <FileText size={40} />
                   <p>This file type can’t be previewed inline.</p>
-                  <button type="button" className="btn btn--primary" onClick={() => openProofFile(preview)}>Open / Download</button>
+                  <button type="button" className="btn btn--outline" onClick={() => openProofFile(preview)}>Open / Download</button>
                 </div>
               )}
             </div>
@@ -352,7 +352,7 @@ export default function AdminProofReview({
                 />
               </label>
               <div className="admin-modal__actions">
-                <button type="button" className="btn btn--ghost" onClick={() => setRejecting(null)}>Cancel</button>
+                <button type="button" className="btn btn--danger" onClick={() => setRejecting(null)}>Cancel</button>
                 <button type="submit" className="btn btn--danger" disabled={busyId === rejecting.id}>
                   {busyId === rejecting.id ? 'Rejecting…' : 'Confirm Reject'}
                 </button>

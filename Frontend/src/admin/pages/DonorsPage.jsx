@@ -181,7 +181,7 @@ export default function DonorsPage() {
       title: 'Create Donor Portal Account',
       message: `Create a portal account for ${active.name} (${active.email}) and email their temporary password?`,
       confirmText: 'Create & Email Credentials',
-      type: 'primary',
+      type: 'success',
     })
     if (!ok) return
 
@@ -457,7 +457,7 @@ export default function DonorsPage() {
                   </div>
                   <button
                     type="button"
-                    className="btn btn--sm btn--primary donor-account-prompt__btn"
+                    className="btn btn--sm btn--success donor-account-prompt__btn"
                     disabled={saving}
                     onClick={createAccountForExisting}
                   >
@@ -776,7 +776,7 @@ export default function DonorsPage() {
 
               {/* Modal Actions */}
               <div className="admin-modal__actions">
-                <button type="button" className="btn btn--ghost" onClick={() => setMode(null)}>Cancel</button>
+                <button type="button" className="btn btn--danger" onClick={() => setMode(null)}>Cancel</button>
                 <button
                   type="submit"
                   className="btn btn--primary"

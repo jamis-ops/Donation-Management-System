@@ -411,7 +411,7 @@ export default function StaffDistributionsPage() {
                         {advanceStep ? (
                           <button
                             type="button"
-                            className="btn btn--sm btn--primary"
+                            className={`btn btn--sm ${advanceStep.next === 'Completed' ? 'btn--success' : 'btn--primary'}`}
                             style={{ flex: 1.2, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: '5px' }}
                             disabled={saving}
                             onClick={() => handleAdvanceStatus(dist)}
@@ -689,7 +689,7 @@ export default function StaffDistributionsPage() {
                   {advanceStep ? (
                     <button
                       type="button"
-                      className="btn btn--primary"
+                      className={`btn ${advanceStep.next === 'Completed' ? 'btn--success' : 'btn--primary'}`}
                       disabled={saving}
                       onClick={() => handleAdvanceStatus(selectedDistribution)}
                     >

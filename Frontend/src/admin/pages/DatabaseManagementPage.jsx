@@ -640,7 +640,7 @@ export default function DatabaseManagementPage() {
               <div className="admin-modal__actions admin-modal__actions--split" style={{ marginTop: '1.25rem' }}>
                 <button
                   type="button"
-                  className="btn btn--ghost"
+                  className="btn btn--danger"
                   onClick={() => setShowDeleteRowsModal(false)}
                 >
                   Cancel
@@ -685,7 +685,7 @@ export default function DatabaseManagementPage() {
               <div className="admin-modal__actions admin-modal__actions--split" style={{ marginTop: '1.25rem' }}>
                 <button
                   type="button"
-                  className="btn btn--ghost"
+                  className="btn btn--danger"
                   onClick={() => setShowClearTableModal(false)}
                 >
                   Cancel
@@ -820,7 +820,7 @@ export default function DatabaseManagementPage() {
               <div className="admin-modal__actions admin-modal__actions--split" style={{ marginTop: '1.25rem' }}>
                 <button
                   type="button"
-                  className="btn btn--ghost"
+                  className="btn btn--danger"
                   onClick={() => setShowWipeModal(false)}
                 >
                   Cancel

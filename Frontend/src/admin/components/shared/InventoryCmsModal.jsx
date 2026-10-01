@@ -527,15 +527,15 @@ export default function InventoryCmsModal({ open, onClose }) {
                 <div className="admin-modal__actions">
                   <button
                     type="button"
-                    className="btn btn--ghost"
+                    className="btn btn--danger"
                     onClick={() => setShowEditModal(false)}
                   >
                     Cancel
                   </button>
                   <button
                     type="submit"
-                    className="btn btn--primary"
-                    style={{ backgroundColor: '#AF101A' }}
+                    className={`btn ${editingItem ? 'btn--success' : 'btn--primary'}`}
+                    style={editingItem ? undefined : { backgroundColor: '#AF101A' }}
                   >
                     {editingItem ? 'Save Changes' : 'Create Entry'}
                   </button>

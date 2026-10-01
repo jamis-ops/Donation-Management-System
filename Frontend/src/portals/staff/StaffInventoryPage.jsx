@@ -772,7 +772,7 @@ export default function StaffInventoryPage() {
               <div className="admin-modal__actions" style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.5rem', borderTop: '1px solid #e2e8f0', paddingTop: '1rem' }}>
                 <button
                   type="button"
-                  className="btn btn--ghost"
+                  className="btn btn--danger"
                   onClick={() => setShowStockModal(false)}
                   disabled={busy}
                 >

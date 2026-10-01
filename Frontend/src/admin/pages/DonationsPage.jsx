@@ -286,7 +286,7 @@ export default function DonationsPage() {
       title: 'Verify Donation',
       message: verifyMessage,
       confirmText: 'Verify & Confirm',
-      type: 'primary',
+      type: 'success',
     })
     if (!confirmed) return
 
@@ -999,7 +999,7 @@ export default function DonationsPage() {
               </label>
 
               <div className="admin-modal__actions">
-                <button type="button" className="btn btn--ghost" onClick={() => setShowForm(false)}>
+                <button type="button" className="btn btn--danger" onClick={() => setShowForm(false)}>
                   Cancel
                 </button>
                 <button type="submit" className="btn btn--primary" disabled={saving}>
@@ -1341,7 +1341,7 @@ export default function DonationsPage() {
                       <>
                         <button
                           type="button"
-                          className="btn btn--primary"
+                          className="btn btn--success"
                           onClick={() => handleVerify(selected)}
                           disabled={actionLoading}
                           title={selected.type === 'In-Kind' ? 'Verify & Post to Inventory' : 'Verify & Confirm Funds'}
@@ -1525,7 +1525,7 @@ export default function DonationsPage() {
                   <div className="proof-primary-actions">
                     <button
                       type="button"
-                      className="btn btn--primary"
+                      className="btn btn--success"
                       onClick={() => handleVerify(selected)}
                       disabled={actionLoading}
                     >
@@ -1581,7 +1581,7 @@ export default function DonationsPage() {
                           href={getAuthenticatedFileUrl(selected.proofUrl)}
                           target="_blank"
                           rel="noreferrer"
-                          className="btn btn--primary btn--sm"
+                          className="btn btn--outline btn--sm"
                         >
                           <ExternalLink size={14} /> Open Direct File
                         </a>

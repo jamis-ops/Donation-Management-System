@@ -81,6 +81,13 @@ if ($method === 'PUT') {
       json_response(['ok' => false, 'error' => 'User not found'], 404);
     }
     $must = (bool) ($row['must_change_password'] ?? false);
+    if ($must) {
+      $acceptedTerms = !empty($body['acceptedTerms']);
+      $acceptedPrivacy = !empty($body['acceptedPrivacy']);
+      if (!$acceptedTerms || !$acceptedPrivacy) {
+        json_response(['ok' => false, 'error' => 'You must accept both the Terms & Conditions and Data Privacy Policy before changing your temporary password.'], 400);
+      }
+    }
     if (!$must) {
       if ($current === '' || !password_verify($current, $row['password_hash'])) {
         json_response(['ok' => false, 'error' => 'Current password is incorrect'], 400);
@@ -91,6 +98,9 @@ if ($method === 'PUT') {
     $hash = password_hash($new, PASSWORD_DEFAULT);
     $pdo->prepare('UPDATE users SET password_hash = ?, must_change_password = 0 WHERE id = ?')
       ->execute([$hash, $uid]);
+    if ($must) {
+      accept_privacy_terms($pdo, $uid);
+    }
     $_SESSION['user']['mustChangePassword'] = false;
   }
 

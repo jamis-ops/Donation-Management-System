@@ -184,7 +184,7 @@ export default function StaffPage() {
       title: 'Create Staff Account',
       message: `Create a staff portal account for ${formatFullName(form)} (${form.email}) and email their temporary password?`,
       confirmText: 'Create & Email Credentials',
-      type: 'primary',
+      type: 'success',
     })
     if (!ok) return
 
@@ -371,7 +371,7 @@ export default function StaffPage() {
       title: 'Complete Task',
       message: `Mark task "${task.title}" as completed for ${selected?.name || 'this staff member'}?`,
       confirmText: 'Mark Completed',
-      type: 'primary',
+      type: 'success',
     })
     if (!ok) return
 
@@ -636,7 +636,7 @@ export default function StaffPage() {
                 <div className="admin-modal__actions">
                   <button
                     type="button"
-                    className="btn btn--ghost"
+                    className="btn btn--danger"
                     onClick={() => {
                       if (openedViaEdit) {
                         setSelected(null)
@@ -660,7 +660,7 @@ export default function StaffPage() {
                   >
                     Cancel
                   </button>
-                  <button type="submit" className="btn btn--primary" disabled={saving}>
+                  <button type="submit" className="btn btn--success" disabled={saving}>
                     {saving ? 'Saving…' : 'Save Changes'}
                   </button>
                 </div>
@@ -1088,7 +1088,7 @@ export default function StaffPage() {
               </div>
 
               <div className="admin-modal__actions">
-                <button type="button" className="btn btn--ghost" onClick={() => setShowTaskForm(false)}>Cancel</button>
+                <button type="button" className="btn btn--danger" onClick={() => setShowTaskForm(false)}>Cancel</button>
                 <button type="submit" className="btn btn--primary" disabled={saving || !taskForm.title}>Assign Task</button>
               </div>
             </form>
@@ -1182,12 +1182,12 @@ export default function StaffPage() {
               </div>
 
               <div className="admin-modal__actions staff-modal-actions">
-                <button type="button" className="btn btn--outline" onClick={() => setShowForm(false)}>
+                <button type="button" className="btn btn--danger" onClick={() => setShowForm(false)}>
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="btn btn--primary"
+                  className="btn btn--success"
                   disabled={saving}
                 >
                   {saving ? 'Creating Account…' : 'Create & Email Credentials'}
