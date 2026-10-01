@@ -352,7 +352,7 @@ export default function AdminProofReview({
                 />
               </label>
               <div className="admin-modal__actions">
-                <button type="button" className="btn btn--danger" onClick={() => setRejecting(null)}>Cancel</button>
+                <button type="button" className="btn btn--ghost" onClick={() => setRejecting(null)}>Cancel</button>
                 <button type="submit" className="btn btn--danger" disabled={busyId === rejecting.id}>
                   {busyId === rejecting.id ? 'Rejecting…' : 'Confirm Reject'}
                 </button>

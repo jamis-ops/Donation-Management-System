@@ -1293,7 +1293,7 @@ export default function CertificatesPage() {
 
             {/* MODAL FOOTER ACTIONS */}
             <div className="cert-creator-footer">
-              <button type="button" className="btn btn--danger" onClick={() => setShowForm(false)}>
+              <button type="button" className="btn btn--ghost" onClick={() => setShowForm(false)}>
                 Cancel
               </button>
               <div className="cert-creator-footer__group">

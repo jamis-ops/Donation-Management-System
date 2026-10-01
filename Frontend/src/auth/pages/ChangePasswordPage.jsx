@@ -10,7 +10,6 @@ import PasswordRequirements from '../../components/shared/PasswordRequirements'
 import { heroBg } from '../../assets'
 import { useLoading } from '../../context/LoadingContext'
 import LoadingSpinner from '../../components/shared/LoadingSpinner'
-import PolicyConsentBox from '../../components/shared/PolicyConsentBox'
 
 export default function ChangePasswordPage() {
   const { user, loading: authLoading, isAuthenticated, changePassword, refreshUser } = useAuth()
@@ -24,9 +23,6 @@ export default function ChangePasswordPage() {
   const [showConfirmPassword, setShowConfirmPassword] = useState(false)
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
-  const [acceptedTerms, setAcceptedTerms] = useState(false)
-  const [acceptedPrivacy, setAcceptedPrivacy] = useState(false)
-  const isFirstTimeSetup = Boolean(user?.mustChangePassword)
 
   if (authLoading) {
     return <LoadingSpinner message="Loading your account…" />
@@ -48,18 +44,10 @@ export default function ChangePasswordPage() {
       setError('New password and confirmation do not match.')
       return
     }
-    if (isFirstTimeSetup && (!acceptedTerms || !acceptedPrivacy)) {
-      setError('Please accept both the Terms and Conditions and Data Privacy Policy before continuing.')
-      return
-    }
     setLoading(true)
     showLoading('Saving changes…')
     try {
-      await changePassword({
-        currentPassword,
-        newPassword,
-        ...(isFirstTimeSetup ? { acceptedTerms, acceptedPrivacy } : {}),
-      })
+      await changePassword({ currentPassword, newPassword })
       await refreshUser()
       navigate(getHomeForRole(user?.role), { replace: true })
     } catch (err) {
@@ -96,8 +84,6 @@ export default function ChangePasswordPage() {
               <Req required>Current password</Req>
               <div className="password-input-wrap">
                 <input
-                  id="change-password-current"
-                  name="currentPassword"
                   type={showCurrentPassword ? 'text' : 'password'}
                   required
                   maxLength={64}
@@ -124,8 +110,6 @@ export default function ChangePasswordPage() {
               <Req required>New password</Req>
               <div className="password-input-wrap">
                 <input
-                  id="change-password-new"
-                  name="newPassword"
                   type={showNewPassword ? 'text' : 'password'}
                   required
                   minLength={8}
@@ -155,8 +139,6 @@ export default function ChangePasswordPage() {
               <Req required>Confirm new password</Req>
               <div className="password-input-wrap">
                 <input
-                  id="change-password-confirm"
-                  name="confirmPassword"
                   type={showConfirmPassword ? 'text' : 'password'}
                   required
                   minLength={6}
@@ -180,25 +162,7 @@ export default function ChangePasswordPage() {
               </div>
             </label>
 
-            {isFirstTimeSetup && (
-              <PolicyConsentBox
-                idPrefix="first-login-policy"
-                acceptedTerms={acceptedTerms}
-                onTermsChange={setAcceptedTerms}
-                acceptedPrivacy={acceptedPrivacy}
-                onPrivacyChange={setAcceptedPrivacy}
-                requireReview={false}
-                actionLabel="change your password"
-                title="Terms and Privacy Agreement"
-                description="Review and accept both policies to complete your first-time account setup."
-              />
-            )}
-
-            <button
-              type="submit"
-              className="btn btn--success btn--lg auth-form__submit"
-              disabled={loading || (isFirstTimeSetup && (!acceptedTerms || !acceptedPrivacy))}
-            >
+            <button type="submit" className="btn btn--primary btn--lg auth-form__submit" disabled={loading}>
               {loading ? 'Saving...' : 'Update Password'}
             </button>
           </form>
