@@ -277,7 +277,7 @@ export default function DonorCertificatesPage() {
                 </select>
               </label>
               <div className="admin-modal__actions">
-                <button type="button" className="btn btn--ghost" onClick={() => setShowRequest(false)}>Cancel</button>
+                <button type="button" className="btn btn--danger" onClick={() => setShowRequest(false)}>Cancel</button>
                 <button type="submit" className="btn btn--primary" disabled={busy || !form.reference}>
                   {busy ? 'Sending...' : 'Send Request'}
                 </button>
@@ -299,7 +299,7 @@ export default function DonorCertificatesPage() {
                 <button type="button" className="btn btn--sm btn--outline" onClick={() => handleShare(preview)}>
                   <Share2 size={14} /> Share
                 </button>
-                <button type="button" className="btn btn--sm btn--primary" onClick={() => printCertificate(preview)}>
+                <button type="button" className="btn btn--sm btn--outline" onClick={() => printCertificate(preview)}>
                   <Download size={14} /> Download PDF
                 </button>
                 <button type="button" className="btn btn--sm btn--ghost" onClick={() => setPreview(null)}>Close</button>

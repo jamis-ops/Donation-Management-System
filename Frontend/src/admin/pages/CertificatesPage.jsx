@@ -679,7 +679,7 @@ export default function CertificatesPage() {
               </button>
               <button
                 type="button"
-                className="btn btn--sm btn--ghost"
+                className="btn btn--sm btn--danger"
                 title="Reject Request"
                 onClick={(e) => { e.stopPropagation(); handleRejectRequest(row) }}
               >
@@ -702,7 +702,7 @@ export default function CertificatesPage() {
               </button>
               <button
                 type="button"
-                className="btn btn--sm btn--ghost"
+                className="btn btn--sm btn--danger"
                 title="Delete Record"
                 onClick={(e) => { e.stopPropagation(); handleDelete(row) }}
               >
@@ -724,7 +724,7 @@ export default function CertificatesPage() {
             <button type="button" className="btn btn--sm btn--outline" title="Edit" onClick={(e) => { e.stopPropagation(); openEdit(row) }}>
               <Pencil size={14} />
             </button>
-            <button type="button" className="btn btn--sm btn--ghost" title="Delete" onClick={(e) => { e.stopPropagation(); handleDelete(row) }}>
+            <button type="button" className="btn btn--sm btn--danger" title="Delete" onClick={(e) => { e.stopPropagation(); handleDelete(row) }}>
               <Trash2 size={14} />
             </button>
           </div>
@@ -1293,7 +1293,7 @@ export default function CertificatesPage() {
 
             {/* MODAL FOOTER ACTIONS */}
             <div className="cert-creator-footer">
-              <button type="button" className="btn btn--ghost" onClick={() => setShowForm(false)}>
+              <button type="button" className="btn btn--danger" onClick={() => setShowForm(false)}>
                 Cancel
               </button>
               <div className="cert-creator-footer__group">
@@ -1366,7 +1366,7 @@ export default function CertificatesPage() {
                     <button type="button" className="btn btn--sm btn--outline" onClick={() => printCertificate(preview)}>
                       <Printer size={14} /> Print
                     </button>
-                    <button type="button" className="btn btn--sm btn--primary" onClick={() => printCertificate(preview)}>
+                    <button type="button" className="btn btn--sm btn--outline" onClick={() => printCertificate(preview)}>
                       <Download size={14} /> Download PDF
                     </button>
                   </>
@@ -1550,7 +1550,7 @@ export default function CertificatesPage() {
             </div>
 
             <div className="admin-modal__actions" style={{ marginTop: '1rem' }}>
-              <button type="button" className="btn btn--primary" onClick={() => setShowSignatoriesModal(false)}>
+              <button type="button" className="btn btn--outline" onClick={() => setShowSignatoriesModal(false)}>
                 Done
               </button>
             </div>

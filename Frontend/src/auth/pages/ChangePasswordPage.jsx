@@ -10,6 +10,7 @@ import PasswordRequirements from '../../components/shared/PasswordRequirements'
 import { heroBg } from '../../assets'
 import { useLoading } from '../../context/LoadingContext'
 import LoadingSpinner from '../../components/shared/LoadingSpinner'
+import PolicyConsentBox from '../../components/shared/PolicyConsentBox'
 
 export default function ChangePasswordPage() {
   const { user, loading: authLoading, isAuthenticated, changePassword, refreshUser } = useAuth()
@@ -23,6 +24,9 @@ export default function ChangePasswordPage() {
   const [showConfirmPassword, setShowConfirmPassword] = useState(false)
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
+  const [acceptedTerms, setAcceptedTerms] = useState(false)
+  const [acceptedPrivacy, setAcceptedPrivacy] = useState(false)
+  const isFirstTimeSetup = Boolean(user?.mustChangePassword)
 
   if (authLoading) {
     return <LoadingSpinner message="Loading your account…" />
@@ -44,10 +48,14 @@ export default function ChangePasswordPage() {
       setError('New password and confirmation do not match.')
       return
     }
+    if (isFirstTimeSetup && (!acceptedTerms || !acceptedPrivacy)) {
+      setError('Accept both the Terms and Conditions and Data Privacy Policy before continuing.')
+      return
+    }
     setLoading(true)
     showLoading('Saving changes…')
     try {
-      await changePassword({ currentPassword, newPassword })
+      await changePassword({ currentPassword, newPassword, ...(isFirstTimeSetup ? { acceptedTerms, acceptedPrivacy } : {}) })
       await refreshUser()
       navigate(getHomeForRole(user?.role), { replace: true })
     } catch (err) {
@@ -84,6 +92,8 @@ export default function ChangePasswordPage() {
               <Req required>Current password</Req>
               <div className="password-input-wrap">
                 <input
+                  id="account-current-password"
+                  name="currentPassword"
                   type={showCurrentPassword ? 'text' : 'password'}
                   required
                   maxLength={64}
@@ -110,6 +120,8 @@ export default function ChangePasswordPage() {
               <Req required>New password</Req>
               <div className="password-input-wrap">
                 <input
+                  id="account-new-password"
+                  name="newPassword"
                   type={showNewPassword ? 'text' : 'password'}
                   required
                   minLength={8}
@@ -139,6 +151,8 @@ export default function ChangePasswordPage() {
               <Req required>Confirm new password</Req>
               <div className="password-input-wrap">
                 <input
+                  id="account-confirm-password"
+                  name="confirmPassword"
                   type={showConfirmPassword ? 'text' : 'password'}
                   required
                   minLength={6}
@@ -162,7 +176,19 @@ export default function ChangePasswordPage() {
               </div>
             </label>
 
-            <button type="submit" className="btn btn--primary btn--lg auth-form__submit" disabled={loading}>
+            {isFirstTimeSetup && (
+              <PolicyConsentBox
+                acceptedTerms={acceptedTerms}
+                onTermsChange={setAcceptedTerms}
+                acceptedPrivacy={acceptedPrivacy}
+                onPrivacyChange={setAcceptedPrivacy}
+                actionLabel="change your password"
+                title="Terms and Privacy Agreement"
+                description="Review and accept both policies to complete your first-time account setup."
+              />
+            )}
+
+            <button type="submit" className="btn btn--primary btn--lg auth-form__submit" disabled={loading || (isFirstTimeSetup && (!acceptedTerms || !acceptedPrivacy))}>
               {loading ? 'Saving...' : 'Update Password'}
             </button>
           </form>

@@ -14,6 +14,7 @@ export default function PolicyConsentBox({
   onTermsChange,
   acceptedPrivacy = false,
   onPrivacyChange,
+  actionLabel = 'create credentials',
   title = 'Data Privacy & Terms Agreement',
   description = 'Please read and accept the Data Privacy Policy and Terms & Conditions before creating credentials.',
 }) {
@@ -83,6 +84,7 @@ export default function PolicyConsentBox({
         {/* 1. Terms & Conditions */}
         <label className="policy-consent-item">
           <input
+            name="acceptedTerms"
             type="checkbox"
             className="policy-consent-item__checkbox"
             checked={Boolean(acceptedTerms)}
@@ -110,6 +112,7 @@ export default function PolicyConsentBox({
         {/* 2. Data Privacy Policy */}
         <label className="policy-consent-item">
           <input
+            name="acceptedPrivacy"
             type="checkbox"
             className="policy-consent-item__checkbox"
             checked={Boolean(acceptedPrivacy)}
@@ -139,16 +142,16 @@ export default function PolicyConsentBox({
         {isBothAccepted ? (
           <span className="policy-consent-status policy-consent-status--ready">
             <CheckCircle2 size={14} />
-            <span>Data Privacy Policy and Terms & Conditions accepted. Ready to create credentials.</span>
+            <span>Data Privacy Policy and Terms & Conditions accepted. Ready to {actionLabel}.</span>
           </span>
         ) : (
           <span className="policy-consent-status policy-consent-status--locked">
             <Lock size={14} />
             <span>
               {!reviewedTerms && !reviewedPrivacy
-                ? 'Click each policy to view and enable its checkbox, then check both to create credentials.'
+                ? `Click each policy to view and enable its checkbox, then check both to ${actionLabel}.`
                 : !acceptedTerms || !acceptedPrivacy
-                ? 'Please check both agreements above to create credentials.'
+                ? `Please check both agreements above to ${actionLabel}.`
                 : 'Please complete both requirements above.'}
             </span>
           </span>

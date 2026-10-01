@@ -68,8 +68,8 @@ export function AuthProvider({ children }) {
     }
   }
 
-  const changePassword = async ({ currentPassword, newPassword }) => {
-    const res = await authApi.changePassword({ currentPassword, newPassword })
+  const changePassword = async ({ currentPassword, newPassword, acceptedTerms, acceptedPrivacy }) => {
+    const res = await authApi.changePassword({ currentPassword, newPassword, acceptedTerms, acceptedPrivacy })
     if (res?.data) {
       setUser((prev) => (prev ? { ...prev, ...res.data, mustChangePassword: false } : res.data))
     } else {

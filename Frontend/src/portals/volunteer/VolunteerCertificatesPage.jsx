@@ -426,7 +426,7 @@ export default function VolunteerCertificatesPage() {
                 <button type="button" className="btn btn--sm btn--outline" onClick={() => handleShare(preview)}>
                   <Share2 size={14} /> Share
                 </button>
-                <button type="button" className="btn btn--sm btn--primary" onClick={() => printCertificate(preview)}>
+                <button type="button" className="btn btn--sm btn--outline" onClick={() => printCertificate(preview)}>
                   <Download size={14} /> Download PDF
                 </button>
               </div>

@@ -81,6 +81,9 @@ if ($method === 'PUT') {
       json_response(['ok' => false, 'error' => 'User not found'], 404);
     }
     $must = (bool) ($row['must_change_password'] ?? false);
+    if ($must && (($body['acceptedTerms'] ?? null) !== true || ($body['acceptedPrivacy'] ?? null) !== true)) {
+      json_response(['ok' => false, 'error' => 'Accept both the Terms and Conditions and Data Privacy Policy to complete your first-time account setup.'], 400);
+    }
     if (!$must) {
       if ($current === '' || !password_verify($current, $row['password_hash'])) {
         json_response(['ok' => false, 'error' => 'Current password is incorrect'], 400);

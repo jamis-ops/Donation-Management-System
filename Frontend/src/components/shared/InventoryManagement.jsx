@@ -554,13 +554,13 @@ export default function InventoryManagement() {
               <button type="button" className="btn btn--sm btn--outline" onClick={(e) => { e.stopPropagation(); openBatchEdit(row) }}>
                 <Pencil size={13} />
               </button>
-              <button type="button" className="btn btn--sm btn--ghost" title="Cancel batch" onClick={(e) => { e.stopPropagation(); setBatchStatus(row, 'Cancelled') }}>
+              <button type="button" className="btn btn--sm btn--danger" title="Cancel batch" onClick={(e) => { e.stopPropagation(); setBatchStatus(row, 'Cancelled') }}>
                 <XCircle size={13} />
               </button>
             </>
           )}
           {(row.status === 'Completed' || row.status === 'Cancelled') && (
-            <button type="button" className="btn btn--sm btn--ghost" title="Delete record" onClick={(e) => { e.stopPropagation(); handleBatchDelete(row) }}>
+            <button type="button" className="btn btn--sm btn--danger" title="Delete record" onClick={(e) => { e.stopPropagation(); handleBatchDelete(row) }}>
               <Trash2 size={13} />
             </button>
           )}
@@ -1310,7 +1310,7 @@ export default function InventoryManagement() {
               </div>
 
               <div className="admin-modal__actions">
-                <button type="button" className="btn btn--ghost" onClick={() => setBatchModal(null)}>Cancel</button>
+                <button type="button" className="btn btn--danger" onClick={() => setBatchModal(null)}>Cancel</button>
                 <button type="submit" className="btn btn--primary" disabled={saving}>
                   {saving ? 'Saving...' : batchModal === 'create' ? 'Create Batch' : 'Save Changes'}
                 </button>

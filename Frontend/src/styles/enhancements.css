@@ -7289,18 +7289,18 @@ tr.data-table__row--selected:hover {
   font-size: 0.88rem;
   font-weight: 600;
   border-radius: 8px;
-  background: #ffffff;
-  color: #475569;
-  border: 1px solid #cbd5e1;
+  background: #dc2626;
+  color: #ffffff;
+  border: 1px solid #dc2626;
   min-width: 95px;
   cursor: pointer;
   transition: all 0.15s ease;
 }
 
 .confirm-dialog__btn-cancel:hover:not(:disabled) {
-  background: #f8fafc;
-  color: #0f172a;
-  border-color: #94a3b8;
+  background: #b91c1c;
+  color: #ffffff;
+  border-color: #b91c1c;
 }
 
 .confirm-dialog__btn-confirm {
@@ -7316,16 +7316,10 @@ tr.data-table__row--selected:hover {
 .confirm-dialog__actions--alert .confirm-dialog__btn-confirm,
 .confirm-dialog__btn-ok {
   min-width: 135px;
-  background: #AF101A !important;
-  color: #ffffff !important;
-  border-color: #AF101A !important;
-  box-shadow: 0 2px 6px rgba(175, 16, 26, 0.25);
 }
 
 .confirm-dialog__actions--alert .confirm-dialog__btn-confirm:hover:not(:disabled),
 .confirm-dialog__btn-ok:hover:not(:disabled) {
-  background: #8E0D15 !important;
-  border-color: #8E0D15 !important;
   transform: translateY(-1px);
 }
 
@@ -8825,15 +8819,15 @@ button:disabled,
 }
 
 .admin-modal .admin-modal__actions .btn--primary {
-  background: #AF101A;
+  background: #16a34a;
   color: #ffffff;
-  border: 1px solid #AF101A;
+  border: 1px solid #16a34a;
 }
 
 .admin-modal .admin-modal__actions .btn--primary:hover:not(:disabled) {
-  background: #930D16;
-  border-color: #930D16;
-  box-shadow: 0 2px 6px rgba(175, 16, 26, 0.25);
+  background: #15803d;
+  border-color: #15803d;
+  box-shadow: 0 2px 6px rgba(22, 163, 74, 0.25);
 }
 
 .admin-modal .admin-modal__actions .btn--ghost {
