@@ -481,16 +481,6 @@ export function printPdf(title, sections, options = {}) {
         color: #AF101A;
         line-height: 1.2;
       }
-      .report-header__meta {
-        margin-left: auto;
-        text-align: right;
-        color: #64748b;
-      }
-      .report-header__meta-status {
-        font-size: 0.72rem;
-        font-weight: 600;
-        letter-spacing: 0.02em;
-      }
       .report-signoff {
         margin-top: 18px;
         padding-top: 10px;
