@@ -330,7 +330,7 @@ export default function BeneficiaryDistributionsPage() {
                           </div>
                           <div className="dist-tracker-actions">
                             {canConfirm(d) && (
-                              <button type="button" className="btn btn--sm btn--primary" onClick={() => openReceive(d)}>
+                              <button type="button" className="btn btn--sm btn--success" onClick={() => openReceive(d)}>
                                 <CheckCircle2 size={13} /> Confirm Received
                               </button>
                             )}
@@ -547,10 +547,10 @@ export default function BeneficiaryDistributionsPage() {
                 </>
               )}
               <div className="admin-modal__actions">
-                <button type="button" className="btn btn--ghost" onClick={() => setModal(null)}>Cancel</button>
+                <button type="button" className="btn btn--danger" onClick={() => setModal(null)}>Cancel</button>
                 <button
                   type="submit"
-                  className={`btn ${modal.mode === 'receive' ? 'btn--primary' : 'btn--danger'}`}
+                  className={`btn ${modal.mode === 'receive' ? 'btn--success' : 'btn--danger'}`}
                   disabled={saving}
                 >
                   {modal.mode === 'receive'
@@ -763,7 +763,7 @@ export default function BeneficiaryDistributionsPage() {
                       </button>
                     )}
                     {canConfirm(selectedDist) && (
-                      <button type="button" className="btn btn--primary" onClick={() => { const d = selectedDist; setSelectedDist(null); openReceive(d) }}>
+                      <button type="button" className="btn btn--success" onClick={() => { const d = selectedDist; setSelectedDist(null); openReceive(d) }}>
                         <CheckCircle2 size={14} /> Confirm Received
                       </button>
                     )}

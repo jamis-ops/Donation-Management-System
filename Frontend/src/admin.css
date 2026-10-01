@@ -2855,15 +2855,15 @@
    ========================================================= */
 
 .btn--primary {
-  background: var(--admin-success);
+  background: var(--admin-brand);
   color: #fff;
-  border-color: var(--admin-success);
+  border-color: var(--admin-brand);
   border-radius: 8px;
 }
 
 .btn--primary:hover:not(:disabled) {
-  background: #15803d;
-  border-color: #15803d;
+  background: var(--admin-brand-dark);
+  border-color: var(--admin-brand-dark);
   color: #fff;
   transform: translateY(-1px);
 }

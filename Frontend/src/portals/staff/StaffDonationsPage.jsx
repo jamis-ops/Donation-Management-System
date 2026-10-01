@@ -420,7 +420,7 @@ export default function StaffDonationsPage() {
                               <>
                                 <button
                                   type="button"
-                                  className="btn btn--sm btn--primary"
+                                  className="btn btn--sm btn--success"
                                   disabled={busy}
                                   onClick={() => handleVerify(d)}
                                   title={d.type === 'In-Kind' ? 'Verify & Intake Items' : 'Verify & Confirm Funds'}
@@ -952,7 +952,7 @@ export default function StaffDonationsPage() {
                   {selected.status === 'Pending Verification' && (
                     <button
                       type="button"
-                      className="btn btn--primary btn--sm"
+                      className="btn btn--success btn--sm"
                       onClick={() => handleVerify(selected)}
                       disabled={busy}
                     >

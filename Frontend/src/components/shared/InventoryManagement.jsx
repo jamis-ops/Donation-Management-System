@@ -397,7 +397,7 @@ export default function InventoryManagement() {
         title: `${status} Repacking Batch`,
         message: confirmMsg,
         confirmText: status === 'Cancelled' ? 'Cancel Batch' : 'Complete Batch',
-        type: status === 'Cancelled' ? 'danger' : 'primary',
+        type: status === 'Cancelled' ? 'danger' : 'success',
       })
       if (!ok) return
     }
@@ -545,7 +545,7 @@ export default function InventoryManagement() {
             </button>
           )}
           {row.status === 'In Progress' && (
-            <button type="button" className="btn btn--sm btn--primary" onClick={(e) => { e.stopPropagation(); setBatchStatus(row, 'Completed') }}>
+            <button type="button" className="btn btn--sm btn--success" onClick={(e) => { e.stopPropagation(); setBatchStatus(row, 'Completed') }}>
               <CheckCircle2 size={13} /> Complete
             </button>
           )}
@@ -554,7 +554,7 @@ export default function InventoryManagement() {
               <button type="button" className="btn btn--sm btn--outline" onClick={(e) => { e.stopPropagation(); openBatchEdit(row) }}>
                 <Pencil size={13} />
               </button>
-              <button type="button" className="btn btn--sm btn--ghost" title="Cancel batch" onClick={(e) => { e.stopPropagation(); setBatchStatus(row, 'Cancelled') }}>
+              <button type="button" className="btn btn--sm btn--danger" title="Cancel batch" onClick={(e) => { e.stopPropagation(); setBatchStatus(row, 'Cancelled') }}>
                 <XCircle size={13} />
               </button>
             </>

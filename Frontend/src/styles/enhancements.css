@@ -8825,15 +8825,15 @@ button:disabled,
 }
 
 .admin-modal .admin-modal__actions .btn--primary {
-  background: #16a34a;
+  background: #AF101A;
   color: #ffffff;
-  border: 1px solid #16a34a;
+  border: 1px solid #AF101A;
 }
 
 .admin-modal .admin-modal__actions .btn--primary:hover:not(:disabled) {
-  background: #15803d;
-  border-color: #15803d;
-  box-shadow: 0 2px 6px rgba(22, 163, 74, 0.25);
+  background: #8f0d15;
+  border-color: #8f0d15;
+  box-shadow: 0 2px 6px rgba(175, 16, 26, 0.25);
 }
 
 .admin-modal .admin-modal__actions .btn--ghost {

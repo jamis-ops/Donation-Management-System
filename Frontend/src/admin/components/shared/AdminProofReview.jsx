@@ -220,7 +220,7 @@ export default function AdminProofReview({
                   <>
                     <button
                       type="button"
-                      className="btn btn--sm btn--primary"
+                      className="btn btn--sm btn--success"
                       disabled={busyId === p.id}
                       onClick={() => approve(p)}
                     >

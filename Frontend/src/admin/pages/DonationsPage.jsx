@@ -1341,7 +1341,7 @@ export default function DonationsPage() {
                       <>
                         <button
                           type="button"
-                          className="btn btn--primary"
+                          className="btn btn--success"
                           onClick={() => handleVerify(selected)}
                           disabled={actionLoading}
                           title={selected.type === 'In-Kind' ? 'Verify & Post to Inventory' : 'Verify & Confirm Funds'}
@@ -1525,7 +1525,7 @@ export default function DonationsPage() {
                   <div className="proof-primary-actions">
                     <button
                       type="button"
-                      className="btn btn--primary"
+                      className="btn btn--success"
                       onClick={() => handleVerify(selected)}
                       disabled={actionLoading}
                     >
