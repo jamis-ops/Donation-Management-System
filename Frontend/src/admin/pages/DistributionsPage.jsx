@@ -1043,7 +1043,7 @@ export default function DistributionsPage() {
         actions={
           <button
             type="button"
-            className="btn btn--primary"
+            className="btn btn--brand"
             onClick={() => {
               setForm(emptyForm)
               setShowCreate(true)

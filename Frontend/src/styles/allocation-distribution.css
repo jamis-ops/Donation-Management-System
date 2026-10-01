@@ -369,8 +369,10 @@
   cursor: pointer;
 }
 
-.fund-allocation-cancel { border: 1px solid #cbd5e1; background: #fff; color: #475569; }
-.fund-allocation-confirm { border: 1px solid #af101a; background: #af101a; color: #fff; box-shadow: 0 4px 8px rgba(175, 16, 26, 0.18); }
+.fund-allocation-cancel { border: 1px solid #dc2626; background: #dc2626; color: #fff; }
+.fund-allocation-cancel:hover { border-color: #b91c1c; background: #b91c1c; }
+.fund-allocation-confirm { border: 1px solid #16a34a; background: #16a34a; color: #fff; box-shadow: 0 4px 8px rgba(22, 163, 74, 0.18); }
+.fund-allocation-confirm:hover:not(:disabled) { border-color: #15803d; background: #15803d; }
 .fund-allocation-confirm:disabled { border-color: #94a3b8; background: #94a3b8; cursor: not-allowed; box-shadow: none; }
 
 .fund-allocation-selection-grid {
@@ -4798,4 +4800,3 @@ select.alloc-meta-control:focus {
   .alloc-detail-resource-item { grid-template-columns: minmax(0, 1fr) auto; }
   .alloc-detail-deducted { grid-column: 1 / -1; }
 }
-

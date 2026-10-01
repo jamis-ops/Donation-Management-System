@@ -636,7 +636,7 @@ export default function BeneficiariesPage() {
         title="Barangays"
         description="Select a barangay from the side panel to view its full profile, or manage partners below."
         actions={(
-          <button type="button" className="btn btn--outline" onClick={openInvite}>
+          <button type="button" className="btn btn--brand" onClick={openInvite}>
             <Mail size={16} /> Invite Barangay
           </button>
         )}
@@ -940,7 +940,7 @@ export default function BeneficiariesPage() {
               </label>
 
               <div className="admin-modal__actions">
-                <button type="button" className="btn btn--ghost" onClick={() => setModalMode(null)}>Cancel</button>
+                <button type="button" className="btn btn--danger" onClick={() => setModalMode(null)}>Cancel</button>
                 <button type="submit" className="btn btn--primary" disabled={saving}>
                   {saving ? 'Sending…' : 'Send Invitation'}
                 </button>
@@ -1071,7 +1071,7 @@ export default function BeneficiariesPage() {
               )}
 
               <div className="admin-modal__actions">
-                <button type="button" className="btn btn--ghost" onClick={() => setModalMode(null)}>Cancel</button>
+                <button type="button" className="btn btn--danger" onClick={() => setModalMode(null)}>Cancel</button>
                 <button type="submit" className="btn btn--primary" disabled={saving}>
                   Save Barangay
                 </button>

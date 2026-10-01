@@ -2140,7 +2140,7 @@ export default function RequestsPage() {
                               Review
                             </button>
                             <button 
-                              className="btn btn--sm btn--primary" 
+                              className="btn btn--sm btn--brand"
                               onClick={() => navigate('/admin/allocation', { 
                                 state: { 
                                   prefillRequest: { 

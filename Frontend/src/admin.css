@@ -2868,8 +2868,25 @@
   transform: translateY(-1px);
 }
 
+/* Brand-primary actions keep the foundation red (Add / Invite / Plan / New). */
+.btn--brand {
+  background: var(--admin-brand);
+  color: #fff;
+  border-color: var(--admin-brand);
+  border-radius: 8px;
+}
+
+.btn--brand:hover:not(:disabled) {
+  background: var(--admin-brand-dark);
+  border-color: var(--admin-brand-dark);
+  color: #fff;
+  transform: translateY(-1px);
+}
+
 .btn--primary:disabled,
 .btn--primary[disabled],
+.btn--brand:disabled,
+.btn--brand[disabled],
 .btn:disabled,
 .btn[disabled] {
   background: #94a3b8 !important;

@@ -256,7 +256,7 @@ export default function DonorsPage() {
       <PageHeader
         title="Donor Management"
         description="Manage individual and organization donors. Create portal accounts and email credentials when needed."
-        actions={<button type="button" className="btn btn--primary" onClick={openCreate}>+ Add Donor</button>}
+        actions={<button type="button" className="btn btn--brand" onClick={openCreate}>+ Add Donor</button>}
       />
       <FilterBar
         controller={filters}
@@ -776,7 +776,7 @@ export default function DonorsPage() {
 
               {/* Modal Actions */}
               <div className="admin-modal__actions">
-                <button type="button" className="btn btn--ghost" onClick={() => setMode(null)}>Cancel</button>
+                <button type="button" className="btn btn--danger" onClick={() => setMode(null)}>Cancel</button>
                 <button
                   type="submit"
                   className="btn btn--primary"

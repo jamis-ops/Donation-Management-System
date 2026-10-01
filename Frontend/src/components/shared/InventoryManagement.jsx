@@ -694,9 +694,8 @@ export default function InventoryManagement() {
               {(!categoryNav.category || viewMode === 'table') && (
                 <button
                   type="button"
-                  className="btn btn--primary"
+                  className="btn btn--brand"
                   onClick={() => openItemCreate()}
-                  style={{ backgroundColor: '#AF101A' }}
                 >
                   + Add Item
                 </button>

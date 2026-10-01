@@ -245,7 +245,7 @@ export default function ContentPage() {
               >
                 <Wallet size={15} /> Payment Methods
               </button>
-              <button type="button" className="btn btn--primary" onClick={openCreate}>
+              <button type="button" className="btn btn--brand" onClick={openCreate}>
                 <Plus size={15} /> Add Item
               </button>
             </div>
@@ -298,7 +298,7 @@ export default function ContentPage() {
           <div className="cms-empty">
             <p>No {TYPES.find((t) => t.key === type)?.label || 'items'} found.</p>
             {canEdit && (
-              <button type="button" className="btn btn--primary" onClick={openCreate}>
+              <button type="button" className="btn btn--brand" onClick={openCreate}>
                 + Add first item
               </button>
             )}
