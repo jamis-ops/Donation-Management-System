@@ -1228,7 +1228,7 @@ export default function VolunteersPage() {
             ) : (
               <button
                 type="button"
-                className="btn btn--brand"
+                className="btn btn--primary"
                 onClick={openAddVolunteer}
               >
                 <Plus size={16} />
@@ -3563,7 +3563,7 @@ export default function VolunteersPage() {
                 </button>
                 <button
                   type="submit"
-                  className="btn btn--brand"
+                  className="btn btn--primary"
                   disabled={volunteerSaving}
                 >
                   {volunteerSaving ? 'Saving…' : '+ Add Volunteer'}

@@ -547,7 +547,7 @@ export default function BeneficiaryDistributionsPage() {
                 </>
               )}
               <div className="admin-modal__actions">
-                <button type="button" className="btn btn--danger" onClick={() => setModal(null)}>Cancel</button>
+                <button type="button" className="btn btn--ghost" onClick={() => setModal(null)}>Cancel</button>
                 <button
                   type="submit"
                   className={`btn ${modal.mode === 'receive' ? 'btn--primary' : 'btn--danger'}`}

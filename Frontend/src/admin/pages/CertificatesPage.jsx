@@ -752,7 +752,7 @@ export default function CertificatesPage() {
             >
               <Sliders size={15} /> Signatory Settings
             </button>
-            <button type="button" className="btn btn--brand" onClick={openCreate}>
+            <button type="button" className="btn btn--primary" onClick={openCreate}>
               <Award size={15} /> New Certificate
             </button>
           </div>

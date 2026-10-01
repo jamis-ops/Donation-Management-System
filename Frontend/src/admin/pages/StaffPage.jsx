@@ -1088,7 +1088,7 @@ export default function StaffPage() {
               </div>
 
               <div className="admin-modal__actions">
-                <button type="button" className="btn btn--danger" onClick={() => setShowTaskForm(false)}>Cancel</button>
+                <button type="button" className="btn btn--ghost" onClick={() => setShowTaskForm(false)}>Cancel</button>
                 <button type="submit" className="btn btn--primary" disabled={saving || !taskForm.title}>Assign Task</button>
               </div>
             </form>
