@@ -10,6 +10,7 @@ import { useApiObject } from '../../hooks/useApiList'
 import '../../styles/donor-impact.css'
 
 const COLORS = ['#AF101A', '#d33a43', '#e66b72', '#7f0b13', '#f0a0a5', '#4b5563', '#94a3b8']
+const IMPACT_QUERY_OPTIONS = { bypassCache: true, tags: ['donations', 'allocations', 'distributions'] }
 
 const initialFilters = {
   from: '',
@@ -50,11 +51,11 @@ function BarangayChart({ rows }) {
             <span>{row.municipality || 'Municipality not specified'}</span>
           </div>
           <div className="impact-horizontal-chart__tracks">
-            <div className="impact-horizontal-chart__track" title={`${number(row.itemsDistributed)} items distributed`}>
+            <div className="impact-horizontal-chart__track" tabIndex="0" data-tooltip={`${number(row.itemsDistributed)} items distributed in ${row.barangay}`}>
               <span className="impact-horizontal-chart__fill impact-horizontal-chart__fill--items" style={{ width: `${Math.max(3, (row.itemsDistributed / max) * 100)}%` }} />
               <em>{number(row.itemsDistributed)} items</em>
             </div>
-            <div className="impact-horizontal-chart__track" title={`${number(row.familiesHelped)} families or recipients helped`}>
+            <div className="impact-horizontal-chart__track" tabIndex="0" data-tooltip={`${number(row.familiesHelped)} families or recipients helped in ${row.barangay}`}>
               <span className="impact-horizontal-chart__fill impact-horizontal-chart__fill--families" style={{ width: `${Math.max(3, (row.familiesHelped / max) * 100)}%` }} />
               <em>{number(row.familiesHelped)} families</em>
             </div>
@@ -67,22 +68,50 @@ function BarangayChart({ rows }) {
 }
 
 function CategoryChart({ rows }) {
+  const [activeIndex, setActiveIndex] = useState(null)
   if (!rows.length) return <EmptyChart>No category distribution data matches these filters.</EmptyChart>
   const values = rows.map((row) => row.itemsDistributed > 0 ? row.itemsDistributed : row.allocations)
   const total = values.reduce((sum, value) => sum + value, 0) || 1
-  const stops = rows.map((row, index) => {
-    const start = (values.slice(0, index).reduce((sum, value) => sum + value, 0) / total) * 100
-    const end = start + (values[index] / total) * 100
-    return `${COLORS[index % COLORS.length]} ${start}% ${end}%`
-  }).join(', ')
+  const segments = rows.map((row, index) => ({
+    ...row,
+    value: values[index],
+    percentage: (values[index] / total) * 100,
+    offset: values.slice(0, index).reduce((sum, value) => sum + value, 0) / total * 100,
+  }))
+  const active = activeIndex === null ? null : segments[activeIndex]
   return (
     <div className="impact-donut-wrap">
-      <div className="impact-donut" style={{ background: `conic-gradient(${stops})` }} role="img" aria-label="Distribution by category">
-        <div><strong>{number(values.reduce((sum, value) => sum + value, 0))}</strong><span>{rows.some((r) => r.itemsDistributed > 0) ? 'items' : 'allocations'}</span></div>
+      <div className="impact-donut" role="group" aria-label="Distribution by category">
+        <svg viewBox="0 0 42 42">
+          <circle className="impact-donut__base" cx="21" cy="21" r="15.9155" />
+          {segments.map((row, index) => (
+            <circle
+              key={row.category}
+              className={`impact-donut__segment${activeIndex === index ? ' is-active' : ''}`}
+              cx="21" cy="21" r="15.9155"
+              stroke={COLORS[index % COLORS.length]}
+              strokeDasharray={`${row.percentage} ${100 - row.percentage}`}
+              strokeDashoffset={-row.offset}
+              tabIndex="0"
+              aria-label={`${row.category}: ${number(row.itemsDistributed)} items, ${number(row.allocations)} allocations, ${row.percentage.toFixed(1)} percent`}
+              onMouseEnter={() => setActiveIndex(index)}
+              onMouseLeave={() => setActiveIndex(null)}
+              onFocus={() => setActiveIndex(index)}
+              onBlur={() => setActiveIndex(null)}
+            >
+              <title>{`${row.category}: ${number(row.itemsDistributed)} items, ${number(row.allocations)} allocations (${row.percentage.toFixed(1)}%)`}</title>
+            </circle>
+          ))}
+        </svg>
+        <div>
+          <strong>{active ? number(active.value) : number(total)}</strong>
+          <span>{active ? active.category : (rows.some((r) => r.itemsDistributed > 0) ? 'total items' : 'allocations')}</span>
+          {active && <small>{active.percentage.toFixed(1)}% of total</small>}
+        </div>
       </div>
       <ul className="impact-donut-legend">
         {rows.map((row, index) => (
-          <li key={row.category}>
+          <li key={row.category} tabIndex="0" className={activeIndex === index ? 'is-active' : ''} onMouseEnter={() => setActiveIndex(index)} onMouseLeave={() => setActiveIndex(null)} onFocus={() => setActiveIndex(index)} onBlur={() => setActiveIndex(null)}>
             <i style={{ background: COLORS[index % COLORS.length] }} />
             <span>{row.category}</span>
             <strong>{number(row.itemsDistributed)} items</strong>
@@ -100,7 +129,7 @@ function ActivityChart({ rows }) {
   return (
     <div className="impact-activity-chart" role="img" aria-label="Donation activity over time">
       {rows.map((row) => (
-        <div className="impact-activity-chart__column" key={row.month} title={`${row.donations} donations · ${peso(row.monetaryAmount)} · ${row.inKindDonations} in-kind`}>
+        <div className="impact-activity-chart__column" key={row.month} tabIndex="0" data-tooltip={`${number(row.donations)} donations · ${peso(row.monetaryAmount)} · ${number(row.inKindDonations)} in-kind`}>
           <span className="impact-activity-chart__value">{row.donations}</span>
           <div className="impact-activity-chart__bar-wrap">
             <span className="impact-activity-chart__bar" style={{ height: `${Math.max(8, (row.donations / max) * 100)}%` }} />
@@ -119,7 +148,7 @@ export default function DonorImpactPage() {
   const { data, loading, error, reload, isRevalidating } = useApiObject(
     () => donorImpactApi.get(filters),
     filterKey,
-    { bypassCache: true, tags: ['donations', 'allocations', 'distributions'] },
+    IMPACT_QUERY_OPTIONS,
   )
 
   const summary = data?.summary || {}
@@ -192,7 +221,7 @@ export default function DonorImpactPage() {
           })}
         </section>
 
-        {isRevalidating && <div className="donor-impact-updating"><RefreshCcw size={13} /> Updating report…</div>}
+        <div className={`donor-impact-updating${isRevalidating ? ' is-visible' : ''}`} aria-live="polite"><RefreshCcw size={13} /> Updating report…</div>
 
         <div className="donor-impact-chart-grid">
           <section className="donor-impact-card donor-impact-card--wide">

@@ -64,7 +64,7 @@ export function useApiList(fetchFn, refreshKey, maybeOptions = {}) {
   const reload = useCallback(async (silent = false) => {
     if (!silent) {
       // If we already have data, don't flash the full-screen modal during reload; mark as revalidating
-      setLoading((prev) => (data && data.length > 0 ? false : true))
+      setLoading(() => (data && data.length > 0 ? false : true))
     }
     setIsRevalidating(true)
     setError('')
@@ -133,6 +133,7 @@ export function useApiObject(fetchFn, refreshKey, maybeOptions = {}) {
   const bypassCache = !!options.bypassCache
   const fetchRef = useRef(fetchFn)
   fetchRef.current = fetchFn
+  const dataRef = useRef(null)
 
   const rawKey = resolveKey(fetchFn, refreshKey, options)
   const cacheKey = cacheManager.makeKey(rawKey, !!options.isPublic)
@@ -149,6 +150,7 @@ export function useApiObject(fetchFn, refreshKey, maybeOptions = {}) {
     }
     return null
   })
+  dataRef.current = data
 
   const [loading, setLoading] = useState(() => {
     if (bypassCache) return true
@@ -161,7 +163,7 @@ export function useApiObject(fetchFn, refreshKey, maybeOptions = {}) {
 
   const reload = useCallback(async (silent = false) => {
     if (!silent) {
-      setLoading((prev) => (data ? false : true))
+      setLoading(() => (dataRef.current ? false : true))
     }
     setIsRevalidating(true)
     setError('')
@@ -181,7 +183,7 @@ export function useApiObject(fetchFn, refreshKey, maybeOptions = {}) {
       setLoading(false)
       setIsRevalidating(false)
     }
-  }, [cacheKey, bypassCache, ttl, staleTime, tags, options.isPublic, data])
+  }, [cacheKey, bypassCache, ttl, staleTime, tags, options.isPublic])
 
   // Initial load / refreshKey changes
   useEffect(() => {

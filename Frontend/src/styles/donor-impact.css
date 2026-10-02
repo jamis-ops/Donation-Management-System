@@ -17,7 +17,8 @@
 .donor-impact-summary article > div { grid-row: 1 / 3; width: 39px; height: 39px; border-radius: 10px; display: grid; place-items: center; color: #AF101A; background: #fcebed; }
 .donor-impact-summary strong { font-size: 1.22rem; line-height: 1.15; overflow-wrap: anywhere; color: #111827; }
 .donor-impact-summary span { color: #64748b; font-size: .76rem; margin-top: .25rem; }
-.donor-impact-updating { justify-self: end; display: inline-flex; align-items: center; gap: .4rem; color: #64748b; font-size: .78rem; }
+.donor-impact-updating { justify-self: end; min-height: 1rem; display: inline-flex; align-items: center; gap: .4rem; color: #64748b; font-size: .78rem; visibility: hidden; opacity: 0; transition: opacity .18s ease; }
+.donor-impact-updating.is-visible { visibility: visible; opacity: 1; }
 .donor-impact-updating svg { animation: impact-spin .8s linear infinite; }
 @keyframes impact-spin { to { transform: rotate(360deg); } }
 
@@ -31,11 +32,14 @@
 .impact-horizontal-chart { display: grid; gap: .9rem; }
 .impact-horizontal-chart__row { display: grid; grid-template-columns: minmax(135px, 22%) 1fr; align-items: center; gap: .9rem; }
 .impact-horizontal-chart__label { min-width: 0; display: grid; gap: .12rem; }
-.impact-horizontal-chart__label strong, .impact-horizontal-chart__label span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.impact-horizontal-chart__label strong, .impact-horizontal-chart__label span { overflow-wrap: anywhere; line-height: 1.35; }
 .impact-horizontal-chart__label strong { font-size: .82rem; }
 .impact-horizontal-chart__label span { color: #94a3b8; font-size: .69rem; }
 .impact-horizontal-chart__tracks { display: grid; gap: .3rem; }
-.impact-horizontal-chart__track { position: relative; height: 20px; border-radius: 5px; background: #f1f5f9; overflow: hidden; }
+.impact-horizontal-chart__track { position: relative; height: 22px; border-radius: 5px; background: #f1f5f9; }
+.impact-horizontal-chart__track:focus { outline: 2px solid rgba(175, 16, 26, .25); outline-offset: 2px; }
+.impact-horizontal-chart__track::after, .impact-activity-chart__column::after { content: attr(data-tooltip); position: absolute; z-index: 20; left: 50%; bottom: calc(100% + 8px); width: max-content; max-width: min(260px, 80vw); padding: .48rem .62rem; border-radius: 7px; background: #172033; color: #fff; font-size: .7rem; font-style: normal; font-weight: 600; line-height: 1.35; text-align: center; box-shadow: 0 6px 18px rgba(15, 23, 42, .2); pointer-events: none; opacity: 0; transform: translate(-50%, 4px); transition: opacity .15s ease, transform .15s ease; }
+.impact-horizontal-chart__track:hover::after, .impact-horizontal-chart__track:focus::after, .impact-activity-chart__column:hover::after, .impact-activity-chart__column:focus::after { opacity: 1; transform: translate(-50%, 0); }
 .impact-horizontal-chart__fill { position: absolute; inset: 0 auto 0 0; min-width: 3px; border-radius: inherit; }
 .impact-horizontal-chart__fill--items { background: linear-gradient(90deg, #AF101A, #d64750); }
 .impact-horizontal-chart__fill--families { background: linear-gradient(90deg, #64748b, #94a3b8); }
@@ -46,28 +50,39 @@
 .impact-chart-legend .is-items { background: #AF101A; } .impact-chart-legend .is-families { background: #64748b; }
 
 .impact-donut-wrap { display: grid; grid-template-columns: minmax(145px, .8fr) 1.2fr; gap: 1.2rem; align-items: center; min-height: 230px; }
-.impact-donut { width: min(180px, 100%); aspect-ratio: 1; border-radius: 50%; display: grid; place-items: center; margin: auto; box-shadow: inset 0 0 0 1px rgba(255,255,255,.5); }
-.impact-donut > div { width: 58%; aspect-ratio: 1; border-radius: 50%; background: #fff; display: grid; place-content: center; text-align: center; box-shadow: 0 2px 10px rgba(15,23,42,.08); }
-.impact-donut strong { font-size: 1.35rem; color: #172033; } .impact-donut span { font-size: .68rem; color: #64748b; }
+.impact-donut { position: relative; width: min(190px, 100%); aspect-ratio: 1; display: grid; place-items: center; margin: auto; }
+.impact-donut svg { width: 100%; height: 100%; transform: rotate(-90deg); overflow: visible; }
+.impact-donut__base, .impact-donut__segment { fill: none; stroke-width: 7; }
+.impact-donut__base { stroke: #f1f5f9; }
+.impact-donut__segment { cursor: pointer; transition: opacity .15s ease, stroke-width .15s ease; }
+.impact-donut__segment:hover, .impact-donut__segment:focus, .impact-donut__segment.is-active { opacity: .88; stroke-width: 8.5; outline: none; }
+.impact-donut > div { position: absolute; inset: 27%; border-radius: 50%; background: #fff; display: grid; align-content: center; justify-items: center; text-align: center; padding: .2rem; box-shadow: 0 2px 10px rgba(15,23,42,.08); pointer-events: none; }
+.impact-donut strong { font-size: 1.2rem; color: #172033; overflow-wrap: anywhere; }
+.impact-donut span { max-width: 100%; font-size: .65rem; color: #64748b; line-height: 1.2; overflow-wrap: anywhere; }
+.impact-donut small { margin-top: .12rem; color: #AF101A; font-size: .55rem; font-weight: 700; }
 .impact-donut-legend { list-style: none; padding: 0; margin: 0; display: grid; gap: .5rem; max-height: 230px; overflow: auto; }
-.impact-donut-legend li { display: grid; grid-template-columns: 10px minmax(70px, 1fr) auto; gap: .4rem; align-items: center; font-size: .75rem; }
+.impact-donut-legend li { display: grid; grid-template-columns: 10px minmax(70px, 1fr) auto; gap: .4rem; align-items: center; padding: .35rem .4rem; border-radius: 7px; font-size: .75rem; transition: background .15s ease; }
+.impact-donut-legend li:hover, .impact-donut-legend li:focus, .impact-donut-legend li.is-active { background: #f8fafc; outline: none; }
+.impact-donut-legend li span { overflow-wrap: anywhere; }
 .impact-donut-legend i { width: 9px; height: 9px; border-radius: 3px; }
 .impact-donut-legend strong { font-size: .72rem; } .impact-donut-legend small { grid-column: 2 / -1; color: #94a3b8; }
 
 .impact-activity-chart { height: 230px; display: flex; align-items: stretch; gap: .65rem; overflow-x: auto; padding: .25rem .2rem .2rem; }
-.impact-activity-chart__column { flex: 1 0 55px; min-width: 55px; display: grid; grid-template-rows: 18px 1fr auto auto; gap: .2rem; text-align: center; }
+.impact-activity-chart__column { position: relative; flex: 1 0 64px; min-width: 64px; display: grid; grid-template-rows: 18px 1fr auto auto; gap: .2rem; text-align: center; }
+.impact-activity-chart__column:focus { outline: 2px solid rgba(175, 16, 26, .22); outline-offset: 2px; border-radius: 6px; }
+.impact-activity-chart__column::after { top: 24px; bottom: auto; }
 .impact-activity-chart__value { color: #AF101A; font-weight: 800; font-size: .75rem; }
 .impact-activity-chart__bar-wrap { display: flex; align-items: flex-end; justify-content: center; border-bottom: 1px solid #cbd5e1; background: repeating-linear-gradient(to top, transparent 0, transparent 32px, #f1f5f9 33px); }
 .impact-activity-chart__bar { width: min(32px, 72%); min-height: 8px; border-radius: 6px 6px 2px 2px; background: linear-gradient(180deg, #d33a43, #AF101A); }
-.impact-activity-chart__column strong { color: #475569; font-size: .67rem; white-space: nowrap; }
-.impact-activity-chart__column small { color: #94a3b8; font-size: .62rem; white-space: nowrap; }
+.impact-activity-chart__column strong { color: #475569; font-size: .67rem; line-height: 1.2; }
+.impact-activity-chart__column small { color: #64748b; font-size: .62rem; line-height: 1.2; overflow-wrap: anywhere; }
 
 .donor-impact-empty { min-height: 180px; display: grid; place-content: center; justify-items: center; gap: .55rem; text-align: center; color: #94a3b8; font-size: .8rem; }
 .donor-impact-table-card { padding-bottom: .7rem; }
 .donor-impact-table-wrap { overflow-x: auto; }
 .donor-impact-table { width: 100%; border-collapse: collapse; min-width: 570px; }
 .donor-impact-table th { padding: .7rem .8rem; background: #f8fafc; color: #64748b; text-align: left; font-size: .69rem; text-transform: uppercase; letter-spacing: .05em; border-bottom: 1px solid #e2e8f0; }
-.donor-impact-table td { padding: .8rem; color: #475569; font-size: .8rem; border-bottom: 1px solid #eef2f7; }
+.donor-impact-table td { padding: .8rem; color: #475569; font-size: .8rem; line-height: 1.4; border-bottom: 1px solid #eef2f7; overflow-wrap: anywhere; }
 .donor-impact-table td:first-child { display: flex; align-items: center; gap: .4rem; color: #172033; }
 .donor-impact-table td:first-child > span { display: grid; gap: .08rem; }
 .donor-impact-table td:first-child small { color: #94a3b8; font-size: .68rem; font-weight: 400; }
