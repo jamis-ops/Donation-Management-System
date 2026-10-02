@@ -208,6 +208,16 @@ export const assistanceRequestsApi = {
   ...resourceApi('/api/assistance_requests.php'),
   listFundingEligible: () => apiFetch('/api/assistance_requests.php?action=funding_eligible'),
 }
+export const donorImpactApi = {
+  get: (params = {}) => {
+    const query = new URLSearchParams()
+    Object.entries(params).forEach(([key, value]) => {
+      if (value !== undefined && value !== null && value !== '' && value !== 'All') query.set(key, String(value))
+    })
+    const suffix = query.toString()
+    return apiFetch(`/api/donor_impact.php${suffix ? `?${suffix}` : ''}`)
+  },
+}
 export const inventoryApi = {
   ...resourceApi('/api/inventory.php'),
   deleteCategory: (category) => apiFetch(`/api/inventory.php?category=${encodeURIComponent(category)}`, { method: 'DELETE' }),

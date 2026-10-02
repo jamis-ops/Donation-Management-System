@@ -12,6 +12,7 @@ import {
   Truck,
   ListTodo,
   Upload,
+  ChartNoAxesCombined,
 } from 'lucide-react'
 import Logo from '../../components/shared/Logo'
 
@@ -23,6 +24,7 @@ const portalMenus = {
     items: [
       { to: '/donor', label: 'Dashboard', icon: LayoutDashboard, end: true },
       { to: '/donor/donations', label: 'My Donations', icon: History },
+      { to: '/donor/impact', label: 'Donation Impact', icon: ChartNoAxesCombined },
       { to: '/donor/certificates', label: 'Certificates', icon: FileBadge },
     ],
   },

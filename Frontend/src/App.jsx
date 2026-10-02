@@ -52,6 +52,7 @@ import DatabaseManagementPage from './admin/pages/DatabaseManagementPage'
 // Role portals
 import DonorDashboard from './portals/donor/DonorDashboard'
 import DonorDonationsPage from './portals/donor/DonorDonationsPage'
+import DonorImpactPage from './portals/donor/DonorImpactPage'
 import DonorCertificatesPage from './portals/donor/DonorCertificatesPage'
 import VolunteerDashboard from './portals/volunteer/VolunteerDashboard'
 import VolunteerTasksPage from './portals/volunteer/VolunteerTasksPage'
@@ -151,6 +152,7 @@ const router = createBrowserRouter([
     children: [
       { index: true, element: <DonorDashboard /> },
       { path: 'donations', element: <DonorDonationsPage /> },
+      { path: 'impact', element: <DonorImpactPage /> },
       { path: 'certificates', element: <DonorCertificatesPage /> },
       { path: 'settings', element: <AccountSettingsPage /> },
     ],
