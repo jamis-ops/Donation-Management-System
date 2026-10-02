@@ -24,6 +24,22 @@ function ensure_request_columns(PDO $pdo): void
   try { $pdo->exec('ALTER TABLE assistance_requests ADD COLUMN sla_deadline DATETIME NULL AFTER calamity_tags'); } catch (Throwable $e) {}
   try { $pdo->exec('ALTER TABLE assistance_requests ADD COLUMN is_emergency TINYINT(1) NOT NULL DEFAULT 0 AFTER sla_deadline'); } catch (Throwable $e) {}
   try { $pdo->exec('ALTER TABLE assistance_requests ADD COLUMN assigned_to VARCHAR(120) NULL AFTER is_emergency'); } catch (Throwable $e) {}
+  // Existing requests already have an assigned priority, so the default is
+  // locked. New Barangay requests explicitly insert 0 until Admin assesses it.
+  try { $pdo->exec('ALTER TABLE assistance_requests ADD COLUMN priority_locked TINYINT(1) NOT NULL DEFAULT 1 AFTER priority'); } catch (Throwable $e) {}
+  try { $pdo->exec('ALTER TABLE assistance_requests ADD COLUMN priority_assigned_at DATETIME NULL AFTER priority_locked'); } catch (Throwable $e) {}
+  try {
+    $pdo->exec("CREATE TABLE IF NOT EXISTS assistance_request_proofs (
+      id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+      assistance_request_id BIGINT UNSIGNED NOT NULL,
+      file_name VARCHAR(255) NOT NULL,
+      file_type VARCHAR(100) NOT NULL,
+      file_data LONGBLOB NOT NULL,
+      created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      INDEX idx_assistance_proof_request (assistance_request_id),
+      CONSTRAINT fk_assistance_proof_request FOREIGN KEY (assistance_request_id) REFERENCES assistance_requests(id) ON DELETE CASCADE
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+  } catch (Throwable $e) {}
 
   // Backfill affected_families from notes if existing request has 0
   try {
@@ -68,6 +84,7 @@ function map_request(array $row, string $beneficiaryName, ?array $extra = null):
     }
   }
 
+  $priorityAssigned = !array_key_exists('priority_locked', $row) || (int) $row['priority_locked'] === 1;
   $mapped = [
     'id' => $row['reference_code'],
     'dbId' => (int) $row['id'],
@@ -77,7 +94,9 @@ function map_request(array $row, string $beneficiaryName, ?array $extra = null):
     'status' => $row['status'],
     'date' => format_date($row['request_date']),
     'requestDate' => $row['request_date'],
-    'priority' => $row['priority'],
+    'priority' => $priorityAssigned ? $row['priority'] : null,
+    'priorityAssigned' => $priorityAssigned,
+    'priorityAssignedAt' => $row['priority_assigned_at'] ?? null,
     'notes' => $row['notes'],
     'affectedFamilies' => $families,
     'needs' => [],
@@ -196,6 +215,51 @@ function map_request(array $row, string $beneficiaryName, ?array $extra = null):
   return $mapped;
 }
 
+function attach_request_proofs(PDO $pdo, array $mapped): array
+{
+  $mapped['disasterProofs'] = [];
+  try {
+    $stmt = $pdo->prepare('SELECT id, file_name, file_type, created_at FROM assistance_request_proofs WHERE assistance_request_id = ? ORDER BY id ASC');
+    $stmt->execute([(int) ($mapped['dbId'] ?? 0)]);
+    $mapped['disasterProofs'] = array_map(static fn(array $proof): array => [
+      'id' => (int) $proof['id'],
+      'name' => (string) $proof['file_name'],
+      'type' => (string) $proof['file_type'],
+      'createdAt' => $proof['created_at'] ?? null,
+      'url' => '/api/file.php?kind=request_proofs&id=' . (int) $proof['id'],
+    ], $stmt->fetchAll(PDO::FETCH_ASSOC));
+  } catch (Throwable $e) {}
+  return $mapped;
+}
+
+function uploaded_request_proofs(): array
+{
+  if (empty($_FILES['disasterProofs'])) return [];
+  $files = $_FILES['disasterProofs'];
+  $names = is_array($files['name'] ?? null) ? $files['name'] : [$files['name'] ?? ''];
+  $tmpNames = is_array($files['tmp_name'] ?? null) ? $files['tmp_name'] : [$files['tmp_name'] ?? ''];
+  $errors = is_array($files['error'] ?? null) ? $files['error'] : [$files['error'] ?? UPLOAD_ERR_NO_FILE];
+  $sizes = is_array($files['size'] ?? null) ? $files['size'] : [$files['size'] ?? 0];
+  if (count($names) > 6) json_response(['ok' => false, 'error' => 'You may upload up to 6 disaster proof photos.'], 400);
+
+  $result = [];
+  $allowed = ['image/jpeg', 'image/png', 'image/webp'];
+  $finfo = new finfo(FILEINFO_MIME_TYPE);
+  foreach ($names as $index => $name) {
+    $error = (int) ($errors[$index] ?? UPLOAD_ERR_NO_FILE);
+    if ($error === UPLOAD_ERR_NO_FILE) continue;
+    if ($error !== UPLOAD_ERR_OK) json_response(['ok' => false, 'error' => 'A disaster proof photo could not be uploaded.'], 400);
+    if ((int) ($sizes[$index] ?? 0) > 5 * 1024 * 1024) json_response(['ok' => false, 'error' => 'Each disaster proof photo must be 5 MB or smaller.'], 400);
+    $tmp = (string) ($tmpNames[$index] ?? '');
+    $mime = $tmp !== '' && is_file($tmp) ? (string) $finfo->file($tmp) : '';
+    if (!in_array($mime, $allowed, true)) json_response(['ok' => false, 'error' => 'Disaster proof files must be JPG, PNG, or WebP images.'], 400);
+    $bytes = file_get_contents($tmp);
+    if ($bytes === false) json_response(['ok' => false, 'error' => 'A disaster proof photo could not be read.'], 400);
+    $result[] = ['name' => basename((string) $name), 'type' => $mime, 'data' => $bytes];
+  }
+  return $result;
+}
+
 /** Attach the single delivery lifecycle that belongs to this relief request. */
 function attach_request_delivery(PDO $pdo, array $mapped): array
 {
@@ -268,7 +332,7 @@ if ($method === 'GET') {
       'representativeName' => $row['representative_name'] ?? '',
       'barangay' => $row['barangay'] ?? '',
     ];
-    json_response(['ok' => true, 'data' => map_request($row, $row['beneficiary_name'], $extra)]);
+    json_response(['ok' => true, 'data' => attach_request_proofs($pdo, map_request($row, $row['beneficiary_name'], $extra))]);
   }
 
   // ── Stats endpoint ──
@@ -312,7 +376,7 @@ if ($method === 'GET') {
       $stmt = $pdo->prepare($q);
       $stmt->execute($params);
       foreach ($stmt->fetchAll() as $r) {
-        $dupes[] = map_request($r, $r['beneficiary_name']);
+        $dupes[] = attach_request_proofs($pdo, map_request($r, $r['beneficiary_name']));
       }
     }
     json_response(['ok' => true, 'data' => $dupes]);
@@ -605,14 +669,20 @@ if ($method === 'GET') {
       'municipality' => $benCache[$benId]['municipality'] ?? '',
       'representativeName' => $benCache[$benId]['representative_name'] ?? '',
     ];
-    return attach_request_delivery($pdo, map_request($r, $r['beneficiary_name'], $extra));
+    return attach_request_delivery($pdo, attach_request_proofs($pdo, map_request($r, $r['beneficiary_name'], $extra)));
   }, $rows);
 
   json_response(['ok' => true, 'data' => $enriched]);
 }
 
 if ($method === 'POST') {
-  $body = read_json_body();
+  $body = !empty($_POST) ? $_POST : read_json_body();
+  foreach (['needs', 'calamityTags'] as $jsonField) {
+    if (isset($body[$jsonField]) && is_string($body[$jsonField])) {
+      $decoded = json_decode($body[$jsonField], true);
+      if (is_array($decoded)) $body[$jsonField] = $decoded;
+    }
+  }
 
   // Handle action-based POST
   if (!empty($body['action']) && $body['action'] === 'pin') {
@@ -688,11 +758,17 @@ if ($method === 'POST') {
 
   $notes = $body['notes'] ?? $body['description'] ?? null;
   $ref = generate_code('AST');
-  $priority = in_array($body['priority'] ?? 'Low', ['Low', 'Medium', 'High', 'Critical'], true) ? $body['priority'] : 'Low';
+  $allowedPriorities = ['Low', 'Medium', 'High', 'Critical'];
+  $isAdminSubmission = $user && ((string) ($user['role'] ?? '') === 'Admin' || !empty($user['isSuperAdmin']));
+  $requestedPriority = (string) ($body['priority'] ?? '');
+  $priorityLocked = $isAdminSubmission && in_array($requestedPriority, $allowedPriorities, true);
+  // The enum cannot store an unassigned value. Medium is an internal placeholder
+  // and is never exposed while priority_locked is false.
+  $priority = $priorityLocked ? $requestedPriority : 'Medium';
 
-  // Compute SLA deadline
+  // SLA begins only after Admin assigns the immutable priority.
   $slaHours = ['Critical' => 4, 'High' => 24, 'Medium' => 72, 'Low' => 168];
-  $slaDeadline = date('Y-m-d H:i:s', time() + ($slaHours[$priority] ?? 72) * 3600);
+  $slaDeadline = $priorityLocked ? date('Y-m-d H:i:s', time() + ($slaHours[$priority] ?? 72) * 3600) : null;
 
   // Calamity tags
   $calamityTags = null;
@@ -701,6 +777,7 @@ if ($method === 'POST') {
   }
 
   ensure_request_columns($pdo);
+  $proofs = uploaded_request_proofs();
   $needsJson = array_key_exists('needs', $body) ? encode_request_needs($body['needs']) : null;
 
   // Request-specific affected families
@@ -713,13 +790,15 @@ if ($method === 'POST') {
     }
   }
 
-  $stmt = $pdo->prepare('INSERT INTO assistance_requests (reference_code, beneficiary_id, assistance_type, status, priority, affected_families, request_date, notes, needs_json, calamity_tags, sla_deadline, is_emergency, assigned_to) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)');
+  $stmt = $pdo->prepare('INSERT INTO assistance_requests (reference_code, beneficiary_id, assistance_type, status, priority, priority_locked, priority_assigned_at, affected_families, request_date, notes, needs_json, calamity_tags, sla_deadline, is_emergency, assigned_to) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)');
   $stmt->execute([
     $ref,
     $beneficiaryId,
     $type,
     $public ? 'Pending Review' : ($body['status'] ?? 'Pending Review'),
     $priority,
+    $priorityLocked ? 1 : 0,
+    $priorityLocked ? date('Y-m-d H:i:s') : null,
     $reqFamilies,
     $body['requestDate'] ?? date('Y-m-d'),
     $notes,
@@ -731,6 +810,13 @@ if ($method === 'POST') {
   ]);
 
   $newId = (int) $pdo->lastInsertId();
+
+  if ($proofs) {
+    $proofStmt = $pdo->prepare('INSERT INTO assistance_request_proofs (assistance_request_id, file_name, file_type, file_data) VALUES (?, ?, ?, ?)');
+    foreach ($proofs as $proof) {
+      $proofStmt->execute([$newId, $proof['name'], $proof['type'], $proof['data']]);
+    }
+  }
 
   notify_admins(
     $pdo,
@@ -750,7 +836,7 @@ if ($method === 'POST') {
   $row = $stmt->fetch();
   json_response([
     'ok' => true,
-    'data' => map_request($row, $row['beneficiary_name']),
+    'data' => attach_request_proofs($pdo, map_request($row, $row['beneficiary_name'])),
     'trackingCode' => $ref,
   ], 201);
 }
@@ -812,7 +898,11 @@ if ($method === 'PUT') {
     }
   }
 
-  $stmt = $pdo->prepare('SELECT * FROM assistance_requests WHERE id = ? LIMIT 1');
+  ensure_request_columns($pdo);
+  // Lock the row for the full update so two simultaneous Admin requests cannot
+  // race and overwrite the one-time priority assignment.
+  $pdo->beginTransaction();
+  $stmt = $pdo->prepare('SELECT * FROM assistance_requests WHERE id = ? LIMIT 1 FOR UPDATE');
   $stmt->execute([$id]);
   $existing = $stmt->fetch();
   if (!$existing) {
@@ -828,9 +918,28 @@ if ($method === 'PUT') {
     }
   }
 
-  // Priority is strictly read-only on update and preserved from the original submitted request
+  // Barangay cannot assign priority. Admin/Staff may assign it exactly once.
   $newPriority = $existing['priority'] ?? 'Medium';
+  $priorityLocked = (int) ($existing['priority_locked'] ?? 1) === 1;
+  $priorityAssignedAt = $existing['priority_assigned_at'] ?? null;
   $slaDeadline = $existing['sla_deadline'] ?? null;
+  if (!$isBeneficiary && array_key_exists('priority', $body)) {
+    if ((string) ($user['role'] ?? '') !== 'Admin' && empty($user['isSuperAdmin'])) {
+      json_response(['ok' => false, 'error' => 'Only an Admin can assign the Priority Level.'], 403);
+    }
+    if ($priorityLocked) {
+      json_response(['ok' => false, 'error' => 'Priority has already been assigned and is permanently locked.'], 409);
+    }
+    $requestedPriority = (string) $body['priority'];
+    if (!in_array($requestedPriority, ['Low', 'Medium', 'High', 'Critical'], true)) {
+      json_response(['ok' => false, 'error' => 'Select a valid priority level.'], 400);
+    }
+    $newPriority = $requestedPriority;
+    $priorityLocked = true;
+    $priorityAssignedAt = date('Y-m-d H:i:s');
+    $slaHours = ['Critical' => 4, 'High' => 24, 'Medium' => 72, 'Low' => 168];
+    $slaDeadline = date('Y-m-d H:i:s', time() + $slaHours[$newPriority] * 3600);
+  }
 
   // Calamity tags
   $calamityTags = $existing['calamity_tags'] ?? null;
@@ -854,6 +963,9 @@ if ($method === 'PUT') {
     // Workflow: Pending -> Approve OR Reject
     // Approved -> no approval/rejection actions permitted
     if (in_array($requestedStatus, ['Approved', 'Ready for Allocation'], true)) {
+      if (!$priorityLocked) {
+        json_response(['ok' => false, 'error' => 'Assign and save the Priority Level before approving this request.'], 400);
+      }
       if (!in_array($currentStatus, ['Pending Review', 'Under Review', 'Pending'], true)) {
         json_response([
           'ok' => false,
@@ -887,7 +999,6 @@ if ($method === 'PUT') {
     ? ($existing['assigned_to'] ?? null)
     : ($body['assignedTo'] ?? ($existing['assigned_to'] ?? null));
 
-  ensure_request_columns($pdo);
   $needsJson = array_key_exists('needs', $body)
     ? encode_request_needs($body['needs'])
     : ($existing['needs_json'] ?? null);
@@ -896,11 +1007,13 @@ if ($method === 'PUT') {
     ? (int) ($body['affectedFamilies'] ?? $body['familiesAffected'])
     : (int) ($existing['affected_families'] ?? 0);
 
-  $update = $pdo->prepare('UPDATE assistance_requests SET assistance_type = ?, status = ?, priority = ?, affected_families = ?, notes = ?, needs_json = ?, calamity_tags = ?, sla_deadline = ?, is_emergency = ?, assigned_to = ? WHERE id = ?');
+  $update = $pdo->prepare('UPDATE assistance_requests SET assistance_type = ?, status = ?, priority = ?, priority_locked = ?, priority_assigned_at = ?, affected_families = ?, notes = ?, needs_json = ?, calamity_tags = ?, sla_deadline = ?, is_emergency = ?, assigned_to = ? WHERE id = ?');
   $update->execute([
     $body['type'] ?? $existing['assistance_type'],
     $newStatus,
     $newPriority,
+    $priorityLocked ? 1 : 0,
+    $priorityAssignedAt,
     $newFamilies,
     $body['notes'] ?? $existing['notes'],
     $needsJson,
@@ -940,7 +1053,8 @@ if ($method === 'PUT') {
   ');
   $stmt->execute([$id]);
   $row = $stmt->fetch();
-  json_response(['ok' => true, 'data' => map_request($row, $row['beneficiary_name'])]);
+  $pdo->commit();
+  json_response(['ok' => true, 'data' => attach_request_proofs($pdo, map_request($row, $row['beneficiary_name']))]);
 }
 
 if ($method === 'DELETE') {

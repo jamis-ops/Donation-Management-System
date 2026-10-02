@@ -144,15 +144,47 @@ $user = require_auth();
 $allowed = [
   'donation_proofs' => ['Admin', 'Staff', 'Donor'],
   'proofs' => ['Admin', 'Staff', 'Beneficiary', 'Volunteer'],
+  'request_proofs' => ['Admin', 'Staff', 'Beneficiary'],
   'volunteer_resumes' => ['Admin', 'Staff', 'Volunteer'],
 ];
 
-if ($kind === '' || !isset($allowed[$kind]) || ($kind !== 'proofs' && $name === '') || ($kind === 'proofs' && $proofId <= 0)) {
+$idBasedKinds = ['proofs', 'request_proofs'];
+if ($kind === '' || !isset($allowed[$kind]) || (!in_array($kind, $idBasedKinds, true) && $name === '') || (in_array($kind, $idBasedKinds, true) && $proofId <= 0)) {
   json_response(['ok' => false, 'error' => 'Invalid file request'], 400);
 }
 if (!in_array((string) ($user['role'] ?? ''), $allowed[$kind], true)
   && empty($user['isSuperAdmin'])) {
   json_response(['ok' => false, 'error' => 'Access denied'], 403);
+}
+
+if ($kind === 'request_proofs') {
+  $pdo = db();
+  try {
+    $stmt = $pdo->prepare('SELECT arp.id, arp.assistance_request_id, arp.file_name, arp.file_type, arp.file_data, ar.beneficiary_id FROM assistance_request_proofs arp JOIN assistance_requests ar ON ar.id = arp.assistance_request_id WHERE arp.id = ? LIMIT 1');
+    $stmt->execute([$proofId]);
+    $proof = $stmt->fetch();
+  } catch (Throwable $e) {
+    json_response(['ok' => false, 'error' => 'Request proof is unavailable'], 404);
+  }
+  if (!$proof) json_response(['ok' => false, 'error' => 'Request proof not found'], 404);
+
+  if ((string) ($user['role'] ?? '') === 'Beneficiary') {
+    $access = $pdo->prepare('SELECT 1 FROM beneficiaries WHERE id = ? AND (user_id = ? OR (representative_email IS NOT NULL AND representative_email <> "" AND LOWER(representative_email) = LOWER(?))) LIMIT 1');
+    $access->execute([(int) $proof['beneficiary_id'], (int) ($user['id'] ?? 0), (string) ($user['email'] ?? '')]);
+    if (!$access->fetchColumn()) json_response(['ok' => false, 'error' => 'Access denied'], 403);
+  }
+
+  $binary = $proof['file_data'];
+  if (is_resource($binary)) $binary = stream_get_contents($binary);
+  if ($binary === false || $binary === null || $binary === '') json_response(['ok' => false, 'error' => 'Request proof data is unavailable'], 404);
+  $downloadName = basename((string) ($proof['file_name'] ?? 'proof-image'));
+  header('Content-Type: ' . ((string) ($proof['file_type'] ?? '') ?: 'application/octet-stream'));
+  header('Content-Length: ' . (string) strlen($binary));
+  header('Content-Disposition: ' . (isset($_GET['download']) ? 'attachment' : 'inline') . '; filename="' . rawurlencode($downloadName) . '"');
+  header('X-Content-Type-Options: nosniff');
+  header('Cache-Control: private, max-age=3600');
+  echo $binary;
+  exit;
 }
 
 // Distribution proofs are resolved by their database ID and delivery ID. This

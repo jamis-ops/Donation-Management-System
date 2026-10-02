@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
-import { Search, AlertCircle, CheckCircle, Clock, XCircle, FileText, Package, Users, Calendar, Truck } from 'lucide-react'
+import { Search, AlertCircle, CheckCircle, Clock, XCircle, FileText, Package, Users, Calendar, Truck, Upload, Image } from 'lucide-react'
 import StatusBadge from '../../admin/components/shared/StatusBadge'
 import ApiState from '../../admin/components/shared/ApiState'
 import ModalHeader from '../../admin/components/shared/ModalHeader'
@@ -42,7 +42,7 @@ const emptyForm = {
   customCalamity: '',
   selectedNeeds: [],
   familiesAffected: '',
-  priority: 'Low',
+  proofFiles: [],
   notes: '',
 }
 
@@ -199,15 +199,14 @@ export default function BeneficiaryRequestsPage() {
     setSaving(true)
     showLoading('Sending…')
     try {
-      await assistanceRequestsApi.create({
-        type: assistanceType,
-        priority: form.priority,
-        notes: structuredNotes,
-        calamityTags: [calamityType],
-        needs,
-        affectedFamilies: Number(form.familiesAffected) || 0,
-        familiesAffected: Number(form.familiesAffected) || 0,
-      })
+      const payload = new FormData()
+      payload.append('type', assistanceType)
+      payload.append('notes', structuredNotes)
+      payload.append('calamityTags', JSON.stringify([calamityType]))
+      payload.append('needs', JSON.stringify(needs))
+      payload.append('affectedFamilies', String(Number(form.familiesAffected) || 0))
+      form.proofFiles.forEach((file) => payload.append('disasterProofs[]', file))
+      await assistanceRequestsApi.create(payload)
       showSuccessModal('Assistance request successfully submitted.')
       setForm(emptyForm)
       setShowForm(false)
@@ -383,8 +382,8 @@ export default function BeneficiaryRequestsPage() {
                     <div className="beneficiary-request-card__ref">
                       <span className="beneficiary-request-card__id" title="Request ID">{r.id}</span>
                       <strong title={r.type}>{r.type}</strong>
-                      <span className={`beneficiary-priority-badge beneficiary-priority-badge--${r.priority?.toLowerCase()}`}>
-                        {r.priority}
+                      <span className={`beneficiary-priority-badge beneficiary-priority-badge--${r.priority?.toLowerCase() || 'unassigned'}`}>
+                        {r.priority ? `${r.priority} Priority` : 'Awaiting Admin Assessment'}
                       </span>
                     </div>
                     <StatusBadge status={r.status} />
@@ -582,22 +581,56 @@ export default function BeneficiaryRequestsPage() {
                   </label>
                 </fieldset>
 
-                {/* Step 4: Priority & Notes */}
+                {/* Step 4: Disaster proof and notes */}
                 <fieldset className="beneficiary-form-section">
-                  <legend>4. Priority & Additional Information</legend>
-                  <label>
-                    Priority Level
-                    <select
-                      value={form.priority}
-                      onChange={(e) => setForm({ ...form, priority: e.target.value })}
-                    >
-                      <option value="Low">Low - Can wait</option>
-                      <option value="Medium">Medium - Normal urgency</option>
-                      <option value="High">High - Urgent</option>
-                      <option value="Critical">Critical - Immediate need</option>
-                    </select>
-                    <span className="field-hint">Select the urgency level of this request</span>
-                  </label>
+                  <legend>4. Disaster Proof & Additional Information</legend>
+                  <div>
+                    <div style={{ fontWeight: 600, marginBottom: '0.45rem' }}>Disaster Proof / Photos</div>
+                    <div style={{ border: '1px dashed #cbd5e1', borderRadius: '10px', padding: '1rem', background: '#f8fafc' }}>
+                      <label style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer', color: '#334155', fontWeight: 650 }}>
+                        <Upload size={17} /> Upload photos
+                        <input
+                          type="file"
+                          accept="image/jpeg,image/png,image/webp"
+                          multiple
+                          hidden
+                          onChange={(e) => {
+                            const selected = Array.from(e.target.files || [])
+                            if (selected.length > 6) {
+                              setSubmitError('You may upload up to 6 disaster proof photos.')
+                              e.target.value = ''
+                              return
+                            }
+                            if (selected.some((file) => file.size > 5 * 1024 * 1024)) {
+                              setSubmitError('Each disaster proof photo must be 5 MB or smaller.')
+                              e.target.value = ''
+                              return
+                            }
+                            setSubmitError('')
+                            setForm({ ...form, proofFiles: selected })
+                          }}
+                        />
+                      </label>
+                      <span className="field-hint" style={{ display: 'block', marginTop: '0.4rem' }}>
+                        Add up to 6 JPG, PNG, or WebP photos showing the severity. Admin will review them and assign the priority.
+                      </span>
+                      {form.proofFiles.length > 0 && (
+                        <div style={{ display: 'grid', gap: '0.4rem', marginTop: '0.75rem' }}>
+                          {form.proofFiles.map((file, index) => (
+                            <div key={`${file.name}-${index}`} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.75rem', padding: '0.45rem 0.6rem', borderRadius: '7px', background: '#fff', border: '1px solid #e2e8f0' }}>
+                              <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem', minWidth: 0 }}>
+                                <Image size={14} style={{ flexShrink: 0, color: '#AF101A' }} />
+                                <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{file.name}</span>
+                              </span>
+                              <button type="button" className="btn btn--ghost btn--xs" onClick={() => setForm({ ...form, proofFiles: form.proofFiles.filter((_, itemIndex) => itemIndex !== index) })}>
+                                Remove
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </div>
                   <label>
                     Additional Notes/Details
                     <textarea
@@ -658,8 +691,8 @@ export default function BeneficiaryRequestsPage() {
                 </div>
 
                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-                  <span className={`beneficiary-priority-badge beneficiary-priority-badge--${selectedRequest.priority?.toLowerCase()}`}>
-                    {selectedRequest.priority} Priority
+                  <span className={`beneficiary-priority-badge beneficiary-priority-badge--${selectedRequest.priority?.toLowerCase() || 'unassigned'}`}>
+                    {selectedRequest.priority ? `${selectedRequest.priority} Priority` : 'Awaiting Admin Assessment'}
                   </span>
                   <StatusBadge status={selectedRequest.status} />
                 </div>

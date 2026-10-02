@@ -229,7 +229,7 @@ export default function BeneficiaryProofsPage() {
                 <div className="proof-top-form__preview">
                   <div className="proof-top-form__preview-row">
                     <span className="proof-request-card__ref-id">{topSelectedRequest.id}</span>
-                    <span className={`beneficiary-priority-badge beneficiary-priority-badge--${(topSelectedRequest.priority || 'low').toLowerCase()}`}>{topSelectedRequest.priority}</span>
+                    <span className={`beneficiary-priority-badge beneficiary-priority-badge--${(topSelectedRequest.priority || 'unassigned').toLowerCase()}`}>{topSelectedRequest.priority || 'Awaiting Admin Assessment'}</span>
                     <StatusBadge status={topSelectedRequest.delivery?.status || topSelectedRequest.status} />
                     {topSelectedRequest.delivery?.id && (
                       <span style={{ fontSize: '0.75rem', color: '#64748b' }}>Delivery: <strong style={{ fontFamily: 'monospace', color: '#AF101A' }}>{topSelectedRequest.delivery.id}</strong></span>
@@ -296,7 +296,7 @@ export default function BeneficiaryProofsPage() {
                     <div className="proof-request-card__info">
                       <div className="proof-request-card__id-row">
                         <span className="proof-request-card__ref-id">{request.id}</span>
-                        <span className={`beneficiary-priority-badge beneficiary-priority-badge--${(request.priority || 'low').toLowerCase()}`}>{request.priority}</span>
+                        <span className={`beneficiary-priority-badge beneficiary-priority-badge--${(request.priority || 'unassigned').toLowerCase()}`}>{request.priority || 'Awaiting Admin Assessment'}</span>
                         {hasRejection && <span className="proof-request-card__rejected-pill"><AlertTriangle size={11} /> Proof Rejected</span>}
                       </div>
                       <div className="proof-request-card__meta-grid">

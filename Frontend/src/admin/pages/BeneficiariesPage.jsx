@@ -525,6 +525,10 @@ export default function BeneficiariesPage() {
     },
   ]
 
+  // Barangay and municipality stay in the complete report definition and row
+  // data, but are intentionally omitted from the compact overview table.
+  const overviewColumns = columns.filter((column) => !['barangay', 'municipality'].includes(column.key))
+
   return (
     <div className="beneficiaries-page">
       <PageHeader
@@ -667,7 +671,7 @@ export default function BeneficiariesPage() {
               onRetry={() => { reload(); reloadRequests() }}
             >
               <DataTable
-                columns={columns}
+                columns={overviewColumns}
                 data={filters.filtered}
                 onRowClick={handleRequestRowClick}
                 pageSize={10}

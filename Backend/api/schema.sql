@@ -192,6 +192,8 @@ CREATE TABLE IF NOT EXISTS assistance_requests (
   assistance_type VARCHAR(255) NOT NULL,
   status VARCHAR(50) NOT NULL DEFAULT 'Pending Review',
   priority ENUM('Low','Medium','High','Critical') NOT NULL DEFAULT 'Medium',
+  priority_locked TINYINT(1) NOT NULL DEFAULT 1,
+  priority_assigned_at DATETIME NULL,
   affected_families INT UNSIGNED NOT NULL DEFAULT 0,
   request_date DATE NOT NULL,
   notes TEXT NULL,
@@ -203,6 +205,17 @@ CREATE TABLE IF NOT EXISTS assistance_requests (
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   CONSTRAINT fk_assistance_beneficiary_id FOREIGN KEY (beneficiary_id) REFERENCES beneficiaries(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS assistance_request_proofs (
+  id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  assistance_request_id BIGINT UNSIGNED NOT NULL,
+  file_name VARCHAR(255) NOT NULL,
+  file_type VARCHAR(100) NOT NULL,
+  file_data LONGBLOB NOT NULL,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  INDEX idx_assistance_proof_request (assistance_request_id),
+  CONSTRAINT fk_assistance_proof_request FOREIGN KEY (assistance_request_id) REFERENCES assistance_requests(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- ---------- INVENTORY ----------

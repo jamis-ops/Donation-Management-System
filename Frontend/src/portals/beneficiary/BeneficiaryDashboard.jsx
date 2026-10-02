@@ -226,13 +226,11 @@ export default function BeneficiaryDashboard() {
                         <strong>{r.type}</strong>
                       </div>
                       <span style={{ fontSize: '0.78rem', color: '#64748b' }}>Submitted on {r.date}</span>
-                      {r.priority && (
-                        <div>
-                          <span className={`beneficiary-priority-badge beneficiary-priority-badge--${r.priority.toLowerCase()}`}>
-                            {r.priority} Priority
-                          </span>
-                        </div>
-                      )}
+                      <div>
+                        <span className={`beneficiary-priority-badge beneficiary-priority-badge--${r.priority?.toLowerCase() || 'unassigned'}`}>
+                          {r.priority ? `${r.priority} Priority` : 'Awaiting Admin Assessment'}
+                        </span>
+                      </div>
                     </div>
                     <StatusBadge status={r.status} />
                   </li>

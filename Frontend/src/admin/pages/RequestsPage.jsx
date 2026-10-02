@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { assistanceRequestsApi, beneficiariesApi, inventoryApi, donationsApi } from '../../api/resources';
+import { getAuthenticatedFileUrl } from '../../api/auth';
 import ProcurementModal from '../components/donations/ProcurementModal';
 import { useApiList } from '../../hooks/useApiList';
 import { useFilters } from '../../hooks/useFilters';
@@ -9,7 +10,7 @@ import {
   Users, Search, Pin, FileText, 
   Check, X, MapPin, Loader2, Info,
   Utensils, Droplets, Shirt, Pill, Sparkles, Home, Banknote, GraduationCap, Package, Tag,
-  Phone, Mail, ExternalLink, Copy, Trash2
+  Phone, Mail, ExternalLink, Copy, Trash2, Image as ImageIcon, Lock
 } from 'lucide-react';
 import PageHeader from '../components/shared/PageHeader';
 import ModalHeader from '../components/shared/ModalHeader';
@@ -158,6 +159,7 @@ const styles = `
 .request-card.priority-high { border-left: 4px solid #ea580c; }
 .request-card.priority-medium { border-left: 4px solid #d97706; }
 .request-card.priority-low { border-left: 4px solid #16a34a; }
+.request-card.priority-unassigned { border-left: 4px solid #94a3b8; }
 
 .request-card.is-emergency {
   border: 2px solid #ef4444;
@@ -256,6 +258,7 @@ const styles = `
 .priority-badge.high { background: #fff7ed; color: #c2410c; border: 1px solid #ffedd5; }
 .priority-badge.medium { background: #fefce8; color: #a16207; border: 1px solid #fef08a; }
 .priority-badge.low { background: #f0fdf4; color: #15803d; border: 1px solid #dcfce7; }
+.priority-badge.unassigned { background: #f8fafc; color: #64748b; border: 1px solid #cbd5e1; }
 
 .calamity-badge {
   display: inline-flex;
@@ -1479,6 +1482,7 @@ const styles = `
 `;
 
 const priorityConfig = {
+  Unassigned: { color: 'unassigned', icon: AlertCircle, label: 'NOT ASSESSED', slaHours: 0, weight: 0 },
   Critical: { color: 'critical', icon: AlertTriangle, label: 'CRITICAL', slaHours: 4, weight: 4 },
   High: { color: 'high', icon: AlertCircle, label: 'HIGH', slaHours: 24, weight: 3 },
   Medium: { color: 'medium', icon: Clock, label: 'MEDIUM', slaHours: 72, weight: 2 },
@@ -1486,7 +1490,8 @@ const priorityConfig = {
 };
 
 function getSLALabel(req) {
-  const pConf = priorityConfig[req.priority] || priorityConfig.Medium;
+  if (!req?.priorityAssigned || !req?.priority) return null;
+  const pConf = priorityConfig[req.priority] || priorityConfig.Unassigned;
   const created = new Date(req.requestDate || req.date || Date.now());
   const now = new Date();
   const elapsedHours = (now - created) / (1000 * 60 * 60);
@@ -1836,10 +1841,12 @@ export default function RequestsPage() {
         showSuccessModal('Successfully updated.')
       }
       if (selectedRequest && selectedRequest.dbId === dbId) {
-        setSelectedRequest(prev => ({ ...prev, ...updates }));
+        setSelectedRequest(prev => ({ ...prev, ...(res?.data || updates) }));
       }
+      return res?.data || { ...existing, ...updates };
     } catch (err) {
       notify.error(err?.message || 'Failed to update request');
+      return null;
     } finally {
       hideLoading();
       setIsUpdating(false);
@@ -1999,7 +2006,7 @@ export default function RequestsPage() {
 
         <div className="requests-grid">
           {paging.pageItems.map(req => {
-            const pConf = priorityConfig[req.priority] || priorityConfig.Medium;
+            const pConf = priorityConfig[req.priority] || priorityConfig.Unassigned;
             const PIcon = pConf.icon;
             const isEmergency = emergencyIds.has(req.dbId);
             const sla = getSLALabel(req);
@@ -2075,7 +2082,7 @@ export default function RequestsPage() {
                     </div>
                   </div>
 
-                  {!['Completed', 'Rejected', 'Allocated'].includes(req.status) && (
+                  {sla && !['Completed', 'Rejected', 'Allocated'].includes(req.status) && (
                     <div className="request-card__sla-wrapper">
                       <span className={`request-card__sla sla-${sla.status}`}>
                         {sla.status === 'red' ? <AlertTriangle size={12} strokeWidth={2.5} /> : <Clock size={12} strokeWidth={2} />}
@@ -2109,7 +2116,8 @@ export default function RequestsPage() {
                             <button 
                               className="btn-action-approve" 
                               onClick={() => handleUpdateStatus(req.dbId, { status: 'Ready for Allocation' })}
-                              title="Approve Request"
+                              disabled={!req.priorityAssigned}
+                              title={req.priorityAssigned ? 'Approve Request' : 'Review and assign priority first'}
                               aria-label="Approve Request"
                             >
                               <Check size={16} strokeWidth={2.6} />
@@ -2251,13 +2259,21 @@ export default function RequestsPage() {
 }
 
 function PriorityBadge({ priority }) {
-  const pConf = priorityConfig[priority] || priorityConfig.Medium;
+  if (!priority) {
+    return (
+      <div className="relief-priority-badge" title="Admin assessment is required" style={{ background: '#f8fafc', color: '#64748b', borderColor: '#cbd5e1' }}>
+        <AlertCircle size={13} strokeWidth={2.5} />
+        <span>Priority Not Assigned</span>
+      </div>
+    );
+  }
+  const pConf = priorityConfig[priority] || priorityConfig.Unassigned;
   const Icon = pConf.icon;
   const pClass = (priority || 'medium').toLowerCase();
   return (
     <div 
       className={`relief-priority-badge relief-priority-badge--${pClass}`}
-      title="Priority is locked based on the original submitted request"
+      title="Priority is permanently locked"
     >
       <Icon size={13} strokeWidth={2.5} />
       <span>{priority || 'Medium'} Priority</span>
@@ -2279,6 +2295,7 @@ function ReviewModal({
 }) {
   const [liveRequest, setLiveRequest] = useState(request);
   const [isLoadingFresh, setIsLoadingFresh] = useState(false);
+  const [selectedPriority, setSelectedPriority] = useState('');
 
   useEffect(() => {
     setLiveRequest(request);
@@ -2317,6 +2334,25 @@ function ReviewModal({
   useEffect(() => {
     setNotes(liveRequest.notes || '');
   }, [liveRequest.notes]);
+
+  const handleAssignPriority = async () => {
+    if (!selectedPriority) {
+      notify.error('Select a Priority Level first.');
+      return;
+    }
+    const ok = await confirmAction({
+      title: 'Assign Priority Level',
+      message: `Assign ${selectedPriority} priority? This cannot be changed or overwritten afterward.`,
+      confirmText: 'Assign & Lock Priority',
+      type: 'success',
+    });
+    if (!ok) return;
+    const updated = await onUpdate(liveRequest.dbId || liveRequest.id, { priority: selectedPriority });
+    if (updated) {
+      setLiveRequest(prev => ({ ...prev, ...updated }));
+      setSelectedPriority('');
+    }
+  };
 
   const isNotesDirty = notes !== (liveRequest.notes || '');
 
@@ -2510,7 +2546,7 @@ function ReviewModal({
                 <button 
                   type="button" 
                   className="btn btn--danger btn--sm relief-btn-reject" 
-                  disabled={isUpdating} 
+                  disabled={isUpdating}
                   onClick={() => handleSave('Rejected')} 
                   title="Reject this relief request"
                 >
@@ -2519,9 +2555,9 @@ function ReviewModal({
                 <button 
                   type="button" 
                   className="btn btn--success btn--sm relief-btn-approve" 
-                  disabled={isUpdating} 
+                  disabled={isUpdating || !liveRequest.priorityAssigned}
                   onClick={() => handleSave('Approved')} 
-                  title="Approve this relief request"
+                  title={liveRequest.priorityAssigned ? 'Approve this relief request' : 'Assign and save the priority first'}
                 >
                   <Check size={14} strokeWidth={2.6} /> Approve Request
                 </button>
@@ -2587,6 +2623,54 @@ function ReviewModal({
 
         {/* Scrollable Body Container */}
         <div className="relief-review-body">
+          <div className="relief-card" style={{ padding: '0.9rem 1rem', marginBottom: '0.9rem', border: '1px solid #e2e8f0' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '0.8rem', flexWrap: 'wrap' }}>
+              <div>
+                <div className="relief-section-label">Priority Assessment</div>
+                <div style={{ fontSize: '0.78rem', color: '#64748b', marginTop: '0.2rem' }}>
+                  Review the submitted disaster proof, then assign the severity once.
+                </div>
+              </div>
+              {liveRequest.priorityAssigned ? (
+                <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.45rem' }}>
+                  <PriorityBadge priority={liveRequest.priority} />
+                  <Lock size={14} color="#64748b" aria-label="Locked" />
+                </div>
+              ) : (
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+                  <select value={selectedPriority} onChange={(e) => setSelectedPriority(e.target.value)} disabled={isUpdating} style={{ minWidth: '175px' }}>
+                    <option value="">Select priority...</option>
+                    <option value="Low">Low</option>
+                    <option value="Medium">Medium</option>
+                    <option value="High">High</option>
+                    <option value="Critical">Critical</option>
+                  </select>
+                  <button type="button" className="btn btn--success btn--sm" disabled={isUpdating || !selectedPriority} onClick={handleAssignPriority}>
+                    <Check size={13} /> Assign & Lock
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
+
+          <div className="relief-card" style={{ padding: '0.9rem 1rem', marginBottom: '0.9rem', border: '1px solid #e2e8f0' }}>
+            <div className="relief-section-label" style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+              <ImageIcon size={14} /> Disaster Proof / Photos
+            </div>
+            {Array.isArray(liveRequest.disasterProofs) && liveRequest.disasterProofs.length > 0 ? (
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: '0.6rem', marginTop: '0.65rem' }}>
+                {liveRequest.disasterProofs.map((proof) => (
+                  <a key={proof.id} href={getAuthenticatedFileUrl(proof.url)} target="_blank" rel="noreferrer" style={{ display: 'grid', gap: '0.45rem', padding: '0.5rem', border: '1px solid #e2e8f0', borderRadius: '8px', color: '#334155', textDecoration: 'none', minWidth: 0 }}>
+                    <img src={getAuthenticatedFileUrl(proof.url)} alt={`Disaster proof: ${proof.name}`} style={{ width: '100%', height: '105px', objectFit: 'cover', borderRadius: '6px', background: '#f1f5f9' }} />
+                    <span style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', minWidth: 0 }}><ImageIcon size={14} color="#AF101A" style={{ flexShrink: 0 }} /><span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{proof.name}</span></span>
+                  </a>
+                ))}
+              </div>
+            ) : (
+              <div style={{ marginTop: '0.55rem', color: '#64748b', fontSize: '0.82rem' }}>No disaster proof photos were uploaded.</div>
+            )}
+          </div>
+
           {activeCriticalRequests.length > 0 && request.priority === 'Critical' && (
             <div className="relief-duplicate-alert">
               <AlertTriangle size={15} style={{ flexShrink: 0 }} />

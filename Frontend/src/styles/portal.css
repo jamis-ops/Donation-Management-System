@@ -4408,6 +4408,12 @@
   color: #6b7280;
 }
 
+.beneficiary-priority-badge--unassigned {
+  background: #f8fafc;
+  color: #64748b;
+  border: 1px solid #cbd5e1;
+}
+
 /* Type Badge */
 .beneficiary-type-badge {
   display: inline-flex;

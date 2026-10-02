@@ -7115,6 +7115,36 @@ button:disabled.approval-overlay__btn-approve {
   display: block;
 }
 
+/* Barangay Overview: compact request columns fit the panel without scrolling. */
+#barangays-table .data-table-wrapper {
+  overflow-x: hidden;
+}
+
+#barangays-table .data-table {
+  width: 100%;
+  min-width: 0;
+  table-layout: fixed;
+}
+
+#barangays-table .data-table th,
+#barangays-table .data-table td {
+  min-width: 0;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+#barangays-table .data-table th:nth-child(1) { width: 21%; }
+#barangays-table .data-table th:nth-child(2) { width: 17%; }
+#barangays-table .data-table th:nth-child(3) { width: 18%; }
+#barangays-table .data-table th:nth-child(4) { width: 13%; }
+#barangays-table .data-table th:nth-child(5) { width: 18%; }
+#barangays-table .data-table th:nth-child(6) { width: 13%; }
+
+#barangays-table .data-table .table-actions {
+  min-width: 0;
+  flex-wrap: wrap;
+}
+
 tr.data-table__row--selected {
   background: #f0fdf4 !important;
 }

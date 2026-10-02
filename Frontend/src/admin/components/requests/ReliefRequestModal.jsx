@@ -2,12 +2,13 @@ import React, { useState, useEffect, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { 
   Calendar, Users, MapPin, FileText, Check, X, Clock, 
-  Package, Tag, Trash2
+  Package, Tag, Trash2, Image as ImageIcon, Lock, AlertCircle
 } from 'lucide-react'
 import ModalHeader from '../shared/ModalHeader'
 import StatusBadge from '../shared/StatusBadge'
 import { notify, showSuccessModal, confirmAction } from '../../../utils/confirm'
 import { assistanceRequestsApi } from '../../../api/resources'
+import { getAuthenticatedFileUrl } from '../../../api/auth'
 import {
   getReliefRequestActionPermissions,
   validateStatusTransition,
@@ -79,6 +80,7 @@ export default function ReliefRequestModal({
 
   const [notes, setNotes] = useState(cleanedInitialNotes)
   const [isUpdating, setIsUpdating] = useState(false)
+  const [selectedPriority, setSelectedPriority] = useState('')
 
   useEffect(() => {
     setNotes(cleanedInitialNotes)
@@ -218,6 +220,34 @@ export default function ReliefRequestModal({
     }
   }
 
+  const handleAssignPriority = async () => {
+    if (!selectedPriority) {
+      notify.error('Select a Priority Level first.')
+      return
+    }
+    const ok = await confirmAction({
+      title: 'Assign Priority Level',
+      message: `Assign ${selectedPriority} priority? This cannot be changed or overwritten afterward.`,
+      confirmText: 'Assign & Lock Priority',
+      type: 'success',
+    })
+    if (!ok) return
+    setIsUpdating(true)
+    try {
+      const reqId = liveRequest.dbId || liveRequest.id
+      const response = await assistanceRequestsApi.update(reqId, { priority: selectedPriority })
+      const updated = response?.data || { priority: selectedPriority, priorityAssigned: true }
+      setLiveRequest(prev => ({ ...prev, ...updated }))
+      setSelectedPriority('')
+      if (onUpdated) onUpdated({ ...liveRequest, ...updated })
+      showSuccessModal('Priority assigned and permanently locked.')
+    } catch (err) {
+      notify.error(err.message || 'Failed to assign priority')
+    } finally {
+      setIsUpdating(false)
+    }
+  }
+
   const handleDelete = async () => {
     if (!permissions.canDelete) {
       notify.error('Only rejected relief requests can be deleted.')
@@ -275,7 +305,11 @@ export default function ReliefRequestModal({
           gap: '0.65rem',
         }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
-            {liveRequest.priority && <StatusBadge status={liveRequest.priority} />}
+            {liveRequest.priorityAssigned && liveRequest.priority ? <StatusBadge status={liveRequest.priority} /> : (
+              <span className="badge" style={{ background: '#f8fafc', color: '#64748b', border: '1px solid #cbd5e1' }}>
+                Priority Not Assigned
+              </span>
+            )}
             <StatusBadge status={liveRequest.status} />
             {isLoadingFresh && (
               <span style={{ fontSize: '0.72rem', color: '#94a3b8', fontStyle: 'italic' }}>
@@ -336,8 +370,9 @@ export default function ReliefRequestModal({
                 <button
                   type="button"
                   className="btn btn--success btn--sm"
-                  disabled={isUpdating}
+                  disabled={isUpdating || !liveRequest.priorityAssigned}
                   onClick={() => handleStatusUpdate('Approved')}
+                  title={liveRequest.priorityAssigned ? 'Approve Request' : 'Assign and save the priority first'}
                   style={{
                     display: 'inline-flex',
                     alignItems: 'center',
@@ -430,6 +465,52 @@ export default function ReliefRequestModal({
 
         {/* ── MODAL BODY ── */}
         <div className="relief-modal-body" style={{ padding: '1.15rem 1.25rem', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+          <div className="relief-modal-card" style={{ border: '1px solid #e2e8f0', borderRadius: '10px', padding: '1rem 1.15rem', background: '#fff' }}>
+            <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '0.8rem', flexWrap: 'wrap' }}>
+              <div>
+                <div style={{ fontSize: '0.8rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em', color: '#64748b' }}>Priority Assessment</div>
+                <div style={{ fontSize: '0.78rem', color: '#64748b', marginTop: '0.2rem' }}>Review the disaster photos, then assign the severity once.</div>
+              </div>
+              {liveRequest.priorityAssigned ? (
+                <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.45rem', padding: '0.45rem 0.65rem', borderRadius: '7px', background: '#f8fafc', border: '1px solid #e2e8f0', fontWeight: 700 }}>
+                  <Lock size={14} color="#64748b" /> {liveRequest.priority} Priority
+                </div>
+              ) : (
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+                  <select value={selectedPriority} onChange={(e) => setSelectedPriority(e.target.value)} disabled={isUpdating} style={{ minWidth: '175px' }}>
+                    <option value="">Select priority...</option>
+                    <option value="Low">Low</option>
+                    <option value="Medium">Medium</option>
+                    <option value="High">High</option>
+                    <option value="Critical">Critical</option>
+                  </select>
+                  <button type="button" className="btn btn--success btn--sm" disabled={isUpdating || !selectedPriority} onClick={handleAssignPriority}>
+                    <Check size={13} /> Assign & Lock
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
+
+          <div className="relief-modal-card" style={{ border: '1px solid #e2e8f0', borderRadius: '10px', padding: '1rem 1.15rem', background: '#fff' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.8rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em', color: '#64748b' }}>
+              <ImageIcon size={14} /> Disaster Proof / Photos
+            </div>
+            {Array.isArray(liveRequest.disasterProofs) && liveRequest.disasterProofs.length > 0 ? (
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: '0.6rem', marginTop: '0.65rem' }}>
+                {liveRequest.disasterProofs.map((proof) => (
+                  <a key={proof.id} href={getAuthenticatedFileUrl(proof.url)} target="_blank" rel="noreferrer" style={{ display: 'grid', gap: '0.45rem', padding: '0.5rem', border: '1px solid #e2e8f0', borderRadius: '8px', color: '#334155', textDecoration: 'none', minWidth: 0 }}>
+                    <img src={getAuthenticatedFileUrl(proof.url)} alt={`Disaster proof: ${proof.name}`} style={{ width: '100%', height: '105px', objectFit: 'cover', borderRadius: '6px', background: '#f1f5f9' }} />
+                    <span style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', minWidth: 0 }}><ImageIcon size={14} color="#AF101A" style={{ flexShrink: 0 }} /><span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{proof.name}</span></span>
+                  </a>
+                ))}
+              </div>
+            ) : (
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', marginTop: '0.55rem', color: '#64748b', fontSize: '0.82rem' }}>
+                <AlertCircle size={14} /> No disaster proof photos were uploaded.
+              </div>
+            )}
+          </div>
           
           {/* Main Request Information Card */}
           <div className="relief-modal-card" style={{

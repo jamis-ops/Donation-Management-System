@@ -541,6 +541,12 @@
   border: 1px solid #bbf7d0;
 }
 
+.beneficiary-priority-badge--unassigned {
+  background: #f8fafc;
+  color: #64748b;
+  border: 1px solid #cbd5e1;
+}
+
 .beneficiary-priority-badge--medium {
   background: #fef3c7;
   color: #92400e;
