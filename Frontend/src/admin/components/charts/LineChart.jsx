@@ -94,6 +94,20 @@ export default function LineChart({ title, labels, series }) {
   const baseY  = PAD.top + IH        // y-coordinate of the x-axis baseline
 
   const clearTip = () => { setTip(null); setCrossX(null) }
+  const showPointTip = (event, point, item, index, info) => {
+    const rect = event.currentTarget.getBoundingClientRect()
+    setCrossX(point.x)
+    setTip({
+      seriesKey: item.key,
+      index,
+      x: event.clientX || rect.left + rect.width / 2,
+      y: event.clientY || rect.top,
+      label: `${item.label} · ${labels[index]}`,
+      value: item.values[index].toLocaleString(),
+      change: info.change,
+      dir: info.dir,
+    })
+  }
 
   // Unique IDs for SVG defs (avoids id collisions when chart appears multiple times)
   const clipId  = `${uid}-clip`
@@ -233,20 +247,12 @@ export default function LineChart({ title, labels, series }) {
                       strokeWidth={active ? 2.5 : 2}
                       className="admin-chart__point"
                       style={{ animationDelay: `${0.35 + i * 0.05}s` }}
-                      onMouseEnter={() => {
-                        setCrossX(p.x)
-                        setTip({
-                          seriesKey: s.key,
-                          index:     i,
-                          left:  `${(p.x / W) * 100}%`,
-                          top:   `${(p.y / H) * 100}%`,
-                          label: `${s.label} · ${labels[i]}`,
-                          value: s.values[i].toLocaleString(),
-                          change: info.change,
-                          dir:    info.dir,
-                        })
-                      }}
+                      onMouseEnter={(event) => showPointTip(event, p, s, i, info)}
+                      onMouseMove={(event) => showPointTip(event, p, s, i, info)}
                       onMouseLeave={clearTip}
+                      onFocus={(event) => showPointTip(event, p, s, i, info)}
+                      onBlur={clearTip}
+                      tabIndex="0"
                     />
                   )
                 })}

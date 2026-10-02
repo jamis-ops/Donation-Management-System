@@ -8,8 +8,7 @@ export default function BarChart({ title, data, valueKey = 'value', labelKey = '
   const total = data.reduce((sum, d) => sum + d[valueKey], 0)
 
   const showTip = (event, item, i) => {
-    const rect = plotRef.current?.getBoundingClientRect()
-    if (!rect) return
+    if (!plotRef.current) return
     const prev = data[i - 1]
     let change = null
     let dir = 'flat'
@@ -26,8 +25,8 @@ export default function BarChart({ title, data, valueKey = 'value', labelKey = '
     }
     const share = total > 0 ? Math.round((item[valueKey] / total) * 100) : 0
     setTip({
-      left: `${event.clientX - rect.left}px`,
-      top: `${event.clientY - rect.top}px`,
+      x: event.clientX || event.currentTarget.getBoundingClientRect().left + event.currentTarget.offsetWidth / 2,
+      y: event.clientY || event.currentTarget.getBoundingClientRect().top,
       label: item[labelKey],
       value: `${unit}${item[valueKey].toLocaleString()}`,
       change,
@@ -49,6 +48,10 @@ export default function BarChart({ title, data, valueKey = 'value', labelKey = '
                 className="admin-bar-chart__item"
                 onMouseEnter={(e) => showTip(e, item, i)}
                 onMouseMove={(e) => showTip(e, item, i)}
+                onMouseLeave={() => setTip(null)}
+                onFocus={(e) => showTip(e, item, i)}
+                onBlur={() => setTip(null)}
+                tabIndex="0"
               >
                 <span className="admin-bar-chart__label">{item[labelKey]}</span>
                 <div className="admin-bar-chart__track">

@@ -8,6 +8,8 @@ import StatusBadge from '../../admin/components/shared/StatusBadge'
 import ApiState from '../../admin/components/shared/ApiState'
 import { getPortalData } from '../../api/resources'
 import { useApiObject } from '../../hooks/useApiList'
+import ChartTooltip from '../../components/shared/ChartTooltip'
+import { useChartTooltip } from '../../hooks/useChartTooltip'
 
 const iconMap = {
   heartHandshake: HeartHandshake,
@@ -56,6 +58,7 @@ function formatProgress(milestone) {
 }
 
 export default function DonorDashboard() {
+  const chartTooltip = useChartTooltip()
   const { data, loading, error, reload } = useApiObject(() => getPortalData())
 
   const donations = data?.donations || []
@@ -155,6 +158,7 @@ export default function DonorDashboard() {
                                 aria-valuenow={milestone.progress ?? 0}
                                 aria-valuemin={0}
                                 aria-valuemax={100}
+                                {...chartTooltip.bindTooltip({ label: milestone.title, value: `${milestone.progress ?? 0}% complete`, sub: formatProgress(milestone) })}
                               >
                                 <span style={{ width: `${Math.min(100, milestone.progress ?? 0)}%` }} />
                               </div>
@@ -264,6 +268,7 @@ export default function DonorDashboard() {
               <FileBadge size={16} /> Certificates
             </Link>
           </div>
+          <ChartTooltip tip={chartTooltip.tip} />
         </>
       )}
     </ApiState>

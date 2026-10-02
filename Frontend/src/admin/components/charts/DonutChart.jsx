@@ -37,11 +37,12 @@ export default function DonutChart({ title, data, labelKey = 'label', valueKey =
     return acc
   }, { slices: [], cumulative: 0 }).slices
 
-  const showTip = (slice, i) => {
+  const showTip = (event, slice, i) => {
+    const rect = event.currentTarget.getBoundingClientRect()
     setActive(i)
     setTip({
-      left: `${(slice.cxMid / 140) * 100}%`,
-      top: `${(slice.cyMid / 140) * 100}%`,
+      x: event.clientX || rect.left + rect.width / 2,
+      y: event.clientY || rect.top,
       label: slice.label,
       value: slice.value.toLocaleString(),
       sub: `${slice.percent}% of total`,
@@ -71,8 +72,12 @@ export default function DonutChart({ title, data, labelKey = 'label', valueKey =
                 fill={slice.color}
                 className={`admin-donut__slice${active === i ? ' is-active' : ''}`}
                 style={{ animationDelay: `${i * 0.08}s` }}
-                onMouseEnter={() => showTip(slice, i)}
+                onMouseEnter={(event) => showTip(event, slice, i)}
+                onMouseMove={(event) => showTip(event, slice, i)}
                 onMouseLeave={clearTip}
+                onFocus={(event) => showTip(event, slice, i)}
+                onBlur={clearTip}
+                tabIndex="0"
               />
             ))}
             <circle cx={cx} cy={cy} r={32} fill="#fff" />
@@ -86,8 +91,12 @@ export default function DonutChart({ title, data, labelKey = 'label', valueKey =
             <li
               key={slice.label}
               className={active === i ? 'is-active' : ''}
-              onMouseEnter={() => showTip(slice, i)}
+              onMouseEnter={(event) => showTip(event, slice, i)}
+              onMouseMove={(event) => showTip(event, slice, i)}
               onMouseLeave={clearTip}
+              onFocus={(event) => showTip(event, slice, i)}
+              onBlur={clearTip}
+              tabIndex="0"
             >
               <span className="admin-donut__dot" style={{ background: slice.color }} />
               <span>{slice.label}</span>

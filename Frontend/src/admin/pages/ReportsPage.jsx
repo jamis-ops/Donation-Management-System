@@ -13,6 +13,8 @@ import { useSeeMore } from '../../hooks/useSeeMore'
 import { SeeMoreToggle } from '../components/shared/SeeMoreList'
 import { useAuth } from '../../context/AuthContext'
 import { useLoading } from '../../context/LoadingContext'
+import ChartTooltip from '../../components/shared/ChartTooltip'
+import { useChartTooltip } from '../../hooks/useChartTooltip'
 
 const GRANULARITIES = [
   { value: 'week', label: 'Week' },
@@ -25,6 +27,7 @@ function ChartEmpty({ message }) {
 }
 
 export default function ReportsPage() {
+  const chartTooltip = useChartTooltip()
   const { user } = useAuth()
   const { showLoading, hideLoading } = useLoading()
   const { data, loading, error, reload } = useApiObject(() => getReports())
@@ -299,13 +302,13 @@ export default function ReportsPage() {
                         <div className="demand-supply-dual">
                           <div>
                             <span>Allocated ({item.allocated.toLocaleString()})</span>
-                            <div className="demand-supply-bar">
+                            <div className="demand-supply-bar" {...chartTooltip.bindTooltip({ label: item.program, value: `${item.allocated.toLocaleString()} allocated`, sub: `${Number(item.demand || 0).toLocaleString()}% allocation level` })}>
                               <div className="demand-supply-bar__fill" style={{ width: `${item.demand}%` }} />
                             </div>
                           </div>
                           <div>
                             <span>Distributed ({item.distributed.toLocaleString()})</span>
-                            <div className="demand-supply-bar">
+                            <div className="demand-supply-bar" {...chartTooltip.bindTooltip({ label: item.program, value: `${item.distributed.toLocaleString()} distributed`, sub: `${Number(item.supply || 0).toLocaleString()}% distribution level` })}>
                               <div
                                 className={`demand-supply-bar__fill${item.supply >= item.demand && item.demand > 0 ? ' demand-supply-bar__fill--good' : ''}`}
                                 style={{ width: `${item.supply}%` }}
@@ -329,6 +332,7 @@ export default function ReportsPage() {
                 )}
               </section>
             </div>
+            <ChartTooltip tip={chartTooltip.tip} />
           </>
         )}
       </ApiState>

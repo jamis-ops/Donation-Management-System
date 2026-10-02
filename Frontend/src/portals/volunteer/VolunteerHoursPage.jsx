@@ -1,15 +1,11 @@
 import { useState, useMemo } from 'react'
 import {
   Clock,
-  TrendingUp,
-  Download,
   Calendar,
   CalendarDays,
   CheckCircle2,
   Filter,
   RotateCcw,
-  Layers,
-  Award,
 } from 'lucide-react'
 import StatusBadge from '../../admin/components/shared/StatusBadge'
 import ApiState from '../../admin/components/shared/ApiState'
@@ -18,7 +14,8 @@ import { useApiObject } from '../../hooks/useApiList'
 import { usePagination, DEFAULT_PAGE_SIZE } from '../../hooks/usePagination'
 import Pagination from '../../admin/components/shared/Pagination'
 import ExportMenu from '../../admin/components/shared/ExportMenu'
-import { notify } from '../../utils/confirm'
+import ChartTooltip from '../../components/shared/ChartTooltip'
+import { useChartTooltip } from '../../hooks/useChartTooltip'
 
 const ACTIVITY_TYPE_COLORS = {
   Distribution: 'crimson',
@@ -70,12 +67,14 @@ function formatDisplayDate(value) {
 }
 
 export default function VolunteerHoursPage() {
+  const chartTooltip = useChartTooltip()
   const { data, loading, error, reload } = useApiObject(() => getPortalData())
   const currentYear = new Date().getFullYear()
   const [selectedYear, setSelectedYear] = useState(currentYear)
   const [selectedMonth, setSelectedMonth] = useState('all')
 
-  const activityLog = data?.activityLog || []
+  const activityLog = useMemo(() => data?.activityLog || [], [data?.activityLog])
+  const hoursBreakdown = data?.hoursBreakdown
 
   // Dynamic available years list
   const availableYears = useMemo(() => {
@@ -110,11 +109,11 @@ export default function VolunteerHoursPage() {
     })
 
     const hasData = buckets.some((b) => b.hours > 0 || b.activities > 0)
-    if (!hasData && selectedYear === currentYear && (data?.hoursBreakdown || []).length === 12) {
-      return data.hoursBreakdown
+    if (!hasData && selectedYear === currentYear && (hoursBreakdown || []).length === 12) {
+      return hoursBreakdown
     }
     return buckets
-  }, [activityLog, selectedYear, currentYear, data?.hoursBreakdown])
+  }, [activityLog, selectedYear, currentYear, hoursBreakdown])
 
   // Filtered activity log based on Year + Month dropdowns
   const filteredActivityLog = useMemo(() => {
@@ -135,8 +134,6 @@ export default function VolunteerHoursPage() {
   )
 
   const totalYearHours = computedBreakdown.reduce((sum, m) => sum + Number(m.hours || 0), 0)
-  const currentMonthIndex = new Date().getMonth()
-  const currentMonthHours = Number(computedBreakdown[currentMonthIndex]?.hours || 0)
   const maxHours = Math.max(...computedBreakdown.map((m) => Number(m.hours || 0)), 1)
 
   // Period specific statistics
@@ -270,7 +267,7 @@ export default function VolunteerHoursPage() {
                         opacity: selectedMonth === 'all' || isSelected ? 1 : 0.45,
                       }}
                       onClick={() => handleBarClick(idx)}
-                      title={`Click to filter ${month.month} ${selectedYear}`}
+                      {...chartTooltip.bindTooltip({ label: `${month.month} ${selectedYear}`, value: `${Number(month.hours || 0).toLocaleString()} hours`, sub: `${Number(month.activities || 0).toLocaleString()} activities · Click to filter` })}
                     >
                       <span className="portal-bar-chart__value">
                         {hasHours ? `${month.hours}h` : '0h'}
@@ -439,6 +436,7 @@ export default function VolunteerHoursPage() {
         <p className="portal-note">
           Duty hours and attendance are verified and officially credited to your profile upon task completion by the Administrator.
         </p>
+        <ChartTooltip tip={chartTooltip.tip} />
       </section>
     </ApiState>
   )

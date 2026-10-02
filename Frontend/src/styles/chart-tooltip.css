@@ -1,0 +1,54 @@
+.raf-chart-tooltip {
+  position: fixed;
+  z-index: 10000;
+  width: max-content;
+  min-width: 120px;
+  max-width: min(290px, calc(100vw - 20px));
+  display: grid;
+  gap: 0.22rem;
+  padding: 0.65rem 0.78rem;
+  border: 1px solid rgba(255, 255, 255, 0.24);
+  border-radius: 10px;
+  background: linear-gradient(145deg, #bd111d 0%, #970b14 100%);
+  color: #fff;
+  box-shadow: 0 10px 28px rgba(95, 8, 14, 0.3), 0 2px 6px rgba(15, 23, 42, 0.16);
+  pointer-events: none;
+  overflow-wrap: anywhere;
+  animation: rafChartTooltipIn 0.14s ease-out;
+}
+
+.raf-chart-tooltip::after {
+  content: '';
+  position: absolute;
+  left: var(--raf-tooltip-arrow-x);
+  width: 9px;
+  height: 9px;
+  background: #a70d17;
+  transform: translateX(-50%) rotate(45deg);
+}
+
+.raf-chart-tooltip--top::after { top: calc(100% - 5px); }
+.raf-chart-tooltip--bottom::after { bottom: calc(100% - 5px); }
+.raf-chart-tooltip__label { color: rgba(255, 255, 255, 0.82); font-size: 0.68rem; font-weight: 700; line-height: 1.3; letter-spacing: 0.02em; }
+.raf-chart-tooltip__value { color: #fff; font-size: 0.98rem; font-weight: 800; line-height: 1.3; }
+.raf-chart-tooltip__items { display: grid; gap: 0.18rem; padding-top: 0.25rem; margin-top: 0.12rem; border-top: 1px solid rgba(255, 255, 255, 0.2); }
+.raf-chart-tooltip__item { display: flex; align-items: baseline; justify-content: space-between; gap: 1rem; color: rgba(255, 255, 255, 0.82); font-size: 0.67rem; line-height: 1.35; }
+.raf-chart-tooltip__item strong { color: #fff; white-space: nowrap; }
+.raf-chart-tooltip__change { font-size: 0.66rem; font-weight: 750; }
+.raf-chart-tooltip__change--up { color: #bbf7d0; }
+.raf-chart-tooltip__change--down { color: #fecaca; }
+.raf-chart-tooltip__change--flat { color: rgba(255, 255, 255, 0.76); }
+.raf-chart-tooltip__sub { color: rgba(255, 255, 255, 0.75); font-size: 0.66rem; line-height: 1.35; }
+
+@keyframes rafChartTooltipIn {
+  from { opacity: 0; transform: translateY(3px) scale(0.98); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+@media (max-width: 520px) {
+  .raf-chart-tooltip { max-width: calc(100vw - 16px); padding: 0.58rem 0.68rem; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .raf-chart-tooltip { animation: none; }
+}

@@ -1,11 +1,12 @@
 import { useState } from 'react'
-import { Calendar, Download, TrendingUp, Package, Printer, CheckCircle2, MapPin, Layers } from 'lucide-react'
+import { Calendar, TrendingUp, Package, Printer, CheckCircle2, Layers } from 'lucide-react'
 import ApiState from '../../admin/components/shared/ApiState'
 import { getPortalData } from '../../api/resources'
 import { useApiObject } from '../../hooks/useApiList'
 import { usePagination, DEFAULT_PAGE_SIZE } from '../../hooks/usePagination'
 import Pagination from '../../admin/components/shared/Pagination'
-import { notify } from '../../utils/confirm'
+import ChartTooltip from '../../components/shared/ChartTooltip'
+import { useChartTooltip } from '../../hooks/useChartTooltip'
 
 function parseDateBits(dateStr) {
   if (!dateStr || dateStr === '—' || dateStr === 'TBD' || dateStr === 'Invalid Date') {
@@ -41,6 +42,7 @@ function parseDateBits(dateStr) {
 }
 
 export default function BeneficiaryHistoryPage() {
+  const chartTooltip = useChartTooltip()
   const { data, loading, error, reload } = useApiObject(() => getPortalData())
   const currentYear = new Date().getFullYear()
   const [selectedYear] = useState(currentYear)
@@ -134,6 +136,7 @@ export default function BeneficiaryHistoryPage() {
                       <div
                         className="beneficiary-benefits-bar__fill"
                         style={{ height: `${(month.value / maxMonthlyValue) * 100}%` }}
+                        {...chartTooltip.bindTooltip({ label: `${month.month} ${selectedYear}`, value: `₱${Number(month.value || 0).toLocaleString()}`, sub: `${Number(month.count || 0).toLocaleString()} items received` })}
                       >
                         <span className="beneficiary-benefits-bar__value">₱{(month.value / 1000).toFixed(1)}k</span>
                       </div>
@@ -166,7 +169,7 @@ export default function BeneficiaryHistoryPage() {
                       <strong>{program.program}</strong>
                       <span>{program.count} distributions · ₱{program.totalValue.toLocaleString()}</span>
                     </div>
-                    <div className="beneficiary-program-row__bar">
+                    <div className="beneficiary-program-row__bar" {...chartTooltip.bindTooltip({ label: program.program, value: `₱${Number(program.totalValue || 0).toLocaleString()}`, sub: `${Number(program.count || 0).toLocaleString()} distributions · ${totalValue > 0 ? ((program.totalValue / totalValue) * 100).toFixed(1) : '0'}% of total` })}>
                       <div
                         className="beneficiary-program-row__fill"
                         style={{ width: `${totalValue > 0 ? (program.totalValue / totalValue) * 100 : 0}%` }}
@@ -245,6 +248,7 @@ export default function BeneficiaryHistoryPage() {
               />
             )}
           </section>
+          <ChartTooltip tip={chartTooltip.tip} />
         </>
       )}
     </ApiState>

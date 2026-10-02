@@ -20,6 +20,8 @@ const STAT_ICONS = {
 import StockLevelBar from '../components/shared/StockLevelBar'
 import { useSeeMore } from '../../hooks/useSeeMore'
 import { SeeMoreToggle } from '../components/shared/SeeMoreList'
+import ChartTooltip from '../../components/shared/ChartTooltip'
+import { useChartTooltip } from '../../hooks/useChartTooltip'
 
 const GRANULARITIES = [
   { value: 'week', label: 'Week' },
@@ -57,7 +59,7 @@ function ChartEmpty({ message }) {
   return <p className="admin-chart__empty">{message}</p>
 }
 
-function NeedsVsStockRow({ row }) {
+function NeedsVsStockRow({ row, chartTooltip }) {
   const max = Math.max(row.requested || 0, row.available || 0, 1)
   const needPct = Math.round(((row.requested || 0) / max) * 100)
   const stockPct = Math.round(((row.available || 0) / max) * 100)
@@ -72,7 +74,7 @@ function NeedsVsStockRow({ row }) {
           {indicator}
         </span>
       </div>
-      <div className="needs-vs-stock-list__bars" aria-hidden="true">
+      <div className="needs-vs-stock-list__bars" role="img" aria-label={`${row.label}: ${row.requested || 0} needed and ${row.available || 0} in stock`} {...chartTooltip.bindTooltip({ label: row.label, value: indicator, items: [{ label: 'Needed', value: `${Number(row.requested || 0).toLocaleString()} ${unit}` }, { label: 'Available stock', value: `${Number(row.available || 0).toLocaleString()} ${unit}` }, { label: 'Coverage', value: `${Number(row.coverage || 0).toLocaleString()}%` }] })}>
         <div className="needs-vs-stock-list__bar-row">
           <span className="needs-vs-stock-list__bar-label">Need</span>
           <div className="needs-vs-stock-list__track">
@@ -120,6 +122,7 @@ function NeedsVsStockRow({ row }) {
 }
 
 export default function DashboardPage() {
+  const chartTooltip = useChartTooltip()
   const { data, loading, error, reload } = useApiObject(() => getDashboard())
   const [gran, setGran] = useState('month')
   const [needs, setNeeds] = useState(null)
@@ -296,7 +299,7 @@ export default function DashboardPage() {
                   <div className="see-more-wrap">
                     <div className="dashboard-stock-list">
                       {stockSeeMore.visible.map((item) => (
-                        <div key={item.item} className="dashboard-stock-list__item">
+                        <div key={item.item} className="dashboard-stock-list__item" {...chartTooltip.bindTooltip({ label: item.item, value: `${item.quantity.toLocaleString()} ${item.unit || ''}`.trim(), sub: `${Number(item.percent || 0).toLocaleString()}% stock level · ${item.level}` })}>
                           <span className="dashboard-stock-list__name">{item.item}</span>
                           <StockLevelBar
                             level={item.level}
@@ -358,7 +361,7 @@ export default function DashboardPage() {
                   <div className="see-more-wrap">
                     <ul className="needs-vs-stock-list">
                       {needsSeeMore.visible.map((row) => (
-                        <NeedsVsStockRow key={row.key} row={row} />
+                        <NeedsVsStockRow key={row.key} row={row} chartTooltip={chartTooltip} />
                       ))}
                     </ul>
                     {needsSeeMore.needsToggle && (
@@ -488,6 +491,8 @@ export default function DashboardPage() {
                 </div>
               </section>
             </div>
+
+            <ChartTooltip tip={chartTooltip.tip} />
 
           </>
         )}

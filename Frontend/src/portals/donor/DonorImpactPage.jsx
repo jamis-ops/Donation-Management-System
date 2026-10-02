@@ -5,6 +5,8 @@ import {
 } from 'lucide-react'
 import ApiState from '../../admin/components/shared/ApiState'
 import ExportMenu from '../../admin/components/shared/ExportMenu'
+import ChartTooltip from '../../components/shared/ChartTooltip'
+import { useChartTooltip } from '../../hooks/useChartTooltip'
 import { donorImpactApi } from '../../api/resources'
 import { useApiObject } from '../../hooks/useApiList'
 import '../../styles/donor-impact.css'
@@ -40,6 +42,7 @@ function EmptyChart({ children }) {
 }
 
 function BarangayChart({ rows }) {
+  const { tip, bindTooltip } = useChartTooltip()
   const max = Math.max(1, ...rows.map((row) => Math.max(row.itemsDistributed, row.familiesHelped)))
   if (!rows.length) return <EmptyChart>No linked allocation or distribution data matches these filters.</EmptyChart>
   return (
@@ -51,11 +54,11 @@ function BarangayChart({ rows }) {
             <span>{row.municipality || 'Municipality not specified'}</span>
           </div>
           <div className="impact-horizontal-chart__tracks">
-            <div className="impact-horizontal-chart__track" tabIndex="0" data-tooltip={`${number(row.itemsDistributed)} items distributed in ${row.barangay}`}>
+            <div className="impact-horizontal-chart__track" {...bindTooltip({ label: row.barangay, value: `${number(row.itemsDistributed)} items distributed`, sub: row.municipality || undefined })}>
               <span className="impact-horizontal-chart__fill impact-horizontal-chart__fill--items" style={{ width: `${Math.max(3, (row.itemsDistributed / max) * 100)}%` }} />
               <em>{number(row.itemsDistributed)} items</em>
             </div>
-            <div className="impact-horizontal-chart__track" tabIndex="0" data-tooltip={`${number(row.familiesHelped)} families or recipients helped in ${row.barangay}`}>
+            <div className="impact-horizontal-chart__track" {...bindTooltip({ label: row.barangay, value: `${number(row.familiesHelped)} families / recipients`, sub: row.municipality || undefined })}>
               <span className="impact-horizontal-chart__fill impact-horizontal-chart__fill--families" style={{ width: `${Math.max(3, (row.familiesHelped / max) * 100)}%` }} />
               <em>{number(row.familiesHelped)} families</em>
             </div>
@@ -63,12 +66,14 @@ function BarangayChart({ rows }) {
         </div>
       ))}
       <div className="impact-chart-legend"><span><i className="is-items" /> Items distributed</span><span><i className="is-families" /> Families/recipients</span></div>
+      <ChartTooltip tip={tip} />
     </div>
   )
 }
 
 function CategoryChart({ rows }) {
   const [activeIndex, setActiveIndex] = useState(null)
+  const { tip, showTooltip, hideTooltip } = useChartTooltip()
   if (!rows.length) return <EmptyChart>No category distribution data matches these filters.</EmptyChart>
   const values = rows.map((row) => row.itemsDistributed > 0 ? row.itemsDistributed : row.allocations)
   const total = values.reduce((sum, value) => sum + value, 0) || 1
@@ -94,13 +99,12 @@ function CategoryChart({ rows }) {
               strokeDashoffset={-row.offset}
               tabIndex="0"
               aria-label={`${row.category}: ${number(row.itemsDistributed)} items, ${number(row.allocations)} allocations, ${row.percentage.toFixed(1)} percent`}
-              onMouseEnter={() => setActiveIndex(index)}
-              onMouseLeave={() => setActiveIndex(null)}
-              onFocus={() => setActiveIndex(index)}
-              onBlur={() => setActiveIndex(null)}
-            >
-              <title>{`${row.category}: ${number(row.itemsDistributed)} items, ${number(row.allocations)} allocations (${row.percentage.toFixed(1)}%)`}</title>
-            </circle>
+              onPointerEnter={(event) => { setActiveIndex(index); showTooltip(event, { label: row.category, value: `${row.percentage.toFixed(1)}% of total`, items: [{ label: 'Items', value: number(row.itemsDistributed) }, { label: 'Allocations', value: number(row.allocations) }] }) }}
+              onPointerMove={(event) => showTooltip(event, { label: row.category, value: `${row.percentage.toFixed(1)}% of total`, items: [{ label: 'Items', value: number(row.itemsDistributed) }, { label: 'Allocations', value: number(row.allocations) }] })}
+              onPointerLeave={() => { setActiveIndex(null); hideTooltip() }}
+              onFocus={(event) => { setActiveIndex(index); showTooltip(event, { label: row.category, value: `${row.percentage.toFixed(1)}% of total`, items: [{ label: 'Items', value: number(row.itemsDistributed) }, { label: 'Allocations', value: number(row.allocations) }] }) }}
+              onBlur={() => { setActiveIndex(null); hideTooltip() }}
+            />
           ))}
         </svg>
         <div>
@@ -119,17 +123,19 @@ function CategoryChart({ rows }) {
           </li>
         ))}
       </ul>
+      <ChartTooltip tip={tip} />
     </div>
   )
 }
 
 function ActivityChart({ rows }) {
+  const { tip, bindTooltip } = useChartTooltip()
   if (!rows.length) return <EmptyChart>No donation activity matches these filters.</EmptyChart>
   const max = Math.max(1, ...rows.map((row) => row.donations))
   return (
     <div className="impact-activity-chart" role="img" aria-label="Donation activity over time">
       {rows.map((row) => (
-        <div className="impact-activity-chart__column" key={row.month} tabIndex="0" data-tooltip={`${number(row.donations)} donations · ${peso(row.monetaryAmount)} · ${number(row.inKindDonations)} in-kind`}>
+        <div className="impact-activity-chart__column" key={row.month} {...bindTooltip({ label: monthLabel(row.month), value: `${number(row.donations)} donations`, items: [{ label: 'Monetary amount', value: peso(row.monetaryAmount) }, { label: 'In-kind donations', value: number(row.inKindDonations) }] })}>
           <span className="impact-activity-chart__value">{row.donations}</span>
           <div className="impact-activity-chart__bar-wrap">
             <span className="impact-activity-chart__bar" style={{ height: `${Math.max(8, (row.donations / max) * 100)}%` }} />
@@ -138,6 +144,7 @@ function ActivityChart({ rows }) {
           <small>{peso(row.monetaryAmount)}</small>
         </div>
       ))}
+      <ChartTooltip tip={tip} />
     </div>
   )
 }
