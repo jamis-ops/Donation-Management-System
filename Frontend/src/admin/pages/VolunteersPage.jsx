@@ -600,7 +600,7 @@ export default function VolunteersPage() {
       const ok = await confirmAction({
         title: `Change Enrolled Program`,
         message: `Change ${typeLabel.toLowerCase()} program from "${selected.programs[0]}" to "${targetProgram}"? Each ${typeLabel.toLowerCase()} is assigned to exactly one program.`,
-        confirmText: `Set to ${targetProgram}`,
+        confirmText: 'Confirm Change',
         type: 'primary',
       })
       if (!ok) return
@@ -608,7 +608,7 @@ export default function VolunteersPage() {
       const ok = await confirmAction({
         title: `Manual Program Assignment`,
         message: `Assign "${targetProgram}" to ${selected.name}? (Admin Override: AI indicated limited direct evidence in CV).`,
-        confirmText: `Assign to ${targetProgram}`,
+        confirmText: 'Confirm Assignment',
         type: 'primary',
       })
       if (!ok) return
