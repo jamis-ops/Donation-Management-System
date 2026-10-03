@@ -141,12 +141,18 @@ function encode_skills($skills): ?string
 }
 
 if ($method === 'GET') {
-  $user = require_auth(['Admin', 'Staff', 'Volunteer']);
+  $user = require_auth(['Admin', 'Staff', 'Volunteer', 'Intern']);
 
-  if ($user['role'] === 'Volunteer') {
+  if (in_array($user['role'], ['Volunteer', 'Intern'], true)) {
     $stmt = $pdo->prepare('SELECT * FROM volunteers WHERE user_id = ? LIMIT 1');
     $stmt->execute([$user['id']]);
     $row = $stmt->fetch();
+    if ($row) {
+      $recordRole = strcasecmp((string) ($row['applicant_type'] ?? ''), 'Intern') === 0 ? 'Intern' : 'Volunteer';
+      if ($recordRole !== $user['role']) {
+        json_response(['ok' => false, 'error' => 'Account role does not match the linked applicant record.'], 403);
+      }
+    }
     json_response(['ok' => true, 'data' => $row ? [map_volunteer($pdo, $row)] : []]);
   }
 
@@ -194,6 +200,9 @@ if ($method === 'POST') {
     $name = trim((string) ($body['name'] ?? $body['fullName'] ?? ''));
   }
   $email = strtolower(trim((string) ($body['email'] ?? '')));
+  $applicantType = !empty($body['applicantType']) && strcasecmp((string) $body['applicantType'], 'Intern') === 0
+    ? 'Intern'
+    : (!empty($body['applicant_type']) && strcasecmp((string) $body['applicant_type'], 'Intern') === 0 ? 'Intern' : 'Volunteer');
   if ($name === '') {
     json_response(['ok' => false, 'error' => 'Name is required'], 400);
   }
@@ -208,18 +217,15 @@ if ($method === 'POST') {
     $email = require_valid_email($email, 'Email');
   }
   if ($email !== '' && email_taken($pdo, $email)) {
-    // Allow re-apply only when the existing user is already a Volunteer (approval links later).
+    // Allow re-apply only when the existing account has the matching applicant role.
     $roleCheck = $pdo->prepare("SELECT r.name FROM users u JOIN roles r ON r.id = u.role_id WHERE u.email = ? LIMIT 1");
     $roleCheck->execute([$email]);
     $existingRole = (string) ($roleCheck->fetchColumn() ?: '');
-    if ($existingRole !== '' && strcasecmp($existingRole, 'Volunteer') !== 0) {
+    if ($existingRole !== '' && strcasecmp($existingRole, $applicantType) !== 0) {
       json_response(['ok' => false, 'error' => 'That email already belongs to a different account role.'], 400);
     }
   }
 
-  $applicantType = !empty($body['applicantType']) && strcasecmp((string) $body['applicantType'], 'Intern') === 0
-    ? 'Intern'
-    : (!empty($body['applicant_type']) && strcasecmp((string) $body['applicant_type'], 'Intern') === 0 ? 'Intern' : 'Volunteer');
   $institution = trim((string) ($body['institution'] ?? ''));
 
   $programs = $body['programs'] ?? [];
@@ -332,8 +338,8 @@ if ($method === 'POST') {
 }
 
 if ($method === 'PUT') {
-  $user = require_auth(['Admin', 'Staff', 'Volunteer']);
-  if ($user['role'] === 'Volunteer') {
+  $user = require_auth(['Admin', 'Staff', 'Volunteer', 'Intern']);
+  if (in_array($user['role'], ['Volunteer', 'Intern'], true)) {
     $vIdStmt = $pdo->prepare('SELECT id FROM volunteers WHERE user_id = ? LIMIT 1');
     $vIdStmt->execute([$user['id']]);
     $id = (int) ($vIdStmt->fetchColumn() ?: 0);
@@ -353,9 +359,16 @@ if ($method === 'PUT') {
     json_response(['ok' => false, 'error' => 'Volunteer not found'], 404);
   }
 
-  $isVolunteerOwner = ($user['role'] === 'Volunteer' && (int) ($existing['user_id'] ?? 0) === (int) $user['id']);
-  if ($user['role'] === 'Volunteer' && !$isVolunteerOwner) {
-    json_response(['ok' => false, 'error' => 'Access denied: you can only update your own volunteer profile.'], 403);
+  $isApplicantOwner = in_array($user['role'], ['Volunteer', 'Intern'], true)
+    && (int) ($existing['user_id'] ?? 0) === (int) $user['id'];
+  if (in_array($user['role'], ['Volunteer', 'Intern'], true) && !$isApplicantOwner) {
+    json_response(['ok' => false, 'error' => 'Access denied: you can only update your own profile.'], 403);
+  }
+  if ($isApplicantOwner) {
+    $recordRole = strcasecmp((string) ($existing['applicant_type'] ?? ''), 'Intern') === 0 ? 'Intern' : 'Volunteer';
+    if ($recordRole !== $user['role']) {
+      json_response(['ok' => false, 'error' => 'Account role does not match the linked applicant record.'], 403);
+    }
   }
 
   $programs = isset($body['programs']) ? json_encode($body['programs']) : $existing['programs_json'];
@@ -375,8 +388,8 @@ if ($method === 'PUT') {
     ? (trim((string) ($body['institution']) ?: null))
     : ($existing['institution'] ?? null);
 
-  if ($isVolunteerOwner) {
-    // Keep volunteer status and hours unchanged when updated by volunteer themselves
+  if ($isApplicantOwner) {
+    // Keep applicant status and hours unchanged when updated by the owner.
     $newStatus = (string) ($existing['status'] ?? 'Pending Review');
   } else {
     $newStatus = (string) ($body['status'] ?? $existing['status']);

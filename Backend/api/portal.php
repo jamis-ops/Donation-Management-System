@@ -3,7 +3,7 @@ declare(strict_types=1);
 require_once __DIR__ . '/bootstrap.php';
 
 $pdo = db();
-$user = require_auth(['Donor', 'Volunteer', 'Beneficiary', 'Staff', 'Admin']);
+$user = require_auth(['Donor', 'Volunteer', 'Intern', 'Beneficiary', 'Staff', 'Admin']);
 
 switch ($user['role']) {
   case 'Donor':
@@ -460,11 +460,18 @@ switch ($user['role']) {
     break;
 
   case 'Volunteer':
+  case 'Intern':
     $vol = $pdo->prepare('SELECT * FROM volunteers WHERE user_id = ? LIMIT 1');
     $vol->execute([$user['id']]);
     $profile = $vol->fetch();
     $name = $profile['full_name'] ?? $user['name'];
-    $isIntern = !empty($profile['applicant_type']) && strcasecmp((string)$profile['applicant_type'], 'Intern') === 0;
+    $isIntern = $user['role'] === 'Intern';
+    if ($profile) {
+      $recordType = !empty($profile['applicant_type']) && strcasecmp((string) $profile['applicant_type'], 'Intern') === 0 ? 'Intern' : 'Volunteer';
+      if ($recordType !== $user['role']) {
+        json_response(['ok' => false, 'error' => 'Account role does not match the linked applicant record. Contact an administrator.'], 403);
+      }
+    }
     $hours = $isIntern ? (int) ($profile['hours'] ?? 0) : 0;
     $statusLabels = [
       'todo' => 'To Do',

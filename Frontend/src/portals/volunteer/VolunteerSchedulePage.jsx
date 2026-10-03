@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useLocation, useNavigate } from 'react-router-dom'
 import {
   ChevronLeft,
   ChevronRight,
@@ -52,6 +52,8 @@ function parseLocalDate(value) {
 
 export default function VolunteerSchedulePage() {
   const navigate = useNavigate()
+  const location = useLocation()
+  const portalBase = location.pathname.startsWith('/intern-portal') ? '/intern-portal' : '/volunteer-portal'
   const { data, loading, error, reload } = useApiObject(() => getPortalData())
   const [currentDate, setCurrentDate] = useState(() => new Date())
   const [viewMode, setViewMode] = useState('month')
@@ -452,7 +454,7 @@ export default function VolunteerSchedulePage() {
                   className="btn btn--primary"
                   onClick={() => {
                     setSelectedEvent(null)
-                    navigate('/volunteer-portal/tasks')
+                    navigate(`${portalBase}/tasks`)
                   }}
                 >
                   <ExternalLink size={14} /> View in My Tasks

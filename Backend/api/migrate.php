@@ -522,6 +522,14 @@ try {
   addColumn($pdo, 'volunteers', 'applicant_type', "VARCHAR(30) NOT NULL DEFAULT 'Volunteer' AFTER availability");
   addColumn($pdo, 'volunteers', 'institution', "VARCHAR(190) NULL AFTER applicant_type");
   $pdo->exec("UPDATE volunteers SET applicant_type = 'Volunteer' WHERE applicant_type IS NULL OR applicant_type = ''");
+  $pdo->exec("INSERT IGNORE INTO roles (name) VALUES ('Intern')");
+  $pdo->exec("
+    UPDATE users u
+    INNER JOIN volunteers v ON v.user_id = u.id AND v.applicant_type = 'Intern'
+    INNER JOIN roles current_role ON current_role.id = u.role_id AND current_role.name = 'Volunteer'
+    INNER JOIN roles intern_role ON intern_role.name = 'Intern'
+    SET u.role_id = intern_role.id
+  ");
   echo "Ensured volunteers applicant_type and institution\n";
 
   // v27: Remove duty hours from volunteers (Duty hours reserved for Interns only)

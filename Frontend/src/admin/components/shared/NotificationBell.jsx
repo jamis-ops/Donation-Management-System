@@ -55,6 +55,13 @@ function rewritePathForPortal(path, linkPrefix) {
   if (linkPrefix === '/volunteer-portal') {
     return path.startsWith('/volunteer-portal') ? path : null
   }
+  if (linkPrefix === '/intern-portal') {
+    if (path.startsWith('/intern-portal')) return path
+    if (path.startsWith('/volunteer-portal')) {
+      return path.replace('/volunteer-portal', '/intern-portal')
+    }
+    return null
+  }
   if (linkPrefix === '/beneficiary') {
     return path.startsWith('/beneficiary') ? path : null
   }

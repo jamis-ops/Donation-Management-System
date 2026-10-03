@@ -4,7 +4,7 @@ require_once __DIR__ . '/bootstrap.php';
 
 $pdo = db();
 $method = request_method();
-$user = require_auth(['Admin', 'Staff', 'Donor', 'Volunteer', 'Beneficiary', 'SuperAdmin']);
+$user = require_auth(['Admin', 'Staff', 'Donor', 'Volunteer', 'Intern', 'Beneficiary', 'SuperAdmin']);
 $id = get_id_param();
 
 /**

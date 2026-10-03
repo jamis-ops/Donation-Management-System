@@ -11,6 +11,7 @@ import Pagination from '../../admin/components/shared/Pagination'
 import ModalHeader from '../../admin/components/shared/ModalHeader'
 import { notify, showSuccessModal } from '../../utils/confirm'
 import { useLoading } from '../../context/LoadingContext'
+import { useAuth } from '../../context/AuthContext'
 
 const CERTIFICATE_TYPE_CONFIG = {
   'Volunteer Certificate': { color: 'crimson', icon: 'award' },
@@ -40,6 +41,8 @@ function certPeriod(cert) {
 }
 
 export default function VolunteerCertificatesPage() {
+  const { user } = useAuth()
+  const memberLabel = user?.role === 'Intern' ? 'Intern' : 'Volunteer'
   const { showLoading, hideLoading } = useLoading()
   const { data, loading, error, reload } = useApiList(() => certificatesApi.list())
   const { data: rawTasks } = useApiList(() =>
@@ -199,7 +202,7 @@ export default function VolunteerCertificatesPage() {
       <section className="portal-panel">
         <div className="portal-panel__header">
           <div>
-            <h2>Volunteer Certificates</h2>
+            <h2>{memberLabel} Certificates</h2>
             <p style={{ margin: '0.2rem 0 0', fontSize: '0.82rem', color: '#64748b' }}>
               View earned certificates, download PDFs, or request new certificates for completed volunteer services.
             </p>

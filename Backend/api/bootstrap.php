@@ -1283,7 +1283,26 @@ function provision_volunteer_account(PDO $pdo, array $volunteerRow): array
     return ['created' => false, 'linked' => false, 'userId' => null, 'mail' => null, 'error' => "{$accountLabel} email missing or invalid"];
   }
   if (!empty($volunteerRow['user_id'])) {
-    return ['created' => false, 'linked' => true, 'userId' => (int) $volunteerRow['user_id'], 'mail' => null, 'error' => null];
+    $linkedUserId = (int) $volunteerRow['user_id'];
+    $linkedRole = user_role_name($pdo, $linkedUserId);
+    // Repair accounts produced by the legacy approval bug, which linked Intern
+    // applications to Volunteer users. The explicit profile link makes this
+    // conversion safe and avoids creating or emailing replacement credentials.
+    if ($isIntern && $linkedRole !== null && strcasecmp($linkedRole, 'Volunteer') === 0) {
+      $pdo->prepare('UPDATE users SET role_id = ? WHERE id = ?')
+        ->execute([role_id($pdo, 'Intern'), $linkedUserId]);
+      $linkedRole = 'Intern';
+    }
+    if ($linkedRole === null || strcasecmp($linkedRole, $accountLabel) !== 0) {
+      return [
+        'created' => false,
+        'linked' => false,
+        'userId' => null,
+        'mail' => null,
+        'error' => "This {$accountLabel} record is linked to the wrong account role. Expected {$accountLabel}, found " . ($linkedRole ?: 'no active role') . '.',
+      ];
+    }
+    return ['created' => false, 'linked' => true, 'userId' => $linkedUserId, 'mail' => null, 'error' => null];
   }
   if (email_taken($pdo, $email)) {
     $stmt = $pdo->prepare('SELECT u.id, r.name AS role_name FROM users u JOIN roles r ON r.id = u.role_id WHERE u.email = ? LIMIT 1');
@@ -1291,7 +1310,7 @@ function provision_volunteer_account(PDO $pdo, array $volunteerRow): array
     $existingUser = $stmt->fetch();
     $uid = (int) ($existingUser['id'] ?? 0);
     $roleName = (string) ($existingUser['role_name'] ?? '');
-    if ($uid <= 0 || strcasecmp($roleName, 'Volunteer') !== 0) {
+    if ($uid <= 0 || strcasecmp($roleName, $accountLabel) !== 0) {
       return [
         'created' => false,
         'linked' => false,
@@ -1311,9 +1330,7 @@ function provision_volunteer_account(PDO $pdo, array $volunteerRow): array
     if ($ownsTransaction) {
       $pdo->beginTransaction();
     }
-    // Interns reuse the existing Volunteer account role and portal. Their
-    // applicant_type keeps all intern-specific screens and hour tracking intact.
-    $userId = create_user_account($pdo, 'Volunteer', $name, $email, $tempPassword, 'ACTIVE', true, [
+    $userId = create_user_account($pdo, $accountLabel, $name, $email, $tempPassword, 'ACTIVE', true, [
       'lastName' => (string) ($volunteerRow['last_name'] ?? ''),
       'firstName' => (string) ($volunteerRow['first_name'] ?? ''),
       'middleInitial' => (string) ($volunteerRow['middle_initial'] ?? ''),
@@ -1328,12 +1345,12 @@ function provision_volunteer_account(PDO $pdo, array $volunteerRow): array
     if (isset($ownsTransaction) && $ownsTransaction && $pdo->inTransaction()) {
       $pdo->rollBack();
     }
-    // A concurrent double-click may have provisioned the same Volunteer-role
+    // A concurrent double-click may have provisioned the same role-specific
     // account first. Link it without generating or emailing another password.
     $existingStmt = $pdo->prepare('SELECT u.id, r.name AS role_name FROM users u JOIN roles r ON r.id = u.role_id WHERE u.email = ? LIMIT 1');
     $existingStmt->execute([$email]);
     $existingUser = $existingStmt->fetch();
-    if ($existingUser && strcasecmp((string) ($existingUser['role_name'] ?? ''), 'Volunteer') === 0) {
+    if ($existingUser && strcasecmp((string) ($existingUser['role_name'] ?? ''), $accountLabel) === 0) {
       $existingUserId = (int) ($existingUser['id'] ?? 0);
       if ($existingUserId > 0) {
         $pdo->prepare('UPDATE volunteers SET user_id = ?, status = ? WHERE id = ?')
@@ -1355,7 +1372,7 @@ function provision_volunteer_account(PDO $pdo, array $volunteerRow): array
   $mail = send_account_credentials($email, $name, $email, $tempPassword, $accountLabel);
   $sent = !empty($mail['sent']);
   $transport = (string) ($mail['transport'] ?? '');
-  $includeTemp = !$sent || $transport === 'outbox' || !in_array($transport, ['brevo', 'nodemailer', 'smtp'], true);
+  $includeTemp = !$sent || $transport === 'outbox' || !in_array($transport, ['brevo', 'nodemailer', 'smtp', 'mail'], true);
   return [
     'created' => true,
     'linked' => false,

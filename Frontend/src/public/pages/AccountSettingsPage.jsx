@@ -27,7 +27,7 @@ function getPhotoUrl(photo) {
 export default function AccountSettingsPage() {
   const { user, updateAccount, changePassword, refreshUser } = useAuth()
   const canManageLists = user?.role === 'Admin' || isSuperAdminRole(user?.role, user)
-  const isVolunteer = user?.role === 'Volunteer'
+  const isVolunteerOrIntern = user?.role === 'Volunteer' || user?.role === 'Intern'
   const isDonor = user?.role === 'Donor'
 
   const fileInputRef = useRef(null)
@@ -105,7 +105,7 @@ export default function AccountSettingsPage() {
         }
       })
 
-    if (isVolunteer) {
+    if (isVolunteerOrIntern) {
       volunteersApi.list()
         .then((res) => {
           if (cancelled || !res?.data) return
@@ -142,7 +142,7 @@ export default function AccountSettingsPage() {
     }
 
     return () => { cancelled = true }
-  }, [user?.id, user?.email, isVolunteer, isDonor])
+  }, [user?.id, user?.email, isVolunteerOrIntern, isDonor])
 
   const handleSaveDonorDetails = async (e) => {
     e.preventDefault()
@@ -349,7 +349,7 @@ export default function AccountSettingsPage() {
         description={
           canManageLists
             ? 'Update your profile and manage shared system lists (Volunteer Programs, Skills, Needs, Tasks).'
-            : isVolunteer
+            : isVolunteerOrIntern
             ? 'Update your personal profile, preferred programs, skills, availability, and password.'
             : 'Update your profile details, recovery phone, password, and photo.'
         }
@@ -357,7 +357,7 @@ export default function AccountSettingsPage() {
 
       {canManageLists && <MasterDataSettings />}
 
-      {isVolunteer && (
+      {isVolunteerOrIntern && (
         <section className="portal-panel settings-panel settings-panel--wide volunteer-settings-panel">
           <div className="portal-panel__header">
             <div className="volunteer-settings-panel__header-group">

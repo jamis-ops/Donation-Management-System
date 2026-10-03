@@ -16,6 +16,7 @@ import Pagination from '../../admin/components/shared/Pagination'
 import ExportMenu from '../../admin/components/shared/ExportMenu'
 import ChartTooltip from '../../components/shared/ChartTooltip'
 import { useChartTooltip } from '../../hooks/useChartTooltip'
+import { useAuth } from '../../context/AuthContext'
 
 const ACTIVITY_TYPE_COLORS = {
   Distribution: 'crimson',
@@ -67,6 +68,8 @@ function formatDisplayDate(value) {
 }
 
 export default function VolunteerHoursPage() {
+  const { user } = useAuth()
+  const memberLabel = user?.role === 'Intern' ? 'Intern' : 'Volunteer'
   const chartTooltip = useChartTooltip()
   const { data, loading, error, reload } = useApiObject(() => getPortalData())
   const currentYear = new Date().getFullYear()
@@ -173,7 +176,7 @@ export default function VolunteerHoursPage() {
         {/* Panel Header & Controls */}
         <div className="portal-panel__header">
           <div>
-            <h2>Volunteer Hours & Duty Breakdown</h2>
+            <h2>{memberLabel} Hours & Duty Breakdown</h2>
             <p style={{ margin: '0.2rem 0 0', fontSize: '0.82rem', color: '#64748b' }}>
               Track rendered hours, review monthly breakdowns, and view verified duty attendance records.
             </p>
@@ -235,7 +238,7 @@ export default function VolunteerHoursPage() {
               columns={exportColumns}
               rows={filteredActivityLog}
               filename={`volunteer-hours-${selectedYear}-${selectedMonth === 'all' ? 'all-months' : selectedMonthLabel.toLowerCase()}`}
-              title={`Volunteer Hours Report (${selectedYear})`}
+              title={`${memberLabel} Hours Report (${selectedYear})`}
             />
           </div>
         </div>
@@ -318,7 +321,7 @@ export default function VolunteerHoursPage() {
         {/* Year-to-Date Annual Target Progress */}
         <div className="portal-progress-section">
           <div className="portal-progress-header">
-            <h3>Annual Volunteer Target ({selectedYear})</h3>
+            <h3>Annual {memberLabel} Target ({selectedYear})</h3>
             <span className="portal-progress-value">{totalYearHours} / 200 hours</span>
           </div>
           <div className="portal-progress-bar">

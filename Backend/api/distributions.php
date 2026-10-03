@@ -17,7 +17,7 @@ function normalize_delivery_team(PDO $pdo, $rawAssignments): array
     if (!is_array($assignment)) continue;
     $volunteerId = (int) ($assignment['volunteerId'] ?? $assignment['id'] ?? 0);
     if ($volunteerId <= 0 || isset($normalized[$volunteerId])) continue;
-    $stmt = $pdo->prepare("SELECT v.id, COALESCE(v.user_id, u.id) AS user_id, v.full_name, v.applicant_type, v.status FROM volunteers v LEFT JOIN users u ON v.user_id IS NULL AND u.email = v.email LEFT JOIN roles r ON r.id = u.role_id WHERE v.id = ? AND (u.id IS NULL OR r.name = 'Volunteer') LIMIT 1");
+    $stmt = $pdo->prepare("SELECT v.id, COALESCE(v.user_id, u.id) AS user_id, v.full_name, v.applicant_type, v.status FROM volunteers v LEFT JOIN users u ON v.user_id IS NULL AND u.email = v.email LEFT JOIN roles r ON r.id = u.role_id WHERE v.id = ? AND (u.id IS NULL OR (v.applicant_type = 'Intern' AND r.name = 'Intern') OR ((v.applicant_type IS NULL OR v.applicant_type <> 'Intern') AND r.name = 'Volunteer')) LIMIT 1");
     $stmt->execute([$volunteerId]);
     $volunteer = $stmt->fetch();
     if (!$volunteer) {
@@ -68,7 +68,9 @@ function create_delivery_team_assignments(PDO $pdo, int $distributionId, array $
         'task_assigned',
         'Assigned to a distribution',
         "You are assigned to {$distribution['code']} as {$title}.",
-        '/volunteer-portal/distributions',
+        strcasecmp((string) ($member['type'] ?? ''), 'Intern') === 0
+          ? '/intern-portal/distributions'
+          : '/volunteer-portal/distributions',
         (int) $member['userId']
       );
     }
@@ -731,10 +733,10 @@ if ($method === 'GET' && (isset($_GET['public']) || isset($_GET['map']))) {
   ]);
 }
 
-$user = require_auth(['Admin', 'Staff', 'Beneficiary', 'Volunteer']);
+$user = require_auth(['Admin', 'Staff', 'Beneficiary', 'Volunteer', 'Intern']);
 
 if ($method === 'GET') {
-  if ($user['role'] === 'Volunteer') {
+  if (in_array($user['role'], ['Volunteer', 'Intern'], true)) {
     $volStmt = $pdo->prepare('SELECT full_name FROM volunteers WHERE user_id = ? LIMIT 1');
     $volStmt->execute([(int) $user['id']]);
     $volunteerName = (string) ($volStmt->fetchColumn() ?: $user['name']);

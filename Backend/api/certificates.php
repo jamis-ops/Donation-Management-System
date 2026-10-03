@@ -189,7 +189,7 @@ function process_certificate_photo(?string $raw, ?string $existingUrl = null, ?s
   return [$clean ?: null, $existingData];
 }
 
-$user = require_auth(['Admin', 'Staff', 'Donor', 'Volunteer']);
+$user = require_auth(['Admin', 'Staff', 'Donor', 'Volunteer', 'Intern']);
 
 if ($method === 'GET') {
   if ($id) {
@@ -203,7 +203,7 @@ if ($method === 'GET') {
       json_response(['ok' => false, 'error' => 'Certificate is locked until the donation is completed.'], 403);
     }
     $role = (string) ($user['role'] ?? '');
-    if (in_array($role, ['Donor', 'Volunteer'], true)) {
+    if (in_array($role, ['Donor', 'Volunteer', 'Intern'], true)) {
       $allowed = false;
       if ($role === 'Donor') {
         $own = $pdo->prepare('SELECT COUNT(*) FROM donations WHERE tracking_code = ? AND donor_email = ?');
@@ -211,8 +211,9 @@ if ($method === 'GET') {
         $allowed = ((int) $own->fetchColumn() > 0)
           || strcasecmp((string) ($row['recipient_name'] ?? ''), (string) ($user['name'] ?? '')) === 0;
       } else {
+        $allowedTypes = $role === 'Intern' ? ['Intern', 'Volunteer', ''] : ['Volunteer', ''];
         $allowed = strcasecmp((string) ($row['recipient_name'] ?? ''), (string) ($user['name'] ?? '')) === 0
-          && in_array((string) ($row['recipient_type'] ?? 'Volunteer'), ['Volunteer', ''], true);
+          && in_array((string) ($row['recipient_type'] ?? $role), $allowedTypes, true);
       }
       if (!$allowed) {
         json_response(['ok' => false, 'error' => 'You do not have access to this certificate.'], 403);
@@ -224,9 +225,10 @@ if ($method === 'GET') {
   if ($user['role'] === 'Donor') {
     $stmt = $pdo->prepare('SELECT * FROM certificates WHERE recipient_name = ? OR reference_code IN (SELECT tracking_code FROM donations WHERE donor_email = ?) ORDER BY id DESC');
     $stmt->execute([$user['name'], $user['email']]);
-  } elseif ($user['role'] === 'Volunteer') {
-    $stmt = $pdo->prepare('SELECT * FROM certificates WHERE (recipient_name = ? OR reference_code IN (SELECT code FROM volunteers WHERE user_id = ? OR email = ?)) AND (recipient_type = \'Volunteer\' OR recipient_type IS NULL OR recipient_type = \'\') ORDER BY id DESC');
-    $stmt->execute([$user['name'], $user['id'], $user['email']]);
+  } elseif (in_array($user['role'], ['Volunteer', 'Intern'], true)) {
+    $recipientTypes = $user['role'] === 'Intern' ? ['Intern', 'Volunteer', ''] : ['Volunteer', 'Volunteer', ''];
+    $stmt = $pdo->prepare('SELECT * FROM certificates WHERE (recipient_name = ? OR reference_code IN (SELECT code FROM volunteers WHERE user_id = ? OR email = ?)) AND (recipient_type = ? OR recipient_type = ? OR recipient_type IS NULL OR recipient_type = ?) ORDER BY id DESC');
+    $stmt->execute([$user['name'], $user['id'], $user['email'], ...$recipientTypes]);
   } else {
     $stmt = $pdo->query('SELECT * FROM certificates ORDER BY created_at DESC, id DESC');
   }
@@ -371,7 +373,7 @@ if ($method === 'POST') {
       $code,
       $certType,
       'modern_classic',
-      'Volunteer',
+      $user['role'] === 'Intern' ? 'Intern' : 'Volunteer',
       $user['name'],
       $taskCode,
       $details,
@@ -418,7 +420,7 @@ if ($method === 'POST') {
       if (!in_array($dRow['status'], $allowed, true)) {
         json_response(['ok' => false, 'error' => 'Donation must be completed before generating a certificate'], 400);
       }
-    } elseif ($recType === 'Volunteer') {
+    } elseif (in_array($recType, ['Volunteer', 'Intern'], true)) {
       $tStmt = $pdo->prepare('SELECT board_column, status FROM tasks WHERE code = ? OR id = ? LIMIT 1');
       $tStmt->execute([$ref, is_numeric($ref) ? (int)$ref : 0]);
       $tRow = $tStmt->fetch();
@@ -506,7 +508,10 @@ if ($method === 'POST') {
   $findUser->execute([$recipient]);
   $recipientRow = $findUser->fetch();
   if ($recipientRow) {
-    $link = ($body['recipientType'] ?? 'Donor') === 'Volunteer' ? '/volunteer-portal/certificates' : '/donor/certificates';
+    $recipientType = (string) ($body['recipientType'] ?? 'Donor');
+    $link = $recipientType === 'Intern'
+      ? '/intern-portal/certificates'
+      : ($recipientType === 'Volunteer' ? '/volunteer-portal/certificates' : '/donor/certificates');
     create_notification($pdo, 'certificate', 'Certificate ready', "Your {$body['type']} ({$code}) is ready to view and download.", $link, (int) $recipientRow['id']);
     if (!empty($recipientRow['email']) && ($body['status'] ?? 'Generated') === 'Generated') {
       $safeRecipient = htmlspecialchars($recipient, ENT_QUOTES, 'UTF-8');
@@ -634,7 +639,10 @@ if ($method === 'PUT') {
     $findUser->execute([$existing['recipient_name']]);
     $recipientUserId = $findUser->fetchColumn();
     if ($recipientUserId) {
-      $link = ($existing['recipient_type'] ?? 'Donor') === 'Volunteer' ? '/volunteer-portal/certificates' : '/donor/certificates';
+      $existingRecipientType = (string) ($existing['recipient_type'] ?? 'Donor');
+      $link = $existingRecipientType === 'Intern'
+        ? '/intern-portal/certificates'
+        : ($existingRecipientType === 'Volunteer' ? '/volunteer-portal/certificates' : '/donor/certificates');
       create_notification($pdo, 'certificate', 'Certificate Request Approved', "Your request for {$existing['cert_type']} ({$existing['code']}) has been approved.", $link, (int) $recipientUserId);
     }
   }
@@ -644,7 +652,10 @@ if ($method === 'PUT') {
     $findUser->execute([$existing['recipient_name']]);
     $recipientRow = $findUser->fetch();
     if ($recipientRow) {
-      $link = ($existing['recipient_type'] ?? 'Donor') === 'Volunteer' ? '/volunteer-portal/certificates' : '/donor/certificates';
+      $existingRecipientType = (string) ($existing['recipient_type'] ?? 'Donor');
+      $link = $existingRecipientType === 'Intern'
+        ? '/intern-portal/certificates'
+        : ($existingRecipientType === 'Volunteer' ? '/volunteer-portal/certificates' : '/donor/certificates');
       create_notification($pdo, 'certificate', 'Certificate ready', "Your {$existing['cert_type']} ({$existing['code']}) is ready to view and download.", $link, (int) $recipientRow['id']);
       if (!empty($recipientRow['email'])) {
         $safeRecipient = htmlspecialchars((string) $existing['recipient_name'], ENT_QUOTES, 'UTF-8');

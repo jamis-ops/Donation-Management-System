@@ -15,6 +15,7 @@ import ApiState from '../../admin/components/shared/ApiState'
 import ModalHeader from '../../admin/components/shared/ModalHeader'
 import StatusBadge from '../../admin/components/shared/StatusBadge'
 import { useApiList } from '../../hooks/useApiList'
+import { useAuth } from '../../context/AuthContext'
 
 function formatSchedule(row) {
   if (!row?.distributionDate) return row?.date || 'Not scheduled'
@@ -52,6 +53,8 @@ function Detail({ icon: Icon, label, children, wide = false }) {
 }
 
 export default function VolunteerDistributionsPage() {
+  const { user } = useAuth()
+  const isIntern = user?.role === 'Intern'
   const { data, loading, error, reload } = useApiList(() => distributionsApi.list())
   const [query, setQuery] = useState('')
   const [selected, setSelected] = useState(null)
@@ -120,7 +123,7 @@ export default function VolunteerDistributionsPage() {
                 <div className="volunteer-assignment-card__footer">
                   <div className="volunteer-assignment-card__role">
                     <span>Your role / task</span>
-                    <strong>{row.volunteerRole || 'Delivery Team Volunteer'}</strong>
+                    <strong>{row.volunteerRole || (isIntern ? 'Delivery Team Intern' : 'Delivery Team Volunteer')}</strong>
                   </div>
                   <StatusBadge status={row.status || 'Planning'} />
                   <button type="button" className="btn btn--outline btn--sm" onClick={() => setSelected(row)}>
@@ -151,7 +154,9 @@ export default function VolunteerDistributionsPage() {
               <Detail icon={CalendarDays} label="Date">{selected.date || selected.distributionDate}</Detail>
               <Detail icon={Clock3} label="Time">{selected.scheduleTime || 'Not specified'}</Detail>
               <Detail icon={UserRound} label="Assigned Coordinator">{selected.coordinator || 'Not assigned'}</Detail>
-              <Detail icon={ShieldCheck} label="Volunteer Role / Task">{selected.volunteerRole || 'Delivery Team Volunteer'}</Detail>
+              <Detail icon={ShieldCheck} label={`${isIntern ? 'Intern' : 'Volunteer'} Role / Task`}>
+                {selected.volunteerRole || (isIntern ? 'Delivery Team Intern' : 'Delivery Team Volunteer')}
+              </Detail>
               <Detail icon={Package} label="Cargo / Items" wide>{selected.itemsSummary || 'No cargo summary available'}</Detail>
             </div>
             <div className="admin-modal__actions">

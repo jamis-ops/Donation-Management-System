@@ -50,7 +50,7 @@ try {
   // 1. ROLES
   // --------------------------------------------------------------------------
   echo "[1/17] Seeding Roles...\n";
-  $roleNames = ['Admin', 'Staff', 'Donor', 'Volunteer', 'Beneficiary'];
+  $roleNames = ['Admin', 'Staff', 'Donor', 'Volunteer', 'Intern', 'Beneficiary'];
   $roleIds = [];
 
   foreach ($roleNames as $rName) {

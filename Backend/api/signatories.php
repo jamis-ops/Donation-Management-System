@@ -71,7 +71,7 @@ function format_signatory(array $row): array
 }
 
 if ($method === 'GET') {
-  require_auth(['Admin', 'Staff', 'Donor', 'Volunteer']);
+  require_auth(['Admin', 'Staff', 'Donor', 'Volunteer', 'Intern']);
   ensure_signatories_table($pdo);
 
   $rows = [];

@@ -16,7 +16,7 @@ CREATE TABLE IF NOT EXISTS roles (
   name VARCHAR(50) NOT NULL UNIQUE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
-INSERT IGNORE INTO roles (name) VALUES ('Admin'), ('Staff'), ('Donor'), ('Volunteer'), ('Beneficiary');
+INSERT IGNORE INTO roles (name) VALUES ('Admin'), ('Staff'), ('Donor'), ('Volunteer'), ('Intern'), ('Beneficiary');
 
 CREATE TABLE IF NOT EXISTS users (
   id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,

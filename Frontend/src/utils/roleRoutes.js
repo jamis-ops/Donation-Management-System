@@ -4,6 +4,7 @@ export const ROLE_HOME = {
   Staff: '/staff',
   Donor: '/donor',
   Volunteer: '/volunteer-portal',
+  Intern: '/intern-portal',
   Beneficiary: '/beneficiary',
 }
 

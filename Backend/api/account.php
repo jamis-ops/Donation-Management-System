@@ -4,7 +4,7 @@ require_once __DIR__ . '/bootstrap.php';
 
 $pdo = db();
 $method = request_method();
-$user = require_auth(['SuperAdmin', 'Admin', 'Staff', 'Donor', 'Volunteer', 'Beneficiary']);
+$user = require_auth(['SuperAdmin', 'Admin', 'Staff', 'Donor', 'Volunteer', 'Intern', 'Beneficiary']);
 
 function map_account_user(PDO $pdo, int $userId): array
 {

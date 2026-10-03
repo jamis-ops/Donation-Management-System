@@ -21,6 +21,7 @@ import { tasksApi } from '../../api/resources'
 import { useApiList } from '../../hooks/useApiList'
 import { usePagination, DEFAULT_PAGE_SIZE } from '../../hooks/usePagination'
 import Pagination from '../../admin/components/shared/Pagination'
+import { useAuth } from '../../context/AuthContext'
 
 const STATUS_FILTERS = ['All', 'Ongoing', 'Completed', 'Distributions']
 
@@ -57,6 +58,8 @@ function mapParamToStatus(param) {
 }
 
 export default function VolunteerTasksPage() {
+  const { user } = useAuth()
+  const memberLabel = user?.role === 'Intern' ? 'Intern' : 'Volunteer'
   const [searchParams] = useSearchParams()
   const { data, loading, error, reload } = useApiList(() =>
     tasksApi.list().then((r) => ({
@@ -330,7 +333,7 @@ export default function VolunteerTasksPage() {
                   <span className="vtask-code-pill">{selectedTask.id}</span>
                   <span className="vtask-program-pill">
                     <Layers size={12} />
-                    {selectedTask.module || selectedTask.category || 'Volunteer'}
+                    {selectedTask.module || selectedTask.category || memberLabel}
                   </span>
                   <span className={`portal-priority-badge portal-priority-badge--${String(selectedTask.priority || 'medium').toLowerCase()}`}>
                     {selectedTask.priority || 'Medium'}
@@ -480,7 +483,7 @@ export default function VolunteerTasksPage() {
                     {selectedTask.priority || 'Medium'} Priority
                   </span>
                   <span className="vtask-metric-card__sub">
-                    {isDistributionTask(selectedTask) ? 'Logistics / Relief' : (selectedTask.module || selectedTask.category || 'Volunteer Task')}
+                    {isDistributionTask(selectedTask) ? 'Logistics / Relief' : (selectedTask.module || selectedTask.category || `${memberLabel} Task`)}
                   </span>
                 </div>
 

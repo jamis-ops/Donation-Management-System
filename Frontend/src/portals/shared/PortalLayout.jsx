@@ -17,6 +17,13 @@ const titles = {
   '/volunteer-portal/schedule': { title: 'Volunteer Schedule', sub: 'Upcoming events and shifts.' },
   '/volunteer-portal/certificates': { title: 'Certificates', sub: 'Service and participation certificates.' },
   '/volunteer-portal/settings': { title: 'Account Settings', sub: 'Update your profile and password.' },
+  '/intern-portal': { title: 'Intern Dashboard', sub: 'Your duties, schedule, and activities.' },
+  '/intern-portal/tasks': { title: 'My Tasks', sub: 'Internship tasks assigned to you.' },
+  '/intern-portal/distributions': { title: 'Assigned Distributions', sub: 'Read-only delivery plans assigned to your account.' },
+  '/intern-portal/schedule': { title: 'Intern Schedule', sub: 'Upcoming duties and events.' },
+  '/intern-portal/hours': { title: 'Duty Hours', sub: 'Review your recorded internship hours.' },
+  '/intern-portal/certificates': { title: 'Certificates', sub: 'Internship service and participation certificates.' },
+  '/intern-portal/settings': { title: 'Account Settings', sub: 'Update your profile and password.' },
   '/beneficiary': { title: 'Barangay Dashboard', sub: 'Your requests and assistance status.' },
   '/beneficiary/requests': { title: 'My Assistance Requests', sub: 'Submit and track requests.' },
   '/beneficiary/proofs': { title: 'Submit Distribution Proof', sub: 'Upload photos or documents after receiving relief goods.' },
@@ -33,6 +40,7 @@ const titles = {
 const portalSettingsPaths = {
   Donor: '/donor/settings',
   Volunteer: '/volunteer-portal/settings',
+  Intern: '/intern-portal/settings',
   Beneficiary: '/beneficiary/settings',
   Staff: '/staff/settings',
 }
@@ -63,13 +71,13 @@ export default function PortalLayout({ role }) {
           </div>
 
           <div className="portal-topbar__actions">
-            {(role === 'Staff' || role === 'Beneficiary' || role === 'Volunteer' || role === 'Donor') && (
+            {(role === 'Staff' || role === 'Beneficiary' || role === 'Volunteer' || role === 'Intern' || role === 'Donor') && (
               <NotificationBell
                 linkPrefix={
                   role === 'Staff'
                     ? '/staff'
-                    : role === 'Volunteer'
-                      ? '/volunteer-portal'
+                    : role === 'Volunteer' || role === 'Intern'
+                      ? role === 'Intern' ? '/intern-portal' : '/volunteer-portal'
                       : role === 'Donor'
                         ? '/donor'
                         : '/beneficiary'

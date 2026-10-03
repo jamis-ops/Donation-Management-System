@@ -3,7 +3,7 @@ import {
   CheckSquare, Calendar, Award, ListTodo, CalendarDays, 
   FileText, CheckCircle, Inbox, TrendingUp, Clock
 } from 'lucide-react'
-import { Link } from 'react-router-dom'
+import { Link, useLocation } from 'react-router-dom'
 import StatusBadge from '../../admin/components/shared/StatusBadge'
 import ApiState from '../../admin/components/shared/ApiState'
 import { getPortalData } from '../../api/resources'
@@ -35,6 +35,8 @@ function parseLocalDate(value) {
 }
 
 export default function VolunteerDashboard() {
+  const location = useLocation()
+  const portalBase = location.pathname.startsWith('/intern-portal') ? '/intern-portal' : '/volunteer-portal'
   const { data, loading, error, reload } = useApiObject(() => getPortalData())
   const todayKey = dateKey(new Date())
 
@@ -61,7 +63,7 @@ export default function VolunteerDashboard() {
           {/* Top Summary Stat Cards */}
           <div className="portal-stats">
             <Link
-              to="/volunteer-portal/tasks?status=Completed"
+              to={`${portalBase}/tasks?status=Completed`}
               className="portal-stat-card portal-stat-card--clickable"
               title="View Completed Tasks"
             >
@@ -73,7 +75,7 @@ export default function VolunteerDashboard() {
             </Link>
 
             <Link
-              to="/volunteer-portal/tasks?status=Ongoing"
+              to={`${portalBase}/tasks?status=Ongoing`}
               className="portal-stat-card portal-stat-card--clickable"
               title="View Active / Ongoing Tasks"
             >
@@ -85,7 +87,7 @@ export default function VolunteerDashboard() {
             </Link>
 
             <Link
-              to="/volunteer-portal/tasks?status=Completed"
+              to={`${portalBase}/tasks?status=Completed`}
               className="portal-stat-card portal-stat-card--clickable"
               title="View Verified Activities"
             >
@@ -97,7 +99,7 @@ export default function VolunteerDashboard() {
             </Link>
 
             <Link
-              to="/volunteer-portal/schedule"
+              to={`${portalBase}/schedule`}
               className="portal-stat-card portal-stat-card--clickable"
               title="View Upcoming Schedule"
             >
@@ -114,15 +116,15 @@ export default function VolunteerDashboard() {
               <h2>Quick Actions</h2>
             </div>
             <div className="portal-quick-actions__grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))' }}>
-              <Link to="/volunteer-portal/tasks" className="portal-quick-action">
+              <Link to={`${portalBase}/tasks`} className="portal-quick-action">
                 <ListTodo size={24} />
                 <span>View All Tasks</span>
               </Link>
-              <Link to="/volunteer-portal/schedule" className="portal-quick-action">
+              <Link to={`${portalBase}/schedule`} className="portal-quick-action">
                 <CalendarDays size={24} />
                 <span>Check Schedule</span>
               </Link>
-              <Link to="/volunteer-portal/certificates" className="portal-quick-action">
+              <Link to={`${portalBase}/certificates`} className="portal-quick-action">
                 <FileText size={24} />
                 <span>My Certificates</span>
               </Link>
@@ -133,7 +135,7 @@ export default function VolunteerDashboard() {
             <section className="portal-panel">
               <div className="portal-panel__header">
                 <h2>Upcoming Tasks</h2>
-                <Link to="/volunteer-portal/tasks" className="portal-panel__link">View All</Link>
+                <Link to={`${portalBase}/tasks`} className="portal-panel__link">View All</Link>
               </div>
               <ul className="portal-task-list">
                 {tasks
@@ -190,7 +192,7 @@ export default function VolunteerDashboard() {
           <section className="portal-panel">
             <div className="portal-panel__header">
               <h2>Upcoming Events</h2>
-              <Link to="/volunteer-portal/schedule" className="portal-panel__link">View Calendar</Link>
+              <Link to={`${portalBase}/schedule`} className="portal-panel__link">View Calendar</Link>
             </div>
             <div className="portal-event-preview">
               {(() => {

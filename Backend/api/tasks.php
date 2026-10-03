@@ -238,11 +238,11 @@ function read_duty_fields(array $body): array
   return [$start, $end, $hours];
 }
 
-$user = require_auth(['Admin', 'Staff', 'Volunteer']);
+$user = require_auth(['Admin', 'Staff', 'Volunteer', 'Intern']);
 ensure_tasks_distribution_column($pdo);
 
 if ($method === 'GET') {
-  if ($user['role'] === 'Volunteer') {
+  if (in_array($user['role'], ['Volunteer', 'Intern'], true)) {
     $vol = $pdo->prepare('SELECT full_name FROM volunteers WHERE user_id = ? LIMIT 1');
     $vol->execute([$user['id']]);
     $name = $vol->fetchColumn() ?: $user['name'];
@@ -314,7 +314,7 @@ if ($method === 'GET') {
 $body = read_json_body();
 
 if ($method === 'POST') {
-  if ($user['role'] === 'Volunteer') {
+  if (in_array($user['role'], ['Volunteer', 'Intern'], true)) {
     json_response(['ok' => false, 'error' => 'Access denied'], 403);
   }
   $title = trim((string) ($body['title'] ?? ''));
@@ -493,7 +493,7 @@ if ($method === 'POST') {
           'task_assigned',
           'New task assigned',
           "You have been assigned: {$title}" . ($duty ? " (Duty: {$duty})" : ''),
-          '/volunteer-portal/tasks',
+          $isVIntern ? '/intern-portal/tasks' : '/volunteer-portal/tasks',
           $vAssigneeUserId
         );
       }
@@ -541,7 +541,9 @@ if ($method === 'POST') {
     $roleStmt = $pdo->prepare('SELECT r.name FROM users u JOIN roles r ON r.id = u.role_id WHERE u.id = ?');
     $roleStmt->execute([$assigneeUserId]);
     $assigneeRole = (string) ($roleStmt->fetchColumn() ?: '');
-    $link = $assigneeRole === 'Staff' || $assigneeRole === 'Admin' ? '/staff/tasks' : '/volunteer-portal/tasks';
+    $link = $assigneeRole === 'Staff' || $assigneeRole === 'Admin'
+      ? '/staff/tasks'
+      : ($assigneeRole === 'Intern' ? '/intern-portal/tasks' : '/volunteer-portal/tasks');
     $distNote = $distributionId && !empty($task['distributionCode'])
       ? " · Distribution {$task['distributionCode']}"
       : '';
@@ -575,9 +577,9 @@ if ($method === 'PUT') {
     || (strcasecmp((string) ($existing['assignee'] ?? ''), (string) $user['name']) === 0);
 
   // Volunteers and staff may only update tasks assigned to them (e.g. mark Done).
-  if (in_array($user['role'], ['Volunteer', 'Staff'], true) && !$isAssignee) {
+  if (in_array($user['role'], ['Volunteer', 'Intern', 'Staff'], true) && !$isAssignee) {
     // Also allow match by volunteer profile name when assignee_user_id is unset.
-    if ($user['role'] === 'Volunteer') {
+    if (in_array($user['role'], ['Volunteer', 'Intern'], true)) {
       $vol = $pdo->prepare('SELECT full_name FROM volunteers WHERE user_id = ? LIMIT 1');
       $vol->execute([$user['id']]);
       $volName = (string) ($vol->fetchColumn() ?: '');
@@ -639,16 +641,16 @@ if ($method === 'PUT') {
   }
 
   // Volunteer / Staff limited to status changes on their own tasks.
-  if (in_array($user['role'], ['Volunteer', 'Staff'], true)) {
+  if (in_array($user['role'], ['Volunteer', 'Intern', 'Staff'], true)) {
     $distributionStatus = trim((string) ($body['distributionStatus'] ?? ''));
     $linkedDistId = !empty($existing['distribution_id']) ? (int) $existing['distribution_id'] : null;
 
-    if ($user['role'] === 'Volunteer' && $distributionStatus !== '') {
+    if (in_array($user['role'], ['Volunteer', 'Intern'], true) && $distributionStatus !== '') {
       json_response(['ok' => false, 'error' => 'Delivery details and status are read-only for volunteers.'], 403);
     }
 
     // Volunteers cannot directly mark tasks completed; only administrators can verify and complete tasks.
-    if ($user['role'] === 'Volunteer' && $distributionStatus === '' && ($column === 'done' || $column === 'review')) {
+    if (in_array($user['role'], ['Volunteer', 'Intern'], true) && $distributionStatus === '' && ($column === 'done' || $column === 'review')) {
       json_response(['ok' => false, 'error' => 'Only administrators can mark tasks as completed for volunteers.'], 403);
     }
 
@@ -844,7 +846,9 @@ if ($method === 'PUT') {
     $roleStmt = $pdo->prepare('SELECT r.name FROM users u JOIN roles r ON r.id = u.role_id WHERE u.id = ?');
     $roleStmt->execute([$assigneeUserId]);
     $assigneeRole = $roleStmt->fetchColumn() ?: 'Volunteer';
-    $link = $assigneeRole === 'Staff' ? '/staff/tasks' : '/volunteer-portal/tasks';
+    $link = $assigneeRole === 'Staff'
+      ? '/staff/tasks'
+      : ($assigneeRole === 'Intern' ? '/intern-portal/tasks' : '/volunteer-portal/tasks');
     create_notification(
       $pdo,
       'task_assigned',
@@ -864,7 +868,7 @@ if ($method === 'DELETE') {
   if (!$id) {
     json_response(['ok' => false, 'error' => 'Task id is required'], 400);
   }
-  if ($user['role'] === 'Volunteer') {
+  if (in_array($user['role'], ['Volunteer', 'Intern'], true)) {
     json_response(['ok' => false, 'error' => 'Access denied'], 403);
   }
   $linked = $pdo->prepare('SELECT distribution_id FROM tasks WHERE id = ? LIMIT 1');

@@ -13,6 +13,7 @@ import {
   ListTodo,
   Upload,
   ChartNoAxesCombined,
+  Clock,
 } from 'lucide-react'
 import Logo from '../../components/shared/Logo'
 
@@ -38,6 +39,19 @@ const portalMenus = {
       { to: '/volunteer-portal/distributions', label: 'Assigned Distributions', icon: Truck },
       { to: '/volunteer-portal/schedule', label: 'Schedule', icon: CalendarDays },
       { to: '/volunteer-portal/certificates', label: 'Certificates', icon: Award },
+    ],
+  },
+  Intern: {
+    title: 'Intern Portal',
+    base: '/intern-portal',
+    color: '#AF101A',
+    items: [
+      { to: '/intern-portal', label: 'Dashboard', icon: LayoutDashboard, end: true },
+      { to: '/intern-portal/tasks', label: 'My Tasks', icon: ClipboardList },
+      { to: '/intern-portal/distributions', label: 'Assigned Distributions', icon: Truck },
+      { to: '/intern-portal/schedule', label: 'Schedule', icon: CalendarDays },
+      { to: '/intern-portal/hours', label: 'Duty Hours', icon: Clock },
+      { to: '/intern-portal/certificates', label: 'Certificates', icon: Award },
     ],
   },
   Beneficiary: {

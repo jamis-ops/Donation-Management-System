@@ -143,9 +143,9 @@ $user = require_auth();
 
 $allowed = [
   'donation_proofs' => ['Admin', 'Staff', 'Donor'],
-  'proofs' => ['Admin', 'Staff', 'Beneficiary', 'Volunteer'],
+  'proofs' => ['Admin', 'Staff', 'Beneficiary', 'Volunteer', 'Intern'],
   'request_proofs' => ['Admin', 'Staff', 'Beneficiary'],
-  'volunteer_resumes' => ['Admin', 'Staff', 'Volunteer'],
+  'volunteer_resumes' => ['Admin', 'Staff', 'Volunteer', 'Intern'],
 ];
 
 $idBasedKinds = ['proofs', 'request_proofs'];
@@ -212,7 +212,7 @@ if ($kind === 'proofs') {
     $access = $pdo->prepare('SELECT 1 FROM beneficiaries WHERE id = ? AND (user_id = ? OR (representative_email IS NOT NULL AND representative_email <> "" AND LOWER(representative_email) = LOWER(?))) LIMIT 1');
     $access->execute([(int) $proof['beneficiary_id'], (int) ($user['id'] ?? 0), (string) ($user['email'] ?? '')]);
     if (!$access->fetchColumn()) json_response(['ok' => false, 'error' => 'Access denied'], 403);
-  } elseif ($role === 'Volunteer') {
+  } elseif (in_array($role, ['Volunteer', 'Intern'], true)) {
     $access = $pdo->prepare('SELECT 1 FROM tasks WHERE distribution_id = ? AND assignee_user_id = ? LIMIT 1');
     $access->execute([(int) $proof['distribution_id'], (int) ($user['id'] ?? 0)]);
     if (!$access->fetchColumn()) json_response(['ok' => false, 'error' => 'Access denied'], 403);

@@ -43,7 +43,7 @@ export default function LoginPage() {
         navigate('/change-password', { replace: true })
         return
       }
-      if (from && (isAdminPortalRole(result.user?.role) || from.startsWith('/staff') || from.startsWith('/donor') || from.startsWith('/volunteer') || from.startsWith('/beneficiary'))) {
+      if (from && (isAdminPortalRole(result.user?.role) || from.startsWith('/staff') || from.startsWith('/donor') || from.startsWith('/volunteer') || from.startsWith('/intern') || from.startsWith('/beneficiary'))) {
         navigate(from, { replace: true })
         return
       }

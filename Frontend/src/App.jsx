@@ -175,6 +175,23 @@ const router = createBrowserRouter([
     ],
   },
   {
+    path: 'intern-portal',
+    element: (
+      <RoleProtectedRoute allowedRoles={['Intern']}>
+        <PortalLayout role="Intern" />
+      </RoleProtectedRoute>
+    ),
+    children: [
+      { index: true, element: <VolunteerDashboard /> },
+      { path: 'tasks', element: <VolunteerTasksPage /> },
+      { path: 'distributions', element: <VolunteerDistributionsPage /> },
+      { path: 'schedule', element: <VolunteerSchedulePage /> },
+      { path: 'hours', element: <VolunteerHoursPage /> },
+      { path: 'certificates', element: <VolunteerCertificatesPage /> },
+      { path: 'settings', element: <AccountSettingsPage /> },
+    ],
+  },
+  {
     path: 'beneficiary',
     element: (
       <RoleProtectedRoute allowedRoles={['Beneficiary']}>
