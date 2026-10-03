@@ -281,6 +281,7 @@ if ($method === 'POST') {
   }
 
   $accountCreated = false;
+  $accountLinked = false;
   $credentialsSent = false;
   $mailTransport = '';
   $mailError = '';
@@ -293,17 +294,25 @@ if ($method === 'POST') {
     if ($fresh) {
       $provision = provision_volunteer_account($pdo, $fresh);
       $accountCreated = !empty($provision['created']);
+      $accountLinked = !empty($provision['linked']);
       $mail = is_array($provision['mail'] ?? null) ? $provision['mail'] : null;
       if ($mail) {
         $mailTransport = (string) ($mail['transport'] ?? '');
         $mailError = (string) ($mail['error'] ?? '');
-        $credentialsSent = !empty($mail['sent']) && in_array($mailTransport, ['nodemailer', 'smtp', 'outbox', 'mail'], true);
+        $credentialsSent = !empty($mail['sent']) && in_array($mailTransport, ['brevo', 'nodemailer', 'smtp', 'mail'], true);
       }
       if (!empty($provision['error'])) {
         $mailError = $mailError !== '' ? $mailError : (string) $provision['error'];
       }
       if (!empty($provision['temporaryPassword'])) {
         $temporaryPassword = (string) $provision['temporaryPassword'];
+      }
+      if (empty($provision['userId'])) {
+        $pdo->prepare("UPDATE volunteers SET status = 'Pending Review' WHERE id = ?")->execute([$newId]);
+        json_response([
+          'ok' => false,
+          'error' => $mailError !== '' ? $mailError : "{$applicantType} account could not be created. The application remains pending review.",
+        ], 400);
       }
     }
   }
@@ -314,6 +323,7 @@ if ($method === 'POST') {
     'ok' => true,
     'data' => map_volunteer($pdo, $stmt->fetch()),
     'accountCreated' => $accountCreated,
+    'accountLinked' => $accountLinked,
     'credentialsSent' => $credentialsSent,
     'mailTransport' => $mailTransport,
     'mailError' => $mailError,
@@ -426,29 +436,42 @@ if ($method === 'PUT') {
   ]);
 
   $accountCreated = false;
+  $accountLinked = false;
   $credentialsSent = false;
   $mailTransport = '';
   $mailError = '';
   $temporaryPassword = null;
 
-  if ($newStatus === 'Approved' && ($existing['status'] ?? '') !== 'Approved') {
+  if (
+    $newStatus === 'Approved'
+    && (($existing['status'] ?? '') !== 'Approved' || empty($existing['user_id']))
+  ) {
     $stmt = $pdo->prepare('SELECT * FROM volunteers WHERE id = ?');
     $stmt->execute([$id]);
     $fresh = $stmt->fetch();
     if ($fresh) {
       $provision = provision_volunteer_account($pdo, $fresh);
       $accountCreated = !empty($provision['created']);
+      $accountLinked = !empty($provision['linked']);
       $mail = is_array($provision['mail'] ?? null) ? $provision['mail'] : null;
       if ($mail) {
         $mailTransport = (string) ($mail['transport'] ?? '');
         $mailError = (string) ($mail['error'] ?? '');
-        $credentialsSent = !empty($mail['sent']) && in_array($mailTransport, ['nodemailer', 'smtp', 'outbox', 'mail'], true);
+        $credentialsSent = !empty($mail['sent']) && in_array($mailTransport, ['brevo', 'nodemailer', 'smtp', 'mail'], true);
       }
       if (!empty($provision['error'])) {
         $mailError = $mailError !== '' ? $mailError : (string) $provision['error'];
       }
       if (!empty($provision['temporaryPassword'])) {
         $temporaryPassword = (string) $provision['temporaryPassword'];
+      }
+      if (empty($provision['userId'])) {
+        $pdo->prepare('UPDATE volunteers SET status = ? WHERE id = ?')
+          ->execute([(string) ($existing['status'] ?? 'Pending Review'), $id]);
+        json_response([
+          'ok' => false,
+          'error' => $mailError !== '' ? $mailError : "{$applicantType} account could not be created. The application remains pending review.",
+        ], 400);
       }
     }
   }
@@ -488,6 +511,7 @@ if ($method === 'PUT') {
     'ok' => true,
     'data' => map_volunteer($pdo, $stmt->fetch()),
     'accountCreated' => $accountCreated,
+    'accountLinked' => $accountLinked,
     'credentialsSent' => $credentialsSent,
     'mailTransport' => $mailTransport,
     'mailError' => $mailError,

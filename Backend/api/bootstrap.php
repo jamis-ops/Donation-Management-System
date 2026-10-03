@@ -1276,12 +1276,14 @@ function provision_beneficiary_account(PDO $pdo, array $benRow, ?string $customP
 function provision_volunteer_account(PDO $pdo, array $volunteerRow): array
 {
   $email = strtolower(trim((string) ($volunteerRow['email'] ?? '')));
-  $name = trim((string) ($volunteerRow['full_name'] ?? 'Volunteer'));
+  $isIntern = strcasecmp((string) ($volunteerRow['applicant_type'] ?? ''), 'Intern') === 0;
+  $accountLabel = $isIntern ? 'Intern' : 'Volunteer';
+  $name = trim((string) ($volunteerRow['full_name'] ?? $accountLabel));
   if ($email === '' || !filter_var($email, FILTER_VALIDATE_EMAIL)) {
-    return ['created' => false, 'userId' => null, 'mail' => null, 'error' => 'Volunteer email missing'];
+    return ['created' => false, 'linked' => false, 'userId' => null, 'mail' => null, 'error' => "{$accountLabel} email missing or invalid"];
   }
   if (!empty($volunteerRow['user_id'])) {
-    return ['created' => false, 'userId' => (int) $volunteerRow['user_id'], 'mail' => null, 'error' => null];
+    return ['created' => false, 'linked' => true, 'userId' => (int) $volunteerRow['user_id'], 'mail' => null, 'error' => null];
   }
   if (email_taken($pdo, $email)) {
     $stmt = $pdo->prepare('SELECT u.id, r.name AS role_name FROM users u JOIN roles r ON r.id = u.role_id WHERE u.email = ? LIMIT 1');
@@ -1292,27 +1294,71 @@ function provision_volunteer_account(PDO $pdo, array $volunteerRow): array
     if ($uid <= 0 || strcasecmp($roleName, 'Volunteer') !== 0) {
       return [
         'created' => false,
+        'linked' => false,
         'userId' => null,
         'mail' => null,
-        'error' => 'That email already belongs to a different account role. Use a unique volunteer email.',
+        'error' => "That email already belongs to a different account role. Use a unique {$accountLabel} email.",
       ];
     }
     $pdo->prepare('UPDATE volunteers SET user_id = ?, status = ? WHERE id = ?')
       ->execute([$uid, 'Approved', (int) $volunteerRow['id']]);
-    return ['created' => false, 'userId' => $uid, 'mail' => null, 'error' => null];
+    return ['created' => false, 'linked' => true, 'userId' => $uid, 'mail' => null, 'error' => null];
   }
 
   $tempPassword = generate_temp_password();
-  $userId = create_user_account($pdo, 'Volunteer', $name, $email, $tempPassword, 'ACTIVE', true);
-  accept_privacy_terms($pdo, $userId);
-  $pdo->prepare('UPDATE volunteers SET user_id = ?, status = ? WHERE id = ?')
-    ->execute([$userId, 'Approved', (int) $volunteerRow['id']]);
-  $mail = send_account_credentials($email, $name, $email, $tempPassword, 'Volunteer');
+  try {
+    $ownsTransaction = !$pdo->inTransaction();
+    if ($ownsTransaction) {
+      $pdo->beginTransaction();
+    }
+    // Interns reuse the existing Volunteer account role and portal. Their
+    // applicant_type keeps all intern-specific screens and hour tracking intact.
+    $userId = create_user_account($pdo, 'Volunteer', $name, $email, $tempPassword, 'ACTIVE', true, [
+      'lastName' => (string) ($volunteerRow['last_name'] ?? ''),
+      'firstName' => (string) ($volunteerRow['first_name'] ?? ''),
+      'middleInitial' => (string) ($volunteerRow['middle_initial'] ?? ''),
+    ]);
+    accept_privacy_terms($pdo, $userId);
+    $pdo->prepare('UPDATE volunteers SET user_id = ?, status = ? WHERE id = ?')
+      ->execute([$userId, 'Approved', (int) $volunteerRow['id']]);
+    if ($ownsTransaction) {
+      $pdo->commit();
+    }
+  } catch (Throwable $e) {
+    if (isset($ownsTransaction) && $ownsTransaction && $pdo->inTransaction()) {
+      $pdo->rollBack();
+    }
+    // A concurrent double-click may have provisioned the same Volunteer-role
+    // account first. Link it without generating or emailing another password.
+    $existingStmt = $pdo->prepare('SELECT u.id, r.name AS role_name FROM users u JOIN roles r ON r.id = u.role_id WHERE u.email = ? LIMIT 1');
+    $existingStmt->execute([$email]);
+    $existingUser = $existingStmt->fetch();
+    if ($existingUser && strcasecmp((string) ($existingUser['role_name'] ?? ''), 'Volunteer') === 0) {
+      $existingUserId = (int) ($existingUser['id'] ?? 0);
+      if ($existingUserId > 0) {
+        $pdo->prepare('UPDATE volunteers SET user_id = ?, status = ? WHERE id = ?')
+          ->execute([$existingUserId, 'Approved', (int) $volunteerRow['id']]);
+        return ['created' => false, 'linked' => true, 'userId' => $existingUserId, 'mail' => null, 'temporaryPassword' => null, 'error' => null];
+      }
+    }
+    return [
+      'created' => false,
+      'linked' => false,
+      'userId' => null,
+      'mail' => null,
+      'temporaryPassword' => null,
+      'error' => "{$accountLabel} account creation failed: " . $e->getMessage(),
+    ];
+  }
+
+  // Credentials are sent only after the account and profile link succeed.
+  $mail = send_account_credentials($email, $name, $email, $tempPassword, $accountLabel);
   $sent = !empty($mail['sent']);
   $transport = (string) ($mail['transport'] ?? '');
   $includeTemp = !$sent || $transport === 'outbox' || !in_array($transport, ['brevo', 'nodemailer', 'smtp'], true);
   return [
     'created' => true,
+    'linked' => false,
     'userId' => $userId,
     'mail' => $mail,
     'temporaryPassword' => $includeTemp ? $tempPassword : null,
@@ -1521,7 +1567,7 @@ function send_account_credentials(string $toEmail, string $name, string $loginEm
     $subject = 'Your Rise Above Foundation Cebu portal account is ready';
 
     $heading = 'Your portal account is ready';
-    if (in_array(strtolower($role), ['staff', 'donor', 'volunteer'], true)) {
+    if (in_array(strtolower($role), ['staff', 'donor', 'volunteer', 'intern'], true)) {
       $heading = 'Welcome to Rise Above Foundation Cebu!';
     }
 
@@ -1532,6 +1578,8 @@ function send_account_credentials(string $toEmail, string $name, string $loginEm
       $intro = "Hi {$safeName}, welcome and thank you for being a valued donor and partner! Your Donor Portal allows you to manage and track your donations. Use the temporary password below to sign in, then choose a new password after your first login.";
     } elseif (strcasecmp($role, 'Volunteer') === 0) {
       $intro = "Hi {$safeName}, welcome as a volunteer! Your Volunteer Portal allows you to view assigned tasks, schedules, and support relief operations. Use the temporary password below to sign in, then choose a new password after your first login.";
+    } elseif (strcasecmp($role, 'Intern') === 0) {
+      $intro = "Hi {$safeName}, congratulations on your internship approval! Your Intern Portal account is ready for viewing assigned tasks, schedules, and credited duty hours. Use the temporary password below to sign in, then choose a new password after your first login.";
     }
 
     $html = '<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">'

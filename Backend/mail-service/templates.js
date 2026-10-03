@@ -23,7 +23,7 @@ export function credentialsPlainText({
   orgName,
 }) {
   const brand = orgName || 'Rise Above Foundation Cebu'
-  const isSpecialRole = ['staff', 'donor', 'volunteer'].includes((role || '').toLowerCase())
+  const isSpecialRole = ['staff', 'donor', 'volunteer', 'intern'].includes((role || '').toLowerCase())
   const heading = isSpecialRole ? 'Welcome to Rise Above Foundation Cebu!' : 'Your portal account is ready'
   
   let intro = `An administrator created a ${role || 'Donor'} account for you on the ${brand} portal.`
@@ -33,6 +33,8 @@ export function credentialsPlainText({
     intro = `Welcome and thank you for being a valued donor and partner! Your Donor Portal allows you to manage and track your donations.`
   } else if ((role || '').toLowerCase() === 'volunteer') {
     intro = `Welcome as a volunteer! Your Volunteer Portal allows you to view assigned tasks, schedules, and support relief operations.`
+  } else if ((role || '').toLowerCase() === 'intern') {
+    intro = `Congratulations on your internship approval! Your Intern Portal account is ready for viewing assigned tasks, schedules, and credited duty hours.`
   }
 
   return [
@@ -134,7 +136,7 @@ export function credentialsEmailHtml({
             <td style="padding:30px 28px 6px;">
               <p style="margin:0 0 8px;font-size:0.72rem;font-weight:700;letter-spacing:0.12em;text-transform:uppercase;color:#AF101A;">Account ready</p>
               <h1 style="margin:0 0 14px;font-size:1.45rem;line-height:1.3;font-weight:750;color:#0f172a;">
-                ${['staff', 'donor', 'volunteer'].includes((role || '').toLowerCase()) ? 'Welcome to Rise Above Foundation Cebu!' : 'Your portal account is ready'}
+                ${['staff', 'donor', 'volunteer', 'intern'].includes((role || '').toLowerCase()) ? 'Welcome to Rise Above Foundation Cebu!' : 'Your portal account is ready'}
               </h1>
               <p style="margin:0 0 8px;font-size:0.98rem;line-height:1.65;color:#475569;">
                 ${(role || '').toLowerCase() === 'staff'
@@ -143,6 +145,8 @@ export function credentialsEmailHtml({
                   ? `Hi ${displayName}, welcome and thank you for being a valued donor and partner! Your Donor Portal allows you to manage and track your donations. Use the temporary password below to sign in, then choose a new password after your first login.`
                   : (role || '').toLowerCase() === 'volunteer'
                   ? `Hi ${displayName}, welcome as a volunteer! Your Volunteer Portal allows you to view assigned tasks, schedules, and support relief operations. Use the temporary password below to sign in, then choose a new password after your first login.`
+                  : (role || '').toLowerCase() === 'intern'
+                  ? `Hi ${displayName}, congratulations on your internship approval! Your Intern Portal account is ready for viewing assigned tasks, schedules, and credited duty hours. Use the temporary password below to sign in, then choose a new password after your first login.`
                   : `Hi ${displayName}, an administrator created a <strong style="color:#0f172a;">${roleLabel}</strong> account for you on the Rise Above Foundation Cebu portal. Use the temporary password below to sign in, then choose a new password after your first login.`
                 }
               </p>

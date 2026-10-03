@@ -1,10 +1,11 @@
+/* eslint-disable react-hooks/set-state-in-effect */
 import { useEffect, useMemo, useState } from 'react'
 import {
   Clock3, ListTodo, Mail, UserCheck, Pencil, Trash2,
   CheckCircle2, XCircle, Calendar, CalendarDays, Briefcase, Truck, Users, Plus,
   FileText, Download, ExternalLink, GraduationCap, Sparkles, RefreshCw,
-  Award, School, Check, Phone, Info, Lock, Unlock, AlertTriangle, Quote, User, Eye,
-  UploadCloud, X, Search, ChevronRight, ArrowLeft, ArrowRight,
+  School, Check, Info, Lock, Unlock, AlertTriangle, User, Eye,
+  UploadCloud, X, Search, ArrowLeft, ArrowRight,
 } from 'lucide-react'
 import { volunteersApi, tasksApi, volunteerMatchApi, distributionsApi, internAiMatchApi } from '../../api/resources'
 import { getTodayDateString, isPastDateString } from '../../utils/date'
@@ -169,7 +170,6 @@ export default function VolunteersPage() {
   const [aiLoading, setAiLoading] = useState(false)
   const [aiError, setAiError] = useState(null)
   const [aiSource, setAiSource] = useState('')
-  const [hasRecommendedPrograms, setHasRecommendedPrograms] = useState(true)
 
   // 1. General Task Assignment modal state (Outside Manage)
   const [showGeneralTaskModal, setShowGeneralTaskModal] = useState(false)
@@ -371,7 +371,6 @@ export default function VolunteersPage() {
         } else {
           setAiRecs(Array.isArray(res.data) ? res.data : [])
           setAiSource(res.source || 'strict_evidence_ai')
-          setHasRecommendedPrograms(Boolean(res.hasRecommendedPrograms))
         }
       } else {
         setAiError(res?.error || 'CV could not be analyzed')
@@ -413,7 +412,6 @@ export default function VolunteersPage() {
     setAiRecs([])
     setAiError(null)
     setAiSource('')
-    setHasRecommendedPrograms(true)
     const initialProg = row.programs?.[0] || (row.applicantType === 'Intern' ? 'Internship' : 'Volunteer')
     setDirectTaskForm({ ...emptyDirectTaskForm, module: initialProg })
     loadTasks(row)
@@ -444,7 +442,6 @@ export default function VolunteersPage() {
     showLoading(`Approving ${typeLabel.toLowerCase()}…`)
     try {
       const res = await volunteersApi.update(row.dbId, { status: 'Approved' })
-      const status = res?.data?.status || 'Approved'
 
       // Refresh currently open modal immediately so it transitions to Approved
       setSelected((prev) => {
@@ -456,13 +453,26 @@ export default function VolunteersPage() {
         }
       })
 
-      const credentialMsg = res?.credentialsSent
-        ? ' Login credentials have been sent to their email.'
-        : res?.temporaryPassword
+      hideLoading()
+      if (res?.accountCreated && !res?.credentialsSent) {
+        const recovery = res?.temporaryPassword
           ? ` Temporary password: ${res.temporaryPassword}`
           : ''
+        await showErrorModal(
+          `“${row.name}” was approved and their portal account was created, but the credential email was not delivered to ${row.email}.${recovery}${res?.mailError ? ` Mail error: ${res.mailError}` : ''}`,
+          `${typeLabel} Approved — Email Not Sent`
+        )
+        reload()
+        notifyBadgesChanged()
+        return
+      }
 
-      hideLoading()
+      const credentialMsg = res?.credentialsSent
+        ? ` Login credentials were emailed to ${row.email}.`
+        : res?.accountLinked
+          ? ' Their existing portal account was linked; no duplicate account or credential email was created.'
+          : ''
+
       await showSuccessModal(
         `“${row.name}” has been successfully approved as a ${typeLabel.toLowerCase()}.${credentialMsg}`,
         `${typeLabel} Approved`
@@ -491,7 +501,6 @@ export default function VolunteersPage() {
     showLoading(`Rejecting application…`)
     try {
       const res = await volunteersApi.update(row.dbId, { status: 'Rejected' })
-      const status = res?.data?.status || 'Rejected'
 
       // Refresh currently open modal immediately so it reflects Rejected
       setSelected((prev) => {
@@ -578,6 +587,7 @@ export default function VolunteersPage() {
   const handleSetSingleProgram = async (progToEnroll, isOverride = false) => {
     const targetProgram = typeof progToEnroll === 'string' ? progToEnroll : selectedProgramToEnroll
     if (!selected || !targetProgram) return
+    const typeLabel = selected.applicantType === 'Intern' ? 'Intern' : 'Volunteer'
 
     const isCurrent = (selected.programs || [])[0] === targetProgram
     if (isCurrent) {
@@ -585,7 +595,6 @@ export default function VolunteersPage() {
       return
     }
 
-    const typeLabel = selected.applicantType === 'Intern' ? 'Intern' : 'Volunteer'
     const hasExisting = (selected.programs || []).length > 0
     if (hasExisting) {
       const ok = await confirmAction({
@@ -629,7 +638,6 @@ export default function VolunteersPage() {
 
   const handleRemoveSingleProgram = async () => {
     if (!selected) return
-    const typeLabel = selected.applicantType === 'Intern' ? 'Intern' : 'Volunteer'
     const ok = await confirmAction({
       title: `Remove Enrolled Program`,
       message: `Remove the assigned program for ${selected.name}?`,
