@@ -228,7 +228,7 @@ export default function InventoryCategoryExplorer({
       group.items.push(item)
       group.totalQuantity += totalQuantity(item)
       group.availableQuantity += availableQuantity(item)
-      if (item.stockLevel === 'low' || item.status === 'Low Stock' || item.status === 'Low') {
+      if (item.stockLevel === 'low' || item.stockLevel === 'out' || item.status === 'Low Stock' || item.status === 'Out of Stock' || item.status === 'Low') {
         group.lowStockCount += 1
       }
       if (item.itemType) {
@@ -284,7 +284,7 @@ export default function InventoryCategoryExplorer({
       g.items.push(item)
       g.totalQuantity += totalQuantity(item)
       g.availableQuantity += availableQuantity(item)
-      if (item.stockLevel === 'low' || item.status === 'Low Stock' || item.status === 'Low') {
+      if (item.stockLevel === 'low' || item.stockLevel === 'out' || item.status === 'Low Stock' || item.status === 'Out of Stock' || item.status === 'Low') {
         g.lowStockCount += 1
       }
       if (item.brand) {

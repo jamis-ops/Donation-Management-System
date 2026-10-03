@@ -23,14 +23,26 @@
  * }}
  */
 export function calculateInventoryStatus(availableQuantity, lowThreshold = 100, moderateThreshold = null) {
-  const qty = Math.max(0, Number(availableQuantity) || 0)
-  const low = Math.max(0, Number(lowThreshold) || 100)
+  const parsedQuantity = Number(availableQuantity)
+  const parsedLow = Number(lowThreshold)
+  const qty = Math.max(0, Number.isFinite(parsedQuantity) ? parsedQuantity : 0)
+  const low = Math.max(0, Number.isFinite(parsedLow) ? parsedLow : 100)
   const mod = (moderateThreshold !== null && moderateThreshold !== undefined && !isNaN(Number(moderateThreshold)) && Number(moderateThreshold) > 0)
     ? Number(moderateThreshold)
     : Math.max(low * 2, low + 1)
 
   // Percent calculation relative to moderate target (capped at 100)
   const percent = mod > 0 ? Math.min(100, Math.round((qty / mod) * 100)) : 100
+
+  if (qty === 0) {
+    return {
+      level: 'out',
+      label: 'Out of Stock',
+      variant: 'danger',
+      dotColor: '#991b1b',
+      percent: 0,
+    }
+  }
 
   if (qty <= low) {
     return {
@@ -98,6 +110,7 @@ export function getStockStatusFromItem(item) {
 export function formatStockLabel(levelOrStatus) {
   if (!levelOrStatus) return 'Sufficient'
   const normalized = String(levelOrStatus).toLowerCase().trim()
+  if (normalized === 'out' || normalized.includes('out of stock')) return 'Out of Stock'
   if (normalized === 'low' || normalized.includes('low')) return 'Low Stock'
   if (normalized === 'moderate' || normalized.includes('mod') || normalized.includes('medium')) return 'Moderate'
   return 'Sufficient'

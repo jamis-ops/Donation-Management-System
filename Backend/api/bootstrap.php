@@ -253,6 +253,9 @@ function inventory_status(int $quantity, int $threshold): string
 function stock_level(int $quantity, int $lowThreshold, ?int $moderateThreshold = null): string
 {
   $moderate = $moderateThreshold ?? max($lowThreshold * 2, $lowThreshold + 1);
+  if ($quantity <= 0) {
+    return 'out';
+  }
   if ($quantity <= $lowThreshold) {
     return 'low';
   }
@@ -265,10 +268,69 @@ function stock_level(int $quantity, int $lowThreshold, ?int $moderateThreshold =
 function stock_level_label(string $level): string
 {
   return match ($level) {
+    'out' => 'Out of Stock',
     'low' => 'Low Stock',
     'moderate' => 'Moderate',
     default => 'Sufficient',
   };
+}
+
+function inventory_level_from_state(?string $state): ?string
+{
+  $normalized = strtolower(trim((string) $state));
+  if ($normalized === '') return null;
+  if (str_contains($normalized, 'out')) return 'out';
+  if (str_contains($normalized, 'low')) return 'low';
+  if (str_contains($normalized, 'moderate') || str_contains($normalized, 'medium')) return 'moderate';
+  if (str_contains($normalized, 'sufficient') || str_contains($normalized, 'available')) return 'sufficient';
+  return null;
+}
+
+/**
+ * Synchronize the persisted inventory state and emit one alert only when an
+ * item transitions into Low Stock or Out of Stock.
+ */
+function sync_inventory_stock_alert(PDO $pdo, int $itemId, ?string $previousLevel = null): ?string
+{
+  $stmt = $pdo->prepare('SELECT id, item_name, quantity, unit, low_stock_threshold, moderate_stock_threshold, stock_state FROM inventory_items WHERE id = ? LIMIT 1');
+  $stmt->execute([$itemId]);
+  $item = $stmt->fetch();
+  if (!$item) return null;
+
+  $quantity = max(0, (int) ($item['quantity'] ?? 0));
+  $low = max(0, (int) ($item['low_stock_threshold'] ?? 100));
+  $moderate = isset($item['moderate_stock_threshold']) && $item['moderate_stock_threshold'] !== null
+    ? (int) $item['moderate_stock_threshold']
+    : null;
+  $newLevel = stock_level($quantity, $low, $moderate);
+  $usesPersistedState = $previousLevel === null;
+  $oldLevel = $previousLevel ?? inventory_level_from_state($item['stock_state'] ?? null);
+  $newLabel = stock_level_label($newLevel);
+  $stateUpdated = false;
+
+  if (($item['stock_state'] ?? null) !== $newLabel) {
+    try {
+      $stateStmt = $pdo->prepare('UPDATE inventory_items SET stock_state = ? WHERE id = ? AND stock_state = ?');
+      $stateStmt->execute([$newLabel, $itemId, (string) ($item['stock_state'] ?? '')]);
+      $stateUpdated = $stateStmt->rowCount() === 1;
+    } catch (PDOException $e) {
+      if (!(str_contains($e->getMessage(), 'stock_state') || $e->getCode() === '42S22' || str_contains((string) $e->getCode(), '1054'))) {
+        throw $e;
+      }
+    }
+  }
+
+  $ownsTransition = !$usesPersistedState || $stateUpdated;
+  if ($ownsTransition && $oldLevel !== $newLevel && in_array($newLevel, ['low', 'out'], true)) {
+    $unit = trim((string) ($item['unit'] ?? 'units')) ?: 'units';
+    $title = $newLevel === 'out'
+      ? 'Out of Stock: ' . $item['item_name']
+      : 'Low Stock: ' . $item['item_name'];
+    $message = "Available: {$quantity} {$unit}. Low Stock Threshold: {$low} {$unit}.";
+    notify_admins($pdo, 'low_stock', $title, $message, '/admin/inventory');
+  }
+
+  return $newLevel;
 }
 
 function create_notification(PDO $pdo, string $type, string $title, string $message, ?string $link = null, ?int $userId = null, ?string $roleTarget = null): void
@@ -2426,6 +2488,17 @@ function sync_donations_for_distribution(PDO $pdo, int $distributionId, string $
  */
 function update_inventory_stock_state(PDO $pdo, int $itemId, int $quantity, int $allocated, string $stockState): void
 {
+  $oldStmt = $pdo->prepare('SELECT quantity, low_stock_threshold, moderate_stock_threshold FROM inventory_items WHERE id = ? LIMIT 1');
+  $oldStmt->execute([$itemId]);
+  $oldItem = $oldStmt->fetch();
+  $previousLevel = $oldItem
+    ? stock_level(
+        (int) ($oldItem['quantity'] ?? 0),
+        (int) ($oldItem['low_stock_threshold'] ?? 100),
+        isset($oldItem['moderate_stock_threshold']) ? (int) $oldItem['moderate_stock_threshold'] : null
+      )
+    : null;
+
   try {
     $stmt = $pdo->prepare('UPDATE inventory_items SET quantity = ?, allocated = ?, stock_state = ? WHERE id = ?');
     $stmt->execute([$quantity, $allocated, $stockState, $itemId]);
@@ -2437,6 +2510,8 @@ function update_inventory_stock_state(PDO $pdo, int $itemId, int $quantity, int 
       throw $e;
     }
   }
+
+  sync_inventory_stock_alert($pdo, $itemId, $previousLevel);
 }
 
 /** Record one auditable inventory movement without changing stock. */

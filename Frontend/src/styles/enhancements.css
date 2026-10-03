@@ -1610,16 +1610,109 @@ a.volunteer-kpi-card:hover,
   grid-template-columns: repeat(4, 1fr);
 }
 
+.stock-summary--5 {
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+}
+
+.stock-summary__card--out {
+  background: rgba(127, 29, 29, 0.1);
+  border-color: rgba(127, 29, 29, 0.3);
+}
+
+.stock-summary__card--out strong {
+  color: #991b1b;
+}
+
+.inventory-stock-alerts {
+  display: flex;
+  gap: 0.85rem;
+  align-items: flex-start;
+  margin: 0 0 1rem;
+  padding: 0.8rem;
+  border: 1px solid #fecaca;
+  border-radius: 12px;
+  background: #fff7f7;
+}
+
+.inventory-stock-alerts__heading {
+  display: flex;
+  flex: 0 0 auto;
+  gap: 0.5rem;
+  align-items: flex-start;
+  color: #b91c1c;
+}
+
+.inventory-stock-alerts__heading div,
+.inventory-stock-alerts__list {
+  display: flex;
+  flex-direction: column;
+}
+
+.inventory-stock-alerts__heading span {
+  display: block;
+  margin-top: 0.1rem;
+  color: #7f1d1d;
+  font-size: 0.75rem;
+}
+
+.inventory-stock-alerts__list {
+  min-width: 0;
+  flex: 1;
+  gap: 0.4rem;
+  max-height: 12rem;
+  overflow-y: auto;
+  padding-right: 0.2rem;
+}
+
+.inventory-stock-alert {
+  width: 100%;
+  padding: 0.55rem 0.7rem;
+  border: 1px solid #fecaca;
+  border-radius: 8px;
+  background: #fff;
+  color: #7f1d1d;
+  text-align: left;
+  cursor: pointer;
+}
+
+.inventory-stock-alert:hover {
+  border-color: #dc2626;
+  background: #fef2f2;
+}
+
+.inventory-stock-alert strong,
+.inventory-stock-alert span {
+  display: block;
+  overflow-wrap: anywhere;
+}
+
+.inventory-stock-alert span {
+  margin-top: 0.15rem;
+  color: #6b7280;
+  font-size: 0.78rem;
+}
+
+.inventory-stock-alert--out {
+  border-color: #fca5a5;
+  background: #fef2f2;
+}
+
 @media (max-width: 900px) {
   .stock-summary,
-  .stock-summary--4 {
+  .stock-summary--4,
+  .stock-summary--5 {
     grid-template-columns: repeat(2, 1fr);
+  }
+
+  .inventory-stock-alerts {
+    flex-direction: column;
   }
 }
 
 @media (max-width: 480px) {
   .stock-summary,
-  .stock-summary--4 {
+  .stock-summary--4,
+  .stock-summary--5 {
     grid-template-columns: 1fr;
   }
 }

@@ -183,6 +183,7 @@ function restore_source_stock(PDO $pdo, array $job): void
           $balanceStmt = $pdo->prepare('SELECT quantity FROM inventory_items WHERE id = ?');
           $balanceStmt->execute([$itemId]);
           record_inventory_transaction($pdo, $itemId, 'Restoration', $qty, (int) $balanceStmt->fetchColumn(), $job['code'] ?? null, 'Repacking', 'Source stock restored after repacking cancellation');
+          sync_inventory_stock_alert($pdo, $itemId);
         }
       }
       return;
@@ -196,6 +197,7 @@ function restore_source_stock(PDO $pdo, array $job): void
     $balanceStmt = $pdo->prepare('SELECT quantity FROM inventory_items WHERE id = ?');
     $balanceStmt->execute([(int) $job['source_item_id']]);
     record_inventory_transaction($pdo, (int) $job['source_item_id'], 'Restoration', (int) $job['source_quantity'], (int) $balanceStmt->fetchColumn(), $job['code'] ?? null, 'Repacking', 'Source stock restored after repacking cancellation');
+    sync_inventory_stock_alert($pdo, (int) $job['source_item_id']);
   }
 }
 
@@ -218,9 +220,11 @@ function credit_output_stock(PDO $pdo, array $job): void
     $balanceStmt = $pdo->prepare('SELECT quantity FROM inventory_items WHERE id = ?');
     $balanceStmt->execute([(int) $itemId]);
     record_inventory_transaction($pdo, (int) $itemId, 'Intake', $qty, (int) $balanceStmt->fetchColumn(), $job['code'] ?? null, 'Repacking Output', 'Completed repacking output added to inventory');
+    sync_inventory_stock_alert($pdo, (int) $itemId);
   } else {
     $pdo->prepare('INSERT INTO inventory_items (code, item_name, category, quantity, total_quantity, unit, low_stock_threshold) VALUES (?, ?, ?, ?, ?, ?, ?)')
       ->execute([generate_code('INV'), $outputName, 'Repacked Goods', $qty, $qty, $job['output_unit'] ?: 'packs', 50]);
+    sync_inventory_stock_alert($pdo, (int) $pdo->lastInsertId(), 'new');
   }
 }
 
@@ -273,6 +277,7 @@ if ($method === 'GET') {
     if (!$row) {
       json_response(['ok' => false, 'error' => 'Inventory item not found'], 404);
     }
+    sync_inventory_stock_alert($pdo, (int) $row['id']);
     $mapped = map_inventory($row);
     try {
       $historyStmt = $pdo->prepare('SELECT transaction_type, quantity, balance_after, reference_code, destination, notes, created_at FROM inventory_transactions WHERE inventory_item_id = ? ORDER BY created_at DESC, id DESC LIMIT 100');
@@ -307,10 +312,15 @@ if ($method === 'GET') {
   } catch (Throwable $e) {
     $rows = $pdo->query('SELECT * FROM inventory_items ORDER BY created_at DESC, id DESC')->fetchAll();
   }
+  foreach ($rows as &$row) {
+    sync_inventory_stock_alert($pdo, (int) $row['id']);
+  }
+  unset($row);
   $mapped = array_map('map_inventory', $rows);
   $summary = [
     'totalItems' => count($mapped),
     'totalUnits' => array_sum(array_map(fn($i) => $i['quantity'], $mapped)),
+    'outOfStockCount' => count(array_filter($mapped, fn($i) => $i['stockLevel'] === 'out')),
     'lowCount' => count(array_filter($mapped, fn($i) => $i['stockLevel'] === 'low')),
     'moderateCount' => count(array_filter($mapped, fn($i) => $i['stockLevel'] === 'moderate')),
     'sufficientCount' => count(array_filter($mapped, fn($i) => $i['stockLevel'] === 'sufficient')),
@@ -368,6 +378,7 @@ if ($method === 'POST') {
         $balanceStmt = $pdo->prepare('SELECT quantity FROM inventory_items WHERE id = ?');
         $balanceStmt->execute([$srcItemId]);
         record_inventory_transaction($pdo, $srcItemId, 'Repacking', $srcQty, (int) $balanceStmt->fetchColumn(), $code, 'Repacking', "Deducted for repacking batch {$code}");
+        sync_inventory_stock_alert($pdo, $srcItemId);
 
         $sourceItemsArray[] = [
           'item_id' => $srcItemId,
@@ -416,6 +427,7 @@ if ($method === 'POST') {
       $balanceStmt = $pdo->prepare('SELECT quantity FROM inventory_items WHERE id = ?');
       $balanceStmt->execute([$sourceItemId]);
       record_inventory_transaction($pdo, $sourceItemId, 'Repacking', $sourceQty, (int) $balanceStmt->fetchColumn(), $code, 'Repacking', "Deducted for repacking batch {$code}");
+      sync_inventory_stock_alert($pdo, $sourceItemId);
       $sourceLabel = $sourceItem['item_name'] . " ({$sourceQty} {$sourceItem['unit']})";
 
       // Create JSON structure for backward compatibility
@@ -547,8 +559,29 @@ if ($method === 'POST') {
     }
   }
 
+  $rawQuantity = $body['quantity'] ?? 0;
+  $rawLowThreshold = $body['lowStockThreshold'] ?? 100;
+  $hasModerateThreshold = array_key_exists('moderateStockThreshold', $body)
+    && $body['moderateStockThreshold'] !== null
+    && $body['moderateStockThreshold'] !== '';
+  $rawModerateThreshold = $hasModerateThreshold ? $body['moderateStockThreshold'] : null;
+  if (!is_numeric($rawQuantity) || (float) $rawQuantity < 0 || floor((float) $rawQuantity) !== (float) $rawQuantity) {
+    json_response(['ok' => false, 'error' => 'Initial quantity must be a whole number of zero or greater.'], 400);
+  }
+  if (!is_numeric($rawLowThreshold) || (float) $rawLowThreshold < 0 || floor((float) $rawLowThreshold) !== (float) $rawLowThreshold) {
+    json_response(['ok' => false, 'error' => 'Low Stock Threshold must be a whole number of zero or greater.'], 400);
+  }
+  if ($hasModerateThreshold && (!is_numeric($rawModerateThreshold) || (float) $rawModerateThreshold < 0 || floor((float) $rawModerateThreshold) !== (float) $rawModerateThreshold)) {
+    json_response(['ok' => false, 'error' => 'Moderate Stock Threshold must be a whole number of zero or greater.'], 400);
+  }
+  $initialQuantity = (int) $rawQuantity;
+  $lowThreshold = (int) $rawLowThreshold;
+  $moderateThreshold = $hasModerateThreshold ? (int) $rawModerateThreshold : null;
+  if ($moderateThreshold !== null && $moderateThreshold <= $lowThreshold) {
+    json_response(['ok' => false, 'error' => 'Moderate Stock Threshold must be greater than the Low Stock Threshold.'], 400);
+  }
+
   $code = generate_code('INV');
-  $initialQuantity = max(0, (int) ($body['quantity'] ?? 0));
   $stmt = $pdo->prepare('INSERT INTO inventory_items (code, item_name, category, item_type, brand, variant, quantity, total_quantity, unit, low_stock_threshold, moderate_stock_threshold, allocated, distributed) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)');
   $stmt->execute([
     $code,
@@ -560,18 +593,16 @@ if ($method === 'POST') {
     $initialQuantity,
     $initialQuantity,
     trim((string) ($body['unit'] ?? 'units')) ?: 'units',
-    (int) ($body['lowStockThreshold'] ?? 100),
-    !empty($body['moderateStockThreshold']) ? (int) $body['moderateStockThreshold'] : null,
+    $lowThreshold,
+    $moderateThreshold,
     0,
     0,
   ]);
   $newId = (int) $pdo->lastInsertId();
+  sync_inventory_stock_alert($pdo, $newId, 'new');
   $stmt = $pdo->prepare('SELECT * FROM inventory_items WHERE id = ?');
   $stmt->execute([$newId]);
   $mapped = map_inventory($stmt->fetch());
-  if ($mapped['stockLevel'] === 'low') {
-    notify_admins($pdo, 'low_stock', 'Low stock alert', "{$mapped['item']} is low ({$mapped['quantity']} {$mapped['unit']} remaining)", '/admin/inventory');
-  }
   json_response(['ok' => true, 'data' => $mapped], 201);
 }
 
@@ -657,8 +688,30 @@ if ($method === 'PUT') {
   $newAvailable = array_key_exists('quantity', $body) ? (int) $body['quantity'] : $oldAvailable;
   $oldTotal = max($oldAvailable, (int) ($existing['total_quantity'] ?? $oldAvailable));
   $newTotal = $newAvailable > $oldAvailable ? $oldTotal + ($newAvailable - $oldAvailable) : $oldTotal;
-  $lowThreshold = (int) ($body['lowStockThreshold'] ?? $existing['low_stock_threshold']);
-  $stockState = $newAvailable <= 0 ? 'Out of Stock' : ($newAvailable <= $lowThreshold ? 'Low Stock' : 'Available');
+  $rawLowThreshold = $body['lowStockThreshold'] ?? $existing['low_stock_threshold'];
+  if (!is_numeric($rawLowThreshold) || (float) $rawLowThreshold < 0 || floor((float) $rawLowThreshold) !== (float) $rawLowThreshold) {
+    json_response(['ok' => false, 'error' => 'Low Stock Threshold must be a whole number of zero or greater.'], 400);
+  }
+  $lowThreshold = (int) $rawLowThreshold;
+  $hasModerateThreshold = array_key_exists('moderateStockThreshold', $body)
+    && $body['moderateStockThreshold'] !== null
+    && $body['moderateStockThreshold'] !== '';
+  $moderateThreshold = $hasModerateThreshold
+    ? $body['moderateStockThreshold']
+    : ($existing['moderate_stock_threshold'] ?? null);
+  if ($moderateThreshold !== null && (!is_numeric($moderateThreshold) || (float) $moderateThreshold < 0 || floor((float) $moderateThreshold) !== (float) $moderateThreshold)) {
+    json_response(['ok' => false, 'error' => 'Moderate Stock Threshold must be a whole number of zero or greater.'], 400);
+  }
+  $moderateThreshold = $moderateThreshold !== null ? (int) $moderateThreshold : null;
+  if ($moderateThreshold !== null && $moderateThreshold <= $lowThreshold) {
+    json_response(['ok' => false, 'error' => 'Moderate Stock Threshold must be greater than the Low Stock Threshold.'], 400);
+  }
+  $oldLevel = stock_level(
+    $oldAvailable,
+    (int) ($existing['low_stock_threshold'] ?? 100),
+    isset($existing['moderate_stock_threshold']) ? (int) $existing['moderate_stock_threshold'] : null
+  );
+  $stockState = stock_level_label(stock_level($newAvailable, $lowThreshold, $moderateThreshold));
 
   $update = $pdo->prepare('UPDATE inventory_items SET item_name = ?, category = ?, item_type = ?, brand = ?, variant = ?, quantity = ?, total_quantity = ?, unit = ?, stock_state = ?, low_stock_threshold = ?, moderate_stock_threshold = ?, allocated = ?, distributed = ? WHERE id = ? AND quantity = ?');
   $update->execute([
@@ -672,7 +725,7 @@ if ($method === 'PUT') {
     $body['unit'] ?? $existing['unit'],
     $stockState,
     $lowThreshold,
-    !empty($body['moderateStockThreshold']) ? (int) $body['moderateStockThreshold'] : ($existing['moderate_stock_threshold'] ?? null),
+    $moderateThreshold,
     (int) $existing['allocated'],
     (int) $existing['distributed'],
     $id,
@@ -695,12 +748,10 @@ if ($method === 'PUT') {
       trim((string) ($body['notes'] ?? '')) ?: ($isAddition ? 'Stock received/added manually' : 'Stock deducted manually')
     );
   }
+  sync_inventory_stock_alert($pdo, (int) $id, $oldLevel);
   $stmt = $pdo->prepare('SELECT * FROM inventory_items WHERE id = ?');
   $stmt->execute([$id]);
   $mapped = map_inventory($stmt->fetch());
-  if ($mapped['stockLevel'] === 'low') {
-    notify_admins($pdo, 'low_stock', 'Low stock alert', "{$mapped['item']} is low ({$mapped['quantity']} {$mapped['unit']} remaining)", '/admin/inventory');
-  }
   json_response(['ok' => true, 'data' => $mapped]);
 }
 

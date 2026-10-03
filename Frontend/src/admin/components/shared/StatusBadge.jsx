@@ -1,5 +1,3 @@
-import React from 'react'
-
 /**
  * Standardized Semantic Status Map
  *
@@ -62,6 +60,8 @@ const statusMap = {
   // Red / Danger / Critical
   'Low Stock': 'danger',
   low: 'danger',
+  'Out of Stock': 'danger',
+  out: 'danger',
   Critical: 'danger',
   High: 'danger', // Priority High
   'Not Received': 'danger',
@@ -91,7 +91,10 @@ export default function StatusBadge({ status, level, className = '' }) {
 
   if (level) {
     const normLevel = String(level).toLowerCase().trim()
-    if (normLevel === 'low') {
+    if (normLevel === 'out') {
+      resolvedVariant = 'danger'
+      if (!displayText) displayText = 'Out of Stock'
+    } else if (normLevel === 'low') {
       resolvedVariant = 'danger'
       if (!displayText) displayText = 'Low Stock'
     } else if (normLevel === 'moderate') {

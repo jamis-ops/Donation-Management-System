@@ -968,8 +968,10 @@ switch ($user['role']) {
       $qty = (int) $row['quantity'];
       $level = stock_level($qty, $low, $moderate);
       $label = stock_level_label($level);
-      $uiStatus = $label === 'Low Stock' && $qty <= max(1, (int) floor($low / 2)) ? 'Critical' : (
-        $label === 'Low Stock' ? 'Low Stock' : ($label === 'Moderate' ? 'Low Stock' : 'Adequate')
+      $uiStatus = $label === 'Out of Stock' ? 'Out of Stock' : (
+        $label === 'Low Stock' && $qty <= max(1, (int) floor($low / 2)) ? 'Critical' : (
+          $label === 'Low Stock' ? 'Low Stock' : ($label === 'Moderate' ? 'Low Stock' : 'Adequate')
+        )
       );
       $cat = $row['category'] ?: 'General';
 
@@ -1015,19 +1017,19 @@ switch ($user['role']) {
       $byCategory[$cat]['items'] += 1;
       $byCategory[$cat]['totalValueNum'] += ($qty * $cost);
       $byCategory[$cat]['totalValue'] = '₱' . number_format($byCategory[$cat]['totalValueNum'], 2);
-      if ($uiStatus === 'Critical') {
+      if ($uiStatus === 'Critical' || $uiStatus === 'Out of Stock') {
         $byCategory[$cat]['status'] = 'Critical';
       } elseif ($uiStatus === 'Low Stock' && $byCategory[$cat]['status'] !== 'Critical') {
         $byCategory[$cat]['status'] = 'Low Stock';
       }
-      if ($level === 'low' || $uiStatus === 'Critical' || $uiStatus === 'Low Stock') {
+      if (in_array($level, ['low', 'out'], true) || $uiStatus === 'Critical' || $uiStatus === 'Low Stock') {
         $inventoryAlerts[] = [
           'item' => $row['item_name'],
           'currentStock' => $qty,
           'minStock' => $low,
           'unit' => $row['unit'] ?: 'units',
-          'severity' => $uiStatus === 'Critical' ? 'Critical' : 'Low',
-          'action' => $uiStatus === 'Critical' ? 'Order immediately' : 'Order soon',
+          'severity' => in_array($uiStatus, ['Critical', 'Out of Stock'], true) ? 'Critical' : 'Low',
+          'action' => in_array($uiStatus, ['Critical', 'Out of Stock'], true) ? 'Order immediately' : 'Order soon',
           'dbId' => (int) $row['id'],
         ];
       }

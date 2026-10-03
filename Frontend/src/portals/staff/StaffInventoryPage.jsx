@@ -75,7 +75,7 @@ export default function StaffInventoryPage() {
   // Count summaries
   const stats = useMemo(() => {
     const totalItems = inventory.length
-    const critical = inventory.filter((i) => i.status === 'Critical' || i.stockLevel === 'critical').length
+    const critical = inventory.filter((i) => i.status === 'Critical' || i.status === 'Out of Stock' || i.stockLevel === 'critical' || i.stockLevel === 'out').length
     const low = inventory.filter((i) => i.status === 'Low' || i.status === 'Low Stock' || i.stockLevel === 'low').length
     const totalVal = inventory.reduce((acc, i) => acc + (Number(i.totalValue) || (Number(i.currentStock || i.quantity || 0) * (Number(i.costPerUnit) || 50))), 0)
     return { totalItems, critical, low, totalVal }
@@ -90,7 +90,7 @@ export default function StaffInventoryPage() {
         const itemStatus = String(item.status || '').toLowerCase()
         const target = filterStatus.toLowerCase()
         if (target === 'low' && !itemStatus.includes('low')) return false
-        if (target === 'critical' && !itemStatus.includes('critical')) return false
+        if (target === 'critical' && !itemStatus.includes('critical') && !itemStatus.includes('out of stock')) return false
         if (target === 'sufficient' && !itemStatus.includes('sufficient') && !itemStatus.includes('normal') && !itemStatus.includes('adequate')) return false
       }
 

@@ -18,7 +18,6 @@ import { notify, confirmAction, showSuccessModal } from '../../utils/confirm'
 import { useLoading } from '../../context/LoadingContext'
 import { useAuth } from '../../context/AuthContext'
 import { exportInventory } from '../../utils/exportData'
-import { calculateInventoryStatus } from '../../utils/inventoryStatus'
 
 const inventoryFilterConfig = {
   searchKeys: ['item', 'category'],
@@ -36,6 +35,7 @@ const inventoryFilterConfig = {
         if (normVal === 'sufficient') return level === 'sufficient' || status === 'sufficient'
         if (normVal === 'moderate') return level === 'moderate' || status === 'moderate'
         if (normVal === 'low' || normVal === 'low stock') return level === 'low' || status === 'low stock'
+        if (normVal === 'out' || normVal === 'out of stock') return level === 'out' || status === 'out of stock'
         return level === normVal || status === normVal
       },
     },
@@ -570,6 +570,7 @@ export default function InventoryManagement() {
   ]
 
   const safeItems = Array.isArray(items) ? items : []
+  const stockAlerts = safeItems.filter((item) => item?.stockLevel === 'low' || item?.stockLevel === 'out')
   const selectedSource = safeItems.find((i) => String(i?.dbId) === batchForm.sourceItemId)
 
   return (
@@ -577,7 +578,7 @@ export default function InventoryManagement() {
       {tab === 'inventory' && (
         <>
           {invSummary && (
-            <div className="stock-summary stock-summary--4">
+            <div className="stock-summary stock-summary--5">
               <div
                 className={`stock-summary__card stock-summary__card--clickable ${invFilters.values.status === 'all' ? 'stock-summary__card--active' : ''}`}
                 onClick={() => invFilters.setValue('status', 'all')}
@@ -618,7 +619,42 @@ export default function InventoryManagement() {
               >
                 <strong>{invSummary.lowCount}</strong><span>Low Stock</span>
               </div>
+              <div
+                className={`stock-summary__card stock-summary__card--out stock-summary__card--clickable ${invFilters.values.status === 'Out of Stock' ? 'stock-summary__card--active' : ''}`}
+                onClick={() => invFilters.setValue('status', invFilters.values.status === 'Out of Stock' ? 'all' : 'Out of Stock')}
+                role="button"
+                tabIndex={0}
+                onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); invFilters.setValue('status', invFilters.values.status === 'Out of Stock' ? 'all' : 'Out of Stock') } }}
+                title="Filter by Out of Stock items"
+              >
+                <strong>{invSummary.outOfStockCount || 0}</strong><span>Out of Stock</span>
+              </div>
             </div>
+          )}
+
+          {stockAlerts.length > 0 && (
+            <section className="inventory-stock-alerts" aria-label="Inventory stock alerts">
+              <div className="inventory-stock-alerts__heading">
+                <AlertCircle size={17} />
+                <div>
+                  <strong>Stock Alerts</strong>
+                  <span>{stockAlerts.length} {stockAlerts.length === 1 ? 'item needs' : 'items need'} attention</span>
+                </div>
+              </div>
+              <div className="inventory-stock-alerts__list">
+                {stockAlerts.map((item) => (
+                  <button
+                    type="button"
+                    key={item.dbId || item.id}
+                    className={`inventory-stock-alert ${item.stockLevel === 'out' ? 'inventory-stock-alert--out' : ''}`}
+                    onClick={() => setViewDetailItem(item)}
+                  >
+                    <strong>{item.stockLevel === 'out' ? 'Out of Stock' : 'Low Stock'}: {item.item}</strong>
+                    <span>Available: {item.quantity} {item.unit} · Low Stock Threshold: {item.lowStockThreshold} {item.unit}</span>
+                  </button>
+                ))}
+              </div>
+            </section>
           )}
 
           <div className="inv-toolbar" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.75rem', marginBottom: '1.25rem' }}>

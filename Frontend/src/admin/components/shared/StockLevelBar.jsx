@@ -3,10 +3,11 @@ export default function StockLevelBar({ level, percent, quantity, unit }) {
     sufficient: { bar: '#16a34a', bg: 'rgba(22,163,74,0.12)', label: 'Sufficient' },
     moderate: { bar: '#d97706', bg: 'rgba(217,119,6,0.12)', label: 'Moderate' },
     low: { bar: '#dc2626', bg: 'rgba(220,38,38,0.12)', label: 'Low Stock' },
+    out: { bar: '#991b1b', bg: 'rgba(153,27,27,0.12)', label: 'Out of Stock' },
   }
   const normLevel = String(level || '').toLowerCase().trim()
-  const c = colors[normLevel] || (normLevel.includes('low') ? colors.low : normLevel.includes('mod') ? colors.moderate : colors.sufficient)
-  const width = Math.min(100, Math.max(8, percent ?? 50))
+  const c = colors[normLevel] || (normLevel.includes('out') ? colors.out : normLevel.includes('low') ? colors.low : normLevel.includes('mod') ? colors.moderate : colors.sufficient)
+  const width = normLevel === 'out' ? 0 : Math.min(100, Math.max(8, percent ?? 50))
 
   return (
     <div className="stock-bar">
