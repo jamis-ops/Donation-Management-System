@@ -116,6 +116,31 @@ function isDistributionProgram(module) {
   return m.includes('distribution')
 }
 
+function orderPrograms(programs, preferredPrograms = []) {
+  const available = Array.from(new Set((programs || []).filter(Boolean)))
+  const preferred = Array.from(new Set((preferredPrograms || []).filter(Boolean)))
+  return [
+    ...preferred,
+    ...available.filter((program) => !preferred.includes(program)),
+  ]
+}
+
+function ProgramOptions({ programs, preferredPrograms = [], preferredLabel = 'Assigned Program' }) {
+  const preferred = new Set(preferredPrograms)
+  return orderPrograms(programs, preferredPrograms).map((program) => {
+    const isPreferred = preferred.has(program)
+    return (
+      <option
+        key={program}
+        value={program}
+        className={isPreferred ? 'task-program-option--preferred' : undefined}
+      >
+        {program}{isPreferred ? ` — ${preferredLabel}` : ''}
+      </option>
+    )
+  })
+}
+
 function ChipList({ items, empty = '—' }) {
   const list = (items || []).filter(Boolean)
   if (!list.length) return <span className="volunteer-muted">{empty}</span>
@@ -290,6 +315,10 @@ export default function VolunteersPage() {
     )
   }, [activeAssigneesList, generalSelectedVolunteerIds])
 
+  const generalPreferredPrograms = useMemo(() => {
+    return Array.from(new Set(selectedAssigneesDetails.flatMap((member) => member.programs || []).filter(Boolean)))
+  }, [selectedAssigneesDetails])
+
   const isGeneralStep1Valid = generalSelectedVolunteerIds.length > 0
   const isGeneralStep2Valid =
     Boolean(generalTaskForm.module?.trim()) &&
@@ -302,6 +331,14 @@ export default function VolunteersPage() {
       if (!isGeneralStep1Valid) {
         showErrorModal('Please select at least one active member before proceeding.')
         return
+      }
+      if (generalPreferredPrograms.length > 0 && generalTaskForm.module !== generalPreferredPrograms[0]) {
+        setGeneralTaskForm((prev) => ({
+          ...prev,
+          module: generalPreferredPrograms[0],
+          title: '',
+          distributionId: isDistributionProgram(generalPreferredPrograms[0]) ? prev.distributionId : '',
+        }))
       }
       setGeneralTaskStep(2)
     } else if (generalTaskStep === 2) {
@@ -412,7 +449,7 @@ export default function VolunteersPage() {
     setAiRecs([])
     setAiError(null)
     setAiSource('')
-    const initialProg = row.programs?.[0] || (row.applicantType === 'Intern' ? 'Internship' : 'Volunteer')
+    const initialProg = row.programs?.[0] || programOptions[0] || ''
     setDirectTaskForm({ ...emptyDirectTaskForm, module: initialProg })
     loadTasks(row)
 
@@ -867,7 +904,8 @@ export default function VolunteersPage() {
     }
     const firstVolId = activeAssigneesList[0]?.dbId ? String(activeAssigneesList[0].dbId) : ''
     setGeneralSelectedVolunteerIds(firstVolId ? [firstVolId] : [])
-    setGeneralTaskForm({ ...emptyGeneralTaskForm, module: programOptions[0] || 'Volunteer' })
+    const assignedProgram = activeAssigneesList[0]?.programs?.[0] || ''
+    setGeneralTaskForm({ ...emptyGeneralTaskForm, module: assignedProgram || programOptions[0] || '' })
     setSelectedSkillToAdd('')
     setSuggestions([])
     setGeneralTaskStep(1)
@@ -884,7 +922,7 @@ export default function VolunteersPage() {
       return
     }
     const enrolledProg = (selected.programs && selected.programs.length > 0) ? selected.programs[0] : ''
-    const initialProg = enrolledProg || (selected.applicantType === 'Intern' ? 'Internship' : 'Volunteer')
+    const initialProg = enrolledProg || programOptions[0] || ''
     setDirectTaskForm({ ...emptyDirectTaskForm, module: initialProg })
     setShowDirectTaskModal(true)
   }
@@ -987,7 +1025,7 @@ export default function VolunteersPage() {
         boardColumn: 'todo',
       })
       setShowDirectTaskModal(false)
-      setDirectTaskForm({ ...emptyDirectTaskForm, module: enrolledProg || (selected.applicantType === 'Intern' ? 'Internship' : 'Volunteer') })
+      setDirectTaskForm({ ...emptyDirectTaskForm, module: enrolledProg || programOptions[0] || '' })
       loadTasks(selected)
       reload()
       notifyBadgesChanged()
@@ -1053,6 +1091,14 @@ export default function VolunteersPage() {
     }
     return []
   }, [selected])
+
+  const directProgramOptions = useMemo(
+    () => orderPrograms(programOptions, enrolledPrograms),
+    [programOptions, enrolledPrograms],
+  )
+  const directPreferredLabel = selected?.applicantType === 'Intern'
+    ? 'Enrolled Program'
+    : 'Assigned Program'
 
   // Check if any recommendation is suitable
   const hasMatchedSuitableProgram = useMemo(() => {
@@ -2008,13 +2054,27 @@ export default function VolunteersPage() {
                             <form onSubmit={handleCreateDirectTask}>
                               <label>
                                 <Req required>Task Title</Req>
-                                <input
+                                <select
                                   required
                                   disabled={saving || ['Completed', 'Rejected'].includes(selected.status)}
                                   value={directTaskForm.title}
                                   onChange={(e) => setDirectTaskForm({ ...directTaskForm, title: e.target.value })}
-                                  placeholder="e.g. Assist in Food Prep, Support Youth Literacy"
-                                />
+                                >
+                                  <option value="">
+                                    {directTaskTitleOptions.length > 0 ? 'Select a task title…' : 'No task titles for this program'}
+                                  </option>
+                                  {directTaskTitleOptions.map((title) => (
+                                    <option key={title} value={title}>{title}</option>
+                                  ))}
+                                  {directTaskForm.title && !directTaskTitleOptions.includes(directTaskForm.title) && (
+                                    <option value={directTaskForm.title}>{directTaskForm.title}</option>
+                                  )}
+                                </select>
+                                <span className="task-assignment-field-hint">
+                                  {directTaskForm.module
+                                    ? `Showing active task titles assigned to "${directTaskForm.module}".`
+                                    : 'Select a program below to view available task titles.'}
+                                </span>
                               </label>
 
                               <label>
@@ -2023,25 +2083,7 @@ export default function VolunteersPage() {
                                   <select
                                     required
                                     disabled={saving || ['Completed', 'Rejected'].includes(selected.status)}
-                                    value={directTaskForm.module || enrolledPrograms[0]}
-                                    onChange={(e) => {
-                                      const nextModule = e.target.value
-                                      const isDist = isDistributionProgram(nextModule)
-                                      setDirectTaskForm((prev) => ({
-                                        ...prev,
-                                        module: nextModule,
-                                        distributionId: isDist ? prev.distributionId : '',
-                                      }))
-                                    }}
-                                  >
-                                    {enrolledPrograms.map((p) => (
-                                      <option key={p} value={p}>{p}</option>
-                                    ))}
-                                  </select>
-                                ) : (
-                                  <select
-                                    required
-                                    disabled={saving || ['Completed', 'Rejected'].includes(selected.status)}
+                                    className={enrolledPrograms.includes(directTaskForm.module) ? 'task-program-select--preferred' : ''}
                                     value={directTaskForm.module}
                                     onChange={(e) => {
                                       const nextModule = e.target.value
@@ -2049,14 +2091,40 @@ export default function VolunteersPage() {
                                       setDirectTaskForm((prev) => ({
                                         ...prev,
                                         module: nextModule,
+                                        title: '',
+                                        distributionId: isDist ? prev.distributionId : '',
+                                      }))
+                                    }}
+                                  >
+                                    <ProgramOptions
+                                      programs={directProgramOptions}
+                                      preferredPrograms={enrolledPrograms}
+                                      preferredLabel={directPreferredLabel}
+                                    />
+                                  </select>
+                                ) : (
+                                  <select
+                                    required
+                                    disabled={saving || ['Completed', 'Rejected'].includes(selected.status)}
+                                    className={enrolledPrograms.includes(directTaskForm.module) ? 'task-program-select--preferred' : ''}
+                                    value={directTaskForm.module}
+                                    onChange={(e) => {
+                                      const nextModule = e.target.value
+                                      const isDist = isDistributionProgram(nextModule)
+                                      setDirectTaskForm((prev) => ({
+                                        ...prev,
+                                        module: nextModule,
+                                        title: '',
                                         distributionId: isDist ? prev.distributionId : '',
                                       }))
                                     }}
                                   >
                                     <option value="">Select a Program…</option>
-                                    {programOptions.map((p) => (
-                                      <option key={p} value={p}>{p}</option>
-                                    ))}
+                                    <ProgramOptions
+                                      programs={directProgramOptions}
+                                      preferredPrograms={enrolledPrograms}
+                                      preferredLabel={directPreferredLabel}
+                                    />
                                   </select>
                                 )}
                               </label>
@@ -2799,6 +2867,7 @@ export default function VolunteersPage() {
                       <Req required>Program / Project</Req>
                       <select
                         required
+                        className={generalPreferredPrograms.includes(generalTaskForm.module) ? 'task-program-select--preferred' : ''}
                         value={generalTaskForm.module}
                         onChange={(e) => {
                           const nextModule = e.target.value
@@ -2812,9 +2881,11 @@ export default function VolunteersPage() {
                         }}
                       >
                         <option value="">Select a Program…</option>
-                        {programOptions.map((p) => (
-                          <option key={p} value={p}>{p}</option>
-                        ))}
+                        <ProgramOptions
+                          programs={programOptions}
+                          preferredPrograms={generalPreferredPrograms}
+                          preferredLabel="Assigned / Enrolled Program"
+                        />
                       </select>
                       <span style={{ fontSize: '0.74rem', color: '#64748b', marginTop: '0.2rem', display: 'block' }}>
                         Tasks will be categorized under this community initiative.
@@ -3270,7 +3341,8 @@ export default function VolunteersPage() {
                 {enrolledPrograms.length > 0 ? (
                   <select
                     required
-                    value={directTaskForm.module || enrolledPrograms[0]}
+                    className={enrolledPrograms.includes(directTaskForm.module) ? 'task-program-select--preferred' : ''}
+                    value={directTaskForm.module}
                     onChange={(e) => {
                       const nextModule = e.target.value
                       const isDist = isDistributionProgram(nextModule)
@@ -3282,13 +3354,16 @@ export default function VolunteersPage() {
                       }))
                     }}
                   >
-                    {enrolledPrograms.map((p) => (
-                      <option key={p} value={p}>{p}</option>
-                    ))}
+                    <ProgramOptions
+                      programs={directProgramOptions}
+                      preferredPrograms={enrolledPrograms}
+                      preferredLabel={directPreferredLabel}
+                    />
                   </select>
                 ) : (
                   <select
                     required
+                    className={enrolledPrograms.includes(directTaskForm.module) ? 'task-program-select--preferred' : ''}
                     value={directTaskForm.module}
                     onChange={(e) => {
                       const nextModule = e.target.value
@@ -3302,9 +3377,11 @@ export default function VolunteersPage() {
                     }}
                   >
                     <option value="">Select a Program…</option>
-                    {programOptions.map((p) => (
-                      <option key={p} value={p}>{p}</option>
-                    ))}
+                    <ProgramOptions
+                      programs={directProgramOptions}
+                      preferredPrograms={enrolledPrograms}
+                      preferredLabel={directPreferredLabel}
+                    />
                   </select>
                 )}
               </label>

@@ -1220,6 +1220,56 @@ a.volunteer-kpi-card:hover,
   color: #64748b;
 }
 
+.vtask-duty-inline {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem 0.45rem;
+  padding-top: 0.3rem;
+  margin-top: 0.05rem;
+  border-top: 1px solid #e2e8f0;
+  color: #475569;
+  font-size: 0.7rem;
+  line-height: 1.35;
+}
+
+.vtask-duty-inline span:not(:last-child)::after {
+  content: '·';
+  margin-left: 0.45rem;
+  color: #94a3b8;
+}
+
+.vtask-guidance-card {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.65rem;
+  padding: 0.75rem 0.9rem;
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  color: #334155;
+}
+
+.vtask-guidance-card > svg {
+  flex-shrink: 0;
+  margin-top: 0.1rem;
+  color: #AF101A;
+}
+
+.vtask-guidance-card strong {
+  display: block;
+  margin-bottom: 0.15rem;
+  color: #0f172a;
+  font-size: 0.82rem;
+}
+
+.vtask-guidance-card p {
+  margin: 0;
+  color: #475569;
+  font-size: 0.8rem;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+
 /* Distribution / Delivery Card */
 .vtask-delivery-card {
   padding: 0.9rem 1rem;
@@ -6088,6 +6138,27 @@ label > .phone-input {
   font-family: var(--font-sans, 'DM Sans', system-ui, sans-serif) !important;
   background: #ffffff;
   color: var(--admin-text, #111827);
+}
+
+.admin-modal select option.task-program-option--preferred {
+  background: #ecfdf5 !important;
+  color: #166534 !important;
+  font-weight: 700;
+}
+
+.admin-modal select.task-program-select--preferred {
+  border-color: #22c55e;
+  background-color: #f0fdf4;
+  color: #166534;
+  font-weight: 700;
+}
+
+.task-assignment-field-hint {
+  display: block;
+  margin-top: 0.25rem;
+  color: #64748b;
+  font-size: 0.74rem;
+  line-height: 1.4;
 }
 
 /* --- Ensure two-column form-row is clean in modal --- */

@@ -82,16 +82,16 @@ export function useTaskTitles(selectedProgram = '') {
       return p === targetProg || p === 'all programs' || p === 'general' || p === ''
     })
 
-    // If matches exist, return them
     if (matched.length > 0) return matched
 
-    // Fallback: items that contain or are contained in the program name, or general items
+    // Accommodate older catalog entries whose program labels differ only by a
+    // longer/shorter naming variant, while never falling back to unrelated tasks.
     const fuzzy = items.filter((item) => {
       const p = (item.program || '').trim().toLowerCase()
-      return p === 'all programs' || p === 'general' || targetProg.includes(p) || p.includes(targetProg)
+      return p === 'all programs' || p === 'general' || p === '' || targetProg.includes(p) || p.includes(targetProg)
     })
 
-    return fuzzy.length > 0 ? fuzzy : items
+    return fuzzy
   }, [items, selectedProgram])
 
   const options = useMemo(() => {

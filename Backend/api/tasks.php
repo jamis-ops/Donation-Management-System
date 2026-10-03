@@ -131,6 +131,43 @@ function is_intern_assignee(PDO $pdo, ?int $userId, ?string $assigneeName, ?int 
   return false;
 }
 
+/** Resolve portal guidance from the assigned task or its existing Task Title CMS record. */
+function resolve_task_guidance(PDO $pdo, array $row): string
+{
+  foreach (['guidance', 'instructions', 'description'] as $field) {
+    $value = trim((string) ($row[$field] ?? ''));
+    if ($value !== '') return $value;
+  }
+
+  $title = trim((string) ($row['title'] ?? ''));
+  $program = trim((string) ($row['module'] ?? ''));
+  $cacheKey = strtolower($title . '|' . $program);
+  static $cache = [];
+  if (array_key_exists($cacheKey, $cache)) return $cache[$cacheKey];
+
+  try {
+    $stmt = $pdo->prepare(
+      "SELECT description
+       FROM task_titles
+       WHERE LOWER(title) = LOWER(?)
+         AND (LOWER(program) = LOWER(?) OR program IN ('All Programs', 'General') OR program = '')
+       ORDER BY CASE WHEN LOWER(program) = LOWER(?) THEN 0 ELSE 1 END, sort_order ASC, id ASC
+       LIMIT 1"
+    );
+    $stmt->execute([$title, $program, $program]);
+    $description = trim((string) ($stmt->fetchColumn() ?: ''));
+    if ($description !== '') {
+      return $cache[$cacheKey] = $description;
+    }
+  } catch (Throwable $e) {
+    // Older installations may not have initialized the Task Title CMS yet.
+  }
+
+  $taskLabel = $title !== '' ? $title : 'assigned task';
+  $programLabel = $program !== '' ? " for {$program}" : '';
+  return $cache[$cacheKey] = "Complete {$taskLabel}{$programLabel}, follow the assigned staff member's instructions, handle materials safely, and report progress or issues when needed.";
+}
+
 function map_task(PDO $pdo, ?array $row): ?array
 {
   if (!$row) {
@@ -184,6 +221,7 @@ function map_task(PDO $pdo, ?array $row): ?array
                 str_contains($titleStr, 'delivery') ||
                 str_contains($titleStr, 'logistics');
   $isDistTask = (bool) ($distId && $isDistType);
+  $guidance = resolve_task_guidance($pdo, $row);
 
   return [
     'id' => $row['code'],
@@ -193,7 +231,8 @@ function map_task(PDO $pdo, ?array $row): ?array
     'assigneeUserId' => $assigneeUserId,
     'program' => $row['module'] ?: 'General Operations',
     'location' => $distLocation ?: ($row['location'] ?? 'Cebu Operations Depot'),
-    'instructions' => !empty($row['instructions']) ? $row['instructions'] : (!empty($row['description']) ? $row['description'] : 'Execute assigned operational task according to standard Foundation protocols, safety rules, and verification procedures.'),
+    'instructions' => $guidance,
+    'guidance' => $guidance,
     'description' => $row['description'] ?? $row['title'],
     'schedule' => !empty($dutyStartClean) ? format_date($row['due_date']) . " ({$dutyStartClean} - {$dutyEndClean})" : format_date($row['due_date']),
     'distributionId' => $distId ?: null,

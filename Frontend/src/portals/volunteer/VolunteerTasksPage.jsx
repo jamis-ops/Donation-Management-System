@@ -12,6 +12,7 @@ import {
   ShieldCheck,
   Layers,
   Tag,
+  BookOpen,
   X,
   Check,
 } from 'lucide-react'
@@ -454,9 +455,7 @@ export default function VolunteerTasksPage() {
                         <ShieldCheck size={13} />
                       )}
                     </div>
-                    <span className="vtask-timeline__label">
-                      {getVolunteerTaskStatus(selectedTask) === 'Completed' ? 'Completed' : 'Admin Verified'}
-                    </span>
+                    <span className="vtask-timeline__label">Complete</span>
                   </div>
                 </div>
               )}
@@ -473,6 +472,13 @@ export default function VolunteerTasksPage() {
                   <span className="vtask-metric-card__sub">
                     {selectedTask.due ? 'Target completion date' : 'Flexible timing'}
                   </span>
+                  {(selectedTask.dutyStart || selectedTask.dutyEnd || selectedTask.dutyHours) && (
+                    <span className="vtask-duty-inline">
+                      {selectedTask.dutyStart && <span>Start <strong>{selectedTask.dutyStart}</strong></span>}
+                      {selectedTask.dutyEnd && <span>End <strong>{selectedTask.dutyEnd}</strong></span>}
+                      {selectedTask.dutyHours && <span><strong>{selectedTask.dutyHours}</strong> hrs</span>}
+                    </span>
+                  )}
                 </div>
 
                 <div className="vtask-metric-card">
@@ -497,6 +503,14 @@ export default function VolunteerTasksPage() {
                   <span className="vtask-metric-card__sub">
                     Assigned Foundation Program
                   </span>
+                </div>
+              </div>
+
+              <div className="vtask-guidance-card">
+                <BookOpen size={16} aria-hidden="true" />
+                <div>
+                  <strong>Task Guidance</strong>
+                  <p>{selectedTask.guidance || selectedTask.instructions}</p>
                 </div>
               </div>
 
