@@ -1877,6 +1877,8 @@ export default function RequestsPage() {
 
   const handleUpdateStatus = async (dbId, updates) => {
     const existing = (enrichedData || []).find((r) => r.dbId === dbId);
+    const isApprovalAction = ['Approved', 'Ready for Allocation'].includes(updates?.status)
+      && ['Pending Review', 'Under Review', 'Pending'].includes(existing?.status);
     if (updates?.status) {
       if (existing) {
         const check = validateStatusTransition({
@@ -1894,7 +1896,7 @@ export default function RequestsPage() {
         }
       }
 
-      if (updates.status === 'Approved') {
+      if (isApprovalAction) {
         const ok = await confirmAction({
           title: 'Approve Relief Request',
           message: `Approve relief request from ${existing?.beneficiary || 'barangay'} for ${existing?.type || 'relief assistance'} (${existing?.affectedFamilies || 0} families)?`,
@@ -1917,20 +1919,21 @@ export default function RequestsPage() {
       showLoading('Updating…');
       const res = await assistanceRequestsApi.update(dbId, updates);
       const status = res?.data?.status || updates.status || 'Updated'
+      const updatedRequest = res?.data || { ...existing, ...updates };
+      if (selectedRequest && selectedRequest.dbId === dbId) {
+        setSelectedRequest(prev => ({ ...prev, ...updatedRequest }));
+      }
       await reqReload();
       notifyBadgesChanged();
       notify.success(`Status successfully updated to: ${status}.`);
-      if (updates?.status === 'Approved') {
+      if (isApprovalAction) {
         showSuccessModal('Successfully approved.')
       } else if (updates?.status === 'Rejected') {
         showSuccessModal('Successfully rejected.')
       } else {
         showSuccessModal('Successfully updated.')
       }
-      if (selectedRequest && selectedRequest.dbId === dbId) {
-        setSelectedRequest(prev => ({ ...prev, ...(res?.data || updates) }));
-      }
-      return res?.data || { ...existing, ...updates };
+      return updatedRequest;
     } catch (err) {
       notify.error(err?.message || 'Failed to update request');
       return null;
@@ -2306,6 +2309,7 @@ export default function RequestsPage() {
 
       {selectedRequest && (
         <ReviewModal 
+          key={selectedRequest.dbId || selectedRequest.id}
           request={selectedRequest} 
           allRequests={enrichedData}
           inventoryData={inventoryData}
@@ -2381,7 +2385,7 @@ function ReviewModal({
   navigate 
 }) {
   const [liveRequest, setLiveRequest] = useState(request);
-  const [isLoadingFresh, setIsLoadingFresh] = useState(false);
+  const [isLoadingFresh, setIsLoadingFresh] = useState(Boolean(request?.dbId || request?.id));
   const [selectedPriority, setSelectedPriority] = useState('');
 
   useEffect(() => {
@@ -2409,7 +2413,7 @@ function ReviewModal({
     return () => {
       active = false;
     };
-  }, [request?.dbId, request?.id]);
+  }, [request]);
 
   const modalPerms = useMemo(() => {
     return getReliefRequestActionPermissions(liveRequest?.status);
@@ -2516,8 +2520,61 @@ function ReviewModal({
   }, [inventoryData, requestedNeeds, request.type, availableMonetaryDonations]);
 
   const handleSave = async (status) => {
-    await onUpdate(request.dbId, { status, notes, type: request.type });
-    if (status !== 'Approved') onClose();
+    if (isUpdating || isLoadingFresh) return;
+
+    const reqId = liveRequest?.dbId || liveRequest?.id || request?.dbId || request?.id;
+    if (!reqId) {
+      notify.error('Unable to identify this relief request. Refresh the page and try again.');
+      return;
+    }
+
+    // Re-check the authoritative record immediately before a transition. This
+    // prevents a stale open modal from offering an action that another workflow
+    // step has already made invalid.
+    let currentRequest = liveRequest;
+    try {
+      const response = await assistanceRequestsApi.get(reqId);
+      const fresh = response?.data || response;
+      if (fresh && (fresh.id || fresh.dbId)) {
+        currentRequest = { ...liveRequest, ...fresh };
+        setLiveRequest(currentRequest);
+      }
+    } catch (err) {
+      console.warn('Could not verify the current relief request status:', err);
+      notify.error('Could not verify the latest request status. Please try again.');
+      return;
+    }
+
+    const isApprovalAction = status === 'Ready for Allocation';
+    const currentPermissions = getReliefRequestActionPermissions(currentRequest?.status);
+    if (isApprovalAction && !currentPermissions.canApprove) {
+      notify.info(`This request is already ${currentRequest?.status || 'past review'}. Available actions have been refreshed.`);
+      return;
+    }
+
+    const transition = validateStatusTransition({
+      entityName: 'Assistance request',
+      currentStatus: currentRequest?.status,
+      nextStatus: status,
+      workflowOrder: REQUEST_WORKFLOW,
+      terminalStatuses: REQUEST_TERMINAL,
+      branches: REQUEST_BRANCHES,
+      aliases: REQUEST_ALIASES,
+    });
+    if (!transition.valid) {
+      notify.error(transition.message);
+      return;
+    }
+
+    const updated = await onUpdate(reqId, {
+      status,
+      notes,
+      type: currentRequest?.type || request?.type,
+    });
+    if (!updated) return;
+
+    setLiveRequest(prev => ({ ...prev, ...updated }));
+    if (!isApprovalAction) onClose();
   };
 
   const handleSaveNotesOnly = async () => {
@@ -2617,7 +2674,7 @@ function ReviewModal({
           {/* Primary Action Buttons placed prominently at the top */}
           <div className="relief-review-top-actions">
             {/* 1. When Pending Review / Under Review: show Reject and Approve only (NO delete) */}
-            {modalPerms.canApprove && (
+            {!isLoadingFresh && modalPerms.canApprove && (
               <>
                 {liveRequest.status === 'Pending Review' && (
                   <button 
@@ -2643,7 +2700,7 @@ function ReviewModal({
                   type="button" 
                   className="btn btn--success btn--sm relief-btn-approve" 
                   disabled={isUpdating || !liveRequest.priorityAssigned}
-                  onClick={() => handleSave('Approved')} 
+                  onClick={() => handleSave('Ready for Allocation')}
                   title={liveRequest.priorityAssigned ? 'Approve this relief request' : 'Assign and save the priority first'}
                 >
                   <Check size={14} strokeWidth={2.6} /> Approve Request
@@ -2652,7 +2709,7 @@ function ReviewModal({
             )}
 
             {/* 2. When Rejected: show Delete only (NO approve, NO reject) */}
-            {modalPerms.canDelete && (
+            {!isLoadingFresh && modalPerms.canDelete && (
               <button 
                 type="button" 
                 className="btn btn--danger btn--sm relief-btn-delete" 
@@ -2668,7 +2725,7 @@ function ReviewModal({
             )}
 
             {/* 3. When Approved: show Allocate & Procure (NO Approve, NO Reject, NO Delete) */}
-            {modalPerms.isApproved && !liveRequest.hasAllocation && (
+            {!isLoadingFresh && modalPerms.isApproved && !liveRequest.hasAllocation && (
               <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', flexWrap: 'wrap' }}>
                 {stockFeasibility.hasShortage && (
                   <button
