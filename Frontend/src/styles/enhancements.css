@@ -1697,6 +1697,167 @@ a.volunteer-kpi-card:hover,
   background: #fef2f2;
 }
 
+/* Barangay relief-request details modal */
+.relief-modal-improved {
+  display: flex;
+  flex-direction: column;
+  max-height: min(90vh, 880px);
+}
+
+.relief-modal-improved > .admin-modal__header,
+.relief-modal-statusbar,
+.relief-modal-footer {
+  flex: 0 0 auto;
+}
+
+.relief-modal-improved .relief-modal-body {
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+}
+
+.relief-proof-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 0.7rem;
+  margin-top: 0.7rem;
+}
+
+.relief-proof-preview {
+  display: grid;
+  min-width: 0;
+  gap: 0.5rem;
+  padding: 0.55rem;
+  border: 1px solid #e2e8f0;
+  border-radius: 9px;
+  background: #fff;
+  color: #334155;
+  text-decoration: none;
+  transition: border-color 160ms ease, box-shadow 160ms ease, transform 160ms ease;
+}
+
+.relief-proof-preview:hover,
+.relief-proof-preview:focus-visible {
+  border-color: #af101a;
+  box-shadow: 0 6px 18px rgba(175, 16, 26, 0.12);
+  transform: translateY(-1px);
+  outline: none;
+}
+
+.relief-proof-preview__image {
+  display: grid;
+  place-items: center;
+  width: 100%;
+  min-height: 150px;
+  aspect-ratio: 16 / 8;
+  overflow: hidden;
+  border-radius: 7px;
+  background: #f1f5f9;
+}
+
+.relief-proof-preview__image img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  max-height: 240px;
+  object-fit: contain;
+}
+
+.relief-proof-preview__name {
+  display: flex;
+  min-width: 0;
+  align-items: flex-start;
+  gap: 0.4rem;
+  color: #334155;
+  font-size: 0.82rem;
+  line-height: 1.35;
+}
+
+.relief-proof-preview__name svg {
+  flex: 0 0 auto;
+  margin-top: 0.08rem;
+  color: #af101a;
+}
+
+.relief-proof-preview__name span {
+  overflow-wrap: anywhere;
+}
+
+.relief-request-details-list {
+  display: grid;
+  grid-template-columns: minmax(145px, 0.42fr) minmax(0, 1fr);
+  align-items: center;
+  gap: 0.7rem 1rem;
+  font-size: 0.86rem;
+}
+
+.relief-request-details-list > span:nth-child(odd) {
+  color: #64748b;
+  font-weight: 650;
+}
+
+.relief-request-details-list > :nth-child(even) {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.relief-request-needs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.relief-request-muted {
+  color: #64748b;
+  font-style: italic;
+}
+
+.relief-request-notes-input--readonly {
+  min-height: 76px;
+  color: #334155;
+  cursor: default;
+  resize: none !important;
+}
+
+@media (max-width: 640px) {
+  .relief-modal-improved {
+    width: calc(100% - 1rem) !important;
+    max-height: 94vh;
+    border-radius: 12px !important;
+  }
+
+  .relief-modal-improved .relief-modal-body {
+    padding: 0.85rem !important;
+    gap: 0.75rem !important;
+  }
+
+  .relief-modal-statusbar,
+  .relief-modal-footer {
+    padding-inline: 0.85rem !important;
+  }
+
+  .relief-request-details-list {
+    grid-template-columns: 1fr;
+    gap: 0.25rem;
+  }
+
+  .relief-request-details-list > span:nth-child(odd) {
+    margin-top: 0.5rem;
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+  }
+
+  .relief-request-details-list > span:first-child {
+    margin-top: 0;
+  }
+
+  .relief-proof-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
 @media (max-width: 900px) {
   .stock-summary,
   .stock-summary--4,

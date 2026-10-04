@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { 
   Calendar, Users, MapPin, FileText, Check, X, Clock, 
@@ -23,23 +23,19 @@ export default function ReliefRequestModal({
   onClose,
   onUpdated,
   onDeleted,
-  onProcure,
-  availableMonetaryDonations = [],
 }) {
   const navigate = useNavigate()
+  const requestId = request?.dbId || request?.id
 
   // Authoritative live request status fetched directly from the database
   const [liveRequest, setLiveRequest] = useState(request)
-  const [isLoadingFresh, setIsLoadingFresh] = useState(false)
+  const [isLoadingFresh, setIsLoadingFresh] = useState(Boolean(requestId))
 
   useEffect(() => {
-    setLiveRequest(request)
-    const reqId = request?.dbId || request?.id
-    if (!reqId) return
+    if (!requestId) return
 
     let active = true
-    setIsLoadingFresh(true)
-    assistanceRequestsApi.get(reqId)
+    assistanceRequestsApi.get(requestId)
       .then((res) => {
         if (!active) return
         const fresh = res?.data || res
@@ -57,7 +53,7 @@ export default function ReliefRequestModal({
     return () => {
       active = false
     }
-  }, [request?.dbId, request?.id])
+  }, [requestId])
 
   const permissions = useMemo(() => {
     return getReliefRequestActionPermissions(liveRequest?.status)
@@ -78,38 +74,33 @@ export default function ReliefRequestModal({
     return stripped
   }, [liveRequest?.notes])
 
-  const [notes, setNotes] = useState(cleanedInitialNotes)
+  const [notesDraft, setNotesDraft] = useState(null)
   const [isUpdating, setIsUpdating] = useState(false)
   const [selectedPriority, setSelectedPriority] = useState('')
-
-  useEffect(() => {
-    setNotes(cleanedInitialNotes)
-  }, [cleanedInitialNotes])
-
-  if (!liveRequest) return null
+  const notes = notesDraft ?? cleanedInitialNotes
 
   // Extract calamity cleanly
   const calamity = useMemo(() => {
-    if (liveRequest.calamityTags && Array.isArray(liveRequest.calamityTags) && liveRequest.calamityTags.length > 0) {
+    if (liveRequest?.calamityTags && Array.isArray(liveRequest.calamityTags) && liveRequest.calamityTags.length > 0) {
       return liveRequest.calamityTags[0]
     }
-    if (liveRequest.calamity) return liveRequest.calamity
-    if (liveRequest.notes) {
+    if (liveRequest?.calamity) return liveRequest.calamity
+    if (liveRequest?.notes) {
       const match = liveRequest.notes.match(/Calamity\/Program:\s*([^\n\r]+)/i)
       if (match) return match[1].trim()
     }
-    return liveRequest.reason || 'General Assistance'
+    return liveRequest?.reason || 'General Assistance'
   }, [liveRequest])
 
   // Extract needs cleanly
   const needsList = useMemo(() => {
-    if (Array.isArray(liveRequest.needs) && liveRequest.needs.length > 0) {
+    if (Array.isArray(liveRequest?.needs) && liveRequest.needs.length > 0) {
       return liveRequest.needs
     }
-    if (typeof liveRequest.needs === 'string' && liveRequest.needs.trim()) {
+    if (typeof liveRequest?.needs === 'string' && liveRequest.needs.trim()) {
       return liveRequest.needs.split(',').map(s => s.trim()).filter(Boolean)
     }
-    if (liveRequest.type) {
+    if (liveRequest?.type) {
       return liveRequest.type.split(',').map(s => s.trim()).filter(Boolean)
     }
     return []
@@ -117,13 +108,13 @@ export default function ReliefRequestModal({
 
   // Request-specific affected families
   const affectedFamiliesCount = useMemo(() => {
-    if (liveRequest.affectedFamilies != null && Number(liveRequest.affectedFamilies) > 0) {
+    if (liveRequest?.affectedFamilies != null && Number(liveRequest.affectedFamilies) > 0) {
       return Number(liveRequest.affectedFamilies)
     }
-    if (liveRequest.families != null && Number(liveRequest.families) > 0) {
+    if (liveRequest?.families != null && Number(liveRequest.families) > 0) {
       return Number(liveRequest.families)
     }
-    if (liveRequest.notes) {
+    if (liveRequest?.notes) {
       const match = liveRequest.notes.match(/Families\s*Affected\s*:\s*(\d+)/i) || liveRequest.notes.match(/(\d+)\s*families/i)
       if (match) return parseInt(match[1], 10)
     }
@@ -132,7 +123,7 @@ export default function ReliefRequestModal({
 
   // Formatted submission date
   const formattedDate = useMemo(() => {
-    const raw = liveRequest.requestDate || liveRequest.date || liveRequest.createdAt
+    const raw = liveRequest?.requestDate || liveRequest?.date || liveRequest?.createdAt
     if (!raw) return '—'
     try {
       return new Date(raw).toLocaleDateString('en-US', {
@@ -144,6 +135,10 @@ export default function ReliefRequestModal({
       return raw
     }
   }, [liveRequest])
+
+  if (!liveRequest) return null
+
+  const isCompleted = String(liveRequest.status || '').toLowerCase() === 'completed'
 
   // Workflow update
   const handleStatusUpdate = async (nextStatus) => {
@@ -210,6 +205,7 @@ export default function ReliefRequestModal({
       notify.success('Notes saved.')
       showSuccessModal('Request remarks successfully updated.')
       setLiveRequest(prev => ({ ...prev, notes }))
+      setNotesDraft(null)
       if (onUpdated) {
         onUpdated({ ...liveRequest, notes })
       }
@@ -285,7 +281,7 @@ export default function ReliefRequestModal({
       <div 
         className="admin-modal relief-modal-improved" 
         onClick={e => e.stopPropagation()}
-        style={{ maxWidth: '640px', width: '92%', borderRadius: '14px', overflow: 'hidden' }}
+        style={{ maxWidth: '760px', width: '94%', borderRadius: '14px', overflow: 'hidden' }}
       >
         <ModalHeader
           title={`Relief Request — ${liveRequest.id}`}
@@ -294,7 +290,7 @@ export default function ReliefRequestModal({
         />
 
         {/* ── TOP ACTION & STATUS BAR (Approve/Reject for Pending only; Delete for Rejected only; NO buttons for Approved/Allocated/In Distribution/Completed) ── */}
-        <div style={{
+        <div className="relief-modal-statusbar" style={{
           display: 'flex',
           justifyContent: 'space-between',
           alignItems: 'center',
@@ -465,6 +461,7 @@ export default function ReliefRequestModal({
 
         {/* ── MODAL BODY ── */}
         <div className="relief-modal-body" style={{ padding: '1.15rem 1.25rem', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+          {!isCompleted && (
           <div className="relief-modal-card" style={{ border: '1px solid #e2e8f0', borderRadius: '10px', padding: '1rem 1.15rem', background: '#fff' }}>
             <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '0.8rem', flexWrap: 'wrap' }}>
               <div>
@@ -491,17 +488,20 @@ export default function ReliefRequestModal({
               )}
             </div>
           </div>
+          )}
 
-          <div className="relief-modal-card" style={{ border: '1px solid #e2e8f0', borderRadius: '10px', padding: '1rem 1.15rem', background: '#fff' }}>
+          <div className="relief-modal-card relief-proof-card" style={{ border: '1px solid #e2e8f0', borderRadius: '10px', padding: '1rem 1.15rem', background: '#fff' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.8rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em', color: '#64748b' }}>
               <ImageIcon size={14} /> Disaster Proof / Photos
             </div>
             {Array.isArray(liveRequest.disasterProofs) && liveRequest.disasterProofs.length > 0 ? (
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: '0.6rem', marginTop: '0.65rem' }}>
+              <div className="relief-proof-grid">
                 {liveRequest.disasterProofs.map((proof) => (
-                  <a key={proof.id} href={getAuthenticatedFileUrl(proof.url)} target="_blank" rel="noreferrer" style={{ display: 'grid', gap: '0.45rem', padding: '0.5rem', border: '1px solid #e2e8f0', borderRadius: '8px', color: '#334155', textDecoration: 'none', minWidth: 0 }}>
-                    <img src={getAuthenticatedFileUrl(proof.url)} alt={`Disaster proof: ${proof.name}`} style={{ width: '100%', height: '105px', objectFit: 'cover', borderRadius: '6px', background: '#f1f5f9' }} />
-                    <span style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', minWidth: 0 }}><ImageIcon size={14} color="#AF101A" style={{ flexShrink: 0 }} /><span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{proof.name}</span></span>
+                  <a key={proof.id || proof.url} href={getAuthenticatedFileUrl(proof.url)} target="_blank" rel="noreferrer" className="relief-proof-preview" title="Open full-size disaster photo">
+                    <span className="relief-proof-preview__image">
+                      <img src={getAuthenticatedFileUrl(proof.url)} alt={`Disaster proof: ${proof.name || 'uploaded photo'}`} />
+                    </span>
+                    <span className="relief-proof-preview__name"><ImageIcon size={14} /><span>{proof.name || 'Disaster proof photo'}</span></span>
                   </a>
                 ))}
               </div>
@@ -532,15 +532,23 @@ export default function ReliefRequestModal({
             </div>
 
             {/* Aligned Key-Value Details */}
-            <div style={{ display: 'grid', gridTemplateColumns: '125px 1fr', rowGap: '0.65rem', columnGap: '0.85rem', alignItems: 'center', fontSize: '0.86rem' }}>
+            <div className="relief-request-details-list">
+              <span>Relief Request ID:</span>
+              <strong>{liveRequest.id || liveRequest.code}</strong>
+
+              <span>Priority:</span>
+              <div>{liveRequest.priority ? <StatusBadge status={liveRequest.priority} /> : <span className="relief-request-muted">Not Assigned</span>}</div>
+
+              <span>Status:</span>
+              <div><StatusBadge status={liveRequest.status} /></div>
               
               {/* Calamity / Disaster */}
-              <span style={{ color: '#64748b', fontWeight: 600 }}>Calamity:</span>
+              <span>Calamity / Disaster Type:</span>
               <span style={{ fontWeight: 650, color: '#0f172a' }}>{calamity}</span>
 
               {/* Needs */}
-              <span style={{ color: '#64748b', fontWeight: 600 }}>Needs:</span>
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.35rem' }}>
+              <span>Requested Needs:</span>
+              <div className="relief-request-needs">
                 {needsList.length > 0 ? (
                   needsList.map((need, idx) => (
                     <span 
@@ -568,7 +576,7 @@ export default function ReliefRequestModal({
               </div>
 
               {/* Affected Families */}
-              <span style={{ color: '#64748b', fontWeight: 600 }}>Affected Families:</span>
+              <span>Affected Families:</span>
               <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem', lineHeight: 1 }}>
                 <Users size={14} style={{ color: '#af101a', flexShrink: 0, display: 'block' }} />
                 <span style={{ fontWeight: 700, fontSize: '0.94rem', color: '#af101a', lineHeight: 1 }}>
@@ -578,19 +586,19 @@ export default function ReliefRequestModal({
               </div>
 
               {/* Request Date */}
-              <span style={{ color: '#64748b', fontWeight: 600 }}>Request Date:</span>
+              <span>Request Date:</span>
               <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem', color: '#334155' }}>
                 <Calendar size={13} style={{ color: '#64748b', flexShrink: 0 }} />
                 <span>{formattedDate}</span>
               </div>
 
               {/* Barangay Location */}
-              <span style={{ color: '#64748b', fontWeight: 600 }}>Barangay:</span>
+              <span>Barangay:</span>
               <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem', color: '#334155' }}>
                 <MapPin size={13} style={{ color: '#64748b', flexShrink: 0 }} />
                 <span>
-                  <strong>{request.beneficiary || request.barangay || '—'}</strong>
-                  {request.municipality ? ` (${request.municipality})` : ''}
+                  <strong>{liveRequest.beneficiary || liveRequest.barangay || '—'}</strong>
+                  {liveRequest.municipality ? ` (${liveRequest.municipality})` : ''}
                 </span>
               </div>
             </div>
@@ -599,9 +607,9 @@ export default function ReliefRequestModal({
             <div style={{ marginTop: '0.35rem', paddingTop: '0.65rem', borderTop: '1px solid #f1f5f9' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.35rem' }}>
                 <label style={{ fontSize: '0.78rem', fontWeight: 650, color: '#475569', display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}>
-                  <FileText size={12} style={{ flexShrink: 0 }} /> Description & Administrative Notes
+                  <FileText size={12} style={{ flexShrink: 0 }} /> Description / Notes
                 </label>
-                {notes !== cleanedInitialNotes && (
+                {!isCompleted && notes !== cleanedInitialNotes && (
                   <button
                     type="button"
                     className="btn btn--ghost btn--xs"
@@ -615,9 +623,12 @@ export default function ReliefRequestModal({
               </div>
               <textarea
                 value={notes}
-                onChange={(e) => setNotes(e.target.value)}
+                onChange={(e) => setNotesDraft(e.target.value)}
+                readOnly={isCompleted}
+                aria-readonly={isCompleted}
                 placeholder="Enter situation details, delivery instructions, or notes…"
-                rows={2}
+                rows={3}
+                className={isCompleted ? 'relief-request-notes-input relief-request-notes-input--readonly' : 'relief-request-notes-input'}
                 style={{
                   width: '100%',
                   padding: '0.55rem 0.75rem',
@@ -636,7 +647,7 @@ export default function ReliefRequestModal({
         </div>
 
         {/* Modal Close Button at bottom */}
-        <div style={{
+        <div className="relief-modal-footer" style={{
           display: 'flex',
           justifyContent: 'flex-end',
           padding: '0.65rem 1.25rem',
