@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { 
   Calendar, Users, MapPin, FileText, Check, X, Clock, 
-  Package, Tag, Trash2, Image as ImageIcon, AlertCircle
+  Package, Tag, Trash2, Image as ImageIcon, Lock, AlertCircle
 } from 'lucide-react'
 import ModalHeader from '../shared/ModalHeader'
 import StatusBadge from '../shared/StatusBadge'
@@ -134,12 +134,6 @@ export default function ReliefRequestModal({
     } catch {
       return raw
     }
-  }, [liveRequest])
-
-  const requestLocation = useMemo(() => {
-    const explicitLocation = liveRequest?.location || liveRequest?.address || liveRequest?.delivery?.location
-    if (explicitLocation) return explicitLocation
-    return liveRequest?.municipality || liveRequest?.barangay || liveRequest?.beneficiary || '—'
   }, [liveRequest])
 
   if (!liveRequest) return null
@@ -290,8 +284,8 @@ export default function ReliefRequestModal({
         style={{ maxWidth: '760px', width: '94%', borderRadius: '14px', overflow: 'hidden' }}
       >
         <ModalHeader
-          title="Relief Request Review"
-          subtitle={`${liveRequest.id || liveRequest.code} · ${liveRequest.barangay || liveRequest.beneficiary || 'Barangay'}`}
+          title={`Relief Request — ${liveRequest.id}`}
+          subtitle={`Submitted for ${liveRequest.beneficiary || liveRequest.barangay || 'Barangay'}`}
           onClose={onClose}
         />
 
@@ -467,25 +461,31 @@ export default function ReliefRequestModal({
 
         {/* ── MODAL BODY ── */}
         <div className="relief-modal-body" style={{ padding: '1.15rem 1.25rem', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-          {!isCompleted && !liveRequest.priorityAssigned && (
+          {!isCompleted && (
           <div className="relief-modal-card" style={{ border: '1px solid #e2e8f0', borderRadius: '10px', padding: '1rem 1.15rem', background: '#fff' }}>
             <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '0.8rem', flexWrap: 'wrap' }}>
               <div>
                 <div style={{ fontSize: '0.8rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em', color: '#64748b' }}>Priority Assessment</div>
                 <div style={{ fontSize: '0.78rem', color: '#64748b', marginTop: '0.2rem' }}>Review the disaster photos, then assign the severity once.</div>
               </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
-                <select value={selectedPriority} onChange={(e) => setSelectedPriority(e.target.value)} disabled={isUpdating} style={{ minWidth: '175px' }}>
-                  <option value="">Select priority...</option>
-                  <option value="Low">Low</option>
-                  <option value="Medium">Medium</option>
-                  <option value="High">High</option>
-                  <option value="Critical">Critical</option>
-                </select>
-                <button type="button" className="btn btn--success btn--sm" disabled={isUpdating || !selectedPriority} onClick={handleAssignPriority}>
-                  <Check size={13} /> Assign & Lock
-                </button>
-              </div>
+              {liveRequest.priorityAssigned ? (
+                <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.45rem', padding: '0.45rem 0.65rem', borderRadius: '7px', background: '#f8fafc', border: '1px solid #e2e8f0', fontWeight: 700 }}>
+                  <Lock size={14} color="#64748b" /> {liveRequest.priority} Priority
+                </div>
+              ) : (
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+                  <select value={selectedPriority} onChange={(e) => setSelectedPriority(e.target.value)} disabled={isUpdating} style={{ minWidth: '175px' }}>
+                    <option value="">Select priority...</option>
+                    <option value="Low">Low</option>
+                    <option value="Medium">Medium</option>
+                    <option value="High">High</option>
+                    <option value="Critical">Critical</option>
+                  </select>
+                  <button type="button" className="btn btn--success btn--sm" disabled={isUpdating || !selectedPriority} onClick={handleAssignPriority}>
+                    <Check size={13} /> Assign & Lock
+                  </button>
+                </div>
+              )}
             </div>
           </div>
           )}
@@ -536,8 +536,14 @@ export default function ReliefRequestModal({
               <span>Relief Request ID:</span>
               <strong>{liveRequest.id || liveRequest.code}</strong>
 
+              <span>Priority:</span>
+              <div>{liveRequest.priority ? <StatusBadge status={liveRequest.priority} /> : <span className="relief-request-muted">Not Assigned</span>}</div>
+
+              <span>Status:</span>
+              <div><StatusBadge status={liveRequest.status} /></div>
+              
               {/* Calamity / Disaster */}
-              <span>Calamity / Program:</span>
+              <span>Calamity / Disaster Type:</span>
               <span style={{ fontWeight: 650, color: '#0f172a' }}>{calamity}</span>
 
               {/* Needs */}
@@ -580,16 +586,10 @@ export default function ReliefRequestModal({
               </div>
 
               {/* Request Date */}
-              <span>Date Submitted:</span>
+              <span>Request Date:</span>
               <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem', color: '#334155' }}>
                 <Calendar size={13} style={{ color: '#64748b', flexShrink: 0 }} />
                 <span>{formattedDate}</span>
-              </div>
-
-              <span>Location:</span>
-              <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem', color: '#334155' }}>
-                <MapPin size={13} style={{ color: '#64748b', flexShrink: 0 }} />
-                <span>{requestLocation}</span>
               </div>
 
               {/* Barangay Location */}
@@ -597,7 +597,8 @@ export default function ReliefRequestModal({
               <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem', color: '#334155' }}>
                 <MapPin size={13} style={{ color: '#64748b', flexShrink: 0 }} />
                 <span>
-                  <strong>{liveRequest.barangay || liveRequest.beneficiary || '—'}</strong>
+                  <strong>{liveRequest.beneficiary || liveRequest.barangay || '—'}</strong>
+                  {liveRequest.municipality ? ` (${liveRequest.municipality})` : ''}
                 </span>
               </div>
             </div>
