@@ -156,7 +156,7 @@
 /* Workflow Stages — 4 columns */
 .progress-tracker-stages {
   display: grid;
-  grid-template-columns: repeat(5, 1fr);
+  grid-template-columns: repeat(4, 1fr);
   gap: 0;
   margin-bottom: 0.5rem;
   position: relative;
@@ -346,6 +346,73 @@
   color: #475569;
 }
 
+.progress-tracker-timeline {
+  margin-top: 1.25rem;
+  padding-top: 1.1rem;
+  border-top: 1px solid rgba(175, 16, 26, 0.12);
+}
+
+.progress-tracker-timeline h4 {
+  margin: 0 0 0.85rem;
+  color: var(--dpt-ink);
+  font-size: 0.95rem;
+  font-weight: 700;
+}
+
+.progress-timeline {
+  display: grid;
+  gap: 0.65rem;
+}
+
+.progress-timeline-item {
+  display: grid;
+  grid-template-columns: 12px minmax(0, 1fr);
+  gap: 0.7rem;
+  align-items: start;
+}
+
+.progress-timeline-marker {
+  width: 9px;
+  height: 9px;
+  margin-top: 0.35rem;
+  border-radius: 50%;
+  background: var(--dpt-brand);
+  box-shadow: 0 0 0 3px var(--dpt-brand-ring);
+}
+
+.progress-timeline-content {
+  min-width: 0;
+  padding: 0 0 0.65rem;
+  border-bottom: 1px solid #eef2f7;
+}
+
+.progress-timeline-item:last-child .progress-timeline-content {
+  padding-bottom: 0;
+  border-bottom: 0;
+}
+
+.progress-timeline-title {
+  color: var(--dpt-ink);
+  font-size: 0.86rem;
+  font-weight: 700;
+  line-height: 1.4;
+}
+
+.progress-timeline-detail {
+  margin-top: 0.15rem;
+  color: var(--dpt-muted);
+  font-size: 0.8rem;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+
+.progress-timeline-meta {
+  margin-top: 0.22rem;
+  color: #94a3b8;
+  font-size: 0.74rem;
+  line-height: 1.35;
+}
+
 /* ==============================
    Certificate Action Section
    ============================== */
@@ -450,8 +517,8 @@
   }
 
   .progress-tracker-stages {
-    grid-template-columns: repeat(5, minmax(90px, 1fr));
-    min-width: 450px;
+    grid-template-columns: repeat(4, minmax(90px, 1fr));
+    min-width: 360px;
     overflow-x: auto;
     padding-bottom: 1rem;
     scrollbar-width: thin;

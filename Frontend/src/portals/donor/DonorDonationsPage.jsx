@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from 'react'
-import { Link, useSearchParams } from 'react-router-dom'
-import { Search, Download, TrendingUp, Coins, Package, Calendar, Users, MapPin, Heart, Award, ArrowRight } from 'lucide-react'
+import { Link, useNavigate, useSearchParams } from 'react-router-dom'
+import { Search, TrendingUp, Coins, Package, Calendar, Users, MapPin, Heart, Award, ArrowRight } from 'lucide-react'
 import StatusBadge from '../../admin/components/shared/StatusBadge'
 import ApiState from '../../admin/components/shared/ApiState'
 import { donationsApi, certificatesApi } from '../../api/resources'
@@ -15,9 +15,15 @@ import { DONATION_STATUSES } from '../../constants/options'
 import { useLoading } from '../../context/LoadingContext'
 
 export default function DonorDonationsPage() {
+  const navigate = useNavigate()
   const [searchParams] = useSearchParams()
   const { showLoading, hideLoading } = useLoading()
   const { data, loading, error, reload } = useApiList(() => donationsApi.list())
+  const {
+    data: certificateRequests,
+    loading: certificatesLoading,
+    reload: reloadCertificates,
+  } = useApiList(() => certificatesApi.list())
   const [selected, setSelected] = useState(null)
   const [search, setSearch] = useState(() => searchParams.get('q') || searchParams.get('search') || '')
   const [typeFilter, setTypeFilter] = useState(() => searchParams.get('type') || 'All')
@@ -38,10 +44,6 @@ export default function DonorDonationsPage() {
   
   const totalInKind = data
     .filter(d => d.type === 'In-Kind' && d.status !== 'Cancelled')
-    .length
-
-  const activeDonations = data
-    .filter(d => ['Pending', 'Pending Verification', 'Verified', 'In Transit', 'Allocated'].includes(d.status))
     .length
 
   const completedDonations = data
@@ -104,14 +106,36 @@ export default function DonorDonationsPage() {
   }
 
   const handleRequestCert = async (row) => {
+    if (busy) return
+    const existingRequest = certificateRequests.find((certificate) =>
+      certificate.reference === row.trackingCode && certificate.status !== 'Rejected'
+    )
+    if (existingRequest) {
+      setSelected(prev => prev ? { ...prev, certificateRequested: true } : prev)
+      notify.info(`A certificate has already been requested for ${row.trackingCode}.`)
+      navigate('/donor/certificates')
+      return
+    }
+
     setBusy(true)
     showLoading('Sending…')
     try {
       await certificatesApi.create({ type: 'Certificate of Donation', reference: row.trackingCode })
-      setSelected(null)
+      const latestResponse = await donationsApi.get(row.dbId)
+      const latestDonation = latestResponse?.data || latestResponse || row
+      setSelected(prev => prev ? { ...prev, ...latestDonation, certificateRequested: true } : prev)
+      await Promise.all([reload(true), reloadCertificates(true)])
       notify.success(`Certificate requested for ${row.trackingCode}. You will be notified once it is ready.`)
+      navigate('/donor/certificates')
     } catch (err) {
-      notify.error(err.message)
+      if (/already (?:been )?submitted|already requested/i.test(err.message || '')) {
+        setSelected(prev => prev ? { ...prev, certificateRequested: true } : prev)
+        await reloadCertificates(true)
+        notify.info(`A certificate has already been requested for ${row.trackingCode}.`)
+        navigate('/donor/certificates')
+      } else {
+        notify.error(err.message)
+      }
     } finally {
       hideLoading()
       setBusy(false)
@@ -128,7 +152,17 @@ export default function DonorDonationsPage() {
     { key: 'beneficiaries', label: 'Beneficiaries', exportValue: (d) => d.beneficiaries || 0 },
   ], [])
 
-  const canRequestCert = selected?.status === 'Completed' || selected?.status === 'Certificate / Official Receipt' || selected?.status === 'Verified'
+  const selectedCertificate = selected
+    ? certificateRequests.find((certificate) =>
+        certificate.reference === selected.trackingCode && certificate.status !== 'Rejected'
+      )
+    : null
+  const certificateRequested = Boolean(selected?.certificateRequested || selectedCertificate)
+  const certificateStatusLabel = selectedCertificate && !['Requested', 'Pending', 'Processing', 'Approved'].includes(selectedCertificate.status)
+    ? `Certificate ${selectedCertificate.status}`
+    : 'Certificate Requested'
+  const donationCompleted = selected?.status === 'Completed' || selected?.status === 'Certificate / Official Receipt'
+  const canRequestCert = donationCompleted && !certificateRequested && !certificatesLoading
 
   return (
     <ApiState loading={loading} error={error} onRetry={reload}>
@@ -439,11 +473,11 @@ export default function DonorDonationsPage() {
             )}
 
             {/* Live Progress Tracker */}
-            <DonationProgressTracker donation={selected} donationId={selected.dbId} onRequestCertificate={canRequestCert ? () => handleRequestCert(selected) : null} />
+            <DonationProgressTracker donation={selected} donationId={selected.dbId} />
 
             <div className="admin-modal__actions">
               <button type="button" className="btn btn--ghost" onClick={() => setSelected(null)}>Close</button>
-              {(canRequestCert || selected.status === 'Pending Verification') && (
+              {(canRequestCert || certificateRequested || selected.status === 'Pending Verification') && (
                 <div className="admin-modal__actions-group">
                   {selected.status === 'Pending Verification' && (
                     <button type="button" className="btn btn--outline" disabled={busy} onClick={() => handleCancel(selected)}>
@@ -455,6 +489,12 @@ export default function DonorDonationsPage() {
                       <Award size={15} style={{ marginRight: '6px' }} />
                       Request Certificate
                     </button>
+                  )}
+                  {certificateRequested && (
+                    <span className="donor-certificate-requested" role="status">
+                      <Award size={15} />
+                      {certificateStatusLabel}
+                    </span>
                   )}
                 </div>
               )}

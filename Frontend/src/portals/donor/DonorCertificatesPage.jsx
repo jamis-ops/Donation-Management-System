@@ -40,7 +40,15 @@ export default function DonorCertificatesPage() {
   const [typeFilter, setTypeFilter] = useState('All')
   const [shareModalOpen, setShareModalOpen] = useState(null)
 
-  const eligibleDonations = donations.filter((d) => d.status === 'Completed' || d.status === 'Certificate / Official Receipt' || d.status === 'Verified')
+  const requestedDonationReferences = new Set(
+    data
+      .filter((certificate) => certificate.status !== 'Rejected' && certificate.reference)
+      .map((certificate) => certificate.reference)
+  )
+  const eligibleDonations = donations.filter((donation) =>
+    (donation.status === 'Completed' || donation.status === 'Certificate / Official Receipt')
+    && !requestedDonationReferences.has(donation.trackingCode)
+  )
 
   const normalizedType = (type) => {
     if (type === 'Tax Receipt') return 'Certificate of Donation'

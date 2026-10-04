@@ -16,7 +16,6 @@ const DONATION_UPDATE_STAGES = [
   'Submit Proof',
   'Verify Proof',
   'Completed',
-  'Certificate',
 ];
 
 function map_donation_update(array $row): array
@@ -60,7 +59,7 @@ function donation_accessible(PDO $pdo, array $user, int $donationId): ?array
 function resolve_donation_progress_status(PDO $pdo, array $donation, array $updates): string
 {
   $stored = trim((string) ($donation['status'] ?? '')) ?: 'Pending Verification';
-  if (in_array($stored, ['Pending Verification', 'Rejected', 'Cancelled'], true)) return $stored;
+  if (in_array($stored, ['Pending Verification', 'Rejected', 'Cancelled', 'Completed', 'Certificate / Official Receipt'], true)) return $stored;
   try {
     $resolved = resolve_linked_donation_status($pdo, (int) $donation['id'], (string) ($donation['type'] ?? 'Monetary'));
     if ($resolved !== $stored) {
