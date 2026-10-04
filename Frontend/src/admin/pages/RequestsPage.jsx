@@ -41,19 +41,26 @@ const styles = `
 }
 .requests-stats {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-  gap: 1.25rem;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.85rem;
+  width: 100%;
 }
 .requests-page .stat-card {
   background: var(--admin-surface, #ffffff);
   border-radius: var(--admin-radius-lg, 14px);
-  padding: 1.25rem 1.5rem;
+  padding: 1.15rem 1.25rem;
   border: 1px solid var(--admin-border, #e2e8f0);
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
   display: flex;
   flex-direction: column;
   justify-content: space-between;
-  min-height: 115px;
+  min-height: 132px;
+  width: 100%;
+  max-width: none;
+  flex: initial;
+  align-items: stretch;
+  text-align: left;
+  backdrop-filter: none;
   cursor: pointer;
   transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.2s ease, border-color 0.2s ease, background-color 0.2s ease;
 }
@@ -82,8 +89,8 @@ const styles = `
   letter-spacing: 0.01em;
 }
 .requests-page .stat-card__icon {
-  width: 38px;
-  height: 38px;
+  width: 42px;
+  height: 42px;
   border-radius: 10px;
   display: flex;
   align-items: center;
@@ -105,8 +112,17 @@ const styles = `
   font-size: 2.15rem;
   font-weight: 700;
   color: #0f172a;
-  margin: 0.75rem 0 0 0;
+  margin: 0.6rem 0 0 0;
   line-height: 1;
+}
+
+@media (max-width: 1050px) {
+  .requests-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+@media (max-width: 560px) {
+  .requests-stats { grid-template-columns: 1fr; }
+  .requests-page .stat-card { min-height: 112px; }
 }
 
 .requests-page .stat-card.critical-alert-active {
@@ -843,6 +859,70 @@ const styles = `
   background: #94a3b8;
 }
 
+.relief-review-modal .relief-proof-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 0.7rem;
+  margin-top: 0.65rem;
+}
+
+.relief-review-modal .relief-proof-link {
+  display: grid;
+  min-width: 0;
+  gap: 0.4rem;
+  padding: 0.5rem;
+  border: 1px solid #e2e8f0;
+  border-radius: 9px;
+  background: #fff;
+  color: #334155;
+  text-decoration: none;
+  transition: border-color 0.16s ease, box-shadow 0.16s ease;
+}
+
+.relief-review-modal .relief-proof-link:hover,
+.relief-review-modal .relief-proof-link:focus-visible {
+  border-color: #af101a;
+  box-shadow: 0 5px 16px rgba(175, 16, 26, 0.12);
+  outline: none;
+}
+
+.relief-review-modal .relief-proof-image-wrap {
+  display: grid;
+  place-items: center;
+  width: 100%;
+  min-height: 190px;
+  aspect-ratio: 16 / 7;
+  overflow: hidden;
+  border-radius: 7px;
+  background: #f1f5f9;
+}
+
+.relief-review-modal .relief-proof-image {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.relief-review-modal .relief-proof-filename {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.8rem;
+}
+
+.relief-review-modal .relief-proof-filename svg {
+  flex: 0 0 auto;
+  color: #af101a;
+}
+
+.relief-review-modal .relief-proof-filename span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 /* 2-Column Responsive Grid */
 .relief-review-grid {
   display: grid;
@@ -1448,6 +1528,13 @@ const styles = `
 }
 
 @media (max-width: 680px) {
+  .relief-review-modal .relief-proof-grid {
+    grid-template-columns: 1fr;
+  }
+  .relief-review-modal .relief-proof-image-wrap {
+    min-height: 170px;
+    aspect-ratio: 16 / 9;
+  }
   .relief-review-grid {
     grid-template-columns: 1fr;
     gap: 0.75rem;
@@ -2658,11 +2745,13 @@ function ReviewModal({
               <ImageIcon size={14} /> Disaster Proof / Photos
             </div>
             {Array.isArray(liveRequest.disasterProofs) && liveRequest.disasterProofs.length > 0 ? (
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: '0.6rem', marginTop: '0.65rem' }}>
+              <div className="relief-proof-grid">
                 {liveRequest.disasterProofs.map((proof) => (
-                  <a key={proof.id} href={getAuthenticatedFileUrl(proof.url)} target="_blank" rel="noreferrer" style={{ display: 'grid', gap: '0.45rem', padding: '0.5rem', border: '1px solid #e2e8f0', borderRadius: '8px', color: '#334155', textDecoration: 'none', minWidth: 0 }}>
-                    <img src={getAuthenticatedFileUrl(proof.url)} alt={`Disaster proof: ${proof.name}`} style={{ width: '100%', height: '105px', objectFit: 'cover', borderRadius: '6px', background: '#f1f5f9' }} />
-                    <span style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', minWidth: 0 }}><ImageIcon size={14} color="#AF101A" style={{ flexShrink: 0 }} /><span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{proof.name}</span></span>
+                  <a key={proof.id || proof.url} href={getAuthenticatedFileUrl(proof.url)} target="_blank" rel="noreferrer" className="relief-proof-link" title="Open full-size disaster proof">
+                    <span className="relief-proof-image-wrap">
+                      <img src={getAuthenticatedFileUrl(proof.url)} alt={`Disaster proof: ${proof.name || 'uploaded photo'}`} className="relief-proof-image" />
+                    </span>
+                    <span className="relief-proof-filename"><ImageIcon size={14} /><span>{proof.name || 'Disaster proof photo'}</span></span>
                   </a>
                 ))}
               </div>
