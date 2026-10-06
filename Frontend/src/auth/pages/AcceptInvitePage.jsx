@@ -1,12 +1,11 @@
 import { useEffect, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
-import { CheckCircle2 } from 'lucide-react'
+import { CheckCircle2, Lock } from 'lucide-react'
 import Logo from '../../components/shared/Logo'
 import Req from '../../components/shared/Req'
 import PolicyConsentBox from '../../components/shared/PolicyConsentBox'
 import { heroBg } from '../../assets'
 import { REPRESENTATIVE_POSITIONS } from '../../constants/options'
-import { MUNICIPALITIES, barangaysForMunicipality } from '../../constants/locations'
 import PhoneInput from '../../components/shared/PhoneInput'
 import { phoneError } from '../../utils/validation'
 import { useLoading } from '../../context/LoadingContext'
@@ -132,8 +131,6 @@ export default function AcceptInvitePage() {
     }
   }
 
-  const barangayOptions = barangaysForMunicipality(form.municipality)
-
   return (
     <div className="auth-page">
       <div className="auth-page__visual">
@@ -184,36 +181,25 @@ export default function AcceptInvitePage() {
                 <div className="auth-form__row auth-form__row--split">
                   <label>
                     <Req required>Municipality / City</Req>
-                    <select
+                    <input
+                      className="invite-form__readonly-input"
                       required
+                      readOnly
+                      aria-readonly="true"
                       value={form.municipality}
-                      onChange={(e) => setForm((prev) => ({ ...prev, municipality: e.target.value, barangay: '' }))}
-                    >
-                      <option value="">Select municipality…</option>
-                      {MUNICIPALITIES.map((m) => (
-                        <option key={m} value={m}>{m}</option>
-                      ))}
-                      {form.municipality && !MUNICIPALITIES.includes(form.municipality) && (
-                        <option value={form.municipality}>{form.municipality}</option>
-                      )}
-                    </select>
+                    />
+                    <span className="invite-form__readonly-hint"><Lock size={12} /> Assigned by invitation</span>
                   </label>
                   <label>
                     <Req required>Barangay Name</Req>
-                    <select
+                    <input
+                      className="invite-form__readonly-input"
                       required
+                      readOnly
+                      aria-readonly="true"
                       value={form.barangay}
-                      disabled={!form.municipality}
-                      onChange={(e) => set('barangay', e.target.value)}
-                    >
-                      <option value="">{form.municipality ? 'Select barangay…' : 'Select municipality first…'}</option>
-                      {barangayOptions.map((b) => (
-                        <option key={b} value={b}>{b}</option>
-                      ))}
-                      {form.barangay && form.municipality && !barangayOptions.includes(form.barangay) && (
-                        <option value={form.barangay}>{form.barangay}</option>
-                      )}
-                    </select>
+                    />
+                    <span className="invite-form__readonly-hint"><Lock size={12} /> Assigned by invitation</span>
                   </label>
                 </div>
 

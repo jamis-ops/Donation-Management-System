@@ -171,8 +171,10 @@ if ($method === 'POST' && ($action === 'accept_invite' || $action === 'apply_inv
     json_response(['ok' => false, 'error' => 'This invitation was already approved. Please sign in.'], 400);
   }
 
-  $barangay = trim((string) ($body['barangay'] ?? $body['barangayName'] ?? $ben['barangay'] ?? $ben['full_name'] ?? ''));
-  $municipality = trim((string) ($body['municipality'] ?? $ben['municipality'] ?? ''));
+  // The invitation is bound to one barangay. Always use the server-side
+  // invitation values so location data cannot be changed in a crafted request.
+  $barangay = trim((string) ($ben['barangay'] ?? $ben['full_name'] ?? ''));
+  $municipality = trim((string) ($ben['municipality'] ?? ''));
   $email = strtolower(trim((string) ($body['email'] ?? $body['representativeEmail'] ?? $ben['representative_email'] ?? '')));
   $notes = trim((string) ($body['notes'] ?? ''));
   $phone = trim((string) ($body['contactNumber'] ?? $body['representativePhone'] ?? ''));

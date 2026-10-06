@@ -132,6 +132,29 @@
   min-width: 0;
 }
 
+.invite-form__readonly-input[readonly] {
+  background: #f8fafc;
+  border-color: #cbd5e1;
+  color: #334155;
+  cursor: not-allowed;
+  box-shadow: inset 3px 0 0 rgba(175, 16, 26, 0.75);
+}
+
+.invite-form__readonly-input[readonly]:focus {
+  border-color: #cbd5e1;
+  box-shadow: inset 3px 0 0 rgba(175, 16, 26, 0.75), 0 0 0 3px rgba(148, 163, 184, 0.12);
+}
+
+.invite-form__readonly-hint {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  margin-top: 0.35rem;
+  color: #64748b;
+  font-size: 0.72rem;
+  font-weight: 600;
+}
+
 .invite-form__consent {
   display: flex !important;
   flex-direction: row !important;

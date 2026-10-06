@@ -877,8 +877,10 @@ if ($method === 'POST') {
   }
 
   if ($public) {
-    if (empty($body['acceptedPolicies']) && empty($body['termsAccepted'])) {
-      json_response(['ok' => false, 'error' => 'You must accept the Data Privacy Policy and Terms & Conditions'], 400);
+    $termsAccepted = !empty($body['acceptedTerms']) || !empty($body['termsAccepted']);
+    $privacyAccepted = !empty($body['acceptedPrivacy']) || !empty($body['privacyAccepted']);
+    if (!$termsAccepted || !$privacyAccepted) {
+      json_response(['ok' => false, 'error' => 'You must accept both the Terms & Conditions and Data Privacy Policy.'], 400);
     }
     if ($donorEmail === '') {
       json_response(['ok' => false, 'error' => 'A valid email is required'], 400);

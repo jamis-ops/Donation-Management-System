@@ -4,7 +4,7 @@ import {
   Building2, User, MapPin, CreditCard, Copy, Check, QrCode, 
   Landmark, Wallet, Globe, ShieldCheck, Info, FileText,
   Edit3, HeartHandshake, AlertCircle, RefreshCw, CheckCircle2,
-  Package, LogIn, UploadCloud, AlertTriangle, XCircle, Trash2, Edit2, Lock
+  Package, LogIn, UploadCloud, AlertTriangle, Trash2, Edit2, Lock
 } from 'lucide-react'
 import { submitPublicDonation, getDonorProfile, paymentMethodsApi, verifyPaymentProof } from '../../api/resources'
 import { useAuth } from '../../context/AuthContext'
@@ -12,7 +12,7 @@ import { DONOR_TYPES } from '../../constants/options'
 import { COUNTRIES, getRegionsForCountry } from '../../constants/locations'
 import Req from '../../components/shared/Req'
 import NameFields from '../../components/shared/NameFields'
-import PolicyLinks from '../../components/shared/PolicyLinks'
+import PolicyConsentBox from '../../components/shared/PolicyConsentBox'
 import { emptyNameParts, formatFullName, parseFullName } from '../../utils/personName'
 import { emailError, phoneError, fileSizeError, MAX_UPLOAD_BYTES } from '../../utils/validation'
 import PhoneInput from '../../components/shared/PhoneInput'
@@ -201,7 +201,8 @@ const emptyForm = {
   paymentReference: '',
   proof: null,
   message: '',
-  acceptedPolicies: false,
+  acceptedTerms: false,
+  acceptedPrivacy: false,
 }
 
 export default function DonatePage() {
@@ -216,7 +217,7 @@ export default function DonatePage() {
   const [form, setForm] = useState(emptyForm)
   const [copiedKey, setCopiedKey] = useState('')
   const [paymentMethods, setPaymentMethods] = useState(FALLBACK_PAYMENT_METHODS)
-  const [methodsLoading, setMethodsLoading] = useState(true)
+  const [, setMethodsLoading] = useState(true)
 
   const [aiState, setAiState] = useState('idle') // 'idle' | 'analyzing' | 'verified' | 'needs_review' | 'invalid'
   const [aiResult, setAiResult] = useState(null)
@@ -252,7 +253,8 @@ export default function DonatePage() {
           country: p.country || 'Philippines',
           streetAddress: p.address || '',
           address: p.address || '',
-          acceptedPolicies: true,
+          acceptedTerms: false,
+          acceptedPrivacy: false,
         }))
       }
     } catch (err) {
@@ -330,7 +332,8 @@ export default function DonatePage() {
         country: donorProfile.country || 'Philippines',
         streetAddress: donorProfile.address || '',
         address: donorProfile.address || '',
-        acceptedPolicies: true,
+        acceptedTerms: false,
+        acceptedPrivacy: false,
       })
     } else {
       setForm(emptyForm)
@@ -508,8 +511,8 @@ export default function DonatePage() {
       setSubmitError(sizeMsg)
       return
     }
-    if (!form.acceptedPolicies) {
-      setSubmitError('Please accept the Data Privacy Policy and Terms & Conditions.')
+    if (!form.acceptedTerms || !form.acceptedPrivacy) {
+      setSubmitError('Please read and accept both the Terms & Conditions and Data Privacy Policy.')
       return
     }
 
@@ -535,7 +538,8 @@ export default function DonatePage() {
       if (form.address || composedAddress || form.streetAddress) {
         fd.append('address', form.address || composedAddress || form.streetAddress.trim())
       }
-      fd.append('acceptedPolicies', '1')
+      fd.append('acceptedTerms', form.acceptedTerms ? '1' : '0')
+      fd.append('acceptedPrivacy', form.acceptedPrivacy ? '1' : '0')
       fd.append('type', form.type === 'in-kind' ? 'In-Kind' : 'Monetary')
       if (form.type === 'monetary') {
         const submittedAmount = hasLockedVerifiedProof ? verifiedProofAmount : form.amount
@@ -1708,21 +1712,22 @@ export default function DonatePage() {
                   />
                 </label>
 
-                <label className="auth-policy-check" style={{ display: 'flex', gap: '0.5rem', alignItems: 'flex-start', marginBottom: '1rem' }}>
-                  <input
-                    type="checkbox"
-                    required
-                    checked={form.acceptedPolicies}
-                    onChange={(e) => setForm({ ...form, acceptedPolicies: e.target.checked })}
-                  />
-                  <span>
-                    I accept the{' '}
-                    <PolicyLinks />
-                    <Req required />
-                  </span>
-                </label>
+                <PolicyConsentBox
+                  acceptedTerms={form.acceptedTerms}
+                  onTermsChange={(acceptedTerms) => setForm((prev) => ({ ...prev, acceptedTerms }))}
+                  acceptedPrivacy={form.acceptedPrivacy}
+                  onPrivacyChange={(acceptedPrivacy) => setForm((prev) => ({ ...prev, acceptedPrivacy }))}
+                  title="Required agreements"
+                  description="Review and accept both policies before submitting your donation."
+                  actionLabel="submit your donation"
+                />
 
-                <button type="submit" className="btn btn--primary btn--lg" style={{ width: '100%' }} disabled={submitting}>
+                <button
+                  type="submit"
+                  className="btn btn--primary btn--lg"
+                  style={{ width: '100%' }}
+                  disabled={submitting}
+                >
                   {submitting ? 'Submitting...' : 'Submit Donation'}
                 </button>
                 {submitError && <p style={{ color: '#c0392b', marginTop: '1rem' }}>{submitError}</p>}
