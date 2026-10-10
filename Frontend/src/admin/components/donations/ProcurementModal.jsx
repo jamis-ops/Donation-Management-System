@@ -6,53 +6,22 @@ import { donationsApi, assistanceRequestsApi } from '../../../api/resources'
 import { notify, confirmAction } from '../../../utils/confirm'
 import { useLoading } from '../../../context/LoadingContext'
 
-function suggestBudgetAwarePlan(remainingItems, availableBalance) {
-  const items = (Array.isArray(remainingItems) ? remainingItems : [])
-    .map(item => ({
-      ...item,
-      quantity: Math.max(0, Math.trunc(Number(item.remainingQuantity ?? item.quantity) || 0)),
-      unitCents: Math.max(0, Math.round((Number(item.unitCost) || 0) * 100)),
-    }))
-    .filter(item => item.item && item.quantity > 0 && item.unitCents > 0)
-  let budgetCents = Math.max(0, Math.floor((Number(availableBalance) + 0.000001) * 100))
-  const totalCostAtRatio = ratio => items.reduce((total, item) => {
-    return total + Math.floor((item.quantity * ratio) / 1000000) * item.unitCents
-  }, 0)
-
-  let low = 0
-  let high = 1000000
-  while (low < high) {
-    const middle = Math.ceil((low + high) / 2)
-    if (totalCostAtRatio(middle) <= budgetCents) low = middle
-    else high = middle - 1
-  }
-
-  const plan = items.map(item => ({
-    ...item,
-    quantity: Math.floor((item.quantity * low) / 1000000),
-  }))
-  budgetCents -= plan.reduce((total, item) => total + item.quantity * item.unitCents, 0)
-
-  // Spend any leftover budget on additional requested units, cheapest first.
-  const originalByKey = new Map(items.map(item => [`${item.item.toLowerCase()}\u0000${String(item.unit).toLowerCase()}`, item]))
-  for (const item of [...plan].sort((a, b) => a.unitCents - b.unitCents)) {
-    const key = `${item.item.toLowerCase()}\u0000${String(item.unit).toLowerCase()}`
-    const original = originalByKey.get(key)
-    if (!original || budgetCents < item.unitCents) continue
-    const extra = Math.min(original.quantity - item.quantity, Math.floor(budgetCents / item.unitCents))
-    item.quantity += extra
-    budgetCents -= extra * item.unitCents
-  }
-
-  return plan
-    .filter(item => item.quantity > 0)
-    .map(item => ({
-      item: item.item,
-      quantity: item.quantity,
-      unit: item.unit || 'units',
-      unitCost: item.unitCents / 100,
-      totalCost: item.quantity * item.unitCents / 100,
-    }))
+function buildCompletePlan(remainingItems) {
+  return (Array.isArray(remainingItems) ? remainingItems : [])
+    .map((item, index) => {
+      const remainingQuantity = Math.max(0, Math.trunc(Number(item.remainingQuantity ?? item.quantity) || 0))
+      const unitCost = Math.max(0, Math.round((Number(item.unitCost) || 0) * 100) / 100)
+      return {
+        id: `${String(item.item || 'item').toLowerCase()}-${String(item.unit || 'units').toLowerCase()}-${index}`,
+        item: item.item,
+        quantity: remainingQuantity,
+        remainingQuantity,
+        unit: item.unit || 'units',
+        unitCost,
+        totalCost: Math.round(remainingQuantity * unitCost * 100) / 100,
+      }
+    })
+    .filter(item => item.item && item.remainingQuantity > 0)
 }
 
 const money = value => `₱${Number(value || 0).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
@@ -75,6 +44,7 @@ export default function ProcurementModal({
   const [currentDonation, setCurrentDonation] = useState(donation)
   const [selectedBarangayId, setSelectedBarangayId] = useState(initialBeneficiaryId ? String(initialBeneficiaryId) : '')
   const [selectedRequestId, setSelectedRequestId] = useState(initialRequestId ? String(initialRequestId) : '')
+  const [plansByRequest, setPlansByRequest] = useState({})
   const [notes, setNotes] = useState('')
   const [saving, setSaving] = useState(false)
 
@@ -147,25 +117,73 @@ export default function ProcurementModal({
     return eligibleBarangays.find(barangay => String(barangay.id || barangay.dbId) === String(selectedBarangayId)) || null
   }, [eligibleBarangays, selectedBarangayId])
 
-  const plannedItems = useMemo(
-    () => suggestBudgetAwarePlan(selectedRequest?.remainingItems, availableDonation),
-    [selectedRequest, availableDonation]
-  )
+  const selectedRequestKey = String(selectedRequest?.dbId || selectedRequest?.id || '')
+  const defaultPlan = useMemo(() => buildCompletePlan(selectedRequest?.remainingItems), [selectedRequest])
+  const plannedItems = plansByRequest[selectedRequestKey] || defaultPlan
   const allocationAmount = useMemo(
     () => Math.round(plannedItems.reduce((total, item) => total + Math.round(item.quantity * item.unitCost * 100), 0)) / 100,
     [plannedItems]
   )
   const remainingDonationBalance = Math.max(0, availableDonation - allocationAmount)
+  const remainingFamilies = Number(selectedRequest?.familiesStillNeedingSupport ?? selectedRequest?.remainingFamilies ?? 0)
+  const isFullyCovered = Boolean(
+    plannedItems.length > 0 &&
+    defaultPlan.length > 0 &&
+    defaultPlan.every(requiredItem => {
+      const planned = plannedItems.find(item => item.id === requiredItem.id)
+      return planned && Number(planned.quantity) >= Number(requiredItem.remainingQuantity)
+    })
+  )
+  const hasValidPrices = plannedItems.every(item => Number(item.unitCost) > 0)
+  const coverageRatio = defaultPlan.length
+    ? Math.min(...defaultPlan.map(requiredItem => {
+        const planned = plannedItems.find(item => item.id === requiredItem.id)
+        return Math.min(1, Math.max(0, Number(planned?.quantity || 0)) / requiredItem.remainingQuantity)
+      }))
+    : 0
+  const familiesCoveredByAllocation = Math.min(remainingFamilies, Math.floor((remainingFamilies * coverageRatio) + 0.00001))
+  const hasEnoughBalance = allocationAmount > 0 && allocationAmount <= availableDonation + 0.009
   const canAllocate = Boolean(
     !saving && !loadingEligible && !loadingDonation && !loadError &&
     selectedBarangayId && selectedRequest && plannedItems.length > 0 &&
-    Number.isFinite(allocationAmount) && allocationAmount > 0 && allocationAmount <= availableDonation
+    Number.isFinite(allocationAmount) && hasValidPrices && hasEnoughBalance && isFullyCovered &&
+    remainingFamilies > 0 && familiesCoveredByAllocation >= remainingFamilies
   )
+
+  const handlePlanChange = (itemId, field, rawValue) => {
+    setPlansByRequest(previous => {
+      const currentPlan = previous[selectedRequestKey] || defaultPlan
+      const nextPlan = currentPlan.map(item => {
+        if (item.id !== itemId) return item
+        const numericValue = Number(rawValue)
+        const value = field === 'quantity'
+          ? Math.min(item.remainingQuantity, Math.max(0, Math.trunc(Number.isFinite(numericValue) ? numericValue : 0)))
+          : Math.max(0, Number.isFinite(numericValue) ? numericValue : 0)
+        const updated = { ...item, [field]: value }
+        updated.totalCost = Math.round(updated.quantity * updated.unitCost * 100) / 100
+        return updated
+      })
+      return { ...previous, [selectedRequestKey]: nextPlan }
+    })
+  }
+
+  const resetCompletePlan = () => {
+    setPlansByRequest(previous => ({ ...previous, [selectedRequestKey]: defaultPlan }))
+  }
 
   const handleSubmit = async event => {
     event.preventDefault()
     if (!canAllocate) {
-      notify.error(loadError || 'No eligible requested items fit within this donation balance.')
+      const message = loadError || (!isFullyCovered
+        ? 'This relief request still has families that are not fully covered. Complete every remaining item quantity before proceeding to distribution.'
+        : !hasEnoughBalance
+          ? `The complete allocation requires ${money(allocationAmount)}, but only ${money(availableDonation)} is available.`
+          : 'Complete the allocation details before confirming.')
+      await notify.error({
+        title: !isFullyCovered ? 'Funding Requirement Not Met' : 'Allocation Incomplete',
+        message,
+        confirmText: 'OK',
+      })
       return
     }
 
@@ -189,7 +207,11 @@ export default function ProcurementModal({
       const response = await donationsApi.procure(payload)
       hideLoading()
       setSaving(false)
-      notify.success(response.message || 'Donation successfully allocated!')
+      await notify.success({
+        title: 'Allocation Successful',
+        message: 'All remaining families are fully covered and the request is ready for the next workflow stage.',
+        confirmText: 'Continue',
+      })
 
       const allocationId = response?.allocationId
       const beneficiaryName = selectedBarangay?.barangay || selectedBarangay?.name || 'Barangay'
@@ -201,11 +223,11 @@ export default function ProcurementModal({
 
       if (response?.requestStatus === 'Allocated' && allocationId) {
         const scheduleNow = await confirmAction({
-          title: 'Funding Complete',
+          title: 'Distribution Ready',
           message: `${response.message} Schedule logistics delivery for ${beneficiaryName} now?`,
           confirmText: 'Schedule Distribution →',
           cancelText: 'View in Allocations',
-          type: 'primary',
+          type: 'success',
         })
 
         if (scheduleNow) {
@@ -230,7 +252,17 @@ export default function ProcurementModal({
     } catch (error) {
       hideLoading()
       setSaving(false)
-      notify.error(error?.message || 'Failed to allocate donation')
+      const rawMessage = error?.message || 'The allocation could not be completed.'
+      const fundingBlocked = /not fully covered|funding requirement|remaining families|remaining item|complete the allocation/i.test(rawMessage)
+      const balanceBlocked = /balance|exceed|amount/i.test(rawMessage)
+      await notify.error({
+        title: fundingBlocked ? 'Funding Requirement Not Met' : (balanceBlocked ? 'Allocation Incomplete' : 'Allocation Could Not Be Completed'),
+        message: fundingBlocked
+          ? 'This relief request still has families that are not fully covered. Complete the allocation before proceeding to distribution.'
+          : rawMessage,
+        confirmText: 'OK',
+      })
+      setPlansByRequest({})
       await loadFundingData()
     }
   }
@@ -243,7 +275,7 @@ export default function ProcurementModal({
         className="admin-modal admin-modal--wide fund-allocation-modal"
         onClick={event => event.stopPropagation()}
         style={{
-          maxWidth: '980px',
+          maxWidth: '900px',
           width: '95vw',
           maxHeight: '92vh',
           borderRadius: '16px',
@@ -342,68 +374,78 @@ export default function ProcurementModal({
                     <div><span>Affected families</span><strong>{Number(selectedRequest.affectedFamilies || 0).toLocaleString()}</strong></div>
                     <div><span>Already covered</span><strong>{Number(selectedRequest.familiesAlreadyCovered || 0).toLocaleString()}</strong></div>
                     <div><span>Still needing support</span><strong>{Number(selectedRequest.familiesStillNeedingSupport ?? selectedRequest.remainingFamilies ?? 0).toLocaleString()}</strong></div>
-                  </div>
-
-                  <div className="fund-allocation-needs-wrap">
-                    <h4>Requested relief needs and remaining quantities</h4>
-                    {selectedRequest.requestedItems?.length ? (
-                      <div className="fund-allocation-needs-table" role="table" aria-label="Requested relief needs">
-                        <div className="fund-allocation-needs-row fund-allocation-needs-row--head" role="row">
-                          <span role="columnheader">Requested item</span>
-                          <span role="columnheader">Requested</span>
-                          <span role="columnheader">Allocated</span>
-                          <span role="columnheader">Remaining</span>
-                          <span role="columnheader">Unit price</span>
-                        </div>
-                        {selectedRequest.requestedItems.map((item, index) => (
-                          <div className="fund-allocation-needs-row" role="row" key={`${item.item}-${item.unit}-${index}`}>
-                            <span role="cell">{item.item}</span>
-                            <span role="cell">{Number(item.requestedQuantity ?? item.quantity).toLocaleString()} {item.unit}</span>
-                            <span role="cell">{Number(item.allocatedQuantity || 0).toLocaleString()} {item.unit}</span>
-                            <span role="cell">{Number(item.remainingQuantity || 0).toLocaleString()} {item.unit}</span>
-                            <span role="cell">{formatMoney(item.unitCost)}</span>
-                          </div>
-                        ))}
-                      </div>
-                    ) : (
-                      <p className="fund-allocation-inline-message">This request has no priced relief-item details and cannot be funded yet.</p>
-                    )}
+                    <div className={isFullyCovered ? 'fund-allocation-family-covered' : 'fund-allocation-family-pending'}>
+                      <span>Families covered by this allocation</span>
+                      <strong>{familiesCoveredByAllocation.toLocaleString()}</strong>
+                    </div>
                   </div>
                 </section>
 
                 <section className="fund-allocation-section">
-                  <h3><Coins size={17} /> Suggested allocation and procurement plan</h3>
+                  <div className="fund-allocation-section-title">
+                    <div>
+                      <h3><Coins size={17} /> Allocation plan</h3>
+                      <p>Adjust quantities and unit prices. Every remaining item must be covered.</p>
+                    </div>
+                    <button type="button" className="fund-allocation-reset" onClick={resetCompletePlan}>Reset full plan</button>
+                  </div>
                   {plannedItems.length ? (
                     <>
-                      <div className="fund-allocation-plan-table" role="table" aria-label="Suggested procurement plan">
+                      <div className="fund-allocation-plan-table" role="table" aria-label="Allocation plan">
                         <div className="fund-allocation-plan-row fund-allocation-plan-row--head" role="row">
                           <span role="columnheader">Requested item</span>
-                          <span role="columnheader">Suggested quantity</span>
+                          <span role="columnheader">Remaining need</span>
+                          <span role="columnheader">Allocate quantity</span>
                           <span role="columnheader">Unit price</span>
                           <span role="columnheader">Item total</span>
                         </div>
-                        {plannedItems.map((item, index) => (
-                          <div className="fund-allocation-plan-row" role="row" key={`${item.item}-${item.unit}-${index}`}>
-                            <span role="cell">{item.item}</span>
-                            <span role="cell">{item.quantity.toLocaleString()} {item.unit}</span>
-                            <span role="cell">{formatMoney(item.unitCost)}</span>
+                        {plannedItems.map(item => (
+                          <div className="fund-allocation-plan-row" role="row" key={item.id}>
+                            <span role="cell"><strong>{item.item}</strong><small>{item.unit}</small></span>
+                            <span role="cell">{item.remainingQuantity.toLocaleString()} {item.unit}</span>
+                            <span role="cell">
+                              <input
+                                type="number"
+                                min="0"
+                                max={item.remainingQuantity}
+                                step="1"
+                                value={item.quantity}
+                                onChange={event => handlePlanChange(item.id, 'quantity', event.target.value)}
+                                aria-label={`Quantity to allocate for ${item.item}`}
+                              />
+                            </span>
+                            <span role="cell" className="fund-allocation-price-input">
+                              <span aria-hidden="true">₱</span>
+                              <input
+                                type="number"
+                                min="0.01"
+                                step="0.01"
+                                value={item.unitCost}
+                                onChange={event => handlePlanChange(item.id, 'unitCost', event.target.value)}
+                                aria-label={`Unit price for ${item.item}`}
+                              />
+                            </span>
                             <strong role="cell">{formatMoney(item.totalCost)}</strong>
                           </div>
                         ))}
                       </div>
                       <div className="fund-allocation-plan-summary">
-                        <div><span>Allocation amount</span><strong>{formatMoney(allocationAmount)}</strong></div>
+                        <div title="Automatically updated from the quantities and unit prices above"><span>Total amount to allocate</span><strong>{formatMoney(allocationAmount)}</strong></div>
                         <div><span>Remaining donor balance</span><strong>{formatMoney(remainingDonationBalance)}</strong></div>
                       </div>
-                      {allocationAmount < Number(selectedRequest.remainingCost || 0) && (
-                        <p className="fund-allocation-inline-message">The suggested quantities use the available budget without exceeding remaining requested needs.</p>
-                      )}
+                      <div className={`fund-allocation-coverage-note ${canAllocate ? 'fund-allocation-coverage-note--ready' : 'fund-allocation-coverage-note--blocked'}`} role="status">
+                        {canAllocate
+                          ? 'All remaining families are fully covered. This allocation is ready to confirm.'
+                          : !isFullyCovered
+                            ? `${Math.max(0, remainingFamilies - familiesCoveredByAllocation).toLocaleString()} families still need complete item coverage.`
+                            : `Available balance is short by ${formatMoney(Math.max(0, allocationAmount - availableDonation))}.`}
+                      </div>
                     </>
                   ) : (
                     <p className="fund-allocation-inline-message">
                       {availableDonation <= 0
                         ? 'This donation has no available balance.'
-                        : 'No remaining requested item quantity fits within the available donation balance.'}
+                        : 'This request has no priced remaining items to allocate.'}
                     </p>
                   )}
                 </section>
@@ -423,7 +465,12 @@ export default function ProcurementModal({
 
           <div className="fund-allocation-footer">
             <button type="button" onClick={onClose} className="fund-allocation-cancel">Cancel</button>
-            <button type="submit" disabled={!canAllocate} className="fund-allocation-confirm">
+            <button
+              type="submit"
+              disabled={!canAllocate}
+              className="fund-allocation-confirm"
+              title={!canAllocate ? 'All remaining families must be fully covered within the available balance.' : 'Confirm the complete allocation'}
+            >
               <CheckCircle2 size={18} />
               {saving ? 'Processing…' : `Confirm & Allocate ${formatMoney(allocationAmount)}`}
             </button>

@@ -236,6 +236,83 @@ function hours_between(?string $start, ?string $end): ?float
   return round($diffSeconds / 3600, 2);
 }
 
+/** Ensure task-based intern duty credits can be applied exactly once. */
+function ensure_task_duty_credit_schema(PDO $pdo): void
+{
+  static $ready = false;
+  if ($ready) return;
+  $ready = true;
+
+  try {
+    $column = $pdo->query("SHOW COLUMNS FROM tasks LIKE 'hours_credited_at'")->fetch(PDO::FETCH_ASSOC);
+    if (!$column) {
+      $pdo->exec('ALTER TABLE tasks ADD COLUMN hours_credited_at TIMESTAMP NULL AFTER completed_at');
+      // Legacy completed tasks were already added to volunteers.hours by the
+      // previous completion handler. Mark them credited without adding again.
+      $pdo->exec("UPDATE tasks SET hours_credited_at = COALESCE(completed_at, updated_at, NOW()) WHERE board_column = 'done' AND duty_hours > 0 AND hours_credited_at IS NULL");
+    }
+  } catch (Throwable $e) {}
+
+  // Duty durations support quarter/half-hour schedules; preserve decimals in
+  // the existing rendered-hours aggregate instead of truncating them.
+  try {
+    $hoursColumn = $pdo->query("SHOW COLUMNS FROM volunteers LIKE 'hours'")->fetch(PDO::FETCH_ASSOC);
+    $hoursType = strtolower((string) ($hoursColumn['Type'] ?? ''));
+    if ($hoursColumn && !str_starts_with($hoursType, 'decimal')) {
+      $pdo->exec('ALTER TABLE volunteers MODIFY COLUMN hours DECIMAL(7,2) UNSIGNED NOT NULL DEFAULT 0');
+    }
+  } catch (Throwable $e) {}
+}
+
+/** Credit one completed intern task to the existing rendered-hours aggregate. */
+function credit_intern_task_hours(PDO $pdo, int $taskId): bool
+{
+  if ($taskId <= 0) return false;
+  ensure_task_duty_credit_schema($pdo);
+
+  $ownsTransaction = !$pdo->inTransaction();
+  try {
+    if ($ownsTransaction) $pdo->beginTransaction();
+    $stmt = $pdo->prepare(
+      "SELECT t.id, t.board_column, t.duty_hours, t.distribution_id, t.hours_credited_at,
+              v.id AS volunteer_id, v.applicant_type, d.status AS distribution_status
+       FROM tasks t
+       LEFT JOIN volunteers v
+         ON v.user_id = t.assignee_user_id
+         OR (t.assignee_user_id IS NULL AND v.full_name = t.assignee)
+       LEFT JOIN distributions d ON d.id = t.distribution_id
+       WHERE t.id = ? LIMIT 1 FOR UPDATE"
+    );
+    $stmt->execute([$taskId]);
+    $task = $stmt->fetch(PDO::FETCH_ASSOC);
+    $eligible = $task
+      && ($task['board_column'] ?? '') === 'done'
+      && empty($task['hours_credited_at'])
+      && strcasecmp((string) ($task['applicant_type'] ?? ''), 'Intern') === 0
+      && (float) ($task['duty_hours'] ?? 0) > 0
+      && (empty($task['distribution_id']) || normalize_distribution_status((string) ($task['distribution_status'] ?? '')) === 'Completed');
+
+    if (!$eligible) {
+      if ($ownsTransaction) $pdo->commit();
+      return false;
+    }
+
+    $mark = $pdo->prepare('UPDATE tasks SET hours_credited_at = NOW() WHERE id = ? AND hours_credited_at IS NULL');
+    $mark->execute([$taskId]);
+    if ($mark->rowCount() !== 1) {
+      if ($ownsTransaction) $pdo->commit();
+      return false;
+    }
+    $pdo->prepare("UPDATE volunteers SET hours = hours + ? WHERE id = ? AND applicant_type = 'Intern'")
+      ->execute([(float) $task['duty_hours'], (int) $task['volunteer_id']]);
+    if ($ownsTransaction) $pdo->commit();
+    return true;
+  } catch (Throwable $e) {
+    if ($ownsTransaction && $pdo->inTransaction()) $pdo->rollBack();
+    throw $e;
+  }
+}
+
 function decode_programs(?string $json): array
 {
   if (!$json) {
@@ -761,6 +838,22 @@ function complete_distribution(PDO $pdo, int $distId, ?int $reviewedByUserId = n
   try {
     try_close_linked_request($pdo, $distId);
   } catch (Throwable $e) {
+  }
+
+  // Distribution-linked tasks are the existing duty-hour history records.
+  // Finalize and credit them only after the distribution itself is Completed.
+  try {
+    ensure_task_duty_credit_schema($pdo);
+    $pdo->prepare("UPDATE tasks SET board_column = 'done', completed_at = COALESCE(completed_at, NOW()) WHERE distribution_id = ? AND board_column <> 'done'")
+      ->execute([$distId]);
+    $taskStmt = $pdo->prepare('SELECT id FROM tasks WHERE distribution_id = ? ORDER BY id ASC');
+    $taskStmt->execute([$distId]);
+    foreach ($taskStmt->fetchAll(PDO::FETCH_COLUMN) as $taskId) {
+      credit_intern_task_hours($pdo, (int) $taskId);
+    }
+  } catch (Throwable $e) {
+    // Completion of relief delivery remains authoritative if a legacy schema
+    // temporarily prevents the optional intern-hours sync.
   }
 }
 
@@ -1920,6 +2013,56 @@ const WORKFLOW_REQUEST_ALIASES = [
   'Ready' => 'Ready for Allocation',
 ];
 
+/** Find the warehouse item represented by a requested relief resource. */
+function find_inventory_item(PDO $pdo, ?int $inventoryItemId, string $resourceName, ?string $variant = null): ?array
+{
+  if ($inventoryItemId && $inventoryItemId > 0) {
+    $stmt = $pdo->prepare('SELECT * FROM inventory_items WHERE id = ? LIMIT 1');
+    $stmt->execute([$inventoryItemId]);
+    $item = $stmt->fetch();
+    if ($item) return $item;
+  }
+
+  $cleanName = trim($resourceName);
+  if ($cleanName === '') return null;
+
+  $stmt = $pdo->prepare('SELECT * FROM inventory_items WHERE code = ? LIMIT 1');
+  $stmt->execute([$cleanName]);
+  $item = $stmt->fetch();
+  if ($item) return $item;
+
+  if ($variant !== null && trim($variant) !== '') {
+    $stmt = $pdo->prepare('SELECT * FROM inventory_items WHERE LOWER(item_name) = LOWER(?) AND LOWER(variant) = LOWER(?) LIMIT 1');
+    $stmt->execute([$cleanName, trim($variant)]);
+    $item = $stmt->fetch();
+    if ($item) return $item;
+  }
+
+  $stmt = $pdo->prepare('SELECT * FROM inventory_items WHERE LOWER(item_name) = LOWER(?) LIMIT 1');
+  $stmt->execute([$cleanName]);
+  $item = $stmt->fetch();
+  if ($item) return $item;
+
+  $stmt = $pdo->prepare('SELECT * FROM inventory_items WHERE LOWER(item_name) LIKE LOWER(?) OR LOWER(?) LIKE CONCAT("%", LOWER(item_name), "%") ORDER BY (quantity > 0) DESC, LENGTH(item_name) ASC LIMIT 1');
+  $stmt->execute(['%' . $cleanName . '%', $cleanName]);
+  $item = $stmt->fetch();
+  if ($item) return $item;
+
+  $cleanTokens = preg_replace('/\([^)]*\)/', ' ', $cleanName);
+  $cleanTokens = preg_replace('/[^a-zA-Z0-9]+/', ' ', (string) $cleanTokens);
+  $words = array_filter(explode(' ', strtolower((string) $cleanTokens)), fn($word) => strlen($word) >= 3);
+  foreach ($words as $word) {
+    $stem = rtrim($word, 's');
+    if (strlen($stem) < 3) $stem = $word;
+    $stmt = $pdo->prepare('SELECT * FROM inventory_items WHERE LOWER(item_name) LIKE ? OR LOWER(category) LIKE ? ORDER BY (quantity > 0) DESC, LENGTH(item_name) ASC LIMIT 1');
+    $stmt->execute(['%' . $stem . '%', '%' . $stem . '%']);
+    $item = $stmt->fetch();
+    if ($item) return $item;
+  }
+
+  return null;
+}
+
 /**
  * Resolves standard wholesale/catalog unit cost for relief goods.
  * Checks inventory_items table if pdo provided, or falls back to standard Cebu wholesale rates.
@@ -2003,6 +2146,7 @@ function calculate_relief_request_finances(PDO $pdo, array $row): array
   }
 
   $requestedItemsByKey = [];
+  $requestedKeysByInventoryId = [];
   foreach ($needs as $need) {
     $isStructured = is_array($need);
     $name = trim((string) ($isStructured ? ($need['item'] ?? $need['name'] ?? '') : $need));
@@ -2022,6 +2166,16 @@ function calculate_relief_request_finances(PDO $pdo, array $row): array
         'unitCost' => $unitCost,
         'quantity' => 0,
       ];
+      try {
+        $inventoryItem = find_inventory_item($pdo, null, $name);
+        if ($inventoryItem) {
+          $inventoryId = (int) $inventoryItem['id'];
+          $requestedKeysByInventoryId[$inventoryId] ??= [];
+          if (!in_array($key, $requestedKeysByInventoryId[$inventoryId], true)) {
+            $requestedKeysByInventoryId[$inventoryId][] = $key;
+          }
+        }
+      } catch (Throwable $e) {}
     }
     $requestedItemsByKey[$key]['quantity'] += $quantity;
   }
@@ -2059,14 +2213,16 @@ function calculate_relief_request_finances(PDO $pdo, array $row): array
     } catch (Throwable $e) {}
 
     // Inventory-backed relief allocations also fulfill these same request needs.
-    // Monetary allocation rows are excluded because their quantities are already
-    // represented in donation_procurements.items_json.
+    // Count every committed, active workflow stage so a scheduled or in-transit
+    // allocation cannot make the request appear unfunded again. Cancelled rows
+    // are intentionally excluded. Monetary allocation rows are excluded because
+    // their quantities are already represented in donation_procurements.items_json.
     try {
       $allocationStmt = $pdo->prepare("
-        SELECT a.resource_name, a.quantity, a.unit
+        SELECT a.inventory_item_id, a.resource_name, a.quantity, a.unit
         FROM allocations a
         WHERE a.assistance_request_id = ?
-          AND a.status IN ('Reserved', 'Allocated', 'In Distribution', 'Delivered', 'Completed')
+          AND a.status IN ('Reserved', 'Allocated', 'In Distribution', 'Scheduled', 'In Transit', 'Delivered', 'Completed')
           AND NOT EXISTS (
             SELECT 1 FROM donation_procurements dp WHERE dp.allocation_id = a.id
           )
@@ -2078,6 +2234,21 @@ function calculate_relief_request_finances(PDO $pdo, array $row): array
         $quantity = max(0, (int) ($allocation['quantity'] ?? 0));
         if ($name === '' || $unit === '' || $quantity <= 0) continue;
         $key = strtolower($name) . "\0" . strtolower($unit);
+        $inventoryItemId = (int) ($allocation['inventory_item_id'] ?? 0);
+        if (!isset($requestedItemsByKey[$key]) && $inventoryItemId > 0 && !empty($requestedKeysByInventoryId[$inventoryItemId])) {
+          $unappliedQuantity = $quantity;
+          foreach ($requestedKeysByInventoryId[$inventoryItemId] as $matchedKey) {
+            $requestedQuantity = (int) ($requestedItemsByKey[$matchedKey]['quantity'] ?? 0);
+            $availableNeed = max(0, $requestedQuantity - (int) ($allocatedQuantities[$matchedKey] ?? 0));
+            $appliedQuantity = min($availableNeed, $unappliedQuantity);
+            if ($appliedQuantity > 0) {
+              $allocatedQuantities[$matchedKey] = ($allocatedQuantities[$matchedKey] ?? 0) + $appliedQuantity;
+              $unappliedQuantity -= $appliedQuantity;
+            }
+            if ($unappliedQuantity <= 0) break;
+          }
+          continue;
+        }
         if (isset($requestedItemsByKey[$key])) {
           $allocatedQuantities[$key] = ($allocatedQuantities[$key] ?? 0) + $quantity;
         }
@@ -2872,6 +3043,7 @@ function ensure_distribution_schema(PDO $pdo): void
   // Delivery Team assignments use the existing task relationship so the same
   // record powers Admin operations and the assigned volunteer's portal.
   ensure_column($pdo, 'tasks', 'distribution_id', 'BIGINT UNSIGNED NULL AFTER assignee_user_id');
+  ensure_task_duty_credit_schema($pdo);
 }
 
 function ensure_column(PDO $pdo, string $table, string $column, string $typeDef): void

@@ -308,67 +308,6 @@ function mark_request_allocated(PDO $pdo, ?int $requestId): void
 }
 
 /**
- * Find matching inventory item for a requested resource.
- */
-function find_inventory_item(PDO $pdo, ?int $inventoryItemId, string $resourceName, ?string $variant = null): ?array
-{
-  if ($inventoryItemId && $inventoryItemId > 0) {
-    $stmt = $pdo->prepare('SELECT * FROM inventory_items WHERE id = ? LIMIT 1');
-    $stmt->execute([$inventoryItemId]);
-    $item = $stmt->fetch();
-    if ($item) {
-      return $item;
-    }
-  }
-
-  $cleanName = trim($resourceName);
-  if ($cleanName === '') {
-    return null;
-  }
-
-  // Exact code match (e.g. INV-1002)
-  $stmt = $pdo->prepare('SELECT * FROM inventory_items WHERE code = ? LIMIT 1');
-  $stmt->execute([$cleanName]);
-  $item = $stmt->fetch();
-  if ($item) return $item;
-
-  // Exact item_name + variant match
-  if ($variant !== null && trim($variant) !== '') {
-    $stmt = $pdo->prepare('SELECT * FROM inventory_items WHERE LOWER(item_name) = LOWER(?) AND LOWER(variant) = LOWER(?) LIMIT 1');
-    $stmt->execute([$cleanName, trim($variant)]);
-    $item = $stmt->fetch();
-    if ($item) return $item;
-  }
-
-  // Exact item_name match (case-insensitive)
-  $stmt = $pdo->prepare('SELECT * FROM inventory_items WHERE LOWER(item_name) = LOWER(?) LIMIT 1');
-  $stmt->execute([$cleanName]);
-  $item = $stmt->fetch();
-  if ($item) return $item;
-
-  // Fallback: substring match (e.g. "Rice" -> "Rice (50kg sacks)" or "5kg Family Rice Packs")
-  $stmt = $pdo->prepare('SELECT * FROM inventory_items WHERE LOWER(item_name) LIKE LOWER(?) OR LOWER(?) LIKE CONCAT("%", LOWER(item_name), "%") ORDER BY (quantity > 0) DESC, LENGTH(item_name) ASC LIMIT 1');
-  $stmt->execute(['%' . $cleanName . '%', $cleanName]);
-  $item = $stmt->fetch();
-  if ($item) return $item;
-
-  // Fallback 2: Token and stem match (e.g. "Food Packs" -> "Family Emergency Relief Pack (Assembled)", "Tarpaulins" -> "Emergency Shelter Tarpaulin")
-  $cleanTokens = preg_replace('/\([^)]*\)/', ' ', $cleanName);
-  $cleanTokens = preg_replace('/[^a-zA-Z0-9]+/', ' ', (string) $cleanTokens);
-  $words = array_filter(explode(' ', strtolower((string) $cleanTokens)), fn($w) => strlen($w) >= 3);
-  foreach ($words as $word) {
-    $stem = rtrim($word, 's');
-    if (strlen($stem) < 3) $stem = $word;
-    $stmt = $pdo->prepare('SELECT * FROM inventory_items WHERE LOWER(item_name) LIKE ? OR LOWER(category) LIKE ? ORDER BY (quantity > 0) DESC, LENGTH(item_name) ASC LIMIT 1');
-    $stmt->execute(['%' . $stem . '%', '%' . $stem . '%']);
-    $item = $stmt->fetch();
-    if ($item) return $item;
-  }
-
-  return null;
-}
-
-/**
  * Resolve a relief request's itemized needs to warehouse inventory IDs.
  * A null requestedQuantity means the legacy request named the item but did
  * not record a numeric cap; the item is still eligible, but stock remains the

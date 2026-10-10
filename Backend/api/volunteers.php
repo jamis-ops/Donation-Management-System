@@ -3,6 +3,7 @@ declare(strict_types=1);
 require_once __DIR__ . '/bootstrap.php';
 
 $pdo = db();
+ensure_task_duty_credit_schema($pdo);
 $method = request_method();
 $id = get_id_param();
 
@@ -35,7 +36,7 @@ function map_volunteer(PDO $pdo, array $row): array
   $applicantType = !empty($row['applicant_type']) && strcasecmp((string)$row['applicant_type'], 'Intern') === 0 ? 'Intern' : 'Volunteer';
   $hasResume = !empty($row['resume_path']) && $applicantType === 'Intern';
 
-  $hours = $applicantType === 'Intern' ? (int) $row['hours'] : 0;
+  $hours = $applicantType === 'Intern' ? (float) $row['hours'] : 0;
   $requiredHours = $applicantType === 'Intern' ? (int) ($row['required_hours'] ?? 0) : 0;
   $remainingHours = $applicantType === 'Intern' ? max(0, $requiredHours - $hours) : 0;
 
@@ -265,7 +266,7 @@ if ($method === 'POST') {
     $skillsOther !== '' ? $skillsOther : null,
     $availability !== '' ? $availability : null,
     $status,
-    ($public || $applicantType !== 'Intern') ? 0 : (int) ($body['hours'] ?? 0),
+    ($public || $applicantType !== 'Intern') ? 0 : max(0, (float) ($body['hours'] ?? 0)),
     ($public || $applicantType !== 'Intern') ? 0 : (int) ($body['requiredHours'] ?? $body['required_hours'] ?? 0),
     $resume ? $resume['path'] : null,
     $resume ? $resume['name'] : null,
@@ -423,7 +424,7 @@ if ($method === 'PUT') {
   $email = require_valid_email((string) ($body['email'] ?? $existing['email'] ?? ''), 'Email');
 
   $updateHours = $applicantType === 'Intern'
-    ? (int) ($body['hours'] ?? $existing['hours'])
+    ? max(0, (float) ($body['hours'] ?? $existing['hours']))
     : 0;
   $updateRequiredHours = $applicantType === 'Intern'
     ? (int) ($body['requiredHours'] ?? $body['required_hours'] ?? ($existing['required_hours'] ?? 0))

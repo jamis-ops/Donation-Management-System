@@ -279,6 +279,7 @@ function read_duty_fields(array $body): array
 
 $user = require_auth(['Admin', 'Staff', 'Volunteer', 'Intern']);
 ensure_tasks_distribution_column($pdo);
+ensure_task_duty_credit_schema($pdo);
 
 if ($method === 'GET') {
   if (in_array($user['role'], ['Volunteer', 'Intern'], true)) {
@@ -639,6 +640,20 @@ if ($method === 'PUT') {
     $column = $existing['board_column'];
   }
 
+  // Distribution duty is finalized by the distribution completion workflow,
+  // never independently while the delivery is pending or unfinished.
+  if ($column === 'done' && !empty($existing['distribution_id'])) {
+    $distStmt = $pdo->prepare('SELECT status FROM distributions WHERE id = ? LIMIT 1');
+    $distStmt->execute([(int) $existing['distribution_id']]);
+    $distributionStatus = normalize_distribution_status((string) ($distStmt->fetchColumn() ?: ''));
+    if ($distributionStatus !== 'Completed') {
+      json_response([
+        'ok' => false,
+        'error' => 'Distribution duty hours are completed and credited automatically only after the linked distribution is Completed.',
+      ], 409);
+    }
+  }
+
   assert_valid_status_transition(
     'Task',
     (string) ($existing['board_column'] ?? 'todo'),
@@ -747,14 +762,9 @@ if ($method === 'PUT') {
     $update = $pdo->prepare('UPDATE tasks SET board_column = ?, completed_at = CASE WHEN ? = \'done\' THEN COALESCE(completed_at, NOW()) ELSE NULL END WHERE id = ?');
     $update->execute([$column, $column, $id]);
 
-    // When completing, credit duty hours to intern record if assignee is an intern.
-    if ($column === 'done' && ($existing['board_column'] ?? '') !== 'done') {
-      $hours = isset($existing['duty_hours']) ? (float) $existing['duty_hours'] : 0;
-      if ($hours > 0 && !empty($existing['assignee_user_id'])) {
-        $pdo->prepare('UPDATE volunteers SET hours = hours + ? WHERE user_id = ? AND applicant_type = "Intern"')
-          ->execute([$hours, (int) $existing['assignee_user_id']]);
-      }
-    }
+    // The shared credit guard requires linked distributions to be Completed
+    // and records an idempotent credit timestamp before changing totals.
+    if ($column === 'done') credit_intern_task_hours($pdo, (int) $id);
 
     $stmt = $pdo->prepare('SELECT * FROM tasks WHERE id = ?');
     $stmt->execute([$id]);
@@ -874,10 +884,7 @@ if ($method === 'PUT') {
     sync_distribution_volunteer_count($pdo, $distributionId);
   }
 
-  if ($column === 'done' && ($existing['board_column'] ?? '') !== 'done' && $dutyHours && $assigneeUserId && $isAssigneeIntern) {
-    $pdo->prepare('UPDATE volunteers SET hours = hours + ? WHERE user_id = ? AND applicant_type = "Intern"')
-      ->execute([(float) $dutyHours, (int) $assigneeUserId]);
-  }
+  if ($column === 'done') credit_intern_task_hours($pdo, (int) $id);
 
   if ($assigneeUserId && (int) $assigneeUserId !== (int) ($existing['assignee_user_id'] ?? 0)) {
     $duty = $isAssigneeIntern ? duty_label($dutyStart, $dutyEnd, $dutyHours) : '';

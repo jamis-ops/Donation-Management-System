@@ -110,6 +110,18 @@ const emptyForm = {
   allocationIds: [],
 }
 
+function dutyHoursBetween(start, end) {
+  if (!start || !end) return null
+  const [startHour, startMinute] = start.split(':').map(Number)
+  const [endHour, endMinute] = end.split(':').map(Number)
+  if ([startHour, startMinute, endHour, endMinute].some(Number.isNaN)) return null
+  const startTotal = (startHour * 60) + startMinute
+  let endTotal = (endHour * 60) + endMinute
+  if (endTotal <= startTotal) endTotal += 24 * 60
+  const minutes = endTotal - startTotal
+  return minutes > 0 && minutes <= 24 * 60 ? Math.round((minutes / 60) * 100) / 100 : null
+}
+
 function formFromAllocations(allocs, barangays) {
   if (!allocs?.length) return null
   const first = allocs[0]
@@ -597,6 +609,8 @@ export default function DistributionsPage() {
       type: vol.applicantType || vol.volunteerType || (vol.institution ? 'Intern' : 'Volunteer'),
       role: vol.deliveryRole || vol.role || ((vol.applicantType || vol.volunteerType) === 'Intern' ? 'Delivery Team Intern' : 'Delivery Team Volunteer'),
       skills: vol.skills || [],
+      dutyStart: (vol.applicantType || vol.volunteerType) === 'Intern' ? (form.scheduleTime || '') : '',
+      dutyEnd: '',
     }
     const updated = [...assignedVolunteers, newVol]
     setAssignedVolunteers(updated)
@@ -614,6 +628,12 @@ export default function DistributionsPage() {
       ...prev,
       volunteers: updated.length ? String(updated.length) : '',
     }))
+  }
+
+  const handleInternDutyTime = (volId, field, value) => {
+    setAssignedVolunteers((current) => current.map((member) => (
+      String(member.id) === String(volId) ? { ...member, [field]: value } : member
+    )))
   }
 
   const openEdit = (row) => {
@@ -676,6 +696,9 @@ export default function DistributionsPage() {
         type: member.type || matchVol?.applicantType || 'Volunteer',
         role: member.role || member.title || 'Delivery Team Volunteer',
         skills: matchVol?.skills || [],
+        dutyStart: member.dutyStart || '',
+        dutyEnd: member.dutyEnd || '',
+        dutyHours: member.dutyHours ?? null,
       }
     })
     if (parsedVolunteers.length === 0 && row.notes && row.notes.includes('Assigned Team:')) {
@@ -692,6 +715,9 @@ export default function DistributionsPage() {
             type: matchVol?.applicantType || (isIntern ? 'Intern' : 'Volunteer'),
             role: isIntern ? 'Delivery Team Intern' : 'Delivery Team Volunteer',
             skills: matchVol?.skills || [],
+            dutyStart: '',
+            dutyEnd: '',
+            dutyHours: null,
           })
         })
       }
@@ -773,6 +799,16 @@ export default function DistributionsPage() {
       return
     }
 
+    const invalidIntern = assignedVolunteers.find((member) => (
+      String(member.type || '').toLowerCase() === 'intern' &&
+      (!member.dutyStart || !member.dutyEnd || !dutyHoursBetween(member.dutyStart, member.dutyEnd))
+    ))
+    if (invalidIntern) {
+      setFormTab('logistics')
+      notify.error(`Enter a valid Start Time and End Time for intern ${invalidIntern.name}.`)
+      return
+    }
+
     if (editRow && form.status !== editRow.status) {
       const check = validateStatusTransition({
         entityName: 'Distribution',
@@ -833,6 +869,8 @@ export default function DistributionsPage() {
           .map((volunteer) => ({
             volunteerId: Number(volunteer.id),
             role: volunteer.role || (volunteer.type === 'Intern' ? 'Delivery Team Intern' : 'Delivery Team Volunteer'),
+            dutyStart: String(volunteer.type || '').toLowerCase() === 'intern' ? volunteer.dutyStart : null,
+            dutyEnd: String(volunteer.type || '').toLowerCase() === 'intern' ? volunteer.dutyEnd : null,
           }))
           .filter((assignment) => Number.isInteger(assignment.volunteerId) && assignment.volunteerId > 0)
         if (form.allocationIds?.length) {
@@ -855,7 +893,20 @@ export default function DistributionsPage() {
         confirmText: 'Done',
       })
     } catch (err) {
-      notify.error(err.message)
+      const message = err.message || 'The distribution could not be scheduled.'
+      if (/unmet funding requirement|not fully covered/i.test(message)) {
+        await notify.error({
+          title: 'Distribution Not Ready',
+          message: 'This relief request still has families that are not fully covered. Complete the allocation before proceeding to distribution.',
+          confirmText: 'OK',
+        })
+      } else {
+        await notify.error({
+          title: 'Distribution Could Not Be Scheduled',
+          message,
+          confirmText: 'OK',
+        })
+      }
     } finally {
       hideLoading()
       setSaving(false)
@@ -2388,13 +2439,17 @@ export default function DistributionsPage() {
                       {/* Assigned roster */}
                       <div className="dist-cl-roster">
                         {assignedVolunteers.length > 0 ? (
-                          assignedVolunteers.map((v) => (
-                            <span key={v.id} className={`dist-cl-member-chip ${isDeliveryTeamLocked ? 'dist-cl-member-chip--locked' : ''}`}>
+                          assignedVolunteers.map((v) => {
+                            const isIntern = v.type?.toLowerCase() === 'intern'
+                            const calculatedHours = isIntern ? dutyHoursBetween(v.dutyStart, v.dutyEnd) : null
+                            return (
+                            <div key={v.id} className={`dist-cl-member-chip ${isIntern ? 'dist-cl-member-chip--intern' : ''} ${isDeliveryTeamLocked ? 'dist-cl-member-chip--locked' : ''}`}>
+                              <div className="dist-cl-member-main">
                               <span className="dist-cl-member-avatar">
                                 {(v.name || '?').charAt(0).toUpperCase()}
                               </span>
                               <span className="dist-cl-member-name">{v.name}</span>
-                              <span className={`vol-role-badge vol-role-badge--${v.type?.toLowerCase() === 'intern' ? 'intern' : 'volunteer'}`}>
+                              <span className={`vol-role-badge vol-role-badge--${isIntern ? 'intern' : 'volunteer'}`}>
                                 {v.type}
                               </span>
                               {!isDeliveryTeamLocked ? (
@@ -2409,8 +2464,25 @@ export default function DistributionsPage() {
                               ) : (
                                 <Lock size={10} style={{ color: '#94a3b8', marginLeft: '2px' }} title="Volunteer assignment is locked after planning" />
                               )}
-                            </span>
-                          ))
+                              </div>
+                              {isIntern && (
+                                <div className="dist-cl-duty-times" aria-label={`Duty schedule for ${v.name}`}>
+                                  <label>
+                                    <span>Start Time</span>
+                                    <input type="time" value={v.dutyStart || ''} disabled={isDeliveryTeamLocked} onChange={(event) => handleInternDutyTime(v.id, 'dutyStart', event.target.value)} />
+                                  </label>
+                                  <label>
+                                    <span>End Time</span>
+                                    <input type="time" value={v.dutyEnd || ''} disabled={isDeliveryTeamLocked} onChange={(event) => handleInternDutyTime(v.id, 'dutyEnd', event.target.value)} />
+                                  </label>
+                                  <span className={`dist-cl-duty-hours ${calculatedHours ? 'dist-cl-duty-hours--ready' : ''}`}>
+                                    {calculatedHours ? `${calculatedHours} rendered hrs after completion` : 'Set both times'}
+                                  </span>
+                                </div>
+                              )}
+                            </div>
+                            )
+                          })
                         ) : isDeliveryTeamLocked ? (
                           <div className="dist-cl-locked-notice">
                             <Lock size={14} style={{ color: '#AF101A', flexShrink: 0 }} />

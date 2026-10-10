@@ -11,10 +11,10 @@
   flex: 1;
   min-height: 0;
   overflow-y: auto;
-  padding: 1.1rem 1.25rem;
+  padding: 0.85rem 1rem;
   display: flex;
   flex-direction: column;
-  gap: 1rem;
+  gap: 0.75rem;
   overscroll-behavior: contain;
 }
 
@@ -150,7 +150,7 @@
   justify-content: space-between;
   flex-wrap: wrap;
   gap: 0.85rem 1.25rem;
-  padding: 0.85rem 1.25rem;
+  padding: 0.7rem 1rem;
   border-bottom: 1px solid #e2e8f0;
   background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
 }
@@ -211,7 +211,7 @@
 
 .fund-allocation-section {
   min-width: 0;
-  padding: 0.95rem 1rem;
+  padding: 0.75rem 0.85rem;
   border: 1px solid #e2e8f0;
   border-radius: 11px;
   background: #fff;
@@ -275,7 +275,7 @@
 
 .fund-allocation-family-summary {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 0.55rem;
   margin: 0.75rem 0;
 }
@@ -286,6 +286,22 @@
   border-radius: 8px;
   background: #f8fafc;
 }
+
+.fund-allocation-family-covered {
+  border-color: #86efac !important;
+  background: #f0fdf4 !important;
+}
+
+.fund-allocation-family-summary .fund-allocation-family-covered span,
+.fund-allocation-family-summary .fund-allocation-family-covered strong { color: #15803d; }
+
+.fund-allocation-family-pending {
+  border-color: #fcd34d !important;
+  background: #fffbeb !important;
+}
+
+.fund-allocation-family-summary .fund-allocation-family-pending span,
+.fund-allocation-family-summary .fund-allocation-family-pending strong { color: #a16207; }
 
 .fund-allocation-family-summary strong { color: #0f172a; font-size: 1rem; }
 .fund-allocation-needs-wrap h4 { margin: 0 0 0.4rem; color: #334155; font-size: 0.78rem; }
@@ -305,7 +321,7 @@
 }
 
 .fund-allocation-needs-row { grid-template-columns: minmax(175px, 2fr) repeat(4, minmax(85px, 1fr)); }
-.fund-allocation-plan-row { grid-template-columns: minmax(190px, 2fr) repeat(3, minmax(100px, 1fr)); }
+.fund-allocation-plan-row { grid-template-columns: minmax(150px, 1.6fr) minmax(95px, 0.85fr) minmax(110px, 0.9fr) minmax(120px, 1fr) minmax(100px, 0.9fr); }
 .fund-allocation-needs-row--head,
 .fund-allocation-plan-row--head {
   border-radius: 6px;
@@ -317,6 +333,49 @@
 }
 
 .fund-allocation-plan-row strong { color: #0f172a; }
+.fund-allocation-plan-row > span:first-child {
+  display: grid;
+  gap: 0.1rem;
+}
+.fund-allocation-plan-row > span:first-child small {
+  color: #64748b;
+  font-size: 0.68rem;
+}
+.fund-allocation-plan-row input {
+  width: 100%;
+  min-width: 0;
+  height: 34px;
+  padding: 0.35rem 0.45rem;
+  border: 1px solid #cbd5e1;
+  border-radius: 7px;
+  background: #ffffff;
+  color: #0f172a;
+  font: inherit;
+  font-weight: 650;
+  box-sizing: border-box;
+}
+.fund-allocation-plan-row input:focus {
+  border-color: #af101a;
+  outline: 3px solid rgba(175, 16, 26, 0.1);
+}
+.fund-allocation-price-input {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 0.25rem;
+  color: #64748b;
+}
+.fund-allocation-reset {
+  border: 1px solid #cbd5e1;
+  border-radius: 7px;
+  padding: 0.38rem 0.65rem;
+  background: #ffffff;
+  color: #475569;
+  font-size: 0.72rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+.fund-allocation-reset:hover { border-color: #94a3b8; background: #f8fafc; }
 .fund-allocation-plan-summary {
   display: flex;
   justify-content: flex-end;
@@ -336,6 +395,18 @@
 .fund-allocation-plan-summary > div:first-child { border-color: #fecaca; background: #fef2f2; }
 .fund-allocation-plan-summary > div:first-child strong { color: #af101a; }
 .fund-allocation-plan-summary strong { color: #0f172a; font-size: 0.96rem; }
+
+.fund-allocation-coverage-note {
+  margin-top: 0.65rem;
+  padding: 0.6rem 0.75rem;
+  border: 1px solid;
+  border-radius: 8px;
+  font-size: 0.78rem;
+  font-weight: 650;
+  line-height: 1.4;
+}
+.fund-allocation-coverage-note--ready { border-color: #86efac; background: #f0fdf4; color: #15803d; }
+.fund-allocation-coverage-note--blocked { border-color: #fcd34d; background: #fffbeb; color: #92400e; }
 
 .fund-allocation-inline-message,
 .fund-allocation-error {
@@ -370,7 +441,7 @@
 }
 
 .fund-allocation-cancel { border: 1px solid #cbd5e1; background: #fff; color: #475569; }
-.fund-allocation-confirm { border: 1px solid #af101a; background: #af101a; color: #fff; box-shadow: 0 4px 8px rgba(175, 16, 26, 0.18); }
+.fund-allocation-confirm { border: 1px solid #16a34a; background: #16a34a; color: #fff; box-shadow: 0 4px 8px rgba(22, 163, 74, 0.18); }
 .fund-allocation-confirm:disabled { border-color: #94a3b8; background: #94a3b8; cursor: not-allowed; box-shadow: none; }
 
 .fund-allocation-selection-grid {
@@ -386,6 +457,7 @@
   .fund-allocation-totals { width: 100%; justify-content: space-between; gap: 0.6rem; }
   .fund-allocation-request-stats,
   .fund-allocation-metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .fund-allocation-family-summary { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .fund-allocation-item-row {
     grid-template-columns: repeat(2, minmax(0, 1fr)) 32px !important;
   }
@@ -3458,6 +3530,80 @@
 }
 .dist-cl-member-chip:hover {
   border-color: #94a3b8;
+}
+
+.dist-cl-member-chip--intern {
+  display: grid;
+  gap: 0.45rem;
+  min-width: min(100%, 430px);
+  padding: 0.45rem 0.55rem;
+  border-radius: 10px;
+}
+
+.dist-cl-member-main {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  min-width: 0;
+}
+
+.dist-cl-duty-times {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(110px, 1fr)) minmax(145px, auto);
+  align-items: end;
+  gap: 0.45rem;
+  padding-top: 0.4rem;
+  border-top: 1px dashed #e2e8f0;
+}
+
+.dist-cl-duty-times label {
+  display: grid;
+  gap: 0.2rem;
+  font-size: 0.64rem;
+  font-weight: 700;
+  color: #64748b;
+}
+
+.dist-cl-duty-times input {
+  min-width: 0;
+  height: 32px;
+  padding: 0.25rem 0.45rem;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  background: #fff;
+  color: #0f172a;
+  font: inherit;
+}
+
+.dist-cl-duty-times input:focus {
+  outline: 2px solid rgba(175, 16, 26, 0.12);
+  border-color: #AF101A;
+}
+
+.dist-cl-duty-hours {
+  align-self: end;
+  min-height: 32px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.3rem 0.55rem;
+  border-radius: 6px;
+  background: #f1f5f9;
+  color: #64748b;
+  font-size: 0.68rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.dist-cl-duty-hours--ready {
+  background: #ecfdf5;
+  color: #047857;
+}
+
+@media (max-width: 700px) {
+  .dist-cl-member-chip--intern { min-width: 100%; }
+  .dist-cl-duty-times { grid-template-columns: 1fr 1fr; }
+  .dist-cl-duty-hours { grid-column: 1 / -1; white-space: normal; }
 }
 
 .dist-cl-member-avatar {

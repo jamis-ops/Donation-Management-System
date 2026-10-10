@@ -390,18 +390,19 @@ if ($method === 'GET') {
     ensure_allocation_inventory_schema($pdo);
     ensure_column($pdo, 'inventory_items', 'cost_per_unit', 'DECIMAL(10,2) NULL AFTER unit');
 
-    // Only approved requests in a funding stage may receive monetary allocations.
-    // Include Allocated here only so stale statuses can be repaired from persisted finance data.
+    // Only requests in an open funding stage may receive monetary allocations.
+    // Allocated and later workflow stages are deliberately excluded: eligibility
+    // is not a status-repair path and must never reopen a fulfilled request.
     $stmt = $pdo->query("
       SELECT ar.*, b.full_name AS beneficiary_name, b.barangay, b.municipality
       FROM assistance_requests ar
       JOIN beneficiaries b ON b.id = ar.beneficiary_id
-      WHERE ar.status IN ('Approved', 'Ready for Allocation', 'Partially Funded', 'Partially Allocated', 'Allocated')
+      WHERE ar.status IN ('Approved', 'Ready for Allocation', 'Partially Funded', 'Partially Allocated')
         AND NOT EXISTS (
           SELECT 1 FROM allocations a
           JOIN distributions d ON d.id = a.distribution_id
           WHERE a.assistance_request_id = ar.id
-            AND d.status IN ('Preparing', 'In Transit', 'Delivered', 'Completed')
+            AND d.status <> 'Cancelled'
         )
       ORDER BY ar.created_at DESC, ar.request_date DESC, ar.id DESC
     ");
@@ -417,13 +418,10 @@ if ($method === 'GET') {
         continue;
       }
 
-      // Fully covered requests stay out of the funding selector.
-      if (empty($fin['remainingItems'])) {
-        if ($row['status'] !== 'Allocated') {
-          try {
-            $pdo->prepare("UPDATE assistance_requests SET status = 'Allocated' WHERE id = ?")->execute([$row['id']]);
-          } catch (Throwable $e) {}
-        }
+      // Persisted monetary procurements and inventory allocations are the
+      // authoritative coverage record. Fully covered requests stay out even if
+      // their request status is stale.
+      if ($fin['isFullyFunded'] || $fin['remainingFamilies'] <= 0 || empty($fin['remainingItems'])) {
         continue;
       }
 
@@ -433,14 +431,7 @@ if ($method === 'GET') {
       } elseif ($fin['alreadyFundedAmount'] > 0) {
         $properStatus = 'Partially Funded';
       } else {
-        $properStatus = in_array($row['status'], ['Under Review', 'Pending Review'], true) ? $row['status'] : 'Approved';
-      }
-
-      // Sync status in DB if needed so Admin & Staff see the genuine state
-      if ($row['status'] !== $properStatus && !in_array($row['status'], ['Pending Review', 'Under Review'], true)) {
-        try {
-          $pdo->prepare("UPDATE assistance_requests SET status = ? WHERE id = ?")->execute([$properStatus, $row['id']]);
-        } catch (Throwable $e) {}
+        $properStatus = $row['status'];
       }
 
       // Extract calamity name

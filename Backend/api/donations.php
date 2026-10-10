@@ -472,7 +472,9 @@ if ($method === 'POST') {
           throw new Exception('Selected Relief Request does not belong to the selected Barangay.');
         }
 
-        $fundingStatuses = ['Approved', 'Partially Funded', 'Partially Allocated', 'Allocated'];
+        // Keep this server-side guard aligned with the eligibility endpoint.
+        // Allocated and later statuses must never accept another monetary allocation.
+        $fundingStatuses = ['Approved', 'Ready for Allocation', 'Partially Funded', 'Partially Allocated'];
         if (!in_array($assistanceRequest['status'], $fundingStatuses, true)) {
           throw new Exception("This relief request is already in status '{$assistanceRequest['status']}' and cannot accept further allocations.");
         }
@@ -487,7 +489,7 @@ if ($method === 'POST') {
         if ($expectedAffectedFamilies > 0 && $expectedAffectedFamilies !== $fin['affectedFamilies']) {
           throw new Exception('The affected-family count changed. Refresh the request details and suggested plan.');
         }
-        if (empty($fin['remainingItems'])) {
+        if ($fin['isFullyFunded'] || $fin['remainingFamilies'] <= 0 || empty($fin['remainingItems'])) {
           throw new Exception('This relief request is already fully funded.');
         }
 
@@ -520,12 +522,11 @@ if ($method === 'POST') {
             throw new Exception("Requested quantity for {$itemName} exceeds its remaining need.");
           }
 
-          // Unit price is recalculated from the current server catalog/rate table.
-          $unitCost = round((float) $remainingItem['unitCost'], 2);
           $submittedUnitCost = round((float) ($requestedItem['unitCost'] ?? 0), 2);
-          if ($submittedUnitCost <= 0 || abs($submittedUnitCost - $unitCost) > 0.009) {
-            throw new Exception("The current unit price for {$itemName} changed. Refresh the suggested plan and try again.");
+          if ($submittedUnitCost <= 0 || $submittedUnitCost > 1000000) {
+            throw new Exception("Enter a valid unit price for {$itemName}.");
           }
+          $unitCost = $submittedUnitCost;
           $lineTotalCents = $itemQuantity * (int) round($unitCost * 100);
           $itemTotalCents += $lineTotalCents;
           $validatedItems[] = [
@@ -585,9 +586,10 @@ if ($method === 'POST') {
           $key = strtolower(trim((string) $remainingItem['item'])) . "\0" . strtolower(trim((string) $remainingItem['unit']));
           $remainingRequestCostAfter += ($remainingQuantitiesAfter[$key] ?? 0) * (float) $remainingItem['unitCost'];
         }
-        $newReqStatus = $remainingItemCount === 0
-          ? 'Allocated'
-          : ($familiesAfter > $fin['alreadySupportedFamilies'] ? 'Partially Allocated' : 'Partially Funded');
+        if ($remainingItemCount > 0 || $familiesAfter < $fin['affectedFamilies']) {
+          throw new Exception('This relief request still has families that are not fully covered. Complete the allocation before proceeding to distribution.');
+        }
+        $newReqStatus = 'Allocated';
       } else {
         throw new Exception('A valid relief request is required for monetary fund allocation.');
       }

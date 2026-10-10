@@ -472,7 +472,7 @@ switch ($user['role']) {
         json_response(['ok' => false, 'error' => 'Account role does not match the linked applicant record. Contact an administrator.'], 403);
       }
     }
-    $hours = $isIntern ? (int) ($profile['hours'] ?? 0) : 0;
+    $hours = $isIntern ? (float) ($profile['hours'] ?? 0) : 0;
     $requiredHours = $isIntern ? (int) ($profile['required_hours'] ?? 0) : 0;
     $remainingHours = $isIntern ? max(0, $requiredHours - $hours) : 0;
     $statusLabels = [
@@ -482,7 +482,14 @@ switch ($user['role']) {
       'done' => 'Done',
     ];
 
-    $tasks = $pdo->prepare('SELECT * FROM tasks WHERE assignee = ? OR assignee_user_id = ? ORDER BY due_date ASC');
+    $tasks = $pdo->prepare(
+      'SELECT t.*, d.code AS distribution_code, d.event_name AS distribution_event_name,
+              d.location AS distribution_location, d.status AS distribution_status
+       FROM tasks t
+       LEFT JOIN distributions d ON d.id = t.distribution_id
+       WHERE t.assignee = ? OR t.assignee_user_id = ?
+       ORDER BY t.due_date ASC'
+    );
     $tasks->execute([$name, $user['id']]);
     $taskRows = $tasks->fetchAll();
 
@@ -627,6 +634,12 @@ switch ($user['role']) {
       if (($t['board_column'] ?? '') !== 'done') {
         continue;
       }
+      if ($isIntern && !empty($t['distribution_id']) && (
+        normalize_distribution_status((string) ($t['distribution_status'] ?? '')) !== 'Completed'
+        || empty($t['hours_credited_at'])
+      )) {
+        continue;
+      }
       $h = ($isIntern && isset($t['duty_hours'])) ? (float) $t['duty_hours'] : 0;
       $completed = $t['completed_at'] ?: $t['due_date'];
       $ts = $completed ? strtotime((string) $completed) : false;
@@ -642,14 +655,18 @@ switch ($user['role']) {
         'year' => $ts ? (int) date('Y', $ts) : (int) date('Y'),
         'month' => $ts ? (int) date('n', $ts) : (int) date('n'),
         'monthName' => $ts ? $monthNames[(int) date('n', $ts) - 1] : date('F'),
-        'activity' => $t['title'],
-        'type' => $t['module'] ?: 'General',
+        'activity' => !empty($t['distribution_id'])
+          ? trim((string) ($t['distribution_event_name'] ?: ('Distribution ' . ($t['distribution_code'] ?? ''))) . ' — ' . (string) $t['title'])
+          : $t['title'],
+        'type' => !empty($t['distribution_id']) ? 'Distribution' : ($t['module'] ?: 'General'),
         'hours' => $isIntern ? $h : null,
         'dutyStart' => $isIntern ? ($t['duty_start'] ?? null) : null,
         'dutyEnd' => $isIntern ? ($t['duty_end'] ?? null) : null,
         'dutyLabel' => $isIntern ? duty_label($t['duty_start'] ?? null, $t['duty_end'] ?? null, $h) : null,
         'attendance' => 'Present / Completed',
         'status' => 'Verified',
+        'distributionCode' => $t['distribution_code'] ?? null,
+        'location' => $t['distribution_location'] ?? null,
       ];
     }
     usort($activityLog, static fn($a, $b) => strcmp((string) ($b['rawDate'] ?? $b['date']), (string) ($a['rawDate'] ?? $a['date'])));

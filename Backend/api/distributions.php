@@ -29,12 +29,23 @@ function normalize_delivery_team(PDO $pdo, $rawAssignments): array
     $fallbackRole = strcasecmp((string) ($volunteer['applicant_type'] ?? ''), 'Intern') === 0
       ? 'Delivery Team Intern'
       : 'Delivery Team Volunteer';
+    $isIntern = strcasecmp((string) ($volunteer['applicant_type'] ?? ''), 'Intern') === 0;
+    $dutyStart = $isIntern ? trim((string) ($assignment['dutyStart'] ?? '')) : '';
+    $dutyEnd = $isIntern ? trim((string) ($assignment['dutyEnd'] ?? '')) : '';
+    $validTimeFormat = static fn(string $time): bool => (bool) preg_match('/^(?:[01]\d|2[0-3]):[0-5]\d$/', $time);
+    $dutyHours = $isIntern ? hours_between($dutyStart, $dutyEnd) : null;
+    if ($isIntern && (!$validTimeFormat($dutyStart) || !$validTimeFormat($dutyEnd) || $dutyHours === null || $dutyHours <= 0)) {
+      throw new RuntimeException("Enter a valid Start Time and End Time for intern {$volunteer['full_name']}.");
+    }
     $normalized[$volunteerId] = [
       'volunteerId' => $volunteerId,
       'userId' => !empty($volunteer['user_id']) ? (int) $volunteer['user_id'] : null,
       'name' => (string) $volunteer['full_name'],
       'type' => (string) ($volunteer['applicant_type'] ?: 'Volunteer'),
       'role' => trim((string) ($assignment['role'] ?? $assignment['task'] ?? '')) ?: $fallbackRole,
+      'dutyStart' => $dutyStart ?: null,
+      'dutyEnd' => $dutyEnd ?: null,
+      'dutyHours' => $dutyHours,
     ];
   }
   return array_values($normalized);
@@ -50,7 +61,7 @@ function create_delivery_team_assignments(PDO $pdo, int $distributionId, array $
 
     $taskCode = generate_code('TSK');
     $title = (string) $member['role'];
-    $stmt = $pdo->prepare("INSERT INTO tasks (code, title, assignee, assignee_user_id, distribution_id, priority, due_date, duty_start, duty_end, module, board_column) VALUES (?, ?, ?, ?, ?, 'High', ?, ?, ?, 'Distribution', 'todo')");
+    $stmt = $pdo->prepare("INSERT INTO tasks (code, title, assignee, assignee_user_id, distribution_id, priority, due_date, duty_start, duty_end, duty_hours, module, board_column) VALUES (?, ?, ?, ?, ?, 'High', ?, ?, ?, ?, 'Distribution', 'todo')");
     $stmt->execute([
       $taskCode,
       $title,
@@ -58,8 +69,9 @@ function create_delivery_team_assignments(PDO $pdo, int $distributionId, array $
       $member['userId'],
       $distributionId,
       $distribution['distributionDate'] ?: null,
-      $distribution['scheduleTime'] ?: null,
-      null,
+      $member['dutyStart'] ?: ($distribution['scheduleTime'] ?: null),
+      $member['dutyEnd'] ?: null,
+      $member['dutyHours'],
     ]);
 
     if ($member['userId']) {
@@ -343,7 +355,7 @@ function map_distribution(PDO $pdo, array $row): array
 
   $assignedTeam = [];
   try {
-    $tStmt = $pdo->prepare('SELECT t.id, t.code, t.title, t.assignee, t.assignee_user_id, t.board_column, v.id AS volunteer_id, v.applicant_type FROM tasks t LEFT JOIN volunteers v ON v.user_id = t.assignee_user_id OR (t.assignee_user_id IS NULL AND v.full_name = t.assignee) WHERE t.distribution_id = ? ORDER BY t.id ASC');
+    $tStmt = $pdo->prepare('SELECT t.id, t.code, t.title, t.assignee, t.assignee_user_id, t.board_column, t.duty_start, t.duty_end, t.duty_hours, t.hours_credited_at, v.id AS volunteer_id, v.applicant_type FROM tasks t LEFT JOIN volunteers v ON v.user_id = t.assignee_user_id OR (t.assignee_user_id IS NULL AND v.full_name = t.assignee) WHERE t.distribution_id = ? ORDER BY t.id ASC');
     $tStmt->execute([(int) $row['id']]);
     foreach ($tStmt->fetchAll() as $t) {
       $assignedTeam[] = [
@@ -356,6 +368,10 @@ function map_distribution(PDO $pdo, array $row): array
         'volunteerId' => !empty($t['volunteer_id']) ? (int) $t['volunteer_id'] : null,
         'type' => $t['applicant_type'] ?? 'Volunteer',
         'status' => $t['board_column'] ?? '',
+        'dutyStart' => $t['duty_start'] ?? '',
+        'dutyEnd' => $t['duty_end'] ?? '',
+        'dutyHours' => isset($t['duty_hours']) && $t['duty_hours'] !== null ? (float) $t['duty_hours'] : null,
+        'hoursCredited' => !empty($t['hours_credited_at']),
       ];
     }
   } catch (Throwable $e) {

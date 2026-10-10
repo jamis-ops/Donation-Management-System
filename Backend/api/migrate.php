@@ -284,6 +284,9 @@ try {
   // v15: Donation progress updates + volunteer required hours + task completion time
   addColumn($pdo, 'volunteers', 'required_hours', 'INT NOT NULL DEFAULT 0 AFTER hours');
   addColumn($pdo, 'tasks', 'completed_at', 'TIMESTAMP NULL AFTER board_column');
+  addColumn($pdo, 'tasks', 'hours_credited_at', 'TIMESTAMP NULL AFTER completed_at');
+  $pdo->exec("UPDATE tasks SET hours_credited_at = COALESCE(completed_at, updated_at, NOW()) WHERE board_column = 'done' AND duty_hours > 0 AND hours_credited_at IS NULL");
+  $pdo->exec('ALTER TABLE volunteers MODIFY COLUMN hours DECIMAL(7,2) UNSIGNED NOT NULL DEFAULT 0');
 
   $pdo->exec("
     CREATE TABLE IF NOT EXISTS donation_updates (
