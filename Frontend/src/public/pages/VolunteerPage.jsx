@@ -468,7 +468,8 @@ export default function VolunteerPage() {
 
               <button
                 type="submit"
-                className="btn btn--primary btn--lg"
+                className="btn btn--success btn--lg"
+                style={{ width: '100%' }}
                 disabled={submitting || !form.acceptedTerms || !form.acceptedPrivacy}
                 title={!form.acceptedTerms || !form.acceptedPrivacy ? 'Please accept both agreements above to submit application' : ''}
               >

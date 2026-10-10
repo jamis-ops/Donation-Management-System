@@ -190,7 +190,6 @@ if (!function_exists('email_link_html')) {
     return '<p style="margin:20px 0;text-align:center">'
       . '<a href="' . $url . '" style="display:inline-block;background:#AF101A;color:#ffffff;padding:14px 28px;border-radius:8px;text-decoration:none;font-weight:700">'
       . $safeLabel
-      . '</a></p>'
-      . '<p style="margin:0;color:#64748b;font-size:0.85rem;word-break:break-all;text-align:center">Or open: <a href="' . $url . '">' . $url . '</a></p>';
+      . '</a></p>';
   }
 }

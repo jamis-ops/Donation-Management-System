@@ -1724,7 +1724,7 @@ export default function DonatePage() {
 
                 <button
                   type="submit"
-                  className="btn btn--primary btn--lg"
+                  className="btn btn--success btn--lg"
                   style={{ width: '100%' }}
                   disabled={submitting}
                 >

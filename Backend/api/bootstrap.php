@@ -1511,8 +1511,6 @@ function send_verification_email(string $toEmail, string $name, string $token): 
       . '<p style="margin:24px 0;text-align:center">'
       . '<a href="' . $safeUrl . '" style="display:inline-block;background:#AF101A;color:#ffffff;padding:14px 28px;border-radius:8px;text-decoration:none;font-weight:700;font-size:1rem">Verify it\'s you</a>'
       . '</p>'
-      . '<p style="margin:0 0 10px;color:#64748b;font-size:0.88rem">Or copy and paste this link into your browser:</p>'
-      . '<p style="margin:0 0 18px;word-break:break-all;font-size:0.85rem"><a href="' . $safeUrl . '" style="color:#2563eb">' . $safeUrl . '</a></p>'
       . '<p style="margin:0;color:#64748b;font-size:0.88rem">If you did not create this account, you can safely ignore this email.</p>';
     $sent = (bool) send_mail($toEmail, $name, $subject, $html);
   }
@@ -1694,7 +1692,6 @@ function send_account_credentials(string $toEmail, string $name, string $loginEm
       . '<tr><td style="padding:10px 28px 8px;text-align:center">'
       . '<a href="' . $recoveryUrl . '" style="display:inline-block;background:#ffffff;color:#AF101A;padding:12px 22px;border-radius:10px;text-decoration:none;font-weight:700;border:2px solid #AF101A">Add recovery number</a>'
       . '</td></tr>'
-      . '<tr><td style="padding:8px 28px 20px;text-align:center;font-size:0.78rem;color:#94a3b8;word-break:break-all">Or open: <a href="' . $loginUrl . '" style="color:#2563eb">' . $loginUrl . '</a></td></tr>'
       . '<tr><td style="padding:0 28px 26px"><div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:14px 16px;font-size:0.85rem;line-height:1.55;color:#475569"><strong style="color:#0f172a">Security note:</strong> This temporary password is only for your Rise Above Foundation Cebu portal account. Sign in soon, set your own password, and never forward this email.</div></td></tr>'
       . '<tr><td style="padding:16px 28px 22px;background:#f8fafc;border-top:1px solid #e2e8f0;text-align:center;font-size:0.75rem;line-height:1.55;color:#94a3b8"><strong style="color:#475569">Rise Above Foundation Cebu</strong><br>© ' . $year . ' Rise Above Foundation Cebu. All rights reserved.<br>This transactional message was sent because an administrator created a portal account for you.'
       . ($safeSupport !== '' ? '<br>Questions? Contact <a href="mailto:' . $safeSupport . '" style="color:#2563eb">' . $safeSupport . '</a>.' : '')
@@ -1764,8 +1761,7 @@ function send_invitation_email(string $toEmail, string $barangayName, string $to
     . "<p style=\"margin:0 0 14px;line-height:1.65;color:#475569\">To accept on behalf of your barangay, please complete the short registration form. Our administrators will review the application. Once approved, login credentials will be emailed to this address. This link expires in {$days} days.</p>"
     . '<p style="margin:24px 0;text-align:center">'
     . '<a href="' . $safeUrl . '" style="display:inline-block;background:#AF101A;color:#ffffff;padding:15px 32px;border-radius:10px;text-decoration:none;font-weight:750">Accept Invitation</a>'
-    . '</p>'
-    . '<p style="margin:0;color:#64748b;font-size:0.88rem;word-break:break-all">Or open: <a href="' . $safeUrl . '">' . $safeUrl . '</a></p>';
+    . '</p>';
 
   if (function_exists('nodemailer_send_invitation') && function_exists('mail_resolved_transport') && mail_resolved_transport() === 'nodemailer') {
     $sent = nodemailer_send_invitation($toEmail, $barangayName, $inviteUrl, $expiresInDays);

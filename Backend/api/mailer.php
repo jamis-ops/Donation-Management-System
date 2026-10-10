@@ -381,8 +381,7 @@ if (!function_exists('nodemailer_send_verification')) {
       . '<p style="margin:0 0 14px">Click the button below to verify your email and activate your Rise Above Foundation account. This link expires in 24 hours.</p>'
       . '<p style="margin:24px 0;text-align:center">'
       . '<a href="' . $safeUrl . '" style="display:inline-block;background:#AF101A;color:#ffffff;padding:14px 28px;border-radius:8px;text-decoration:none;font-weight:700">Verify it\'s you</a>'
-      . '</p>'
-      . '<p style="margin:0;color:#64748b;font-size:0.88rem;word-break:break-all">Or open: <a href="' . $safeUrl . '">' . $safeUrl . '</a></p>';
+      . '</p>';
 
     $fallback = nodemailer_send($toEmail, $toName, "Verify it's you — Rise Above Foundation", $bodyHtml);
     if ($fallback) {
@@ -425,8 +424,7 @@ if (!function_exists('nodemailer_send_invitation')) {
       . "<p style=\"margin:0 0 14px\">Click the button below to accept the invitation and set up your barangay portal account. This link expires in {$days} days.</p>"
       . '<p style="margin:24px 0;text-align:center">'
       . '<a href="' . $safeUrl . '" style="display:inline-block;background:#AF101A;color:#ffffff;padding:14px 28px;border-radius:8px;text-decoration:none;font-weight:700">Accept invitation</a>'
-      . '</p>'
-      . '<p style="margin:0;color:#64748b;font-size:0.88rem;word-break:break-all">Or open: <a href="' . $safeUrl . '">' . $safeUrl . '</a></p>';
+      . '</p>';
 
     $fallback = nodemailer_send($toEmail, $barangayName, 'Barangay partnership invitation — Rise Above Foundation', $bodyHtml);
     if ($fallback) {

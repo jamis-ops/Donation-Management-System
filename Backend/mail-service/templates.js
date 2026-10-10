@@ -18,8 +18,6 @@ export function credentialsPlainText({
   loginEmail,
   temporaryPassword,
   role,
-  loginUrl,
-  recoveryUrl,
   orgName,
 }) {
   const brand = orgName || 'Rise Above Foundation Cebu'
@@ -48,8 +46,7 @@ export function credentialsPlainText({
     `Sign-in email: ${loginEmail}`,
     `Temporary password: ${temporaryPassword}`,
     '',
-    `Open the portal: ${loginUrl}`,
-    `Add a recovery number (optional): ${recoveryUrl}`,
+    'Use the action buttons in this email to open the portal or add a recovery number.',
     '',
     'After you sign in, please choose a new password for your account.',
     'If you did not expect this message, contact the foundation and do not share this email.',
@@ -196,14 +193,6 @@ export function credentialsEmailHtml({
               </a>
             </td>
           </tr>
-          <tr>
-            <td style="padding:8px 28px 20px;" align="center">
-              <p style="margin:0;font-size:0.78rem;line-height:1.5;color:#94a3b8;word-break:break-all;max-width:420px;">
-                Or open this link: <a href="${signIn}" style="color:#2563eb;text-decoration:underline;">${signIn}</a>
-              </p>
-            </td>
-          </tr>
-
           <!-- Security tip -->
           <tr>
             <td style="padding:0 28px 26px;">
@@ -295,14 +284,6 @@ export function verificationEmailHtml({
               <a href="${link}" style="display:inline-block;background:#AF101A;color:#ffffff;text-decoration:none;font-weight:700;font-size:0.95rem;padding:14px 28px;border-radius:10px;">
                 Verify it&apos;s you
               </a>
-            </td>
-          </tr>
-          <tr>
-            <td style="padding:8px 28px 24px;">
-              <p style="margin:0 0 8px;font-size:0.8rem;color:#94a3b8;">Or copy and paste this link into your browser:</p>
-              <p style="margin:0;word-break:break-all;font-size:0.82rem;line-height:1.5;">
-                <a href="${link}" style="color:#2563eb;text-decoration:underline;">${link}</a>
-              </p>
             </td>
           </tr>
           <tr>
@@ -411,9 +392,6 @@ export function invitationEmailHtml({
           <tr>
             <td style="padding:8px 28px 22px;" align="center">
               <p style="margin:0;font-size:0.8rem;line-height:1.5;color:#94a3b8;">This invitation expires in <strong style="color:#64748b;">${days} days</strong>.</p>
-              <p style="margin:10px 0 0;font-size:0.78rem;line-height:1.5;color:#94a3b8;word-break:break-all;">
-                Or open: <a href="${link}" style="color:#2563eb;text-decoration:underline;">${link}</a>
-              </p>
             </td>
           </tr>
           <tr>

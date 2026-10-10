@@ -417,6 +417,10 @@
   .portal-stats {
     grid-template-columns: repeat(4, minmax(0, 1fr));
   }
+
+  .portal-stats--hours {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
 }
 
 .portal-stat-card {

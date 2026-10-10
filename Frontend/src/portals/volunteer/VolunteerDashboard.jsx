@@ -43,6 +43,8 @@ export default function VolunteerDashboard() {
   const activityLog = data?.activityLog || []
   const tasks = data?.tasks || []
   const schedule = data?.schedule || []
+  const isIntern = data?.isIntern || data?.applicantType === 'Intern'
+  const hoursSummary = data?.hoursSummary || {}
 
   const completedTasksCount = useMemo(() => {
     return tasks.filter((t) => t.isDone || t.boardColumn === 'done' || t.status === 'Done' || t.status === 'Completed').length
@@ -60,6 +62,46 @@ export default function VolunteerDashboard() {
     <ApiState loading={loading} error={error} onRetry={reload}>
       {data && (
         <>
+          {isIntern && (
+            <div className="portal-stats portal-stats--hours">
+              <Link
+                to={`${portalBase}/hours`}
+                className="portal-stat-card portal-stat-card--clickable"
+                title="View Required Duty Hours"
+              >
+                <div className="portal-stat-card__icon" style={{ background: '#eff6ff', color: '#2563eb' }}>
+                  <CalendarDays size={20} />
+                </div>
+                <span className="portal-stat-card__value">{Number(hoursSummary.requiredHours || 0).toLocaleString()}</span>
+                <span className="portal-stat-card__label">Required Hours</span>
+              </Link>
+
+              <Link
+                to={`${portalBase}/hours`}
+                className="portal-stat-card portal-stat-card--clickable"
+                title="View Rendered Duty Hours"
+              >
+                <div className="portal-stat-card__icon" style={{ background: '#ecfdf5', color: '#059669' }}>
+                  <Clock size={20} />
+                </div>
+                <span className="portal-stat-card__value">{Number(hoursSummary.renderedHours || 0).toLocaleString()}</span>
+                <span className="portal-stat-card__label">Rendered Hours</span>
+              </Link>
+
+              <Link
+                to={`${portalBase}/hours`}
+                className="portal-stat-card portal-stat-card--clickable"
+                title="View Remaining Duty Hours"
+              >
+                <div className="portal-stat-card__icon" style={{ background: '#fff7ed', color: '#d97706' }}>
+                  <TrendingUp size={20} />
+                </div>
+                <span className="portal-stat-card__value">{Number(hoursSummary.remainingHours || 0).toLocaleString()}</span>
+                <span className="portal-stat-card__label">Remaining Hours</span>
+              </Link>
+            </div>
+          )}
+
           {/* Top Summary Stat Cards */}
           <div className="portal-stats">
             <Link

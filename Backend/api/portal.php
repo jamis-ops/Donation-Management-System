@@ -473,6 +473,8 @@ switch ($user['role']) {
       }
     }
     $hours = $isIntern ? (int) ($profile['hours'] ?? 0) : 0;
+    $requiredHours = $isIntern ? (int) ($profile['required_hours'] ?? 0) : 0;
+    $remainingHours = $isIntern ? max(0, $requiredHours - $hours) : 0;
     $statusLabels = [
       'todo' => 'To Do',
       'inProgress' => 'In Progress',
@@ -671,6 +673,11 @@ switch ($user['role']) {
       'data' => [
         'isIntern' => $isIntern,
         'applicantType' => $isIntern ? 'Intern' : 'Volunteer',
+        'hoursSummary' => $isIntern ? [
+          'requiredHours' => $requiredHours,
+          'renderedHours' => $hours,
+          'remainingHours' => $remainingHours,
+        ] : null,
         'stats' => $portalStats,
         'tasks' => $mappedTasks,
         'schedule' => $schedule,
