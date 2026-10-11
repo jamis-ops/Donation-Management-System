@@ -428,11 +428,13 @@ export default function StaffDistributionsPage() {
 
           return (
             <div className="admin-modal-overlay" onClick={() => setSelectedDistribution(null)}>
-              <div className="admin-modal admin-modal--wide" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '780px' }}>
+              <div className="admin-modal admin-modal--wide staff-admin-modal" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '780px' }}>
                 <ModalHeader
                   title={`Distribution Event – ${selectedDistribution.id || 'DST'}`}
                   onClose={() => setSelectedDistribution(null)}
                 />
+
+                <div className="staff-admin-modal__body">
 
                 {/* Top Badges & Ref Code */}
                 <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '0.75rem', alignItems: 'center' }}>
@@ -677,6 +679,7 @@ export default function StaffDistributionsPage() {
                       <CheckCircle size={16} /> Distribution successfully completed and verified.
                     </div>
                   ) : null}
+                </div>
                 </div>
               </div>
             </div>

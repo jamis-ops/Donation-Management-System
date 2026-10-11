@@ -552,11 +552,13 @@ export default function StaffInventoryPage() {
         {/* Item Detail Modal */}
         {selectedItem && !showStockModal && (
           <div className="admin-modal-overlay" onClick={() => setSelectedItem(null)}>
-            <div className="admin-modal" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '600px' }}>
+            <div className="admin-modal staff-admin-modal" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '600px' }}>
               <ModalHeader
                 title={selectedItem.item}
                 onClose={() => setSelectedItem(null)}
               />
+
+              <div className="staff-admin-modal__body">
 
               <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1rem', alignItems: 'center' }}>
                 <span
@@ -691,6 +693,7 @@ export default function StaffInventoryPage() {
                   </button>
                 </div>
               </div>
+              </div>
             </div>
           </div>
         )}
@@ -698,11 +701,13 @@ export default function StaffInventoryPage() {
         {/* Stock Update Modal */}
         {showStockModal && selectedItem && (
           <div className="admin-modal-overlay" onClick={() => setShowStockModal(false)}>
-            <div className="admin-modal" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '440px' }}>
+            <div className="admin-modal staff-admin-modal" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '440px' }}>
               <ModalHeader
                 title={`${stockAction === 'add' ? 'Add Stock' : 'Remove Stock'} – ${selectedItem.item}`}
                 onClose={() => setShowStockModal(false)}
               />
+
+              <div className="staff-admin-modal__body">
 
               <div style={{ padding: '0.5rem 0' }}>
                 <div style={{ background: '#f8fafc', padding: '0.75rem 1rem', borderRadius: '8px', border: '1px solid #e2e8f0', marginBottom: '1rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -787,6 +792,7 @@ export default function StaffInventoryPage() {
                   {stockAction === 'add' ? <Plus size={16} /> : <Minus size={16} />}
                   {stockAction === 'add' ? 'Confirm Stock Intake' : 'Confirm Stock Deduction'}
                 </button>
+              </div>
               </div>
             </div>
           </div>

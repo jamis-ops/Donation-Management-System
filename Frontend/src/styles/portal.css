@@ -1645,6 +1645,34 @@
   z-index: 20;
 }
 
+/* Fixed modal chrome with one dedicated content scroller. */
+.portal-layout--staff .admin-modal.staff-admin-modal {
+  display: flex;
+  flex-direction: column;
+  padding: 0;
+  overflow: hidden;
+}
+
+.portal-layout--staff .staff-admin-modal > .admin-modal__header {
+  position: relative;
+  top: auto;
+  flex: 0 0 auto;
+  margin: 0;
+  border-radius: 20px 20px 0 0;
+}
+
+.portal-layout--staff .staff-admin-modal__body {
+  flex: 1 1 auto;
+  min-height: 0;
+  max-width: 100%;
+  padding: 1.25rem 1.5rem 1.35rem;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+  -webkit-overflow-scrolling: touch;
+}
+
 .portal-layout--staff .admin-modal__actions {
   background: rgba(248,250,252,0.75);
 }
@@ -1715,6 +1743,14 @@
     width: 100%;
     max-height: calc(100dvh - 1rem);
     border-radius: 14px;
+  }
+
+  .portal-layout--staff .staff-admin-modal > .admin-modal__header {
+    border-radius: 14px 14px 0 0;
+  }
+
+  .portal-layout--staff .staff-admin-modal__body {
+    padding: 1rem;
   }
 }
 

@@ -436,11 +436,13 @@ export default function StaffTasksPage() {
 
           return (
             <div className="admin-modal-overlay" onClick={() => setSelectedTask(null)}>
-              <div className="admin-modal admin-modal--wide" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '680px' }}>
+              <div className="admin-modal admin-modal--wide staff-admin-modal" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '680px' }}>
                 <ModalHeader
                   title={selectedTask.title}
                   onClose={() => setSelectedTask(null)}
                 />
+
+                <div className="staff-admin-modal__body">
 
                 {/* Top Badges */}
                 <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1rem', alignItems: 'center' }}>
@@ -593,6 +595,7 @@ export default function StaffTasksPage() {
                       </span>
                     )}
                   </div>
+                </div>
                 </div>
               </div>
             </div>

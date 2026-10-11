@@ -462,11 +462,13 @@ export default function StaffDonationsPage() {
         {/* Donation Details Modal */}
         {selected && (
           <div className="admin-modal-overlay staff-donation-modal-overlay" onClick={() => setSelected(null)}>
-            <div className="admin-modal admin-modal--wide donation-detail-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="admin-modal admin-modal--wide staff-admin-modal donation-detail-modal" onClick={(e) => e.stopPropagation()}>
               <ModalHeader
                 title={`Donation Details – ${selected.trackingCode}`}
                 onClose={() => setSelected(null)}
               />
+
+              <div className="staff-admin-modal__body">
 
               {/* Top Action Bar for Pending Verification */}
               {selected.status === 'Pending Verification' && (
@@ -966,6 +968,7 @@ export default function StaffDonationsPage() {
                 <button type="button" className="btn btn--ghost" onClick={() => setSelected(null)}>
                   Close
                 </button>
+              </div>
               </div>
             </div>
           </div>
