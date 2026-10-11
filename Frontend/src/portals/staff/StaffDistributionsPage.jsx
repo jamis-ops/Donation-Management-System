@@ -1,3 +1,4 @@
+/* eslint-disable react-hooks/set-state-in-effect */
 import { useState, useMemo, useEffect } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import {
@@ -6,19 +7,14 @@ import {
   Calendar,
   Users,
   Package,
-  Clock,
   CheckCircle,
   Search,
-  Filter,
   Eye,
   ArrowRight,
-  ShieldCheck,
-  FileCheck,
   Boxes,
   UserCheck,
   History,
   Info,
-  Navigation,
 } from 'lucide-react'
 import ApiState from '../../admin/components/shared/ApiState'
 import StatusBadge from '../../admin/components/shared/StatusBadge'
@@ -29,8 +25,6 @@ import { usePagination, DEFAULT_PAGE_SIZE } from '../../hooks/usePagination'
 import Pagination from '../../admin/components/shared/Pagination'
 import { notify, confirmAction, showSuccessModal } from '../../utils/confirm'
 import { notifyBadgesChanged } from '../../utils/badgeSync'
-import { DISTRIBUTION_STATUSES } from '../../constants/options'
-import { DISTRIBUTION_WORKFLOW } from '../../utils/workflow'
 import { useLoading } from '../../context/LoadingContext'
 
 const STAFF_ADVANCE = {
@@ -41,6 +35,11 @@ const STAFF_ADVANCE = {
 
 // Canonical linear steps for the distribution tracker
 const TRACKER_STEPS = ['Planning', 'Preparing', 'In Transit', 'Delivered', 'Completed']
+
+function normalizeDistributionView(status) {
+  if (!status || String(status).toLowerCase() === 'all') return 'all'
+  return status === 'Completed' ? 'Completed' : 'Pending'
+}
 
 // Helper to parse items summary into structured list
 function parseItemsList(distribution) {
@@ -93,11 +92,11 @@ function extractTeamAndNotes(distribution) {
 }
 
 export default function StaffDistributionsPage() {
-  const [searchParams, setSearchParams] = useSearchParams()
+  const [searchParams] = useSearchParams()
   const { showLoading, hideLoading } = useLoading()
   const { data: distributions = [], loading, error, reload } = useApiList(() => distributionsApi.list())
 
-  const [filterStatus, setFilterStatus] = useState(() => searchParams.get('status') || 'all')
+  const [filterStatus, setFilterStatus] = useState(() => normalizeDistributionView(searchParams.get('status')))
   const [filterProgram, setFilterProgram] = useState(() => searchParams.get('program') || 'all')
   const [searchQuery, setSearchQuery] = useState(() => searchParams.get('q') || searchParams.get('search') || '')
   const [selectedDistribution, setSelectedDistribution] = useState(null)
@@ -105,9 +104,13 @@ export default function StaffDistributionsPage() {
 
   useEffect(() => {
     const st = searchParams.get('status')
-    if (st && st !== filterStatus) setFilterStatus(st)
+    const view = normalizeDistributionView(st)
+    if (st && view !== filterStatus) setFilterStatus(view)
     const prog = searchParams.get('program')
     if (prog && prog !== filterProgram) setFilterProgram(prog)
+    // Query parameters are the external navigation source; local tab changes
+    // intentionally should not cause this synchronization effect to rerun.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchParams])
 
   const programs = useMemo(() => {
@@ -120,7 +123,8 @@ export default function StaffDistributionsPage() {
 
   const filteredDistributions = useMemo(() => {
     return distributions.filter((dist) => {
-      if (filterStatus !== 'all' && dist.status !== filterStatus) return false
+      if (filterStatus === 'Completed' && dist.status !== 'Completed') return false
+      if (filterStatus === 'Pending' && ['Completed', 'Cancelled'].includes(dist.status)) return false
       if (filterProgram !== 'all' && dist.program !== filterProgram) return false
       if (searchQuery.trim()) {
         const q = searchQuery.toLowerCase().trim()
@@ -138,11 +142,11 @@ export default function StaffDistributionsPage() {
 
   // Distribution status counts
   const statusCounts = useMemo(() => {
-    const counts = { all: distributions.length }
-    DISTRIBUTION_STATUSES.forEach((s) => {
-      counts[s] = distributions.filter((d) => d.status === s).length
-    })
-    return counts
+    return {
+      all: distributions.length,
+      Pending: distributions.filter((d) => !['Completed', 'Cancelled'].includes(d.status)).length,
+      Completed: distributions.filter((d) => d.status === 'Completed').length,
+    }
   }, [distributions])
 
   const handleAdvanceStatus = async (dist) => {
@@ -179,56 +183,35 @@ export default function StaffDistributionsPage() {
 
   return (
     <ApiState loading={loading} error={error} onRetry={reload}>
-      <div className="staff-distributions-page">
-        {/* Status Count Summary Strip */}
-        <div className="staff-tasks-summary" style={{ marginBottom: '1.25rem' }}>
+      <div className="staff-distributions-page staff-portal-page">
+        {/* Compact views only; underlying distribution workflow statuses stay unchanged. */}
+        <div className="staff-distribution-tabs" role="tablist" aria-label="Filter distributions by completion state">
           <button
             type="button"
-            className={`staff-task-summary-card staff-task-summary-card--clickable ${filterStatus === 'all' ? 'staff-task-summary-card--active' : ''}`}
+            role="tab"
+            aria-selected={filterStatus === 'all'}
+            className={`staff-distribution-tab ${filterStatus === 'all' ? 'staff-distribution-tab--active' : ''}`}
             onClick={() => setFilterStatus('all')}
           >
-            <span className="staff-task-summary-card__value">{statusCounts.all}</span>
-            <span className="staff-task-summary-card__label">All Distributions</span>
+            <span>All</span><strong>{statusCounts.all}</strong>
           </button>
           <button
             type="button"
-            className={`staff-task-summary-card staff-task-summary-card--clickable ${filterStatus === 'Planning' ? 'staff-task-summary-card--active' : ''}`}
-            onClick={() => setFilterStatus('Planning')}
+            role="tab"
+            aria-selected={filterStatus === 'Pending'}
+            className={`staff-distribution-tab ${filterStatus === 'Pending' ? 'staff-distribution-tab--active' : ''}`}
+            onClick={() => setFilterStatus('Pending')}
           >
-            <span className="staff-task-summary-card__value" style={{ color: '#64748b' }}>{statusCounts['Planning'] || 0}</span>
-            <span className="staff-task-summary-card__label">Planning</span>
+            <span>Pending</span><strong>{statusCounts.Pending}</strong>
           </button>
           <button
             type="button"
-            className={`staff-task-summary-card staff-task-summary-card--clickable ${filterStatus === 'Preparing' ? 'staff-task-summary-card--active' : ''}`}
-            onClick={() => setFilterStatus('Preparing')}
-          >
-            <span className="staff-task-summary-card__value" style={{ color: '#2563eb' }}>{statusCounts['Preparing'] || 0}</span>
-            <span className="staff-task-summary-card__label">Preparing</span>
-          </button>
-          <button
-            type="button"
-            className={`staff-task-summary-card staff-task-summary-card--clickable ${filterStatus === 'In Transit' ? 'staff-task-summary-card--active' : ''}`}
-            onClick={() => setFilterStatus('In Transit')}
-          >
-            <span className="staff-task-summary-card__value" style={{ color: '#d97706' }}>{statusCounts['In Transit'] || 0}</span>
-            <span className="staff-task-summary-card__label">In Transit</span>
-          </button>
-          <button
-            type="button"
-            className={`staff-task-summary-card staff-task-summary-card--clickable ${filterStatus === 'Delivered' ? 'staff-task-summary-card--active' : ''}`}
-            onClick={() => setFilterStatus('Delivered')}
-          >
-            <span className="staff-task-summary-card__value" style={{ color: '#059669' }}>{statusCounts['Delivered'] || 0}</span>
-            <span className="staff-task-summary-card__label">Delivered</span>
-          </button>
-          <button
-            type="button"
-            className={`staff-task-summary-card staff-task-summary-card--clickable ${filterStatus === 'Completed' ? 'staff-task-summary-card--active' : ''}`}
+            role="tab"
+            aria-selected={filterStatus === 'Completed'}
+            className={`staff-distribution-tab ${filterStatus === 'Completed' ? 'staff-distribution-tab--active' : ''}`}
             onClick={() => setFilterStatus('Completed')}
           >
-            <span className="staff-task-summary-card__value" style={{ color: '#16a34a' }}>{statusCounts['Completed'] || 0}</span>
-            <span className="staff-task-summary-card__label">Completed</span>
+            <span>Completed</span><strong>{statusCounts.Completed}</strong>
           </button>
         </div>
 
@@ -267,17 +250,6 @@ export default function StaffDistributionsPage() {
                 ))}
               </select>
 
-              <select
-                className="portal-select"
-                style={{ height: '38px', borderRadius: '6px', border: '1px solid #cbd5e1', padding: '0 10px', background: '#fff', fontSize: '0.85rem', flex: '0 1 auto', minWidth: '130px' }}
-                value={filterStatus}
-                onChange={(e) => setFilterStatus(e.target.value)}
-              >
-                <option value="all">All Statuses</option>
-                {DISTRIBUTION_STATUSES.map((st) => (
-                  <option key={st} value={st}>{st}</option>
-                ))}
-              </select>
             </div>
           </div>
 
@@ -290,7 +262,7 @@ export default function StaffDistributionsPage() {
           ) : (
             <>
               {/* Distribution Cards Grid */}
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: '1rem', marginTop: '1rem' }}>
+              <div className="staff-record-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: '1rem', marginTop: '1rem' }}>
                 {paging.pageItems.map((dist) => {
                   const itemsList = parseItemsList(dist)
                   const { assignedStaff, teamMembers, cleanNotes } = extractTeamAndNotes(dist)
@@ -299,6 +271,7 @@ export default function StaffDistributionsPage() {
                   return (
                     <div
                       key={dist.dbId || dist.id}
+                      className="staff-modern-record-card"
                       style={{
                         background: '#fff',
                         border: '1px solid #e2e8f0',

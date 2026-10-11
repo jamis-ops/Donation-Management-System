@@ -98,7 +98,20 @@ function splitCargoLabel(value) {
 const filterConfig = {
   searchKeys: ['barangay', 'location', 'program', 'coordinator', 'eventName', 'itemsSummary'],
   filters: [
-    { key: 'status', label: 'Status' },
+    {
+      key: 'status',
+      label: 'Status',
+      deriveOptions: (rows) => {
+        const statuses = Array.from(new Set((rows || []).map((row) => row.status).filter(Boolean)))
+          .filter((status) => status !== 'Pending')
+          .sort((a, b) => String(a).localeCompare(String(b)))
+        return [{ value: 'Pending', label: 'Pending (All active)' }, ...statuses]
+      },
+      match: (row, value) => {
+        if (value === 'Pending') return !['Completed', 'Cancelled'].includes(row.status)
+        return String(row.status) === String(value)
+      },
+    },
   ],
   dateKey: 'date',
 }

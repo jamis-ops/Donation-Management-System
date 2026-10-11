@@ -23,7 +23,7 @@ const emptyMetrics = {
 
 const STAFF_STAT_LINKS = {
   'Donations to Verify': '/staff/donations?status=Pending+Verification',
-  'Active Deliveries': '/staff/distributions?status=In+Transit',
+  'Active Deliveries': '/staff/distributions?status=Pending',
   'Low Stock Items': '/staff/inventory',
   'Assigned Tasks': '/staff/tasks?status=In+Progress',
 }
@@ -61,7 +61,7 @@ export default function StaffDashboard() {
   return (
     <ApiState loading={loading} error={error} onRetry={reload}>
       {data && (
-        <div className="staff-dashboard">
+        <div className="staff-dashboard staff-portal-page">
           <div className="portal-stats">
             {(data.stats || []).map((item) => {
               const Icon = iconMap[item.icon]

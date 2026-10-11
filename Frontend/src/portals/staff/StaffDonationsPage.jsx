@@ -232,7 +232,7 @@ export default function StaffDonationsPage() {
 
   return (
     <ApiState loading={loading} error={error} onRetry={reload}>
-      <div className="staff-donations-container">
+      <div className="staff-donations-container staff-portal-page">
         {/* Metric summary pills */}
         <div className="staff-tasks-summary" style={{ marginBottom: '1.25rem' }}>
           <button

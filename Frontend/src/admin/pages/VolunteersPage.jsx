@@ -111,6 +111,17 @@ const emptyInternForm = {
 
 const ACTIVE_DIST_STATUSES = ['Planning', 'Preparing', 'In Transit', 'Scheduled', 'In Progress', 'Pending']
 
+function calculateDutyHours(start, end) {
+  if (!start || !end) return null
+  const [startHour, startMinute] = start.split(':').map(Number)
+  const [endHour, endMinute] = end.split(':').map(Number)
+  if ([startHour, startMinute, endHour, endMinute].some(Number.isNaN)) return null
+  const startTotal = (startHour * 60) + startMinute
+  const endTotal = (endHour * 60) + endMinute
+  if (endTotal <= startTotal) return null
+  return Math.round(((endTotal - startTotal) / 60) * 100) / 100
+}
+
 function isDistributionProgram(module) {
   const m = String(module || '').toLowerCase().trim()
   return m.includes('distribution')
@@ -212,6 +223,13 @@ export default function VolunteersPage() {
   const [showDirectTaskModal, setShowDirectTaskModal] = useState(false)
   const [directTaskForm, setDirectTaskForm] = useState(emptyDirectTaskForm)
   const { options: directTaskTitleOptions } = useTaskTitles(directTaskForm.module)
+  const updateDirectDutyTime = (field, value) => {
+    setDirectTaskForm((prev) => {
+      const next = { ...prev, [field]: value }
+      const hours = calculateDutyHours(next.dutyStart, next.dutyEnd)
+      return { ...next, dutyHours: hours ?? '' }
+    })
+  }
   const [saving, setSaving] = useState(false)
   const [hoursForm, setHoursForm] = useState({ hours: 0, requiredHours: 0 })
   const [selectedProgramToEnroll, setSelectedProgramToEnroll] = useState('')
@@ -1003,6 +1021,18 @@ export default function VolunteersPage() {
       notify.error('Due date cannot be in the past. Please select today or a future date.')
       return
     }
+    const isIntern = selected.applicantType === 'Intern'
+    const calculatedDutyHours = isIntern
+      ? calculateDutyHours(directTaskForm.dutyStart, directTaskForm.dutyEnd)
+      : null
+    if (isIntern && (!directTaskForm.dutyStart || !directTaskForm.dutyEnd)) {
+      showErrorModal('Duty Start and Duty End are required for an Intern task.')
+      return
+    }
+    if (isIntern && calculatedDutyHours === null) {
+      showErrorModal('Duty End must be later than Duty Start.')
+      return
+    }
     setSaving(true)
     showLoading('Saving…')
     try {
@@ -1011,14 +1041,13 @@ export default function VolunteersPage() {
       const isDist = isDistributionProgram(chosenModule)
       const distId = isDist && directTaskForm.distributionId ? Number(directTaskForm.distributionId) : null
       const module = chosenModule
-      const isIntern = selected.applicantType === 'Intern'
       await tasksApi.create({
         title: directTaskForm.title,
         priority: directTaskForm.priority,
         dueDate: directTaskForm.dueDate || null,
         dutyStart: isIntern ? (directTaskForm.dutyStart || null) : null,
         dutyEnd: isIntern ? (directTaskForm.dutyEnd || null) : null,
-        dutyHours: isIntern && directTaskForm.dutyHours !== '' ? Number(directTaskForm.dutyHours) : null,
+        dutyHours: isIntern ? calculatedDutyHours : null,
         module,
         volunteerId: Number(selected.dbId),
         distributionId: distId || undefined,
@@ -2155,40 +2184,49 @@ export default function VolunteersPage() {
                                 </label>
                               </div>
 
-                              <div className="form-row">
-                                <label>
-                                  Duty Start
-                                  <input
-                                    type="time"
-                                    disabled={saving || ['Completed', 'Rejected'].includes(selected.status)}
-                                    value={directTaskForm.dutyStart}
-                                    onChange={(e) => setDirectTaskForm({ ...directTaskForm, dutyStart: e.target.value })}
-                                  />
-                                </label>
-                                <label>
-                                  Duty End
-                                  <input
-                                    type="time"
-                                    disabled={saving || ['Completed', 'Rejected'].includes(selected.status)}
-                                    value={directTaskForm.dutyEnd}
-                                    onChange={(e) => setDirectTaskForm({ ...directTaskForm, dutyEnd: e.target.value })}
-                                  />
-                                </label>
-                              </div>
+                              {selected.applicantType === 'Intern' && (
+                                <>
+                                  <div className="form-row">
+                                    <label>
+                                      Duty Start
+                                      <input
+                                        type="time"
+                                        required
+                                        disabled={saving || ['Completed', 'Rejected'].includes(selected.status)}
+                                        value={directTaskForm.dutyStart}
+                                        onChange={(e) => updateDirectDutyTime('dutyStart', e.target.value)}
+                                      />
+                                    </label>
+                                    <label>
+                                      Duty End
+                                      <input
+                                        type="time"
+                                        required
+                                        disabled={saving || ['Completed', 'Rejected'].includes(selected.status)}
+                                        value={directTaskForm.dutyEnd}
+                                        onChange={(e) => updateDirectDutyTime('dutyEnd', e.target.value)}
+                                      />
+                                    </label>
+                                  </div>
 
-                              <label>
-                                <Req required>Duty Hours</Req>
-                                <input
-                                  type="number"
-                                  min="0.25"
-                                  step="0.25"
-                                  required
-                                  disabled={saving || ['Completed', 'Rejected'].includes(selected.status)}
-                                  value={directTaskForm.dutyHours}
-                                  onChange={(e) => setDirectTaskForm({ ...directTaskForm, dutyHours: e.target.value })}
-                                  placeholder="e.g. 4"
-                                />
-                              </label>
+                                  <label>
+                                    <Req required>Duty Hours</Req>
+                                    <input
+                                      type="number"
+                                      min="0"
+                                      step="0.01"
+                                      required
+                                      readOnly
+                                      aria-readonly="true"
+                                      value={directTaskForm.dutyHours}
+                                      placeholder="Calculated automatically"
+                                    />
+                                    {directTaskForm.dutyStart && directTaskForm.dutyEnd && directTaskForm.dutyHours === '' && (
+                                      <small className="form-error">Duty End must be later than Duty Start.</small>
+                                    )}
+                                  </label>
+                                </>
+                              )}
 
                               {/* Link to Distribution (Conditional) */}
                               {isDistributionProgram(directTaskForm.module) && (
@@ -3442,16 +3480,18 @@ export default function VolunteersPage() {
                       Duty Start
                       <input
                         type="time"
+                        required
                         value={directTaskForm.dutyStart}
-                        onChange={(e) => setDirectTaskForm({ ...directTaskForm, dutyStart: e.target.value })}
+                        onChange={(e) => updateDirectDutyTime('dutyStart', e.target.value)}
                       />
                     </label>
                     <label>
                       Duty End
                       <input
                         type="time"
+                        required
                         value={directTaskForm.dutyEnd}
-                        onChange={(e) => setDirectTaskForm({ ...directTaskForm, dutyEnd: e.target.value })}
+                        onChange={(e) => updateDirectDutyTime('dutyEnd', e.target.value)}
                       />
                     </label>
                   </div>
@@ -3460,13 +3500,17 @@ export default function VolunteersPage() {
                     <Req required>Duty Hours</Req>
                     <input
                       type="number"
-                      min="0.25"
-                      step="0.25"
+                      min="0"
+                      step="0.01"
                       required
+                      readOnly
+                      aria-readonly="true"
                       value={directTaskForm.dutyHours}
-                      onChange={(e) => setDirectTaskForm({ ...directTaskForm, dutyHours: e.target.value })}
-                      placeholder="e.g. 4"
+                      placeholder="Calculated automatically"
                     />
+                    {directTaskForm.dutyStart && directTaskForm.dutyEnd && directTaskForm.dutyHours === '' && (
+                      <small className="form-error">Duty End must be later than Duty Start.</small>
+                    )}
                   </label>
                 </>
               )}

@@ -1143,6 +1143,485 @@
   }
 }
 
+/* =========================================================
+   Staff Portal — modern operations workspace
+   Scoped to Staff so other role portals retain their UI.
+   ========================================================= */
+
+.portal-layout--staff {
+  --staff-brand: #AF101A;
+  --staff-brand-dark: #760912;
+  --staff-ink: #111827;
+  --staff-muted: #64748b;
+  --staff-line: rgba(148, 163, 184, 0.24);
+  --staff-surface: rgba(255, 255, 255, 0.92);
+  background:
+    radial-gradient(circle at 86% 4%, rgba(175, 16, 26, 0.08), transparent 24rem),
+    linear-gradient(145deg, #f8fafc 0%, #f5f6f8 48%, #fff8f8 100%);
+}
+
+.portal-layout--staff .portal-main {
+  min-height: 100vh;
+}
+
+.portal-layout--staff .portal-topbar {
+  height: 72px;
+  padding-inline: clamp(1rem, 2.5vw, 2.5rem);
+  background:
+    linear-gradient(115deg, rgba(255,255,255,0.06), transparent 35%),
+    linear-gradient(135deg, #760912 0%, #AF101A 55%, #c51b27 100%);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.16);
+  box-shadow: 0 12px 30px -18px rgba(76, 5, 12, 0.75);
+}
+
+.portal-layout--staff .portal-topbar::after {
+  content: '';
+  position: absolute;
+  inset: auto 0 0;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.65), transparent);
+}
+
+.portal-layout--staff .portal-topbar h1 {
+  font-size: clamp(1.05rem, 1.5vw, 1.25rem);
+  letter-spacing: -0.015em;
+}
+
+.portal-layout--staff .portal-topbar p {
+  color: rgba(255, 255, 255, 0.76);
+  font-size: 0.77rem;
+}
+
+.portal-sidebar--staff {
+  background:
+    linear-gradient(180deg, rgba(175,16,26,0.035), transparent 180px),
+    rgba(255, 255, 255, 0.97);
+  border-right-color: rgba(175, 16, 26, 0.1);
+  box-shadow: 8px 0 32px -28px rgba(72, 8, 14, 0.55);
+}
+
+.portal-sidebar--staff .portal-sidebar__brand {
+  min-height: 72px;
+  padding: 0.9rem 1rem;
+  border-bottom-color: rgba(175, 16, 26, 0.1);
+}
+
+.portal-sidebar--staff .portal-sidebar__portal-name {
+  background: linear-gradient(135deg, rgba(175,16,26,0.12), rgba(175,16,26,0.05)) !important;
+  border: 1px solid rgba(175, 16, 26, 0.14);
+  padding: 0.32rem 0.7rem;
+  letter-spacing: 0.07em;
+}
+
+.portal-sidebar--staff .portal-sidebar__nav {
+  padding: 1rem 0.75rem;
+}
+
+.portal-sidebar--staff .portal-sidebar__nav ul {
+  display: grid;
+  gap: 0.28rem;
+}
+
+.portal-sidebar--staff .portal-sidebar__link {
+  min-height: 44px;
+  margin: 0;
+  padding: 0.65rem 0.78rem;
+  border: 1px solid transparent;
+  border-left-width: 1px;
+  border-radius: 12px;
+  font-size: 0.875rem;
+  font-weight: 600;
+}
+
+.portal-sidebar--staff .portal-sidebar__link:hover {
+  transform: translateX(3px);
+  border-color: rgba(175, 16, 26, 0.1);
+}
+
+.portal-sidebar--staff .portal-sidebar__link--active {
+  background: linear-gradient(135deg, rgba(175,16,26,0.12), rgba(175,16,26,0.055)) !important;
+  border-color: rgba(175, 16, 26, 0.16);
+  box-shadow: inset 3px 0 0 #AF101A, 0 8px 20px -18px rgba(175,16,26,0.8);
+}
+
+.portal-layout--staff .portal-content {
+  width: 100%;
+  max-width: 1680px;
+  margin-inline: auto;
+  padding: clamp(1rem, 2.2vw, 2.25rem);
+}
+
+.staff-portal-page {
+  position: relative;
+  gap: 1.15rem !important;
+  animation: staff-page-enter 0.32s ease both;
+}
+
+@keyframes staff-page-enter {
+  from { opacity: 0; transform: translateY(5px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.portal-layout--staff .portal-panel {
+  background: var(--staff-surface);
+  border: 1px solid var(--staff-line);
+  border-radius: 20px;
+  box-shadow: 0 18px 45px -38px rgba(15, 23, 42, 0.62), 0 2px 8px rgba(15,23,42,0.025);
+  backdrop-filter: blur(12px);
+}
+
+.portal-layout--staff .portal-panel__header {
+  padding-bottom: 1rem;
+  border-bottom: 1px solid rgba(148, 163, 184, 0.18);
+}
+
+.portal-layout--staff .portal-panel__header h2 {
+  color: var(--staff-ink) !important;
+  font-size: 1.05rem !important;
+  letter-spacing: -0.015em;
+}
+
+.portal-layout--staff .portal-panel__link {
+  border-radius: 999px;
+  padding: 0.38rem 0.7rem;
+  background: rgba(175, 16, 26, 0.06);
+}
+
+/* Dashboard metrics and actions */
+.portal-layout--staff .portal-stats {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.85rem;
+}
+
+.portal-layout--staff .staff-stat-card,
+.portal-layout--staff .staff-task-summary-card,
+.portal-layout--staff .staff-inventory-summary__card {
+  position: relative;
+  min-width: 0;
+  min-height: 112px;
+  padding: 1rem 1.1rem !important;
+  background:
+    linear-gradient(145deg, rgba(255,255,255,0.98), rgba(250,250,252,0.9)) !important;
+  border: 1px solid var(--staff-line) !important;
+  border-radius: 18px !important;
+  box-shadow: 0 16px 36px -32px rgba(15, 23, 42, 0.65) !important;
+}
+
+.portal-layout--staff .staff-task-summary-card--active {
+  color: #fff;
+  background: linear-gradient(135deg, #AF101A, #870b14) !important;
+  border-color: #AF101A !important;
+  box-shadow: 0 16px 30px -22px rgba(175,16,26,0.75) !important;
+}
+
+.portal-layout--staff .staff-task-summary-card--active::before {
+  background: rgba(255,255,255,0.72);
+}
+
+.portal-layout--staff .staff-task-summary-card--active .staff-task-summary-card__value,
+.portal-layout--staff .staff-task-summary-card--active .staff-task-summary-card__label {
+  color: #fff !important;
+}
+
+.portal-layout--staff .staff-stat-card::before,
+.portal-layout--staff .staff-task-summary-card::before,
+.portal-layout--staff .staff-inventory-summary__card::before {
+  content: '';
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 3px;
+  background: linear-gradient(180deg, #AF101A, rgba(175,16,26,0.2));
+  border-radius: inherit;
+}
+
+.portal-layout--staff .staff-stat-card:hover,
+.portal-layout--staff .staff-task-summary-card:hover,
+.portal-layout--staff .staff-inventory-summary__card:hover {
+  transform: translateY(-2px);
+  border-color: rgba(175, 16, 26, 0.28) !important;
+  box-shadow: 0 18px 36px -28px rgba(175, 16, 26, 0.3) !important;
+}
+
+.portal-layout--staff .staff-stat-card__icon {
+  border-radius: 12px;
+  box-shadow: inset 0 0 0 1px currentColor;
+}
+
+.portal-layout--staff .staff-stat-card__value,
+.portal-layout--staff .staff-task-summary-card__value,
+.portal-layout--staff .staff-inventory-summary__value {
+  font-size: clamp(1.55rem, 2vw, 2rem) !important;
+  letter-spacing: -0.04em;
+}
+
+.portal-layout--staff .staff-action-grid {
+  gap: 0.75rem;
+}
+
+.portal-layout--staff .staff-action-card {
+  padding: 0.9rem 1rem;
+  border-color: var(--staff-line);
+  border-radius: 14px;
+  box-shadow: none;
+}
+
+.portal-layout--staff .staff-action-card:hover {
+  transform: translateY(-2px);
+  background: linear-gradient(135deg, #fff, #fff8f8);
+}
+
+.portal-layout--staff .staff-action-card__icon {
+  width: 38px;
+  height: 38px;
+  border-radius: 11px;
+}
+
+/* Unified filters */
+.portal-layout--staff .portal-panel__header > div:last-child,
+.portal-layout--staff .staff-tasks-filters,
+.portal-layout--staff .staff-inventory-filters,
+.portal-layout--staff .staff-distributions-filters,
+.portal-layout--staff .staff-verification-filters {
+  border-radius: 14px;
+}
+
+.portal-layout--staff .portal-search-input,
+.portal-layout--staff .portal-select,
+.portal-layout--staff .staff-tasks-filters input,
+.portal-layout--staff .staff-tasks-filters select,
+.portal-layout--staff .admin-input {
+  min-height: 42px !important;
+  border: 1px solid #dbe1e8 !important;
+  border-radius: 11px !important;
+  background: rgba(255,255,255,0.94) !important;
+  transition: border-color 0.18s ease, box-shadow 0.18s ease !important;
+}
+
+.portal-layout--staff .portal-search-input:focus,
+.portal-layout--staff .portal-select:focus,
+.portal-layout--staff .admin-input:focus {
+  border-color: rgba(175, 16, 26, 0.55) !important;
+  box-shadow: 0 0 0 3px rgba(175, 16, 26, 0.09) !important;
+  outline: none;
+}
+
+/* Tables */
+.portal-layout--staff .portal-table-wrap {
+  margin-top: 1rem;
+  border: 1px solid var(--staff-line);
+  border-radius: 15px;
+  background: #fff;
+  overflow: auto;
+}
+
+.portal-layout--staff .portal-table th {
+  padding: 0.82rem 0.9rem;
+  background: #f7f8fa;
+  color: #64748b;
+  font-size: 0.7rem;
+  letter-spacing: 0.055em;
+}
+
+.portal-layout--staff .portal-table td {
+  padding: 0.9rem;
+  border-bottom-color: rgba(226, 232, 240, 0.75);
+}
+
+.portal-layout--staff .portal-table tbody tr {
+  transition: background-color 0.16s ease;
+}
+
+.portal-layout--staff .portal-table tbody tr:hover {
+  background: linear-gradient(90deg, rgba(175,16,26,0.035), rgba(175,16,26,0.012));
+}
+
+/* Compact distribution views */
+.staff-distribution-tabs {
+  display: inline-grid;
+  grid-template-columns: repeat(3, minmax(105px, 1fr));
+  align-self: flex-start;
+  gap: 0.3rem;
+  padding: 0.32rem;
+  margin-bottom: 0.15rem;
+  background: rgba(226, 232, 240, 0.7);
+  border: 1px solid rgba(148, 163, 184, 0.2);
+  border-radius: 14px;
+}
+
+.staff-distribution-tab {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.55rem;
+  min-height: 40px;
+  padding: 0.5rem 0.85rem;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  color: #64748b;
+  font-size: 0.82rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.18s ease;
+}
+
+.staff-distribution-tab strong {
+  display: inline-grid;
+  place-items: center;
+  min-width: 22px;
+  height: 22px;
+  padding-inline: 0.35rem;
+  border-radius: 999px;
+  background: rgba(100, 116, 139, 0.11);
+  font-size: 0.72rem;
+}
+
+.staff-distribution-tab:hover {
+  color: #AF101A;
+  background: rgba(255,255,255,0.7);
+}
+
+.staff-distribution-tab--active {
+  color: #fff;
+  background: linear-gradient(135deg, #AF101A, #8C0C14);
+  box-shadow: 0 8px 18px -10px rgba(175,16,26,0.7);
+}
+
+.staff-distribution-tab--active strong {
+  background: rgba(255,255,255,0.18);
+}
+
+/* Record cards across Inventory, Distributions, and Tasks */
+.portal-layout--staff .staff-record-grid {
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 330px), 1fr)) !important;
+  gap: 0.85rem !important;
+}
+
+.portal-layout--staff .staff-modern-record-card,
+.portal-layout--staff .staff-inventory-item-card {
+  position: relative;
+  overflow: hidden;
+  background: linear-gradient(150deg, #fff 0%, #fdfdfd 70%, #fff8f8 100%) !important;
+  border: 1px solid var(--staff-line) !important;
+  border-radius: 17px !important;
+  box-shadow: 0 14px 34px -32px rgba(15,23,42,0.7) !important;
+  transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease !important;
+}
+
+.portal-layout--staff .staff-modern-record-card::before,
+.portal-layout--staff .staff-inventory-item-card::before {
+  content: '';
+  position: absolute;
+  inset: 0 0 auto;
+  height: 2px;
+  background: linear-gradient(90deg, #AF101A, rgba(175,16,26,0.08), transparent);
+}
+
+.portal-layout--staff .staff-modern-record-card:hover,
+.portal-layout--staff .staff-inventory-item-card:hover {
+  transform: translateY(-3px) !important;
+  border-color: rgba(175, 16, 26, 0.25) !important;
+  box-shadow: 0 22px 38px -28px rgba(76,5,12,0.28) !important;
+}
+
+.portal-layout--staff .staff-task-priority-card,
+.portal-layout--staff .staff-alert-item,
+.portal-layout--staff .staff-verification-card,
+.portal-layout--staff .staff-distribution-item,
+.portal-layout--staff .staff-activity-item,
+.portal-layout--staff .staff-inventory-alert-card {
+  border-color: var(--staff-line);
+  border-radius: 13px;
+  box-shadow: none;
+}
+
+.portal-layout--staff .staff-task-priority-card:hover,
+.portal-layout--staff .staff-alert-item:hover,
+.portal-layout--staff .staff-verification-card:hover,
+.portal-layout--staff .staff-distribution-item:hover,
+.portal-layout--staff .staff-activity-item:hover {
+  border-color: rgba(175,16,26,0.22);
+  background: #fffafa;
+}
+
+/* Staff modals and forms */
+.portal-layout--staff .admin-modal-overlay {
+  padding: clamp(0.65rem, 2vw, 1.5rem);
+  background: rgba(15, 23, 42, 0.58);
+  backdrop-filter: blur(6px);
+}
+
+.portal-layout--staff .admin-modal {
+  width: min(100%, 760px);
+  max-height: min(88vh, 900px);
+  border: 1px solid rgba(255,255,255,0.5);
+  border-radius: 20px;
+  box-shadow: 0 32px 80px -28px rgba(15,23,42,0.65);
+}
+
+.portal-layout--staff .admin-modal__header {
+  background:
+    linear-gradient(115deg, rgba(255,255,255,0.07), transparent 40%),
+    linear-gradient(135deg, #AF101A, #840b14);
+}
+
+.portal-layout--staff .admin-modal__actions {
+  background: rgba(248,250,252,0.75);
+}
+
+.portal-layout--staff .btn {
+  min-height: 38px;
+  border-radius: 10px;
+  font-weight: 700;
+}
+
+.portal-layout--staff .btn--primary {
+  background: linear-gradient(135deg, #AF101A, #8C0C14);
+  box-shadow: 0 8px 18px -12px rgba(175,16,26,0.75);
+}
+
+@media (max-width: 1180px) {
+  .portal-layout--staff .portal-stats {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 768px) {
+  .portal-layout--staff .portal-topbar {
+    height: 64px;
+    padding-inline: 0.85rem;
+  }
+
+  .portal-layout--staff .portal-content {
+    padding: 0.85rem;
+  }
+
+  .portal-layout--staff .portal-panel {
+    border-radius: 16px;
+  }
+
+  .staff-distribution-tabs {
+    width: 100%;
+  }
+}
+
+@media (max-width: 520px) {
+  .portal-layout--staff .portal-stats,
+  .portal-layout--staff .staff-tasks-summary,
+  .portal-layout--staff .staff-inventory-summary {
+    grid-template-columns: 1fr !important;
+  }
+
+  .staff-distribution-tabs {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .staff-distribution-tab {
+    gap: 0.3rem;
+    padding-inline: 0.45rem;
+  }
+}
+
 .portal-topbar .notif-bell { position: relative; }
 
 /* =========================================================

@@ -4,11 +4,13 @@ require_once __DIR__ . '/bootstrap.php';
 
 $pdo = db();
 require_auth(['Admin', 'Staff']);
+ensure_procurement_table($pdo);
 
 $donationCount = (int) $pdo->query('SELECT COUNT(*) FROM donations')->fetchColumn();
 $beneficiaryCount = (int) $pdo->query("SELECT COUNT(*) FROM beneficiaries WHERE status IN ('Approved','Active')")->fetchColumn();
 $inventoryQty = (int) $pdo->query('SELECT COALESCE(SUM(quantity), 0) FROM inventory_items')->fetchColumn();
-$activeDeliveries = (int) $pdo->query("SELECT COUNT(*) FROM distributions WHERE status IN ('Planning','Preparing','In Transit','Delivered','Awaiting Proof')")->fetchColumn();
+$completedDeliveries = (int) $pdo->query("SELECT COUNT(*) FROM distributions WHERE status = 'Completed'")->fetchColumn();
+$pendingDeliveries = (int) $pdo->query("SELECT COUNT(*) FROM distributions WHERE status NOT IN ('Completed','Cancelled')")->fetchColumn();
 $pendingDonations = (int) $pdo->query("SELECT COUNT(*) FROM donations WHERE status = 'Pending Verification'")->fetchColumn();
 $pendingVolunteers = (int) $pdo->query("SELECT COUNT(*) FROM volunteers WHERE status = 'Pending Review'")->fetchColumn();
 $pendingBeneficiaries = (int) $pdo->query("SELECT COUNT(*) FROM beneficiaries WHERE status = 'Pending Approval'")->fetchColumn();
@@ -20,10 +22,18 @@ $familiesAffected = (int) $pdo->query("SELECT COALESCE(SUM(affected_families), 0
 
 // Cash vs in-kind totals
 $cashTotal = (float) $pdo->query("SELECT COALESCE(SUM(amount), 0) FROM donations WHERE type = 'Monetary'")->fetchColumn();
+$cashAvailable = (float) $pdo->query(
+  "SELECT COALESCE(SUM(GREATEST(d.amount - COALESCE(p.utilized, 0), 0)), 0)
+   FROM donations d
+   LEFT JOIN (
+     SELECT donation_id, SUM(total_amount) AS utilized
+     FROM donation_procurements
+     GROUP BY donation_id
+   ) p ON p.donation_id = d.id
+   WHERE d.type = 'Monetary'
+     AND d.status NOT IN ('Pending Verification', 'Rejected', 'Cancelled')"
+)->fetchColumn();
 $inKindCount = (int) $pdo->query("SELECT COUNT(*) FROM donations WHERE type = 'In-Kind'")->fetchColumn();
-
-// Deliveries currently in transit
-$inTransit = (int) $pdo->query("SELECT COUNT(*) FROM distributions WHERE status = 'In Transit'")->fetchColumn();
 
 // Monthly donation trend (last 6 months, missing months filled with zeros)
 $trendRows = $pdo->query(
@@ -147,9 +157,10 @@ json_response([
   'data' => [
     'stats' => [
       ['label' => 'Total Cash Donations', 'value' => '₱' . number_format($cashTotal, 0), 'change' => "{$inKindCount} in-kind gifts", 'trend' => 'up'],
+      ['label' => 'Available Cash on Hand', 'value' => '₱' . number_format($cashAvailable, 0), 'change' => 'After monetary allocations', 'trend' => 'up'],
       ['label' => 'Active Beneficiaries', 'value' => number_format($beneficiaryCount), 'change' => "+{$pendingBeneficiaries} pending", 'trend' => 'up'],
       ['label' => 'Items in Inventory', 'value' => number_format($inventoryQty), 'change' => "{$lowStock} low stock", 'trend' => $lowStock > 0 ? 'warn' : 'up'],
-      ['label' => 'Active Deliveries', 'value' => (string) $activeDeliveries, 'change' => "{$inTransit} in transit", 'trend' => 'up'],
+      ['label' => 'Delivery Status', 'kind' => 'deliveryStatus', 'completed' => $completedDeliveries, 'pending' => $pendingDeliveries, 'trend' => 'up'],
       ['label' => 'Beneficiaries Served', 'value' => number_format($beneficiariesServed), 'change' => number_format($familiesAffected) . ' families covered', 'trend' => 'up'],
     ],
     'charts' => [
@@ -168,7 +179,7 @@ json_response([
       ['meta' => "{$pendingVolunteers} pending"],
       ['meta' => "{$pendingBeneficiaries} pending"],
       ['meta' => "{$lowStock} low stock"],
-      ['meta' => "{$activeDeliveries} scheduled"],
+      ['meta' => "{$pendingDeliveries} scheduled"],
       ['meta' => "{$openTasks} open"],
     ],
   ],

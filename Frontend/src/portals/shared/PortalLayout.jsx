@@ -51,7 +51,7 @@ export default function PortalLayout({ role }) {
   const page = titles[location.pathname] || { title: 'Portal', sub: '' }
 
   return (
-    <div className="portal-layout">
+    <div className={`portal-layout portal-layout--${String(role || 'portal').toLowerCase()}`}>
       <PortalSidebar role={role} open={open} onClose={() => setOpen(false)} />
 
       <div className="portal-main">

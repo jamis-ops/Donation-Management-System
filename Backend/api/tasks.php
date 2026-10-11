@@ -268,12 +268,31 @@ function read_duty_fields(array $body): array
 {
   $start = trim((string) ($body['dutyStart'] ?? '')) ?: null;
   $end = trim((string) ($body['dutyEnd'] ?? '')) ?: null;
-  $hours = isset($body['dutyHours']) && $body['dutyHours'] !== '' && $body['dutyHours'] !== null
-    ? (float) $body['dutyHours']
-    : null;
-  if ($hours === null) {
-    $hours = hours_between($start, $end);
+
+  if ($start === null && $end === null) {
+    return [null, null, null];
   }
+
+  if ($start === null || $end === null) {
+    json_response(['ok' => false, 'error' => 'Duty Start and Duty End are both required for an Intern duty schedule.'], 400);
+  }
+
+  $timePattern = '/^(?:[01]\d|2[0-3]):[0-5]\d(?::[0-5]\d)?$/';
+  if (!preg_match($timePattern, $start) || !preg_match($timePattern, $end)) {
+    json_response(['ok' => false, 'error' => 'Enter a valid Duty Start and Duty End time.'], 400);
+  }
+
+  $startParts = array_map('intval', explode(':', $start));
+  $endParts = array_map('intval', explode(':', $end));
+  $startMinutes = ($startParts[0] * 60) + $startParts[1];
+  $endMinutes = ($endParts[0] * 60) + $endParts[1];
+  if ($endMinutes <= $startMinutes) {
+    json_response(['ok' => false, 'error' => 'Duty End must be later than Duty Start.'], 400);
+  }
+
+  // Never trust a client-supplied dutyHours value. The stored duration is
+  // authoritative and always derived from the validated schedule.
+  $hours = round(($endMinutes - $startMinutes) / 60, 2);
   return [$start, $end, $hours];
 }
 
@@ -828,7 +847,10 @@ if ($method === 'PUT') {
   $dutyTouched = array_key_exists('dutyStart', $body) || array_key_exists('dutyEnd', $body) || array_key_exists('dutyHours', $body);
   if ($isAssigneeIntern) {
     if ($dutyTouched) {
-      [$dutyStart, $dutyEnd, $dutyHours] = read_duty_fields($body);
+      [$dutyStart, $dutyEnd, $dutyHours] = read_duty_fields([
+        'dutyStart' => array_key_exists('dutyStart', $body) ? $body['dutyStart'] : ($existing['duty_start'] ?? null),
+        'dutyEnd' => array_key_exists('dutyEnd', $body) ? $body['dutyEnd'] : ($existing['duty_end'] ?? null),
+      ]);
     } else {
       $dutyStart = $existing['duty_start'] ?? null;
       $dutyEnd = $existing['duty_end'] ?? null;

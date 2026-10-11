@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import { Link } from 'react-router-dom'
-import { HeartHandshake, UserCheck, Users, Package, Truck, UserCog } from 'lucide-react'
+import { HeartHandshake, UserCheck, Users, Package, Truck, UserCog, WalletCards } from 'lucide-react'
 import { getDashboard, needsStockApi, inventoryApi, allocationsApi, donationsApi, distributionsApi } from '../../api/resources'
 import { cacheManager } from '../../utils/cacheManager'
 import { useApiObject } from '../../hooks/useApiList'
@@ -12,9 +12,10 @@ import BarChart from '../components/charts/BarChart'
 
 const STAT_ICONS = {
   'Total Cash Donations': HeartHandshake,
+  'Available Cash on Hand': WalletCards,
   'Active Beneficiaries': Users,
   'Items in Inventory': Package,
-  'Active Deliveries': Truck,
+  'Delivery Status': Truck,
   'Beneficiaries Served': UserCheck,
 }
 import StockLevelBar from '../components/shared/StockLevelBar'
@@ -39,9 +40,9 @@ const INDICATOR_LABEL = {
 
 const STAT_LINKS = {
   'Total Cash Donations': '/admin/donations?tab=monetary',
+  'Available Cash on Hand': '/admin/donations?tab=monetary',
   'Active Beneficiaries': '/admin/beneficiaries?status=Active',
   'Items in Inventory': '/admin/inventory',
-  'Active Deliveries': '/admin/distributions?status=In+Transit',
   'Beneficiaries Served': '/admin/distributions?status=Completed',
   'Pending Requests': '/admin/requests?status=Pending+Review',
 }
@@ -221,6 +222,34 @@ export default function DashboardPage() {
               {data.stats.map((stat) => {
                 const IconComponent = STAT_ICONS[stat.label]
                 const destination = STAT_LINKS[stat.label]
+                if (stat.kind === 'deliveryStatus') {
+                  return (
+                    <div key={stat.label} className="admin-stat-card admin-stat-card--up admin-delivery-stat">
+                      <div className="admin-stat-card__header">
+                        <span className="admin-stat-card__label">Delivery Status</span>
+                        <Truck className="admin-stat-card__icon" size={15} />
+                      </div>
+                      <div className="admin-delivery-stat__body">
+                        <Link
+                          to="/admin/distributions?status=Completed"
+                          className="admin-delivery-stat__segment"
+                          title="View completed deliveries"
+                        >
+                          <strong>{Number(stat.completed || 0).toLocaleString()}</strong>
+                          <span>Completed</span>
+                        </Link>
+                        <Link
+                          to="/admin/distributions?status=Pending"
+                          className="admin-delivery-stat__segment admin-delivery-stat__segment--pending"
+                          title="View pending deliveries"
+                        >
+                          <strong>{Number(stat.pending || 0).toLocaleString()}</strong>
+                          <span>Pending</span>
+                        </Link>
+                      </div>
+                    </div>
+                  )
+                }
                 const cardContent = (
                   <>
                     <div className="admin-stat-card__header">

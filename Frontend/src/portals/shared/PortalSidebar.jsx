@@ -89,7 +89,7 @@ export default function PortalSidebar({ role, open, onClose }) {
       {open && (
         <div className="portal-overlay" onClick={onClose} aria-hidden="true" />
       )}
-      <aside className={`portal-sidebar${open ? ' portal-sidebar--open' : ''}`}>
+      <aside className={`portal-sidebar portal-sidebar--${String(role || 'portal').toLowerCase()}${open ? ' portal-sidebar--open' : ''}`}>
         {/* Brand */}
         <div className="portal-sidebar__brand">
           <Logo to={menu.base} size="sm" showText={false} />

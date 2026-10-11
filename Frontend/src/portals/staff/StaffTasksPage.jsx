@@ -148,7 +148,7 @@ export default function StaffTasksPage() {
 
   return (
     <ApiState loading={loading} error={error} onRetry={reload}>
-      <div className="staff-tasks-page">
+      <div className="staff-tasks-page staff-portal-page">
         {/* Status Count Pills */}
         <div className="staff-tasks-summary" style={{ marginBottom: '1.25rem' }}>
           <button
@@ -264,7 +264,7 @@ export default function StaffTasksPage() {
           ) : (
             <>
               {/* Task Cards Grid */}
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: '1rem', marginTop: '1rem' }}>
+              <div className="staff-record-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: '1rem', marginTop: '1rem' }}>
                 {paging.pageItems.map((task) => {
                   const isDone = task.isDone || task.boardColumn === 'done' || task.status === 'Done'
                   const isTodo = task.boardColumn === 'todo' || task.status === 'To Do'
@@ -274,6 +274,7 @@ export default function StaffTasksPage() {
                   return (
                     <div
                       key={task.dbId || task.id}
+                      className="staff-modern-record-card"
                       style={{
                         background: '#fff',
                         border: '1px solid #e2e8f0',

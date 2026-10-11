@@ -210,7 +210,7 @@ export default function StaffInventoryPage() {
 
   return (
     <ApiState loading={loading} error={error} onRetry={reload}>
-      <div className="staff-inventory-page">
+      <div className="staff-inventory-page staff-portal-page">
         {/* Metric Summary Cards */}
         <div className="staff-inventory-summary" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1rem', marginBottom: '1.25rem' }}>
           <div className="staff-inventory-summary__card staff-inventory-summary__card--total" style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: '8px', padding: '1rem', display: 'flex', alignItems: 'center', gap: '0.85rem' }}>
@@ -380,7 +380,7 @@ export default function StaffInventoryPage() {
           ) : (
             <>
               {/* Item Cards Grid */}
-              <div className="staff-inventory-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(310px, 1fr))', gap: '1rem', marginTop: '1rem' }}>
+              <div className="staff-inventory-grid staff-record-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(310px, 1fr))', gap: '1rem', marginTop: '1rem' }}>
                 {paging.pageItems.map((item) => {
                   const qty = Number(item.currentStock ?? item.quantity ?? 0)
                   const min = Number(item.minStock ?? item.lowStockThreshold ?? 10)

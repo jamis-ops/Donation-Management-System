@@ -1422,6 +1422,57 @@
   color: var(--admin-warning);
 }
 
+.admin-delivery-stat__body {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  min-height: 88px;
+  background: var(--admin-surface);
+}
+
+.admin-delivery-stat__segment {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.25rem;
+  padding: 0.8rem 0.5rem;
+  color: var(--admin-success);
+  text-align: center;
+  text-decoration: none;
+  transition: background-color 0.18s ease, color 0.18s ease;
+}
+
+.admin-delivery-stat__segment + .admin-delivery-stat__segment {
+  border-left: 1px solid var(--admin-border);
+}
+
+.admin-delivery-stat__segment strong {
+  font-size: clamp(1.45rem, 2vw, 1.8rem);
+  line-height: 1;
+}
+
+.admin-delivery-stat__segment span {
+  color: var(--admin-text-muted);
+  font-size: 0.75rem;
+  font-weight: 650;
+}
+
+.admin-delivery-stat__segment--pending {
+  color: var(--admin-warning);
+}
+
+.admin-delivery-stat__segment:hover,
+.admin-delivery-stat__segment:focus-visible {
+  background: rgba(22, 163, 74, 0.07);
+  outline: none;
+}
+
+.admin-delivery-stat__segment--pending:hover,
+.admin-delivery-stat__segment--pending:focus-visible {
+  background: rgba(217, 119, 6, 0.08);
+}
+
 /* Spacious dashboard-only cards; compact summary grids retain their sizing. */
 .admin-stats-grid:not(.admin-stats-grid--compact) .admin-stat-card__header {
   min-height: 48px;
