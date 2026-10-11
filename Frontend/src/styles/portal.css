@@ -1614,15 +1614,25 @@
 }
 
 /* Staff modals and forms */
-.portal-layout--staff .admin-modal-overlay {
+.portal-layout--staff .admin-modal-overlay,
+.portal-layout--staff .staff-modal-overlay,
+.portal-layout--staff .staff-task-modal-overlay,
+.portal-layout--staff .approval-confirm-overlay {
   padding: clamp(0.65rem, 2vw, 1.5rem);
   background: rgba(15, 23, 42, 0.58);
   backdrop-filter: blur(6px);
+  overflow: hidden;
+  overscroll-behavior: contain;
 }
 
 .portal-layout--staff .admin-modal {
   width: min(100%, 760px);
-  max-height: min(88vh, 900px);
+  max-height: min(90dvh, 900px);
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+  -webkit-overflow-scrolling: touch;
   border: 1px solid rgba(255,255,255,0.5);
   border-radius: 20px;
   box-shadow: 0 32px 80px -28px rgba(15,23,42,0.65);
@@ -1632,29 +1642,45 @@
   background:
     linear-gradient(115deg, rgba(255,255,255,0.07), transparent 40%),
     linear-gradient(135deg, #AF101A, #840b14);
+  z-index: 20;
 }
 
 .portal-layout--staff .admin-modal__actions {
   background: rgba(248,250,252,0.75);
 }
 
-/* Keep the document fixed while donation details use one contained scrollbar. */
-.portal-layout--staff .staff-donation-modal-overlay {
-  overflow: hidden;
-  overscroll-behavior: contain;
+.portal-layout--staff .donation-detail-modal {
+  touch-action: pan-y;
 }
 
-.portal-layout--staff .donation-detail-modal {
-  max-height: min(88dvh, 900px);
+.portal-layout--staff .staff-proof-viewer-modal {
+  height: min(90dvh, 900px);
+  overflow: hidden;
+}
+
+.portal-layout--staff .staff-proof-viewer-modal__canvas {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+  -webkit-overflow-scrolling: touch;
+}
+
+.portal-layout--staff .staff-modal,
+.portal-layout--staff .staff-task-modal {
+  max-height: min(90dvh, 900px);
+  overflow: hidden;
+}
+
+.portal-layout--staff .staff-modal__content,
+.portal-layout--staff .staff-task-modal__content {
+  min-height: 0;
   overflow-x: hidden;
   overflow-y: auto;
   overscroll-behavior: contain;
   scrollbar-gutter: stable;
-  touch-action: pan-y;
-}
-
-.portal-layout--staff .donation-detail-modal .admin-modal__header {
-  z-index: 20;
+  -webkit-overflow-scrolling: touch;
 }
 
 .portal-layout--staff .btn {
@@ -1671,6 +1697,24 @@
 @media (max-width: 1180px) {
   .portal-layout--staff .portal-stats {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 640px) {
+  .portal-layout--staff .admin-modal-overlay,
+  .portal-layout--staff .staff-modal-overlay,
+  .portal-layout--staff .staff-task-modal-overlay,
+  .portal-layout--staff .approval-confirm-overlay {
+    align-items: center;
+    padding: 0.5rem;
+  }
+
+  .portal-layout--staff .admin-modal,
+  .portal-layout--staff .staff-modal,
+  .portal-layout--staff .staff-task-modal {
+    width: 100%;
+    max-height: calc(100dvh - 1rem);
+    border-radius: 14px;
   }
 }
 

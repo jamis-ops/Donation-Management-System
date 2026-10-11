@@ -1,9 +1,10 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { Outlet, useLocation } from 'react-router-dom'
 import { Menu } from 'lucide-react'
 import PortalSidebar from './PortalSidebar'
 import NotificationBell from '../../admin/components/shared/NotificationBell'
 import UserProfileMenu from '../../components/shared/UserProfileMenu'
+import useScopedModalScrollLock from '../../hooks/useScopedModalScrollLock'
 
 const titles = {
   '/donor': { title: 'Donor Dashboard', sub: 'Track your donations and certificates.' },
@@ -47,11 +48,14 @@ const portalSettingsPaths = {
 
 export default function PortalLayout({ role }) {
   const [open, setOpen] = useState(false)
+  const layoutRef = useRef(null)
   const location = useLocation()
   const page = titles[location.pathname] || { title: 'Portal', sub: '' }
 
+  useScopedModalScrollLock(layoutRef, role === 'Staff')
+
   return (
-    <div className={`portal-layout portal-layout--${String(role || 'portal').toLowerCase()}`}>
+    <div ref={layoutRef} className={`portal-layout portal-layout--${String(role || 'portal').toLowerCase()}`}>
       <PortalSidebar role={role} open={open} onClose={() => setOpen(false)} />
 
       <div className="portal-main">

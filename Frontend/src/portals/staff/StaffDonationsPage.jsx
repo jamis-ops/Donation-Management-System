@@ -1,5 +1,5 @@
 /* eslint-disable react-hooks/set-state-in-effect */
-import { useState, useMemo, useEffect, useRef } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import {
   Download,
@@ -50,55 +50,6 @@ function showVerifyResultModal(res, status) {
   notify.warning(`Status successfully updated to: ${status}. Donor portal account was created, but the credential email was NOT delivered.`)
 }
 
-function usePageScrollLock(locked) {
-  const scrollPositionRef = useRef(0)
-
-  useEffect(() => {
-    if (!locked || typeof document === 'undefined') return undefined
-
-    const body = document.body
-    const root = document.documentElement
-    const scrollY = window.scrollY
-    const scrollbarWidth = Math.max(0, window.innerWidth - root.clientWidth)
-    const computedPaddingRight = Number.parseFloat(window.getComputedStyle(body).paddingRight) || 0
-    const previous = {
-      bodyOverflow: body.style.overflow,
-      bodyPosition: body.style.position,
-      bodyTop: body.style.top,
-      bodyLeft: body.style.left,
-      bodyRight: body.style.right,
-      bodyWidth: body.style.width,
-      bodyPaddingRight: body.style.paddingRight,
-      rootOverflow: root.style.overflow,
-      rootScrollBehavior: root.style.scrollBehavior,
-    }
-
-    scrollPositionRef.current = scrollY
-    body.style.overflow = 'hidden'
-    body.style.position = 'fixed'
-    body.style.top = `-${scrollY}px`
-    body.style.left = '0'
-    body.style.right = '0'
-    body.style.width = '100%'
-    if (scrollbarWidth > 0) body.style.paddingRight = `${computedPaddingRight + scrollbarWidth}px`
-    root.style.overflow = 'hidden'
-    root.style.scrollBehavior = 'auto'
-
-    return () => {
-      body.style.overflow = previous.bodyOverflow
-      body.style.position = previous.bodyPosition
-      body.style.top = previous.bodyTop
-      body.style.left = previous.bodyLeft
-      body.style.right = previous.bodyRight
-      body.style.width = previous.bodyWidth
-      body.style.paddingRight = previous.bodyPaddingRight
-      root.style.overflow = previous.rootOverflow
-      root.style.scrollBehavior = previous.rootScrollBehavior
-      window.scrollTo(0, scrollPositionRef.current)
-    }
-  }, [locked])
-}
-
 export default function StaffDonationsPage() {
   const [searchParams] = useSearchParams()
   const { showLoading, hideLoading } = useLoading()
@@ -115,8 +66,6 @@ export default function StaffDonationsPage() {
   const [proofZoomModal, setProofZoomModal] = useState(false)
   const [zoomLevel, setZoomLevel] = useState(1)
   const [proofImgError, setProofImgError] = useState(false)
-
-  usePageScrollLock(Boolean(selected || proofZoomModal || intakeModalDonation))
 
   // Sync state with URL params if they change externally
   useEffect(() => {
@@ -1026,7 +975,7 @@ export default function StaffDonationsPage() {
         {proofZoomModal && selected?.proofUrl && (
           <div className="admin-modal-overlay" onClick={() => setProofZoomModal(false)} style={{ zIndex: 9999 }}>
             <div
-              className="admin-modal"
+              className="admin-modal staff-proof-viewer-modal"
               onClick={(e) => e.stopPropagation()}
               style={{ maxWidth: '90vw', maxHeight: '90vh', width: 'auto', padding: '1rem', display: 'flex', flexDirection: 'column' }}
             >
@@ -1076,7 +1025,7 @@ export default function StaffDonationsPage() {
                   </button>
                 </div>
               </div>
-              <div style={{ overflow: 'auto', textAlign: 'center', maxHeight: '78vh' }}>
+              <div className="staff-proof-viewer-modal__canvas" style={{ textAlign: 'center' }}>
                 <img
                   src={getAuthenticatedFileUrl(selected.proofUrl)}
                   alt="Zoomed Proof"
