@@ -1,4 +1,5 @@
-import { useState, useMemo, useEffect } from 'react'
+/* eslint-disable react-hooks/set-state-in-effect */
+import { useState, useMemo, useEffect, useRef } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import {
   Download,
@@ -20,7 +21,6 @@ import {
   Package,
   Users,
   Mail,
-  Phone,
   ShieldCheck,
   Sparkles,
 } from 'lucide-react'
@@ -50,8 +50,57 @@ function showVerifyResultModal(res, status) {
   notify.warning(`Status successfully updated to: ${status}. Donor portal account was created, but the credential email was NOT delivered.`)
 }
 
+function usePageScrollLock(locked) {
+  const scrollPositionRef = useRef(0)
+
+  useEffect(() => {
+    if (!locked || typeof document === 'undefined') return undefined
+
+    const body = document.body
+    const root = document.documentElement
+    const scrollY = window.scrollY
+    const scrollbarWidth = Math.max(0, window.innerWidth - root.clientWidth)
+    const computedPaddingRight = Number.parseFloat(window.getComputedStyle(body).paddingRight) || 0
+    const previous = {
+      bodyOverflow: body.style.overflow,
+      bodyPosition: body.style.position,
+      bodyTop: body.style.top,
+      bodyLeft: body.style.left,
+      bodyRight: body.style.right,
+      bodyWidth: body.style.width,
+      bodyPaddingRight: body.style.paddingRight,
+      rootOverflow: root.style.overflow,
+      rootScrollBehavior: root.style.scrollBehavior,
+    }
+
+    scrollPositionRef.current = scrollY
+    body.style.overflow = 'hidden'
+    body.style.position = 'fixed'
+    body.style.top = `-${scrollY}px`
+    body.style.left = '0'
+    body.style.right = '0'
+    body.style.width = '100%'
+    if (scrollbarWidth > 0) body.style.paddingRight = `${computedPaddingRight + scrollbarWidth}px`
+    root.style.overflow = 'hidden'
+    root.style.scrollBehavior = 'auto'
+
+    return () => {
+      body.style.overflow = previous.bodyOverflow
+      body.style.position = previous.bodyPosition
+      body.style.top = previous.bodyTop
+      body.style.left = previous.bodyLeft
+      body.style.right = previous.bodyRight
+      body.style.width = previous.bodyWidth
+      body.style.paddingRight = previous.bodyPaddingRight
+      root.style.overflow = previous.rootOverflow
+      root.style.scrollBehavior = previous.rootScrollBehavior
+      window.scrollTo(0, scrollPositionRef.current)
+    }
+  }, [locked])
+}
+
 export default function StaffDonationsPage() {
-  const [searchParams, setSearchParams] = useSearchParams()
+  const [searchParams] = useSearchParams()
   const { showLoading, hideLoading } = useLoading()
   const { data: donations = [], loading, error, reload } = useApiList(() => donationsApi.list())
 
@@ -67,6 +116,8 @@ export default function StaffDonationsPage() {
   const [zoomLevel, setZoomLevel] = useState(1)
   const [proofImgError, setProofImgError] = useState(false)
 
+  usePageScrollLock(Boolean(selected || proofZoomModal || intakeModalDonation))
+
   // Sync state with URL params if they change externally
   useEffect(() => {
     const s = searchParams.get('status')
@@ -75,7 +126,7 @@ export default function StaffDonationsPage() {
     if (t && t !== typeFilter) setTypeFilter(t)
     const q = searchParams.get('search') || searchParams.get('q')
     if (q && q !== searchQuery) setSearchQuery(q)
-  }, [searchParams])
+  }, [searchParams, searchQuery, statusFilter, typeFilter])
 
   // Count summaries
   const counts = useMemo(() => {
@@ -345,8 +396,17 @@ export default function StaffDonationsPage() {
             </div>
           ) : (
             <>
-              <div className="portal-table-wrap">
-                <table className="portal-table">
+              <div className="portal-table-wrap staff-donations-table-wrap">
+                <table className="portal-table staff-donations-table">
+                  <colgroup>
+                    <col className="staff-donations-table__col-code" />
+                    <col className="staff-donations-table__col-donor" />
+                    <col className="staff-donations-table__col-type" />
+                    <col className="staff-donations-table__col-value" />
+                    <col className="staff-donations-table__col-purpose" />
+                    <col className="staff-donations-table__col-status" />
+                    <col className="staff-donations-table__col-actions" />
+                  </colgroup>
                   <thead>
                     <tr>
                       <th>Tracking Code</th>
@@ -355,24 +415,23 @@ export default function StaffDonationsPage() {
                       <th>Amount / Items</th>
                       <th>Program / Purpose</th>
                       <th>Status</th>
-                      <th>Proof</th>
                       <th style={{ textAlign: 'right' }}>Actions</th>
                     </tr>
                   </thead>
                   <tbody>
                     {paging.pageItems.map((d) => (
                       <tr key={d.dbId || d.id}>
-                        <td>
+                        <td className="staff-donations-table__code">
                           <strong style={{ color: '#AF101A', letterSpacing: '0.02em' }}>{d.trackingCode}</strong>
                         </td>
-                        <td>
-                          <div>
-                            <div style={{ fontWeight: 600, color: '#1e293b' }}>{d.donor}</div>
-                            {d.donorEmail && <div style={{ fontSize: '0.75rem', color: '#64748b' }}>{d.donorEmail}</div>}
+                        <td className="staff-donations-table__donor">
+                          <div className="staff-donations-table__donor-content">
+                            <div className="staff-donations-table__donor-name" style={{ fontWeight: 600, color: '#1e293b' }}>{d.donor}</div>
+                            {d.donorEmail && <div className="staff-donations-table__email" style={{ fontSize: '0.75rem', color: '#64748b' }}>{d.donorEmail}</div>}
                           </div>
                         </td>
-                        <td>
-                          <span style={{
+                        <td className="staff-donations-table__type">
+                          <span className="staff-donations-table__type-badge" style={{
                             fontSize: '0.75rem',
                             fontWeight: 600,
                             padding: '2px 8px',
@@ -384,8 +443,8 @@ export default function StaffDonationsPage() {
                             {d.type}
                           </span>
                         </td>
-                        <td>
-                          <strong style={{ color: d.type === 'In-Kind' ? '#1e293b' : '#047857' }}>
+                        <td className="staff-donations-table__value">
+                          <strong className="staff-donations-table__value-text" style={{ color: d.type === 'In-Kind' ? '#1e293b' : '#047857' }}>
                             {d.type === 'In-Kind'
                               ? (d.itemsDescription || d.amount || '—')
                               : (typeof d.amountRaw === 'number'
@@ -393,21 +452,12 @@ export default function StaffDonationsPage() {
                                 : d.amount)}
                           </strong>
                         </td>
-                        <td>{d.category || 'General Support'}</td>
-                        <td>
+                        <td className="staff-donations-table__purpose">{d.category || 'General Support'}</td>
+                        <td className="staff-donations-table__status">
                           <StatusBadge status={d.status} />
                         </td>
-                        <td>
-                          {d.hasProof ? (
-                            <span style={{ display: 'inline-flex', alignItems: 'center', gap: '3px', fontSize: '0.75rem', color: '#047857', fontWeight: 600 }}>
-                              <FileCheck size={14} /> Attached
-                            </span>
-                          ) : (
-                            <span style={{ fontSize: '0.75rem', color: '#94a3b8' }}>None</span>
-                          )}
-                        </td>
-                        <td style={{ textAlign: 'right' }}>
-                          <div style={{ display: 'inline-flex', gap: '0.4rem', justifyContent: 'flex-end', flexWrap: 'wrap' }}>
+                        <td className="staff-donations-table__actions" style={{ textAlign: 'right' }}>
+                          <div className="staff-donations-table__action-group" style={{ display: 'inline-flex', gap: '0.4rem', justifyContent: 'flex-end' }}>
                             <button
                               type="button"
                               className="btn btn--sm btn--outline"
@@ -462,7 +512,7 @@ export default function StaffDonationsPage() {
 
         {/* Donation Details Modal */}
         {selected && (
-          <div className="admin-modal-overlay" onClick={() => setSelected(null)}>
+          <div className="admin-modal-overlay staff-donation-modal-overlay" onClick={() => setSelected(null)}>
             <div className="admin-modal admin-modal--wide donation-detail-modal" onClick={(e) => e.stopPropagation()}>
               <ModalHeader
                 title={`Donation Details – ${selected.trackingCode}`}

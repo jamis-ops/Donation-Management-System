@@ -1435,6 +1435,75 @@
   background: linear-gradient(90deg, rgba(175,16,26,0.035), rgba(175,16,26,0.012));
 }
 
+/* Staff donations: preserve readable content widths without squeezing words. */
+.portal-layout--staff .staff-donations-table-wrap {
+  overflow-x: auto;
+  scrollbar-gutter: stable;
+  overscroll-behavior-inline: contain;
+}
+
+.portal-layout--staff .staff-donations-table {
+  width: 100%;
+  min-width: 1160px;
+  table-layout: fixed;
+}
+
+.portal-layout--staff .staff-donations-table__col-code { width: 11%; }
+.portal-layout--staff .staff-donations-table__col-donor { width: 18%; }
+.portal-layout--staff .staff-donations-table__col-type { width: 9%; }
+.portal-layout--staff .staff-donations-table__col-value { width: 18%; }
+.portal-layout--staff .staff-donations-table__col-purpose { width: 13%; }
+.portal-layout--staff .staff-donations-table__col-status { width: 11%; }
+.portal-layout--staff .staff-donations-table__col-actions { width: 20%; }
+
+.portal-layout--staff .staff-donations-table th,
+.portal-layout--staff .staff-donations-table td {
+  min-width: 0;
+  vertical-align: middle;
+  word-break: normal;
+  overflow-wrap: normal;
+}
+
+.portal-layout--staff .staff-donations-table__code strong,
+.portal-layout--staff .staff-donations-table__type-badge,
+.portal-layout--staff .staff-donations-table__status > *,
+.portal-layout--staff .staff-donations-table__action-group .btn {
+  white-space: nowrap;
+}
+
+.portal-layout--staff .staff-donations-table__donor-content,
+.portal-layout--staff .staff-donations-table__value-text,
+.portal-layout--staff .staff-donations-table__purpose {
+  min-width: 0;
+  line-height: 1.45;
+  overflow-wrap: break-word;
+}
+
+.portal-layout--staff .staff-donations-table__donor-name {
+  margin-bottom: 0.18rem;
+}
+
+.portal-layout--staff .staff-donations-table__email {
+  display: block;
+  max-width: 100%;
+  line-height: 1.45;
+  word-break: normal;
+  overflow-wrap: break-word;
+}
+
+.portal-layout--staff .staff-donations-table__value-text {
+  display: block;
+}
+
+.portal-layout--staff .staff-donations-table__action-group {
+  flex-wrap: nowrap;
+  white-space: nowrap;
+}
+
+.portal-layout--staff .staff-donations-table__action-group .btn {
+  flex: 0 0 auto;
+}
+
 /* Compact distribution views */
 .staff-distribution-tabs {
   display: inline-grid;
@@ -1567,6 +1636,25 @@
 
 .portal-layout--staff .admin-modal__actions {
   background: rgba(248,250,252,0.75);
+}
+
+/* Keep the document fixed while donation details use one contained scrollbar. */
+.portal-layout--staff .staff-donation-modal-overlay {
+  overflow: hidden;
+  overscroll-behavior: contain;
+}
+
+.portal-layout--staff .donation-detail-modal {
+  max-height: min(88dvh, 900px);
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+  touch-action: pan-y;
+}
+
+.portal-layout--staff .donation-detail-modal .admin-modal__header {
+  z-index: 20;
 }
 
 .portal-layout--staff .btn {
