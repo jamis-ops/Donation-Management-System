@@ -3024,6 +3024,7 @@ function ensure_distribution_schema(PDO $pdo): void
   ensure_column($pdo, 'distributions', 'source_allocation_ids', 'TEXT NULL AFTER request_id');
   // Keep proof bytes as a durable fallback for serverless/ephemeral filesystems.
   // The existing file_path remains the primary local-storage path.
+  ensure_column($pdo, 'distribution_proofs', 'proof_category', "VARCHAR(40) NOT NULL DEFAULT 'other' AFTER notes");
   ensure_column($pdo, 'distribution_proofs', 'file_data', 'LONGBLOB NULL AFTER file_type');
   try {
     $missing = $pdo->query("SELECT id, file_path FROM distribution_proofs WHERE file_data IS NULL ORDER BY id ASC LIMIT 50")->fetchAll();

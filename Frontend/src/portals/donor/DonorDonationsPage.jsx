@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
-import { Search, TrendingUp, Coins, Package, Calendar, Users, MapPin, Heart, Award, ArrowRight } from 'lucide-react'
+import { Search, TrendingUp, Coins, Package, Calendar, Users, MapPin, Heart, Award, ArrowRight, Images } from 'lucide-react'
 import StatusBadge from '../../admin/components/shared/StatusBadge'
 import ApiState from '../../admin/components/shared/ApiState'
 import { donationsApi, certificatesApi } from '../../api/resources'
@@ -13,6 +13,7 @@ import DonationProgressTracker from '../../components/donor/DonationProgressTrac
 import { notify, confirmAction, showSuccessModal } from '../../utils/confirm'
 import { DONATION_STATUSES } from '../../constants/options'
 import { useLoading } from '../../context/LoadingContext'
+import { getAuthenticatedFileUrl } from '../../api/auth'
 
 export default function DonorDonationsPage() {
   const navigate = useNavigate()
@@ -471,6 +472,40 @@ export default function DonorDonationsPage() {
                 </div>
               </div>
             )}
+
+            <section className="distribution-updates" aria-labelledby="donor-distribution-updates-title">
+              <div className="distribution-updates__title">
+                <Images size={19} />
+                <div>
+                  <h4 id="donor-distribution-updates-title">Distribution Updates</h4>
+                  <p>Photos are shown only from distributions that used this donation.</p>
+                </div>
+              </div>
+              {Array.isArray(selected.distributionUpdates) && selected.distributionUpdates.length > 0 ? (
+                <div className="distribution-updates__list">
+                  {selected.distributionUpdates.map((update) => (
+                    <article className="distribution-update-card" key={update.distributionId}>
+                      <div className="distribution-update-card__meta">
+                        <div><strong>{update.distributionCode || 'Distribution'}</strong><span><Calendar size={13} /> {update.distributionDate || 'Date unavailable'}</span></div>
+                        <StatusBadge status={update.status} />
+                        <div><span><MapPin size={13} /> {update.barangay || update.location || 'Location unavailable'}</span><span><Users size={13} /> {update.familiesServed || 0} families served</span></div>
+                      </div>
+                      <div className="distribution-photo-grid">
+                        {update.photos.map((photo, index) => (
+                          <a className="distribution-photo-card" key={photo.id} href={getAuthenticatedFileUrl(photo.fileUrl)} target="_blank" rel="noreferrer">
+                            <img src={getAuthenticatedFileUrl(photo.fileUrl)} alt={`${update.distributionCode || 'Distribution'} update ${index + 1}`} />
+                            <span>{photo.fileName || `Photo ${index + 1}`}</span>
+                          </a>
+                        ))}
+                      </div>
+                      {update.photos[0]?.notes && <p className="distribution-update-card__note">{update.photos[0].notes}</p>}
+                    </article>
+                  ))}
+                </div>
+              ) : (
+                <div className="distribution-photo-empty"><Images size={21} /> Distribution photos will appear here after Staff posts an update.</div>
+              )}
+            </section>
 
             {/* Live Progress Tracker */}
             <DonationProgressTracker donation={selected} donationId={selected.dbId} />

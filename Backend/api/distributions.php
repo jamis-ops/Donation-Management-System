@@ -139,7 +139,7 @@ function map_distribution(PDO $pdo, array $row): array
     }
   }
 
-  $proofCount = $pdo->prepare('SELECT COUNT(*) FROM distribution_proofs WHERE distribution_id = ?');
+  $proofCount = $pdo->prepare("SELECT COUNT(*) FROM distribution_proofs WHERE distribution_id = ? AND proof_category <> 'staff_distribution_update'");
   $proofCount->execute([$row['id']]);
 
   $eventName = trim((string) ($row['event_name'] ?? ''));
@@ -318,6 +318,7 @@ function map_distribution(PDO $pdo, array $row): array
   }
 
   $proofs = [];
+  $distributionPhotos = [];
   try {
     $pStmt = $pdo->prepare('SELECT id, beneficiary_id, file_path, file_name, file_type, notes, proof_category, status, review_remarks, submitted_at, reviewed_at FROM distribution_proofs WHERE distribution_id = ? ORDER BY submitted_at DESC, id DESC');
     $pStmt->execute([(int) $row['id']]);
@@ -329,10 +330,11 @@ function map_distribution(PDO $pdo, array $row): array
       $catLabel = match ($cat) {
         'received_goods' => 'Received goods',
         'distribution' => 'Distribution event photo',
+        'staff_distribution_update' => 'Distribution update',
         'acknowledgment' => 'Signed acknowledgment / receipt',
         default => 'Supporting file',
       };
-      $proofs[] = [
+      $mappedProof = [
         'id' => (int) $p['id'],
         'distributionId' => (int) $row['id'],
         'beneficiaryId' => (int) ($p['beneficiary_id'] ?? 0),
@@ -348,6 +350,11 @@ function map_distribution(PDO $pdo, array $row): array
         'submittedAt' => format_date($p['submitted_at'] ?? null),
         'submittedAtRaw' => $p['submitted_at'] ?? null,
       ];
+      if ($cat === 'staff_distribution_update') {
+        $distributionPhotos[] = $mappedProof;
+      } else {
+        $proofs[] = $mappedProof;
+      }
     }
   } catch (Throwable $e) {
     $proofs = [];
@@ -413,6 +420,7 @@ function map_distribution(PDO $pdo, array $row): array
     'allocations' => $linkedAllocs,
     'allocationIds' => array_map(fn($a) => $a['dbId'], $linkedAllocs),
     'proofs' => $proofs,
+    'distributionPhotos' => $distributionPhotos,
     'proofsCount' => count($proofs) ?: (int) $proofCount->fetchColumn(),
     'assignedTeam' => $assignedTeam,
     'workflowSteps' => distribution_workflow_steps(),

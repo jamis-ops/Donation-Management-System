@@ -455,6 +455,18 @@ export async function uploadDistributionProof(formData) {
   return data
 }
 
+export async function uploadStaffDistributionPhotos(formData) {
+  const res = await fetch(apiUrl('/api/distribution_proofs.php'), {
+    method: 'POST',
+    credentials: 'include',
+    headers: getStoredToken() ? { Authorization: `Bearer ${getStoredToken()}` } : {},
+    body: formData,
+  })
+  const data = await res.json().catch(() => null)
+  if (!res.ok) throw new Error(data?.error || 'Unable to save distribution photos')
+  return data
+}
+
 export function reviewProof(id, status, remarks = '') {
   return apiFetch(`/api/distribution_proofs.php?id=${id}`, {
     method: 'PUT',

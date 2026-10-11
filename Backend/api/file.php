@@ -143,7 +143,7 @@ $user = require_auth();
 
 $allowed = [
   'donation_proofs' => ['Admin', 'Staff', 'Donor'],
-  'proofs' => ['Admin', 'Staff', 'Beneficiary', 'Volunteer', 'Intern'],
+  'proofs' => ['Admin', 'Staff', 'Beneficiary', 'Volunteer', 'Intern', 'Donor'],
   'request_proofs' => ['Admin', 'Staff', 'Beneficiary'],
   'volunteer_resumes' => ['Admin', 'Staff', 'Volunteer', 'Intern'],
 ];
@@ -195,11 +195,11 @@ if ($kind === 'proofs') {
   ensure_distribution_schema($pdo);
   $distributionId = (int) ($_GET['distributionId'] ?? $_GET['distribution_id'] ?? 0);
   try {
-    $stmt = $pdo->prepare('SELECT id, distribution_id, beneficiary_id, file_path, file_name, file_type, file_data FROM distribution_proofs WHERE id = ? AND (? = 0 OR distribution_id = ?) LIMIT 1');
+    $stmt = $pdo->prepare('SELECT id, distribution_id, beneficiary_id, file_path, file_name, file_type, file_data, proof_category FROM distribution_proofs WHERE id = ? AND (? = 0 OR distribution_id = ?) LIMIT 1');
     $stmt->execute([$proofId, $distributionId, $distributionId]);
     $proof = $stmt->fetch();
   } catch (Throwable $e) {
-    $stmt = $pdo->prepare('SELECT id, distribution_id, beneficiary_id, file_path, file_name, file_type FROM distribution_proofs WHERE id = ? AND (? = 0 OR distribution_id = ?) LIMIT 1');
+    $stmt = $pdo->prepare('SELECT id, distribution_id, beneficiary_id, file_path, file_name, file_type, proof_category FROM distribution_proofs WHERE id = ? AND (? = 0 OR distribution_id = ?) LIMIT 1');
     $stmt->execute([$proofId, $distributionId, $distributionId]);
     $proof = $stmt->fetch();
   }
@@ -211,6 +211,26 @@ if ($kind === 'proofs') {
   if ($role === 'Beneficiary') {
     $access = $pdo->prepare('SELECT 1 FROM beneficiaries WHERE id = ? AND (user_id = ? OR (representative_email IS NOT NULL AND representative_email <> "" AND LOWER(representative_email) = LOWER(?))) LIMIT 1');
     $access->execute([(int) $proof['beneficiary_id'], (int) ($user['id'] ?? 0), (string) ($user['email'] ?? '')]);
+    if (!$access->fetchColumn()) json_response(['ok' => false, 'error' => 'Access denied'], 403);
+  } elseif ($role === 'Donor') {
+    if (($proof['proof_category'] ?? '') !== 'staff_distribution_update') {
+      json_response(['ok' => false, 'error' => 'Access denied'], 403);
+    }
+    $access = $pdo->prepare("SELECT 1
+      FROM donations don
+      WHERE (
+        (don.donor_email IS NOT NULL AND don.donor_email <> '' AND LOWER(don.donor_email) = LOWER(?))
+        OR don.donor_id IN (
+          SELECT dr.id FROM donors dr
+          WHERE (dr.user_id IS NOT NULL AND dr.user_id = ?)
+             OR (dr.email IS NOT NULL AND dr.email <> '' AND LOWER(dr.email) = LOWER(?))
+        )
+      )
+      AND (
+        EXISTS (SELECT 1 FROM donation_procurements dp JOIN allocations a ON a.id = dp.allocation_id WHERE dp.donation_id = don.id AND a.distribution_id = ?)
+        OR EXISTS (SELECT 1 FROM allocation_donation_sources ads JOIN allocations a2 ON a2.id = ads.allocation_id WHERE ads.donation_id = don.id AND a2.distribution_id = ?)
+      ) LIMIT 1");
+    $access->execute([(string) ($user['email'] ?? ''), (int) ($user['id'] ?? 0), (string) ($user['email'] ?? ''), (int) $proof['distribution_id'], (int) $proof['distribution_id']]);
     if (!$access->fetchColumn()) json_response(['ok' => false, 'error' => 'Access denied'], 403);
   } elseif (in_array($role, ['Volunteer', 'Intern'], true)) {
     $access = $pdo->prepare('SELECT 1 FROM tasks WHERE distribution_id = ? AND assignee_user_id = ? LIMIT 1');

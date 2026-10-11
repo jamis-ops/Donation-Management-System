@@ -90,6 +90,7 @@ function map_donation(array $row, ?PDO $pdo = null): array
   $inventoryBalance = [];
   $receivedQuantity = 0;
   $allocatedQuantity = 0;
+  $distributionUpdates = [];
   if ($pdo) {
     ensure_procurement_table($pdo);
     try {
@@ -190,6 +191,47 @@ function map_donation(array $row, ?PDO $pdo = null): array
         }
       } catch (Throwable $e) {}
     }
+
+    try {
+      $distributionStmt = $pdo->prepare("SELECT DISTINCT dist.id, dist.code, dist.distribution_date, dist.location, dist.status,
+          COALESCE(NULLIF(dist.beneficiaries_count, 0), (SELECT MAX(ar2.affected_families) FROM allocations a2 LEFT JOIN assistance_requests ar2 ON ar2.id = a2.assistance_request_id WHERE a2.distribution_id = dist.id), 0) AS families_served,
+          b.full_name AS barangay_name
+        FROM distributions dist
+        JOIN allocations a ON a.distribution_id = dist.id
+        LEFT JOIN beneficiaries b ON b.id = dist.beneficiary_id
+        WHERE EXISTS (SELECT 1 FROM donation_procurements dp WHERE dp.allocation_id = a.id AND dp.donation_id = ?)
+           OR EXISTS (SELECT 1 FROM allocation_donation_sources ads WHERE ads.allocation_id = a.id AND ads.donation_id = ?)
+        ORDER BY dist.distribution_date DESC, dist.id DESC");
+      $distributionStmt->execute([(int) $row['id'], (int) $row['id']]);
+      $photoStmt = $pdo->prepare("SELECT id, file_name, file_type, notes, submitted_at FROM distribution_proofs WHERE distribution_id = ? AND proof_category = 'staff_distribution_update' ORDER BY submitted_at ASC, id ASC");
+      foreach ($distributionStmt->fetchAll() as $distribution) {
+        $photoStmt->execute([(int) $distribution['id']]);
+        $photos = array_map(static function (array $photo) use ($distribution): array {
+          return [
+            'id' => (int) $photo['id'],
+            'fileName' => (string) ($photo['file_name'] ?? ''),
+            'fileType' => (string) ($photo['file_type'] ?? ''),
+            'notes' => (string) ($photo['notes'] ?? ''),
+            'submittedAt' => $photo['submitted_at'] ?? null,
+            'fileUrl' => '/api/file.php?kind=proofs&id=' . (int) $photo['id'] . '&distributionId=' . (int) $distribution['id'],
+          ];
+        }, $photoStmt->fetchAll());
+        if (!$photos) continue;
+        $distributionUpdates[] = [
+          'distributionId' => (int) $distribution['id'],
+          'distributionCode' => (string) ($distribution['code'] ?? ''),
+          'distributionDate' => format_date($distribution['distribution_date'] ?? null),
+          'distributionDateRaw' => $distribution['distribution_date'] ?? null,
+          'location' => (string) (($distribution['location'] ?? '') ?: ($distribution['barangay_name'] ?? '')),
+          'barangay' => (string) ($distribution['barangay_name'] ?? ''),
+          'familiesServed' => (int) ($distribution['families_served'] ?? 0),
+          'status' => normalize_distribution_status((string) ($distribution['status'] ?? 'Planning')),
+          'photos' => $photos,
+        ];
+      }
+    } catch (Throwable $e) {
+      $distributionUpdates = [];
+    }
   }
 
   $amountRaw = (float) ($row['amount'] ?? 0);
@@ -223,6 +265,7 @@ function map_donation(array $row, ?PDO $pdo = null): array
     'familiesSupported' => $familiesSupported,
     'procurements' => $procurements,
     'relatedProcesses' => $relatedProcesses,
+    'distributionUpdates' => $distributionUpdates,
     'itemsDescription' => $row['items_description'],
     'status' => $effectiveStatus,
     'date' => format_date($row['donation_date']),

@@ -92,6 +92,7 @@ function map_proof(PDO $pdo, array $row): array
   $categoryLabel = match ($category) {
     'received_goods' => 'Received donations',
     'distribution' => 'Distribution photos',
+    'staff_distribution_update' => 'Distribution update',
     'acknowledgment' => 'Signed acknowledgment',
     default => 'Supporting file',
   };
@@ -145,7 +146,7 @@ if ($method === 'GET') {
     if (!$benId) {
       json_response(['ok' => true, 'data' => []]);
     }
-    $stmt = $pdo->prepare('SELECT * FROM distribution_proofs WHERE beneficiary_id = ? ORDER BY submitted_at DESC');
+    $stmt = $pdo->prepare("SELECT * FROM distribution_proofs WHERE beneficiary_id = ? AND proof_category <> 'staff_distribution_update' ORDER BY submitted_at DESC");
     $stmt->execute([$benId]);
   } elseif ($distributionFilter > 0) {
     $stmt = $pdo->prepare('SELECT * FROM distribution_proofs WHERE distribution_id = ? ORDER BY submitted_at DESC');
@@ -161,6 +162,134 @@ if ($method === 'GET') {
 }
 
 if ($method === 'POST') {
+  if ($user['role'] === 'Staff') {
+    $distributionId = (int) ($_POST['distributionId'] ?? 0);
+    $notes = trim((string) ($_POST['notes'] ?? ''));
+    if ($distributionId <= 0) {
+      json_response(['ok' => false, 'error' => 'Please select a distribution event'], 400);
+    }
+
+    $distCheck = $pdo->prepare('SELECT * FROM distributions WHERE id = ? LIMIT 1');
+    $distCheck->execute([$distributionId]);
+    $distribution = $distCheck->fetch();
+    if (!$distribution) {
+      json_response(['ok' => false, 'error' => 'Distribution event not found'], 404);
+    }
+    $distributionStatus = normalize_distribution_status((string) ($distribution['status'] ?? 'Planning'));
+    if (!in_array($distributionStatus, ['In Transit', 'Delivered', 'Proof Review', 'Completed'], true)) {
+      json_response(['ok' => false, 'error' => 'Distribution photos can be uploaded once the distribution is in transit or later.'], 400);
+    }
+    $beneficiaryId = (int) ($distribution['beneficiary_id'] ?? 0);
+    if ($beneficiaryId <= 0) {
+      $beneficiaryLookup = $pdo->prepare('SELECT beneficiary_id FROM allocations WHERE distribution_id = ? AND beneficiary_id IS NOT NULL ORDER BY id ASC LIMIT 1');
+      $beneficiaryLookup->execute([$distributionId]);
+      $beneficiaryId = (int) ($beneficiaryLookup->fetchColumn() ?: 0);
+    }
+    if ($beneficiaryId <= 0) {
+      json_response(['ok' => false, 'error' => 'This distribution must be linked to a barangay before photos can be saved'], 400);
+    }
+
+    $entry = $_FILES['distribution_photos'] ?? null;
+    $uploads = [];
+    if ($entry && is_array($entry['name'] ?? null)) {
+      foreach ($entry['name'] as $index => $name) {
+        if (($entry['error'][$index] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_OK) continue;
+        $uploads[] = [
+          'name' => (string) $name,
+          'type' => (string) ($entry['type'][$index] ?? ''),
+          'tmp' => (string) ($entry['tmp_name'][$index] ?? ''),
+          'size' => (int) ($entry['size'][$index] ?? 0),
+        ];
+      }
+    }
+    if (count($uploads) < 2 || count($uploads) > 3) {
+      json_response(['ok' => false, 'error' => 'Upload 2 to 3 distribution photos.'], 400);
+    }
+
+    $allowed = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
+    foreach ($uploads as &$file) {
+      $file['mime'] = mime_content_type($file['tmp']) ?: $file['type'];
+      if (!in_array($file['mime'], $allowed, true)) {
+        json_response(['ok' => false, 'error' => 'Distribution updates accept JPG, PNG, WEBP, or GIF images only.'], 400);
+      }
+      if ($file['size'] <= 0 || $file['size'] > 5 * 1024 * 1024) {
+        json_response(['ok' => false, 'error' => 'Each distribution photo must be 5MB or smaller.'], 400);
+      }
+      $file['data'] = file_get_contents($file['tmp']);
+      if ($file['data'] === false) {
+        json_response(['ok' => false, 'error' => 'Failed to read an uploaded photo.'], 500);
+      }
+    }
+    unset($file);
+
+    $uploadDir = __DIR__ . '/uploads/proofs';
+    if (!is_dir($uploadDir) && !mkdir($uploadDir, 0755, true) && !is_dir($uploadDir)) {
+      json_response(['ok' => false, 'error' => 'Unable to prepare photo storage.'], 500);
+    }
+
+    $newPaths = [];
+    $oldPaths = [];
+    try {
+      $pdo->beginTransaction();
+      $oldStmt = $pdo->prepare("SELECT file_path FROM distribution_proofs WHERE distribution_id = ? AND proof_category = 'staff_distribution_update' FOR UPDATE");
+      $oldStmt->execute([$distributionId]);
+      $oldPaths = array_values(array_filter(array_map('strval', $oldStmt->fetchAll(PDO::FETCH_COLUMN))));
+
+      $insert = $pdo->prepare("INSERT INTO distribution_proofs (distribution_id, beneficiary_id, submitted_by_user_id, file_path, file_name, file_type, file_data, notes, proof_category, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'staff_distribution_update', 'Approved')");
+      $newIds = [];
+      foreach ($uploads as $file) {
+        $extension = match ($file['mime']) {
+          'image/png' => 'png',
+          'image/webp' => 'webp',
+          'image/gif' => 'gif',
+          default => 'jpg',
+        };
+        $safeName = 'distribution_update_' . time() . '_' . bin2hex(random_bytes(5)) . '.' . $extension;
+        $destination = $uploadDir . '/' . $safeName;
+        if (!move_uploaded_file($file['tmp'], $destination)) {
+          throw new RuntimeException('Failed to save an uploaded distribution photo.');
+        }
+        $newPaths[] = $destination;
+        $insert->execute([
+          $distributionId,
+          $beneficiaryId,
+          (int) $user['id'],
+          $safeName,
+          $file['name'],
+          $file['mime'],
+          $file['data'],
+          $notes !== '' ? $notes : null,
+        ]);
+        $newIds[] = (int) $pdo->lastInsertId();
+      }
+      $deleteOld = $pdo->prepare("DELETE FROM distribution_proofs WHERE distribution_id = ? AND proof_category = 'staff_distribution_update' AND id NOT IN (" . implode(',', array_fill(0, count($newIds), '?')) . ')');
+      $deleteOld->execute(array_merge([$distributionId], $newIds));
+      $pdo->commit();
+
+      foreach ($oldPaths as $oldPath) {
+        $candidate = $uploadDir . '/' . basename($oldPath);
+        if (is_file($candidate)) @unlink($candidate);
+      }
+
+      $placeholders = implode(',', array_fill(0, count($newIds), '?'));
+      $savedStmt = $pdo->prepare("SELECT * FROM distribution_proofs WHERE id IN ({$placeholders}) ORDER BY id ASC");
+      $savedStmt->execute($newIds);
+      $rows = $savedStmt->fetchAll();
+      json_response([
+        'ok' => true,
+        'message' => 'Distribution photos saved.',
+        'count' => count($rows),
+        'data' => array_map(fn($r) => map_proof($pdo, $r), $rows),
+      ], 201);
+    } catch (Throwable $e) {
+      if ($pdo->inTransaction()) $pdo->rollBack();
+      foreach ($newPaths as $newPath) {
+        if (is_file($newPath)) @unlink($newPath);
+      }
+      json_response(['ok' => false, 'error' => $e->getMessage() ?: 'Unable to save distribution photos.'], 500);
+    }
+  }
+
   if ($user['role'] !== 'Beneficiary') {
     json_response(['ok' => false, 'error' => 'Only barangay representatives can upload proof'], 403);
   }
@@ -363,6 +492,9 @@ if ($method === 'PUT') {
   $proof = $stmt->fetch();
   if (!$proof) {
     json_response(['ok' => false, 'error' => 'Proof not found'], 404);
+  }
+  if (($proof['proof_category'] ?? '') === 'staff_distribution_update') {
+    json_response(['ok' => false, 'error' => 'Distribution update photos are view-only and are not part of proof approval.'], 400);
   }
 
   if ($proof['status'] === 'Approved' && $status !== 'Approved') {

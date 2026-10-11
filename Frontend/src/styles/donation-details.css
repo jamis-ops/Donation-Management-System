@@ -208,6 +208,56 @@
   color: #AF101A;
 }
 
+.distribution-updates,
+.staff-distribution-photos {
+  margin: 1rem 0;
+  padding: 1rem;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  background: #f8fafc;
+}
+
+.distribution-updates__title,
+.staff-distribution-photos__heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-bottom: 0.85rem;
+}
+
+.distribution-updates__title { justify-content: flex-start; color: #AF101A; }
+.distribution-updates__title h4,
+.staff-distribution-photos__heading h4 { margin: 0; color: #1e293b; font-size: 0.92rem; display: flex; align-items: center; gap: 0.4rem; }
+.distribution-updates__title p,
+.staff-distribution-photos__heading p { margin: 0.2rem 0 0; color: #64748b; font-size: 0.78rem; }
+.distribution-updates__list { display: grid; gap: 0.85rem; }
+
+.distribution-update-card { padding: 0.85rem; border: 1px solid #dbe3ee; border-radius: 10px; background: #fff; }
+.distribution-update-card__meta { display: grid; grid-template-columns: minmax(150px, 1fr) auto minmax(210px, 1.2fr); align-items: center; gap: 0.7rem; margin-bottom: 0.7rem; }
+.distribution-update-card__meta > div { display: flex; flex-direction: column; gap: 0.2rem; min-width: 0; }
+.distribution-update-card__meta span { display: inline-flex; align-items: center; gap: 0.3rem; color: #64748b; font-size: 0.76rem; overflow-wrap: anywhere; }
+.distribution-update-card__note { margin: 0.65rem 0 0; color: #475569; font-size: 0.78rem; }
+
+.distribution-photo-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0.65rem; }
+.distribution-photo-card { position: relative; min-width: 0; overflow: hidden; border: 1px solid #dbe3ee; border-radius: 9px; background: #fff; color: #334155; text-decoration: none; }
+.distribution-photo-card img { display: block; width: 100%; aspect-ratio: 4 / 3; object-fit: cover; background: #e2e8f0; }
+.distribution-photo-card span { display: block; padding: 0.4rem 0.5rem; font-size: 0.72rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.distribution-photo-card--draft button { position: absolute; top: 0.4rem; right: 0.4rem; display: grid; place-items: center; width: 28px; height: 28px; padding: 0; border: 0; border-radius: 50%; color: #fff; background: #AF101A; cursor: pointer; box-shadow: 0 3px 10px rgba(15,23,42,.25); }
+.distribution-photo-empty { display: flex; align-items: center; justify-content: center; gap: 0.5rem; min-height: 76px; padding: 1rem; border: 1px dashed #cbd5e1; border-radius: 9px; color: #64748b; font-size: 0.8rem; text-align: center; }
+.staff-distribution-photos__picker input { display: none; }
+.staff-distribution-photos__save-row { display: grid; grid-template-columns: 1fr auto; gap: 0.65rem; margin-top: 0.75rem; }
+.staff-distribution-photos__save-row input { min-width: 0; padding: 0.55rem 0.7rem; border: 1px solid #cbd5e1; border-radius: 7px; font: inherit; font-size: 0.8rem; }
+.distribution-photo-validation { margin: 0.45rem 0 0; color: #b45309; font-size: 0.75rem; }
+
+@media (max-width: 700px) {
+  .distribution-update-card__meta { grid-template-columns: 1fr auto; }
+  .distribution-update-card__meta > div:last-child { grid-column: 1 / -1; }
+  .distribution-photo-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .staff-distribution-photos__heading { flex-direction: column; }
+  .staff-distribution-photos__save-row { grid-template-columns: 1fr; }
+}
+
 /* =========================================================
    DONATION OVERVIEW CARDS (BALANCED 3-COLUMN COMPACT GRID)
    ========================================================= */

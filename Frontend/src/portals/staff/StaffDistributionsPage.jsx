@@ -15,11 +15,15 @@ import {
   UserCheck,
   History,
   Info,
+  Image as ImageIcon,
+  Upload,
+  Trash2,
 } from 'lucide-react'
 import ApiState from '../../admin/components/shared/ApiState'
 import StatusBadge from '../../admin/components/shared/StatusBadge'
 import ModalHeader from '../../admin/components/shared/ModalHeader'
-import { distributionsApi } from '../../api/resources'
+import { distributionsApi, uploadStaffDistributionPhotos } from '../../api/resources'
+import { getAuthenticatedFileUrl } from '../../api/auth'
 import { useApiList } from '../../hooks/useApiList'
 import { usePagination, DEFAULT_PAGE_SIZE } from '../../hooks/usePagination'
 import Pagination from '../../admin/components/shared/Pagination'
@@ -101,6 +105,68 @@ export default function StaffDistributionsPage() {
   const [searchQuery, setSearchQuery] = useState(() => searchParams.get('q') || searchParams.get('search') || '')
   const [selectedDistribution, setSelectedDistribution] = useState(null)
   const [saving, setSaving] = useState(false)
+  const [photoDrafts, setPhotoDrafts] = useState([])
+  const [photoNotes, setPhotoNotes] = useState('')
+  const [photoSaving, setPhotoSaving] = useState(false)
+
+  const openDistribution = (distribution) => {
+    photoDrafts.forEach((draft) => URL.revokeObjectURL(draft.preview))
+    setPhotoDrafts([])
+    setPhotoNotes('')
+    setSelectedDistribution(distribution)
+  }
+
+  const closeDistribution = () => {
+    photoDrafts.forEach((draft) => URL.revokeObjectURL(draft.preview))
+    setPhotoDrafts([])
+    setPhotoNotes('')
+    setSelectedDistribution(null)
+  }
+
+  const handlePhotoSelection = (event) => {
+    const files = Array.from(event.target.files || [])
+    event.target.value = ''
+    if (files.length < 2 || files.length > 3) {
+      notify.error('Select 2 to 3 distribution photos.')
+      return
+    }
+    const invalid = files.find((file) => !file.type.startsWith('image/') || file.size > 5 * 1024 * 1024)
+    if (invalid) {
+      notify.error('Use JPG, PNG, WEBP, or GIF images up to 5MB each.')
+      return
+    }
+    photoDrafts.forEach((draft) => URL.revokeObjectURL(draft.preview))
+    setPhotoDrafts(files.map((file) => ({ file, preview: URL.createObjectURL(file) })))
+  }
+
+  const removePhotoDraft = (index) => {
+    setPhotoDrafts((current) => {
+      URL.revokeObjectURL(current[index].preview)
+      return current.filter((_, itemIndex) => itemIndex !== index)
+    })
+  }
+
+  const saveDistributionPhotos = async () => {
+    if (!selectedDistribution?.dbId || photoDrafts.length < 2 || photoDrafts.length > 3) return
+    setPhotoSaving(true)
+    const formData = new FormData()
+    formData.append('distributionId', String(selectedDistribution.dbId))
+    formData.append('notes', photoNotes.trim())
+    photoDrafts.forEach(({ file }) => formData.append('distribution_photos[]', file))
+    try {
+      const response = await uploadStaffDistributionPhotos(formData)
+      setSelectedDistribution((current) => current ? { ...current, distributionPhotos: response.data || [] } : current)
+      photoDrafts.forEach((draft) => URL.revokeObjectURL(draft.preview))
+      setPhotoDrafts([])
+      setPhotoNotes('')
+      await reload(true)
+      showSuccessModal('Distribution photos saved. They are now available to the linked donor and Admin.')
+    } catch (err) {
+      notify.error(err.message || 'Unable to save distribution photos')
+    } finally {
+      setPhotoSaving(false)
+    }
+  }
 
   useEffect(() => {
     const st = searchParams.get('status')
@@ -376,7 +442,7 @@ export default function StaffDistributionsPage() {
                           type="button"
                           className="btn btn--sm btn--outline"
                           style={{ flex: 1, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: '5px' }}
-                          onClick={() => setSelectedDistribution(dist)}
+                          onClick={() => openDistribution(dist)}
                         >
                           <Eye size={14} /> Details
                         </button>
@@ -425,13 +491,14 @@ export default function StaffDistributionsPage() {
           const itemsList = parseItemsList(selectedDistribution)
           const { assignedStaff, teamMembers, cleanNotes } = extractTeamAndNotes(selectedDistribution)
           const advanceStep = STAFF_ADVANCE[selectedDistribution.status]
+          const canUploadPhotos = ['In Transit', 'Delivered', 'Proof Review', 'Completed'].includes(selectedDistribution.status)
 
           return (
-            <div className="admin-modal-overlay" onClick={() => setSelectedDistribution(null)}>
+            <div className="admin-modal-overlay" onClick={closeDistribution}>
               <div className="admin-modal admin-modal--wide staff-admin-modal" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '780px' }}>
                 <ModalHeader
                   title={`Distribution Event – ${selectedDistribution.id || 'DST'}`}
-                  onClose={() => setSelectedDistribution(null)}
+                  onClose={closeDistribution}
                 />
 
                 <div className="staff-admin-modal__body">
@@ -638,6 +705,56 @@ export default function StaffDistributionsPage() {
                     </div>
                   )}
 
+                  <section className="staff-distribution-photos" aria-labelledby="distribution-photos-title">
+                    <div className="staff-distribution-photos__heading">
+                      <div>
+                        <h4 id="distribution-photos-title"><ImageIcon size={16} /> Distribution Photos</h4>
+                        <p>Upload 2–3 photos from the actual distribution. Saving a new set replaces the current set.</p>
+                      </div>
+                      {canUploadPhotos && (
+                        <label className="btn btn--outline btn--sm staff-distribution-photos__picker">
+                          <Upload size={15} /> Choose Photos
+                          <input type="file" accept="image/jpeg,image/png,image/webp,image/gif" multiple onChange={handlePhotoSelection} />
+                        </label>
+                      )}
+                    </div>
+
+                    {photoDrafts.length > 0 ? (
+                      <div className="distribution-photo-grid">
+                        {photoDrafts.map((draft, index) => (
+                          <div className="distribution-photo-card distribution-photo-card--draft" key={draft.preview}>
+                            <img src={draft.preview} alt={`Distribution preview ${index + 1}`} />
+                            <button type="button" onClick={() => removePhotoDraft(index)} aria-label={`Remove ${draft.file.name}`} title="Remove photo">
+                              <Trash2 size={14} />
+                            </button>
+                            <span>{draft.file.name}</span>
+                          </div>
+                        ))}
+                      </div>
+                    ) : Array.isArray(selectedDistribution.distributionPhotos) && selectedDistribution.distributionPhotos.length > 0 ? (
+                      <div className="distribution-photo-grid">
+                        {selectedDistribution.distributionPhotos.map((photo, index) => (
+                          <a className="distribution-photo-card" key={photo.id} href={getAuthenticatedFileUrl(photo.fileUrl)} target="_blank" rel="noreferrer">
+                            <img src={getAuthenticatedFileUrl(photo.fileUrl)} alt={`Distribution update ${index + 1}`} />
+                            <span>{photo.fileName || `Distribution photo ${index + 1}`}</span>
+                          </a>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="distribution-photo-empty"><ImageIcon size={20} /> {canUploadPhotos ? 'No distribution photos saved yet.' : 'Photo uploads open when the distribution is in transit.'}</div>
+                    )}
+
+                    {photoDrafts.length > 0 && (
+                      <div className="staff-distribution-photos__save-row">
+                        <input value={photoNotes} onChange={(event) => setPhotoNotes(event.target.value)} maxLength={300} placeholder="Optional short update for donors" />
+                        <button type="button" className="btn btn--success btn--sm" disabled={photoSaving || photoDrafts.length < 2} onClick={saveDistributionPhotos}>
+                          <Upload size={15} /> {photoSaving ? 'Saving…' : 'Save Photos'}
+                        </button>
+                      </div>
+                    )}
+                    {photoDrafts.length === 1 && <p className="distribution-photo-validation">Add one more photo before saving.</p>}
+                  </section>
+
                   {/* Section 6: Activity History / Timeline */}
                   {Array.isArray(selectedDistribution.statusActivity) && selectedDistribution.statusActivity.length > 0 && (
                     <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '8px', padding: '1rem' }}>
@@ -657,7 +774,7 @@ export default function StaffDistributionsPage() {
 
                 {/* Modal Footer Actions: Single arrow only */}
                 <div className="admin-modal__actions" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: '1px solid #e2e8f0', paddingTop: '1rem', marginTop: '1.25rem' }}>
-                  <button type="button" className="btn btn--ghost" onClick={() => setSelectedDistribution(null)}>
+                  <button type="button" className="btn btn--ghost" onClick={closeDistribution}>
                     Close
                   </button>
 

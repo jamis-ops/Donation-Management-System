@@ -6,7 +6,7 @@ import {
   Calendar, Mail, Coins, CreditCard, ShieldCheck,
   Trash2, ExternalLink, ShoppingCart, XCircle, Copy,
   ZoomIn, ZoomOut, RotateCcw, AlertCircle, X,
-  HeartHandshake, Upload
+  HeartHandshake, Upload, Images
 } from 'lucide-react'
 import { donationsApi, beneficiariesApi, assistanceRequestsApi, paymentMethodsApi, needTypesApi } from '../../api/resources'
 import { getAuthenticatedFileUrl } from '../../api/auth'
@@ -1105,6 +1105,16 @@ export default function DonationsPage() {
                   <span className="donation-tab__badge">1</span>
                 </button>
               )}
+              {Array.isArray(selected.distributionUpdates) && selected.distributionUpdates.length > 0 && (
+                <button
+                  className={`donation-tab${modalTab === 'distribution' ? ' donation-tab--active' : ''}`}
+                  onClick={() => setModalTab('distribution')}
+                >
+                  <Images size={16} />
+                  Distribution Updates
+                  <span className="donation-tab__badge">{selected.distributionUpdates.length}</span>
+                </button>
+              )}
             </div>
 
             {/* Tab Content: Donation Details */}
@@ -1707,6 +1717,35 @@ export default function DonationsPage() {
                   </a>
                 </div>
               </div>
+            )}
+
+            {modalTab === 'distribution' && (
+              <section className="distribution-updates distribution-updates--admin">
+                <div className="distribution-updates__title">
+                  <Images size={19} />
+                  <div><h4>Distribution Updates</h4><p>Staff-uploaded photos linked through this donation's allocation records.</p></div>
+                </div>
+                <div className="distribution-updates__list">
+                  {(selected.distributionUpdates || []).map((update) => (
+                    <article className="distribution-update-card" key={update.distributionId}>
+                      <div className="distribution-update-card__meta">
+                        <div><strong>{update.distributionCode || 'Distribution'}</strong><span><Calendar size={13} /> {update.distributionDate || 'Date unavailable'}</span></div>
+                        <StatusBadge status={update.status} />
+                        <div><span>{update.barangay || update.location || 'Location unavailable'}</span><span>{update.familiesServed || 0} families served</span></div>
+                      </div>
+                      <div className="distribution-photo-grid">
+                        {update.photos.map((photo, index) => (
+                          <a className="distribution-photo-card" key={photo.id} href={getAuthenticatedFileUrl(photo.fileUrl)} target="_blank" rel="noreferrer">
+                            <img src={getAuthenticatedFileUrl(photo.fileUrl)} alt={`${update.distributionCode || 'Distribution'} update ${index + 1}`} />
+                            <span>{photo.fileName || `Photo ${index + 1}`}</span>
+                          </a>
+                        ))}
+                      </div>
+                      {update.photos[0]?.notes && <p className="distribution-update-card__note">{update.photos[0].notes}</p>}
+                    </article>
+                  ))}
+                </div>
+              </section>
             )}
 
             {/* Modal Footer */}
