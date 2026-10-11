@@ -30,6 +30,7 @@ import Pagination from '../../admin/components/shared/Pagination'
 import { notify, confirmAction, showSuccessModal } from '../../utils/confirm'
 import { notifyBadgesChanged } from '../../utils/badgeSync'
 import { useLoading } from '../../context/LoadingContext'
+import PortalModal from '../shared/PortalModal'
 
 const STAFF_ADVANCE = {
   Planning: { next: 'Preparing', label: 'Preparing' },
@@ -494,7 +495,8 @@ export default function StaffDistributionsPage() {
           const canUploadPhotos = ['In Transit', 'Delivered', 'Proof Review', 'Completed'].includes(selectedDistribution.status)
 
           return (
-            <div className="admin-modal-overlay" onClick={closeDistribution}>
+            <PortalModal>
+              <div className="admin-modal-overlay" onClick={closeDistribution}>
               <div className="admin-modal admin-modal--wide staff-admin-modal" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '780px' }}>
                 <ModalHeader
                   title={`Distribution Event – ${selectedDistribution.id || 'DST'}`}
@@ -799,7 +801,8 @@ export default function StaffDistributionsPage() {
                 </div>
                 </div>
               </div>
-            </div>
+              </div>
+            </PortalModal>
           )
         })()}
       </div>

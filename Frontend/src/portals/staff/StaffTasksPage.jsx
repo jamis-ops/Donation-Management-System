@@ -28,6 +28,7 @@ import Pagination from '../../admin/components/shared/Pagination'
 import { notify, confirmAction, showSuccessModal } from '../../utils/confirm'
 import { notifyBadgesChanged } from '../../utils/badgeSync'
 import { useLoading } from '../../context/LoadingContext'
+import PortalModal from '../shared/PortalModal'
 
 export default function StaffTasksPage() {
   const [searchParams, setSearchParams] = useSearchParams()
@@ -435,7 +436,8 @@ export default function StaffTasksPage() {
           const isReview = selectedTask.boardColumn === 'review' || selectedTask.status === 'In Review'
 
           return (
-            <div className="admin-modal-overlay" onClick={() => setSelectedTask(null)}>
+            <PortalModal>
+              <div className="admin-modal-overlay" onClick={() => setSelectedTask(null)}>
               <div className="admin-modal admin-modal--wide staff-admin-modal" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '680px' }}>
                 <ModalHeader
                   title={selectedTask.title}
@@ -598,7 +600,8 @@ export default function StaffTasksPage() {
                 </div>
                 </div>
               </div>
-            </div>
+              </div>
+            </PortalModal>
           )
         })()}
       </div>

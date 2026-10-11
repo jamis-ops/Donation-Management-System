@@ -27,6 +27,7 @@ import { notify, confirmAction, showSuccessModal } from '../../utils/confirm'
 import { useLoading } from '../../context/LoadingContext'
 import { useAuth } from '../../context/AuthContext'
 import { exportInventory } from '../../utils/exportData'
+import PortalModal from '../shared/PortalModal'
 
 export default function StaffInventoryPage() {
   const { showLoading, hideLoading } = useLoading()
@@ -551,7 +552,8 @@ export default function StaffInventoryPage() {
 
         {/* Item Detail Modal */}
         {selectedItem && !showStockModal && (
-          <div className="admin-modal-overlay" onClick={() => setSelectedItem(null)}>
+          <PortalModal>
+            <div className="admin-modal-overlay" onClick={() => setSelectedItem(null)}>
             <div className="admin-modal staff-admin-modal" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '600px' }}>
               <ModalHeader
                 title={selectedItem.item}
@@ -695,12 +697,14 @@ export default function StaffInventoryPage() {
               </div>
               </div>
             </div>
-          </div>
+            </div>
+          </PortalModal>
         )}
 
         {/* Stock Update Modal */}
         {showStockModal && selectedItem && (
-          <div className="admin-modal-overlay" onClick={() => setShowStockModal(false)}>
+          <PortalModal>
+            <div className="admin-modal-overlay" onClick={() => setShowStockModal(false)}>
             <div className="admin-modal staff-admin-modal" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '440px' }}>
               <ModalHeader
                 title={`${stockAction === 'add' ? 'Add Stock' : 'Remove Stock'} – ${selectedItem.item}`}
@@ -795,7 +799,8 @@ export default function StaffInventoryPage() {
               </div>
               </div>
             </div>
-          </div>
+            </div>
+          </PortalModal>
         )}
       </div>
     </ApiState>

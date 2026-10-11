@@ -1258,8 +1258,8 @@
 }
 
 @keyframes staff-page-enter {
-  from { opacity: 0; transform: translateY(5px); }
-  to { opacity: 1; transform: translateY(0); }
+  from { opacity: 0; }
+  to { opacity: 1; }
 }
 
 .portal-layout--staff .portal-panel {
@@ -1614,18 +1614,30 @@
 }
 
 /* Staff modals and forms */
-.portal-layout--staff .admin-modal-overlay,
-.portal-layout--staff .staff-modal-overlay,
-.portal-layout--staff .staff-task-modal-overlay,
-.portal-layout--staff .approval-confirm-overlay {
+.staff-modal-portal-root {
+  --staff-brand: #AF101A;
+  --staff-brand-dark: #760912;
+  --staff-ink: #111827;
+  --staff-muted: #64748b;
+  --staff-line: rgba(148, 163, 184, 0.24);
+  --staff-surface: rgba(255, 255, 255, 0.92);
+  position: relative;
+  z-index: 1000;
+}
+
+:is(.portal-layout--staff, .staff-modal-portal-root) .admin-modal-overlay,
+:is(.portal-layout--staff, .staff-modal-portal-root) .staff-modal-overlay,
+:is(.portal-layout--staff, .staff-modal-portal-root) .staff-task-modal-overlay,
+:is(.portal-layout--staff, .staff-modal-portal-root) .approval-confirm-overlay {
   padding: clamp(0.65rem, 2vw, 1.5rem);
   background: rgba(15, 23, 42, 0.58);
   backdrop-filter: blur(6px);
   overflow: hidden;
   overscroll-behavior: contain;
+  animation: staff-modal-backdrop-in 0.18s ease-out;
 }
 
-.portal-layout--staff .admin-modal {
+:is(.portal-layout--staff, .staff-modal-portal-root) .admin-modal {
   width: min(100%, 760px);
   max-height: min(90dvh, 900px);
   overflow-x: hidden;
@@ -1636,9 +1648,10 @@
   border: 1px solid rgba(255,255,255,0.5);
   border-radius: 20px;
   box-shadow: 0 32px 80px -28px rgba(15,23,42,0.65);
+  animation: staff-modal-surface-in 0.22s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
-.portal-layout--staff .admin-modal__header {
+:is(.portal-layout--staff, .staff-modal-portal-root) .admin-modal__header {
   background:
     linear-gradient(115deg, rgba(255,255,255,0.07), transparent 40%),
     linear-gradient(135deg, #AF101A, #840b14);
@@ -1646,14 +1659,14 @@
 }
 
 /* Fixed modal chrome with one dedicated content scroller. */
-.portal-layout--staff .admin-modal.staff-admin-modal {
+:is(.portal-layout--staff, .staff-modal-portal-root) .admin-modal.staff-admin-modal {
   display: flex;
   flex-direction: column;
   padding: 0;
   overflow: hidden;
 }
 
-.portal-layout--staff .staff-admin-modal > .admin-modal__header {
+:is(.portal-layout--staff, .staff-modal-portal-root) .staff-admin-modal > .admin-modal__header {
   position: relative;
   top: auto;
   flex: 0 0 auto;
@@ -1661,7 +1674,7 @@
   border-radius: 20px 20px 0 0;
 }
 
-.portal-layout--staff .staff-admin-modal__body {
+:is(.portal-layout--staff, .staff-modal-portal-root) .staff-admin-modal__body {
   flex: 1 1 auto;
   min-height: 0;
   max-width: 100%;
@@ -1673,20 +1686,20 @@
   -webkit-overflow-scrolling: touch;
 }
 
-.portal-layout--staff .admin-modal__actions {
+:is(.portal-layout--staff, .staff-modal-portal-root) .admin-modal__actions {
   background: rgba(248,250,252,0.75);
 }
 
-.portal-layout--staff .donation-detail-modal {
+:is(.portal-layout--staff, .staff-modal-portal-root) .donation-detail-modal {
   touch-action: pan-y;
 }
 
-.portal-layout--staff .staff-proof-viewer-modal {
+:is(.portal-layout--staff, .staff-modal-portal-root) .staff-proof-viewer-modal {
   height: min(90dvh, 900px);
   overflow: hidden;
 }
 
-.portal-layout--staff .staff-proof-viewer-modal__canvas {
+:is(.portal-layout--staff, .staff-modal-portal-root) .staff-proof-viewer-modal__canvas {
   flex: 1 1 auto;
   min-height: 0;
   overflow: auto;
@@ -1695,14 +1708,14 @@
   -webkit-overflow-scrolling: touch;
 }
 
-.portal-layout--staff .staff-modal,
-.portal-layout--staff .staff-task-modal {
+:is(.portal-layout--staff, .staff-modal-portal-root) .staff-modal,
+:is(.portal-layout--staff, .staff-modal-portal-root) .staff-task-modal {
   max-height: min(90dvh, 900px);
   overflow: hidden;
 }
 
-.portal-layout--staff .staff-modal__content,
-.portal-layout--staff .staff-task-modal__content {
+:is(.portal-layout--staff, .staff-modal-portal-root) .staff-modal__content,
+:is(.portal-layout--staff, .staff-modal-portal-root) .staff-task-modal__content {
   min-height: 0;
   overflow-x: hidden;
   overflow-y: auto;
@@ -1711,13 +1724,13 @@
   -webkit-overflow-scrolling: touch;
 }
 
-.portal-layout--staff .btn {
+:is(.portal-layout--staff, .staff-modal-portal-root) .btn {
   min-height: 38px;
   border-radius: 10px;
   font-weight: 700;
 }
 
-.portal-layout--staff .btn--primary {
+:is(.portal-layout--staff, .staff-modal-portal-root) .btn--primary {
   background: linear-gradient(135deg, #AF101A, #8C0C14);
   box-shadow: 0 8px 18px -12px rgba(175,16,26,0.75);
 }
@@ -1729,28 +1742,45 @@
 }
 
 @media (max-width: 640px) {
-  .portal-layout--staff .admin-modal-overlay,
-  .portal-layout--staff .staff-modal-overlay,
-  .portal-layout--staff .staff-task-modal-overlay,
-  .portal-layout--staff .approval-confirm-overlay {
+  :is(.portal-layout--staff, .staff-modal-portal-root) .admin-modal-overlay,
+  :is(.portal-layout--staff, .staff-modal-portal-root) .staff-modal-overlay,
+  :is(.portal-layout--staff, .staff-modal-portal-root) .staff-task-modal-overlay,
+  :is(.portal-layout--staff, .staff-modal-portal-root) .approval-confirm-overlay {
     align-items: center;
     padding: 0.5rem;
   }
 
-  .portal-layout--staff .admin-modal,
-  .portal-layout--staff .staff-modal,
-  .portal-layout--staff .staff-task-modal {
+  :is(.portal-layout--staff, .staff-modal-portal-root) .admin-modal,
+  :is(.portal-layout--staff, .staff-modal-portal-root) .staff-modal,
+  :is(.portal-layout--staff, .staff-modal-portal-root) .staff-task-modal {
     width: 100%;
     max-height: calc(100dvh - 1rem);
     border-radius: 14px;
   }
 
-  .portal-layout--staff .staff-admin-modal > .admin-modal__header {
+  :is(.portal-layout--staff, .staff-modal-portal-root) .staff-admin-modal > .admin-modal__header {
     border-radius: 14px 14px 0 0;
   }
 
-  .portal-layout--staff .staff-admin-modal__body {
+  :is(.portal-layout--staff, .staff-modal-portal-root) .staff-admin-modal__body {
     padding: 1rem;
+  }
+}
+
+@keyframes staff-modal-backdrop-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes staff-modal-surface-in {
+  from { opacity: 0; transform: translateY(10px) scale(0.985); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .staff-modal-portal-root .admin-modal-overlay,
+  .staff-modal-portal-root .admin-modal {
+    animation: none;
   }
 }
 

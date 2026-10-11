@@ -31,8 +31,9 @@ export default function useScopedModalScrollLock(layoutRef, enabled = true) {
     const hasOpenModal = () => {
       const layout = layoutRef.current
       const scopedModal = layout?.querySelector(SCOPED_MODAL_SELECTOR)
+      const portaledStaffModal = document.querySelector('[data-staff-modal-root="true"]')
       const globalConfirmation = document.querySelector('.confirm-modal-overlay')
-      return Boolean(scopedModal || globalConfirmation)
+      return Boolean(scopedModal || portaledStaffModal || globalConfirmation)
     }
 
     const lock = () => {

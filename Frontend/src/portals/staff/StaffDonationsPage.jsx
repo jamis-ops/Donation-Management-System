@@ -37,6 +37,7 @@ import Pagination from '../../admin/components/shared/Pagination'
 import { notify, confirmAction, showSuccessModal } from '../../utils/confirm'
 import { notifyBadgesChanged } from '../../utils/badgeSync'
 import { useLoading } from '../../context/LoadingContext'
+import PortalModal from '../shared/PortalModal'
 
 function showVerifyResultModal(res, status) {
   if (!res?.accountCreated) {
@@ -461,7 +462,8 @@ export default function StaffDonationsPage() {
 
         {/* Donation Details Modal */}
         {selected && (
-          <div className="admin-modal-overlay staff-donation-modal-overlay" onClick={() => setSelected(null)}>
+          <PortalModal>
+            <div className="admin-modal-overlay staff-donation-modal-overlay" onClick={() => setSelected(null)}>
             <div className="admin-modal admin-modal--wide staff-admin-modal donation-detail-modal" onClick={(e) => e.stopPropagation()}>
               <ModalHeader
                 title={`Donation Details – ${selected.trackingCode}`}
@@ -971,12 +973,14 @@ export default function StaffDonationsPage() {
               </div>
               </div>
             </div>
-          </div>
+            </div>
+          </PortalModal>
         )}
 
         {/* Proof Zoom Modal */}
         {proofZoomModal && selected?.proofUrl && (
-          <div className="admin-modal-overlay" onClick={() => setProofZoomModal(false)} style={{ zIndex: 9999 }}>
+          <PortalModal>
+            <div className="admin-modal-overlay" onClick={() => setProofZoomModal(false)} style={{ zIndex: 9999 }}>
             <div
               className="admin-modal staff-proof-viewer-modal"
               onClick={(e) => e.stopPropagation()}
@@ -1042,18 +1046,21 @@ export default function StaffDonationsPage() {
                 />
               </div>
             </div>
-          </div>
+            </div>
+          </PortalModal>
         )}
 
         {/* In-Kind Intake Classification Modal */}
         {intakeModalDonation && (
-          <InKindIntakeModal
-            isOpen={Boolean(intakeModalDonation)}
-            onClose={() => setIntakeModalDonation(null)}
-            donation={intakeModalDonation}
-            onConfirm={handleClassifyInKindConfirm}
-            saving={busy}
-          />
+          <PortalModal>
+            <InKindIntakeModal
+              isOpen={Boolean(intakeModalDonation)}
+              onClose={() => setIntakeModalDonation(null)}
+              donation={intakeModalDonation}
+              onConfirm={handleClassifyInKindConfirm}
+              saving={busy}
+            />
+          </PortalModal>
         )}
       </div>
     </ApiState>
