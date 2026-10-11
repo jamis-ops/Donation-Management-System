@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
-import { Search, TrendingUp, Coins, Package, Calendar, Users, MapPin, Heart, Award, ArrowRight, Images } from 'lucide-react'
+import { Search, TrendingUp, Coins, Package, Calendar, Users, MapPin, Heart, Award, ArrowRight, Images, FileText, FileCheck, ExternalLink } from 'lucide-react'
 import StatusBadge from '../../admin/components/shared/StatusBadge'
 import ApiState from '../../admin/components/shared/ApiState'
 import { donationsApi, certificatesApi } from '../../api/resources'
@@ -26,6 +26,7 @@ export default function DonorDonationsPage() {
     reload: reloadCertificates,
   } = useApiList(() => certificatesApi.list())
   const [selected, setSelected] = useState(null)
+  const [modalTab, setModalTab] = useState('details')
   const [search, setSearch] = useState(() => searchParams.get('q') || searchParams.get('search') || '')
   const [typeFilter, setTypeFilter] = useState(() => searchParams.get('type') || 'All')
   const [statusFilter, setStatusFilter] = useState(() => searchParams.get('status') || 'All')
@@ -65,6 +66,11 @@ export default function DonorDonationsPage() {
   })
 
   const paging = usePagination(filtered, DEFAULT_PAGE_SIZE, `${search}|${typeFilter}|${statusFilter}`)
+
+  const openDonationDetails = (donation) => {
+    setModalTab('details')
+    setSelected(donation)
+  }
 
   const typeCounts = {
     All: data.length,
@@ -341,7 +347,7 @@ export default function DonorDonationsPage() {
                     <button 
                       type="button" 
                       className="btn btn--sm btn--primary donor-donation-card__track-btn" 
-                      onClick={() => setSelected(d)}
+                      onClick={() => openDonationDetails(d)}
                     >
                       Track Donation
                       <ArrowRight size={14} />
@@ -370,6 +376,40 @@ export default function DonorDonationsPage() {
           <div className="admin-modal admin-modal--extra-wide" onClick={(e) => e.stopPropagation()}>
             <ModalHeader title={`Track Donation ${selected.trackingCode}`} onClose={() => setSelected(null)} />
 
+            <div className="donation-tabs donor-tracking-tabs" role="tablist" aria-label="Donation information">
+              <button
+                type="button"
+                role="tab"
+                aria-selected={modalTab === 'details'}
+                className={`donation-tab${modalTab === 'details' ? ' donation-tab--active' : ''}`}
+                onClick={() => setModalTab('details')}
+              >
+                <FileText size={16} /> Donation Details
+              </button>
+              <button
+                type="button"
+                role="tab"
+                aria-selected={modalTab === 'proof'}
+                className={`donation-tab${modalTab === 'proof' ? ' donation-tab--active' : ''}`}
+                onClick={() => setModalTab('proof')}
+              >
+                <FileCheck size={16} /> Proof of Donation
+                <span className="donation-tab__badge">{selected.hasProof ? 1 : 0}</span>
+              </button>
+              <button
+                type="button"
+                role="tab"
+                aria-selected={modalTab === 'distribution'}
+                className={`donation-tab${modalTab === 'distribution' ? ' donation-tab--active' : ''}`}
+                onClick={() => setModalTab('distribution')}
+              >
+                <Images size={16} /> Distribution Updates
+                <span className="donation-tab__badge">{selected.distributionUpdates?.length || 0}</span>
+              </button>
+            </div>
+
+            {modalTab === 'details' && (
+            <div className="donor-tracking-tab-panel" role="tabpanel">
             <div className="donor-tracking-details">
               <div className="donor-tracking-header">
                 <div className="donor-tracking-amount">
@@ -473,7 +513,47 @@ export default function DonorDonationsPage() {
               </div>
             )}
 
-            <section className="distribution-updates" aria-labelledby="donor-distribution-updates-title">
+            {/* Live Progress Tracker */}
+            <DonationProgressTracker donation={selected} donationId={selected.dbId} />
+            </div>
+            )}
+
+            {modalTab === 'proof' && (
+              <section className="donor-tracking-tab-panel donor-proof-panel" role="tabpanel" aria-labelledby="donor-proof-title">
+                <div className="distribution-updates__title">
+                  <FileCheck size={19} />
+                  <div>
+                    <h4 id="donor-proof-title">Proof of Donation</h4>
+                    <p>The proof submitted with this specific donation.</p>
+                  </div>
+                </div>
+                {selected.hasProof && selected.proofUrl ? (
+                  <div className="donor-proof-card">
+                    {selected.proofIsImage || /\.(jpe?g|png|webp|gif)$/i.test(selected.proofFileName || '') ? (
+                      <a href={getAuthenticatedFileUrl(selected.proofUrl)} target="_blank" rel="noreferrer" className="donor-proof-card__preview">
+                        <img src={getAuthenticatedFileUrl(selected.proofUrl)} alt={selected.proofFileName || 'Donation proof'} />
+                      </a>
+                    ) : (
+                      <div className="donor-proof-card__document"><FileCheck size={34} /></div>
+                    )}
+                    <div className="donor-proof-card__footer">
+                      <div>
+                        <strong>{selected.proofFileName || 'Donation proof'}</strong>
+                        <span>{selected.proofFileType || 'Uploaded file'}</span>
+                      </div>
+                      <a className="btn btn--outline btn--sm" href={getAuthenticatedFileUrl(selected.proofUrl)} target="_blank" rel="noreferrer">
+                        Open Proof <ExternalLink size={14} />
+                      </a>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="distribution-photo-empty"><FileCheck size={21} /> No proof file is available for this donation.</div>
+                )}
+              </section>
+            )}
+
+            {modalTab === 'distribution' && (
+            <section className="distribution-updates donor-tracking-tab-panel" role="tabpanel" aria-labelledby="donor-distribution-updates-title">
               <div className="distribution-updates__title">
                 <Images size={19} />
                 <div>
@@ -506,9 +586,7 @@ export default function DonorDonationsPage() {
                 <div className="distribution-photo-empty"><Images size={21} /> Distribution photos will appear here after Staff posts an update.</div>
               )}
             </section>
-
-            {/* Live Progress Tracker */}
-            <DonationProgressTracker donation={selected} donationId={selected.dbId} />
+            )}
 
             <div className="admin-modal__actions">
               <button type="button" className="btn btn--ghost" onClick={() => setSelected(null)}>Close</button>
