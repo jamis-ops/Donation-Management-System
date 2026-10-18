@@ -816,13 +816,13 @@ export default function BeneficiariesPage() {
 
               <div className="form-row">
                 <label>
-                  <Req required>Municipality</Req>
+                  <Req required>Municipality / City</Req>
                   <select
                     required
                     value={inviteForm.municipality}
                     onChange={(e) => setInviteForm({ ...inviteForm, municipality: e.target.value, barangay: '' })}
                   >
-                    <option value="">Select municipality…</option>
+                    <option value="">Select municipality/city…</option>
                     {MUNICIPALITIES.map((m) => <option key={m} value={m}>{m}</option>)}
                   </select>
                 </label>
@@ -834,7 +834,7 @@ export default function BeneficiariesPage() {
                     disabled={!inviteForm.municipality}
                     onChange={(e) => setInviteForm({ ...inviteForm, barangay: e.target.value })}
                   >
-                    <option value="">{inviteForm.municipality ? 'Select barangay…' : 'Select municipality first…'}</option>
+                    <option value="">{inviteForm.municipality ? 'Select barangay…' : 'Select municipality/city first…'}</option>
                     {barangaysForMunicipality(inviteForm.municipality).map((b) => (
                       <option key={b} value={b}>{b}</option>
                     ))}
