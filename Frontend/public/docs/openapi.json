@@ -1,0 +1,4977 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Rise Above Foundation Cebu API",
+    "version": "1.0.0",
+    "description": "Interactive REST API reference for the Donation and Relief Management System. Authenticate with `POST /api/login.php`, copy the returned `token`, select **Authorize**, and enter the token. Role restrictions shown on each operation are enforced by the existing backend.",
+    "contact": {
+      "name": "Rise Above Foundation Cebu"
+    }
+  },
+  "servers": [
+    {
+      "url": "https://donation-management-system-1.onrender.com",
+      "description": "Production API"
+    },
+    {
+      "url": "http://localhost:5173",
+      "description": "Local Vite proxy (forwards /api to PHP on port 8000)"
+    }
+  ],
+  "tags": [
+    {
+      "name": "System",
+      "description": "Service availability."
+    },
+    {
+      "name": "Authentication",
+      "description": "Sign-in, registration, sessions, and password recovery."
+    },
+    {
+      "name": "Account",
+      "description": "Current-user profile and password management."
+    },
+    {
+      "name": "Donations",
+      "description": "Monetary and in-kind donation intake and tracking."
+    },
+    {
+      "name": "Donors",
+      "description": "Donor records and donor self-service profile."
+    },
+    {
+      "name": "Payment Methods",
+      "description": "Public payment options and administrator configuration."
+    },
+    {
+      "name": "Barangays",
+      "description": "Barangay partnerships, invitations, and approval."
+    },
+    {
+      "name": "Relief Requests",
+      "description": "Barangay assistance requests and funding eligibility."
+    },
+    {
+      "name": "Inventory",
+      "description": "Stock, catalogs, thresholds, and repacking."
+    },
+    {
+      "name": "Allocations",
+      "description": "Resource and monetary allocation records."
+    },
+    {
+      "name": "Distributions",
+      "description": "Distribution planning, delivery, and status tracking."
+    },
+    {
+      "name": "Distribution Proofs",
+      "description": "Turnover proof and staff distribution photos."
+    },
+    {
+      "name": "Volunteers & Interns",
+      "description": "Applications, records, and matching."
+    },
+    {
+      "name": "Tasks",
+      "description": "Volunteer and intern task assignments."
+    },
+    {
+      "name": "Certificates",
+      "description": "Certificate requests, signatories, and generated captions."
+    },
+    {
+      "name": "Content",
+      "description": "Public and administrative content management."
+    },
+    {
+      "name": "Notifications",
+      "description": "User notification feed and read state."
+    },
+    {
+      "name": "Analytics",
+      "description": "Dashboard, reports, donor impact, and portal summaries."
+    },
+    {
+      "name": "Staff",
+      "description": "Staff account administration."
+    },
+    {
+      "name": "Settings",
+      "description": "Shared catalogs and task-title settings."
+    },
+    {
+      "name": "Super Admin",
+      "description": "Restricted database maintenance operations."
+    }
+  ],
+  "paths": {
+    "/api/health.php": {
+      "get": {
+        "tags": [
+          "System"
+        ],
+        "summary": "Check API health",
+        "description": "Returns API and database availability. No authentication is required.",
+        "operationId": "healthCheck",
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/Success"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          }
+        },
+        "security": []
+      }
+    },
+    "/api/login.php": {
+      "post": {
+        "tags": [
+          "Authentication"
+        ],
+        "summary": "Sign in",
+        "description": "Validates credentials and returns the current user plus an HMAC bearer token.",
+        "operationId": "login",
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/Success"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          }
+        },
+        "security": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LoginRequest"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/signup.php": {
+      "post": {
+        "tags": [
+          "Authentication"
+        ],
+        "summary": "Register an account",
+        "description": "Creates an account using the existing registration and verification flow.",
+        "operationId": "signup",
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/Success"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          }
+        },
+        "security": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SignupRequest"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/logout.php": {
+      "post": {
+        "tags": [
+          "Authentication"
+        ],
+        "summary": "Sign out",
+        "description": "Ends the PHP session. Clients should also discard the bearer token.",
+        "operationId": "logout",
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/Success"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/me.php": {
+      "get": {
+        "tags": [
+          "Account"
+        ],
+        "summary": "Get current account",
+        "description": "Returns the authenticated user and may refresh the bearer token.",
+        "operationId": "getCurrentUser",
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/Success"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/forgot_password.php": {
+      "post": {
+        "tags": [
+          "Authentication"
+        ],
+        "summary": "Run password recovery action",
+        "description": "Actions: send_code, resend_code, verify_code, or reset_password.",
+        "operationId": "forgotPassword",
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/Success"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          }
+        },
+        "security": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "action",
+                  "email"
+                ],
+                "properties": {
+                  "action": {
+                    "type": "string",
+                    "enum": [
+                      "send_code",
+                      "resend_code",
+                      "verify_code",
+                      "reset_password"
+                    ]
+                  },
+                  "email": {
+                    "type": "string",
+                    "format": "email"
+                  },
+                  "code": {
+                    "type": "string"
+                  },
+                  "resetToken": {
+                    "type": "string"
+                  },
+                  "newPassword": {
+                    "type": "string",
+                    "format": "password"
+                  },
+                  "confirmPassword": {
+                    "type": "string",
+                    "format": "password"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/account.php": {
+      "put": {
+        "tags": [
+          "Account"
+        ],
+        "summary": "Update profile or password",
+        "description": "Updates profile fields or changes the current user's password. All authenticated roles.",
+        "operationId": "updateAccount",
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/Success"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AccountUpdate"
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Account"
+        ],
+        "summary": "Upload profile photo",
+        "description": "Uploads the current user's profile photo.",
+        "operationId": "uploadProfilePhoto",
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/Success"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "photo"
+                ],
+                "properties": {
+                  "photo": {
+                    "type": "string",
+                    "format": "binary"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/donations.php": {
+      "get": {
+        "tags": [
+          "Donations"
+        ],
+        "summary": "List or retrieve donations",
+        "description": "Donors receive owned donations; Admin and Staff receive management views.",
+        "operationId": "listDonations",
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/Success"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/Id"
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "Donations"
+        ],
+        "summary": "Submit donation or procurement action",
+        "description": "Creates a donation. action=procure is restricted to Admin or Staff.",
+        "operationId": "createDonation",
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/Success"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {}
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/Action"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DonationCreate"
+              }
+            },
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": true,
+                "properties": {
+                  "proof": {
+                    "type": "string",
+                    "format": "binary"
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "Donations"
+        ],
+        "summary": "Update donation",
+        "description": "Updates status/details or classifies an in-kind donation selected by id.",
+        "operationId": "updateDonation",
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/Success"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/Id"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GenericObject"
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "Donations"
+        ],
+        "summary": "Delete donation",
+        "description": "Deletes or cancels a selected donation under workflow rules.",
+        "operationId": "deleteDonation",
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/Success"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/Id"
+          }
+        ]
+      }
+    },
+    "/api/verify_payment_proof.php": {
+      "post": {
+        "tags": [
+          "Donations"
+        ],
+        "summary": "Verify payment proof",
+        "description": "Extracts and validates payment details from an uploaded proof image.",
+        "operationId": "verifyPaymentProof",
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/Success"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        },
+        "security": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "proof"
+                ],
+                "properties": {
+                  "proof": {
+                    "type": "string",
+                    "format": "binary"
+                  },
+                  "selectedMethod": {
+                    "type": "string"
+                  },
+                  "payment_method_id": {
+                    "type": "integer"
+                  },
+                  "client_extracted_text": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/donation_updates.php": {
+      "get": {
+        "tags": [
+          "Donations"
+        ],
+        "summary": "List donation activity",
+        "description": "Returns timeline updates visible to Admin, Staff, or the owning Donor.",
+        "operationId": "listDonationUpdates",
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/Success"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "donationId",
+            "in": "query",
+            "description": "Donation database identifier.",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "Donations"
+        ],
+        "summary": "Add donation activity",
+        "description": "Adds a workflow update under role and ownership checks.",
+        "operationId": "createDonationUpdate",
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/Success"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "donationId"
+                ],
+                "properties": {
+                  "donationId": {
+                    "type": "integer"
+                  },
+                  "stage": {
+                    "type": "string"
+                  },
+                  "note": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/donors.php": {
+      "get": {
+        "tags": [
+          "Donors"
+        ],
+        "summary": "List or retrieve donor records",
+        "description": "Admin/Staff access all; Donor access is limited to me=1.",
+        "operationId": "listDonors",
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/Success"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/Id"
+          },
+          {
+            "name": "me",
+            "in": "query",
+            "description": "Return the authenticated donor profile.",
+            "required": false,
+            "schema": {
+              "type": "boolean"
+            }
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "Donors"
+        ],
+        "summary": "Create donor records",
+        "description": "Admin/Staff access all; Donor access is limited to me=1.",
+        "operationId": "createDonors",
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/Success"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GenericObject"
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "Donors"
+        ],
+        "summary": "Update donor records",
+        "description": "Admin/Staff access all; Donor access is limited to me=1.",
+        "operationId": "updateDonors",
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/Success"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/Id"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GenericObject"
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "Donors"
+        ],
+        "summary": "Delete donor records",
+        "description": "Admin/Staff access all; Donor access is limited to me=1.",
+        "operationId": "deleteDonors",
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/Success"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/Id"
+          }
+        ]
+      }
+    },
+    "/api/payment_methods.php": {
+      "get": {
+        "tags": [
+          "Payment Methods"
+        ],
+        "summary": "List payment methods",
+        "description": "Public requests return active methods; all=1 requires Admin/SuperAdmin.",
+        "operationId": "listPaymentMethods",
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/Success"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {}
+        ],
+        "parameters": [
+          {
+            "name": "all",
+            "in": "query",
+            "description": "Include inactive methods.",
+            "required": false,
+            "schema": {
+              "type": "boolean"
+            }
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "Payment Methods"
+        ],
+        "summary": "Create, upload, or toggle payment method",
+        "description": "Admin/SuperAdmin. action=toggle_active requires id.",
+        "operationId": "savePaymentMethod",
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/Success"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/Id"
+          },
+          {
+            "$ref": "#/components/parameters/Action"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GenericObject"
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "Payment Methods"
+        ],
+        "summary": "Update payment method",
+        "description": "Admin/SuperAdmin.",
+        "operationId": "updatePaymentMethod",
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/Success"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/Id"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GenericObject"
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "Payment Methods"
+        ],
+        "summary": "Delete payment method",
+        "description": "Admin/SuperAdmin.",
+        "operationId": "deletePaymentMethod",
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/Success"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/Id"
+          }
+        ]
+      }
+    },
+    "/api/beneficiaries.php": {
+      "get": {
+        "tags": [
+          "Barangays"
+        ],
+        "summary": "List barangays or validate invitation",
+        "description": "Admin/Staff/Beneficiary; action=validate_token supports invitation acceptance.",
+        "operationId": "listBarangays",
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/Success"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {}
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/Id"
+          },
+          {
+            "$ref": "#/components/parameters/Action"
+          },
+          {
+            "name": "token",
+            "in": "query",
+            "description": "Invitation token.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "Barangays"
+        ],
+        "summary": "Create, invite, approve, reject, or accept",
+        "description": "Actions: invite, reinvite, approve, reject, accept_invite, and apply_invite.",
+        "operationId": "mutateBarangay",
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/Success"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {}
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/Id"
+          },
+          {
+            "$ref": "#/components/parameters/Action"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GenericObject"
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "Barangays"
+        ],
+        "summary": "Update barangay profile",
+        "description": "Admin, Staff, or owning Beneficiary where allowed.",
+        "operationId": "updateBarangay",
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/Success"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/Id"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GenericObject"
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "Barangays"
+        ],
+        "summary": "Delete barangay record",
+        "description": "Admin only.",
+        "operationId": "deleteBarangay",
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/Success"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/Id"
+          }
+        ]
+      }
+    },
+    "/api/assistance_requests.php": {
+      "get": {
+        "tags": [
+          "Relief Requests"
+        ],
+        "summary": "List, track, or analyze relief requests",
+        "description": "Actions include stats, check_duplicates, funding_eligible, and tracker.",
+        "operationId": "listReliefRequests",
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/Success"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {}
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/Id"
+          },
+          {
+            "$ref": "#/components/parameters/Action"
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "Relief Requests"
+        ],
+        "summary": "Submit relief request",
+        "description": "Creates a public or authenticated Barangay assistance request.",
+        "operationId": "createReliefRequest",
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/Success"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {}
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReliefRequestCreate"
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "Relief Requests"
+        ],
+        "summary": "Review or update relief request",
+        "description": "Admin/Staff manage workflow transitions; Beneficiary access is scoped.",
+        "operationId": "updateReliefRequest",
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/Success"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/Id"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GenericObject"
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "Relief Requests"
+        ],
+        "summary": "Delete relief request",
+        "description": "Deletes a request where status and role rules allow.",
+        "operationId": "deleteReliefRequest",
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/Success"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/Id"
+          }
+        ]
+      }
+    },
+    "/api/inventory.php": {
+      "get": {
+        "tags": [
+          "Inventory"
+        ],
+        "summary": "List or retrieve inventory records",
+        "description": "Admin or Staff. tab=repacking accesses relief-pack operations.",
+        "operationId": "listInventory",
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/Success"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/Id"
+          },
+          {
+            "name": "tab",
+            "in": "query",
+            "description": "Optional repacking view.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "category",
+            "in": "query",
+            "description": "Category deletion target.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "item_type",
+            "in": "query",
+            "description": "Item-type deletion target.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "Inventory"
+        ],
+        "summary": "Create inventory records",
+        "description": "Admin or Staff. tab=repacking accesses relief-pack operations.",
+        "operationId": "createInventory",
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/Success"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GenericObject"
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "Inventory"
+        ],
+        "summary": "Update inventory records",
+        "description": "Admin or Staff. tab=repacking accesses relief-pack operations.",
+        "operationId": "updateInventory",
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/Success"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/Id"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GenericObject"
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "Inventory"
+        ],
+        "summary": "Delete inventory records",
+        "description": "Admin or Staff. tab=repacking accesses relief-pack operations.",
+        "operationId": "deleteInventory",
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/Success"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/Id"
+          }
+        ]
+      }
+    },
+    "/api/inventory_catalog.php": {
+      "get": {
+        "tags": [
+          "Inventory"
+        ],
+        "summary": "List or retrieve inventory catalog entries",
+        "description": "Authenticated read; mutation permissions are enforced.",
+        "operationId": "listInventoryCatalog",
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/Success"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/Id"
+          },
+          {
+            "name": "type",
+            "in": "query",
+            "description": "Catalog level.",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "categories",
+                "item_types",
+                "brands",
+                "variants",
+                "units"
+              ]
+            }
+          },
+          {
+            "name": "active_only",
+            "in": "query",
+            "description": "Return active entries only.",
+            "required": false,
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "name": "category_id",
+            "in": "query",
+            "description": "Parent category.",
+            "required": false,
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "name": "item_type_id",
+            "in": "query",
+            "description": "Parent item type.",
+            "required": false,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "Inventory"
+        ],
+        "summary": "Create inventory catalog entries",
+        "description": "Authenticated read; mutation permissions are enforced.",
+        "operationId": "createInventoryCatalog",
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/Success"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GenericObject"
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "Inventory"
+        ],
+        "summary": "Update inventory catalog entries",
+        "description": "Authenticated read; mutation permissions are enforced.",
+        "operationId": "updateInventoryCatalog",
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/Success"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/Id"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GenericObject"
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "Inventory"
+        ],
+        "summary": "Delete inventory catalog entries",
+        "description": "Authenticated read; mutation permissions are enforced.",
+        "operationId": "deleteInventoryCatalog",
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/Success"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/Id"
+          }
+        ]
+      }
+    },
+    "/api/allocations.php": {
+      "get": {
+        "tags": [
+          "Allocations"
+        ],
+        "summary": "List or retrieve allocation records",
+        "description": "Admin or Staff.",
+        "operationId": "listAllocations",
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/Success"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/Id"
+          },
+          {
+            "name": "readyForDistribution",
+            "in": "query",
+            "description": "Only fully covered allocations ready for distribution.",
+            "required": false,
+            "schema": {
+              "type": "boolean"
+            }
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "Allocations"
+        ],
+        "summary": "Create allocation records",
+        "description": "Admin or Staff.",
+        "operationId": "createAllocations",
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/Success"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GenericObject"
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "Allocations"
+        ],
+        "summary": "Update allocation records",
+        "description": "Admin or Staff.",
+        "operationId": "updateAllocations",
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/Success"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/Id"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GenericObject"
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "Allocations"
+        ],
+        "summary": "Delete allocation records",
+        "description": "Admin or Staff.",
+        "operationId": "deleteAllocations",
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/Success"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/Id"
+          }
+        ]
+      }
+    },
+    "/api/distributions.php": {
+      "get": {
+        "tags": [
+          "Distributions"
+        ],
+        "summary": "List or retrieve distribution records",
+        "description": "Admin/Staff manage; Beneficiary/Volunteer/Intern views are scoped.",
+        "operationId": "listDistributions",
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/Success"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/Id"
+          },
+          {
+            "name": "public",
+            "in": "query",
+            "description": "Return public map data.",
+            "required": false,
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "name": "forProof",
+            "in": "query",
+            "description": "Return records eligible for proof.",
+            "required": false,
+            "schema": {
+              "type": "boolean"
+            }
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "Distributions"
+        ],
+        "summary": "Create distribution records",
+        "description": "Admin/Staff manage; Beneficiary/Volunteer/Intern views are scoped.",
+        "operationId": "createDistributions",
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/Success"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GenericObject"
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "Distributions"
+        ],
+        "summary": "Update distribution records",
+        "description": "Admin/Staff manage; Beneficiary/Volunteer/Intern views are scoped.",
+        "operationId": "updateDistributions",
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/Success"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/Id"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GenericObject"
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "Distributions"
+        ],
+        "summary": "Delete distribution records",
+        "description": "Admin/Staff manage; Beneficiary/Volunteer/Intern views are scoped.",
+        "operationId": "deleteDistributions",
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/Success"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/Id"
+          }
+        ]
+      }
+    },
+    "/api/distribution_proofs.php": {
+      "get": {
+        "tags": [
+          "Distribution Proofs"
+        ],
+        "summary": "List distribution proof records",
+        "description": "Admin/Staff or owning Beneficiary.",
+        "operationId": "listDistributionProofs",
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/Success"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "beneficiaryId",
+            "in": "query",
+            "description": "Filter by beneficiary.",
+            "required": false,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "Distribution Proofs"
+        ],
+        "summary": "Upload turnover or distribution photos",
+        "description": "Uploads proof linked to a distribution. Existing role-specific limits apply.",
+        "operationId": "uploadDistributionProof",
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/Success"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "distribution_id",
+                  "photos"
+                ],
+                "properties": {
+                  "distribution_id": {
+                    "type": "integer"
+                  },
+                  "beneficiary_id": {
+                    "type": "integer"
+                  },
+                  "proof_category": {
+                    "type": "string"
+                  },
+                  "notes": {
+                    "type": "string"
+                  },
+                  "photos": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "format": "binary"
+                    },
+                    "minItems": 1,
+                    "maxItems": 3
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "Distribution Proofs"
+        ],
+        "summary": "Review distribution proof",
+        "description": "Admin/Staff approve or reject a proof.",
+        "operationId": "reviewDistributionProof",
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/Success"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/Id"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "status"
+                ],
+                "properties": {
+                  "status": {
+                    "type": "string"
+                  },
+                  "remarks": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/volunteers.php": {
+      "get": {
+        "tags": [
+          "Volunteers & Interns"
+        ],
+        "summary": "List or retrieve volunteers/interns",
+        "description": "Admin/Staff management or authenticated self view.",
+        "operationId": "listVolunteers",
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/Success"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/Id"
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "Volunteers & Interns"
+        ],
+        "summary": "Submit application or create record",
+        "description": "Public application accepts JSON or multipart resume data.",
+        "operationId": "createVolunteer",
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/Success"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {}
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/VolunteerApplication"
+              }
+            },
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": true,
+                "properties": {
+                  "resume": {
+                    "type": "string",
+                    "format": "binary"
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "Volunteers & Interns"
+        ],
+        "summary": "Review or update volunteer/intern",
+        "description": "Updates approval, program assignment, profile, or status.",
+        "operationId": "updateVolunteer",
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/Success"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/Id"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GenericObject"
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "Volunteers & Interns"
+        ],
+        "summary": "Delete volunteer/intern record",
+        "description": "Admin/Staff where permitted.",
+        "operationId": "deleteVolunteer",
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/Success"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/Id"
+          }
+        ]
+      }
+    },
+    "/api/volunteer_match.php": {
+      "get": {
+        "tags": [
+          "Volunteers & Interns"
+        ],
+        "summary": "Match volunteers by requirements",
+        "description": "Admin/Staff candidate matching by skills, programs, and availability.",
+        "operationId": "matchVolunteers",
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/Success"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "skills",
+            "in": "query",
+            "description": "Comma-separated skills.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "programs",
+            "in": "query",
+            "description": "Comma-separated programs.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "availability",
+            "in": "query",
+            "description": "Availability filter.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "excludeVolunteerId",
+            "in": "query",
+            "description": "Record to exclude.",
+            "required": false,
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "description": "Maximum results.",
+            "required": false,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ]
+      }
+    },
+    "/api/volunteer_ai_match.php": {
+      "get": {
+        "tags": [
+          "Volunteers & Interns"
+        ],
+        "summary": "Get program recommendations",
+        "description": "Admin/Staff recommendations for one Volunteer or Intern.",
+        "operationId": "getVolunteerRecommendations",
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/Success"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "volunteerId",
+            "in": "query",
+            "description": "Volunteer/Intern id.",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ]
+      }
+    },
+    "/api/tasks.php": {
+      "get": {
+        "tags": [
+          "Tasks"
+        ],
+        "summary": "List or retrieve task assignments",
+        "description": "Admin/Staff manage; Volunteer/Intern access is scoped.",
+        "operationId": "listTasks",
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/Success"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/Id"
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "Tasks"
+        ],
+        "summary": "Create task assignments",
+        "description": "Admin/Staff manage; Volunteer/Intern access is scoped.",
+        "operationId": "createTasks",
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/Success"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GenericObject"
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "Tasks"
+        ],
+        "summary": "Update task assignments",
+        "description": "Admin/Staff manage; Volunteer/Intern access is scoped.",
+        "operationId": "updateTasks",
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/Success"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/Id"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GenericObject"
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "Tasks"
+        ],
+        "summary": "Delete task assignments",
+        "description": "Admin/Staff manage; Volunteer/Intern access is scoped.",
+        "operationId": "deleteTasks",
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/Success"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/Id"
+          }
+        ]
+      }
+    },
+    "/api/certificates.php": {
+      "get": {
+        "tags": [
+          "Certificates"
+        ],
+        "summary": "List or retrieve certificate records",
+        "description": "Admin/Staff manage; Donor/Volunteer/Intern access is scoped.",
+        "operationId": "listCertificates",
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/Success"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/Id"
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "Certificates"
+        ],
+        "summary": "Create certificate records",
+        "description": "Admin/Staff manage; Donor/Volunteer/Intern access is scoped.",
+        "operationId": "createCertificates",
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/Success"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GenericObject"
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "Certificates"
+        ],
+        "summary": "Update certificate records",
+        "description": "Admin/Staff manage; Donor/Volunteer/Intern access is scoped.",
+        "operationId": "updateCertificates",
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/Success"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/Id"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GenericObject"
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "Certificates"
+        ],
+        "summary": "Delete certificate records",
+        "description": "Admin/Staff manage; Donor/Volunteer/Intern access is scoped.",
+        "operationId": "deleteCertificates",
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/Success"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/Id"
+          }
+        ]
+      }
+    },
+    "/api/signatories.php": {
+      "get": {
+        "tags": [
+          "Certificates"
+        ],
+        "summary": "List or retrieve certificate signatories",
+        "description": "Admin/Staff manage; authenticated certificate users may read.",
+        "operationId": "listSignatories",
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/Success"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/Id"
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "Certificates"
+        ],
+        "summary": "Create certificate signatories",
+        "description": "Admin/Staff manage; authenticated certificate users may read.",
+        "operationId": "createSignatories",
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/Success"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GenericObject"
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "Certificates"
+        ],
+        "summary": "Update certificate signatories",
+        "description": "Admin/Staff manage; authenticated certificate users may read.",
+        "operationId": "updateSignatories",
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/Success"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/Id"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GenericObject"
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "Certificates"
+        ],
+        "summary": "Delete certificate signatories",
+        "description": "Admin/Staff manage; authenticated certificate users may read.",
+        "operationId": "deleteSignatories",
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/Success"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/Id"
+          }
+        ]
+      }
+    },
+    "/api/certificate_caption.php": {
+      "post": {
+        "tags": [
+          "Certificates"
+        ],
+        "summary": "Generate certificate caption",
+        "description": "Admin/Staff. Uses the existing caption-generation service.",
+        "operationId": "generateCertificateCaption",
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/Success"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GenericObject"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/content.php": {
+      "get": {
+        "tags": [
+          "Content"
+        ],
+        "summary": "List or retrieve content",
+        "description": "public=1 exposes published content; management views require Admin/Staff.",
+        "operationId": "listContent",
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/Success"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {}
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/Id"
+          },
+          {
+            "$ref": "#/components/parameters/Public"
+          },
+          {
+            "name": "type",
+            "in": "query",
+            "description": "Content type.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "description": "Published page slug.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "Content"
+        ],
+        "summary": "Create content",
+        "description": "Admin/Staff.",
+        "operationId": "createContent",
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/Success"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GenericObject"
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "Content"
+        ],
+        "summary": "Update or transition content",
+        "description": "Admin/Staff. Actions include publish, unpublish, archive, restore, and reorder.",
+        "operationId": "updateContent",
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/Success"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/Id"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GenericObject"
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "Content"
+        ],
+        "summary": "Delete content",
+        "description": "Admin/Staff.",
+        "operationId": "deleteContent",
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/Success"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/Id"
+          }
+        ]
+      }
+    },
+    "/api/contact.php": {
+      "post": {
+        "tags": [
+          "Content"
+        ],
+        "summary": "Submit contact message",
+        "description": "Public contact-form endpoint.",
+        "operationId": "submitContact",
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/Success"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        },
+        "security": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "name",
+                  "email",
+                  "message"
+                ],
+                "properties": {
+                  "name": {
+                    "type": "string"
+                  },
+                  "email": {
+                    "type": "string",
+                    "format": "email"
+                  },
+                  "subject": {
+                    "type": "string"
+                  },
+                  "message": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/notifications.php": {
+      "get": {
+        "tags": [
+          "Notifications"
+        ],
+        "summary": "List notifications",
+        "description": "Returns notifications for the authenticated user.",
+        "operationId": "listNotifications",
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/Success"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "unread",
+            "in": "query",
+            "description": "Return unread notifications only.",
+            "required": false,
+            "schema": {
+              "type": "boolean"
+            }
+          }
+        ]
+      },
+      "put": {
+        "tags": [
+          "Notifications"
+        ],
+        "summary": "Mark notification(s) read",
+        "description": "Use id for one notification or markAllRead=true for all.",
+        "operationId": "markNotificationsRead",
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/Success"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/Id"
+          }
+        ],
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "markAllRead": {
+                    "type": "boolean"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/admin_badges.php": {
+      "get": {
+        "tags": [
+          "Notifications"
+        ],
+        "summary": "Get admin badge counts",
+        "description": "Returns unseen navigation counts for Admin/Staff.",
+        "operationId": "getAdminBadges",
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/Success"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "Notifications"
+        ],
+        "summary": "Mark admin section seen",
+        "description": "Records a viewed badge section.",
+        "operationId": "markAdminSectionSeen",
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/Success"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "section"
+                ],
+                "properties": {
+                  "section": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/dashboard.php": {
+      "get": {
+        "tags": [
+          "Analytics"
+        ],
+        "summary": "Get admin/staff dashboard",
+        "description": "Admin/Staff aggregate metrics.",
+        "operationId": "getDashboard",
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/Success"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/reports.php": {
+      "get": {
+        "tags": [
+          "Analytics"
+        ],
+        "summary": "Get reports dataset",
+        "description": "Admin/Staff totals and records used by print/export.",
+        "operationId": "getReports",
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/Success"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/donor_impact.php": {
+      "get": {
+        "tags": [
+          "Analytics"
+        ],
+        "summary": "Get donor impact report",
+        "description": "Donor-only aggregates from owned donations and linked distributions.",
+        "operationId": "getDonorImpact",
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/Success"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "from",
+            "in": "query",
+            "description": "Inclusive start date.",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "date"
+            }
+          },
+          {
+            "name": "to",
+            "in": "query",
+            "description": "Inclusive end date.",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "date"
+            }
+          },
+          {
+            "name": "type",
+            "in": "query",
+            "description": "Donation type.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "barangay",
+            "in": "query",
+            "description": "Barangay filter.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "category",
+            "in": "query",
+            "description": "Category filter.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "description": "Status filter.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ]
+      }
+    },
+    "/api/portal.php": {
+      "get": {
+        "tags": [
+          "Analytics"
+        ],
+        "summary": "Get role portal summary",
+        "description": "Returns dashboard data scoped to the authenticated role.",
+        "operationId": "getPortalSummary",
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/Success"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/needs_stock.php": {
+      "get": {
+        "tags": [
+          "Analytics"
+        ],
+        "summary": "Get need-to-stock analysis",
+        "description": "Admin/Staff coverage overview or action=barangay_analysis.",
+        "operationId": "getNeedsStock",
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/Success"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/Action"
+          },
+          {
+            "name": "barangay_id",
+            "in": "query",
+            "description": "Barangay id.",
+            "required": false,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ]
+      }
+    },
+    "/api/staff.php": {
+      "get": {
+        "tags": [
+          "Staff"
+        ],
+        "summary": "List or retrieve staff accounts",
+        "description": "SuperAdmin/Admin manage; Staff can read its permitted view.",
+        "operationId": "listStaff",
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/Success"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/Id"
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "Staff"
+        ],
+        "summary": "Create staff accounts",
+        "description": "SuperAdmin/Admin manage; Staff can read its permitted view.",
+        "operationId": "createStaff",
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/Success"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GenericObject"
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "Staff"
+        ],
+        "summary": "Update staff accounts",
+        "description": "SuperAdmin/Admin manage; Staff can read its permitted view.",
+        "operationId": "updateStaff",
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/Success"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/Id"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GenericObject"
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "Staff"
+        ],
+        "summary": "Delete staff accounts",
+        "description": "SuperAdmin/Admin manage; Staff can read its permitted view.",
+        "operationId": "deleteStaff",
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/Success"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/Id"
+          }
+        ]
+      }
+    },
+    "/api/catalog_items.php": {
+      "get": {
+        "tags": [
+          "Settings"
+        ],
+        "summary": "List or retrieve settings catalog items",
+        "description": "Active reads may be available broadly; Admin/Staff/SuperAdmin manage.",
+        "operationId": "listCatalogItems",
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/Success"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/Id"
+          },
+          {
+            "name": "catalog",
+            "in": "query",
+            "description": "Catalog name.",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "needs",
+                "barangay_types",
+                "task_types"
+              ]
+            }
+          },
+          {
+            "name": "all",
+            "in": "query",
+            "description": "Include inactive entries.",
+            "required": false,
+            "schema": {
+              "type": "boolean"
+            }
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "Settings"
+        ],
+        "summary": "Create settings catalog items",
+        "description": "Active reads may be available broadly; Admin/Staff/SuperAdmin manage.",
+        "operationId": "createCatalogItems",
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/Success"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GenericObject"
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "Settings"
+        ],
+        "summary": "Update settings catalog items",
+        "description": "Active reads may be available broadly; Admin/Staff/SuperAdmin manage.",
+        "operationId": "updateCatalogItems",
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/Success"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/Id"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GenericObject"
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "Settings"
+        ],
+        "summary": "Delete settings catalog items",
+        "description": "Active reads may be available broadly; Admin/Staff/SuperAdmin manage.",
+        "operationId": "deleteCatalogItems",
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/Success"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/Id"
+          }
+        ]
+      }
+    },
+    "/api/task_titles.php": {
+      "get": {
+        "tags": [
+          "Settings"
+        ],
+        "summary": "List or retrieve program task titles",
+        "description": "Authenticated users read; SuperAdmin/Admin manage.",
+        "operationId": "listTaskTitles",
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/Success"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/Id"
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "Settings"
+        ],
+        "summary": "Create program task titles",
+        "description": "Authenticated users read; SuperAdmin/Admin manage.",
+        "operationId": "createTaskTitles",
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/Success"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GenericObject"
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "Settings"
+        ],
+        "summary": "Update program task titles",
+        "description": "Authenticated users read; SuperAdmin/Admin manage.",
+        "operationId": "updateTaskTitles",
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/Success"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/Id"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GenericObject"
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "Settings"
+        ],
+        "summary": "Delete program task titles",
+        "description": "Authenticated users read; SuperAdmin/Admin manage.",
+        "operationId": "deleteTaskTitles",
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/Success"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/Id"
+          }
+        ]
+      },
+      "patch": {
+        "tags": [
+          "Settings"
+        ],
+        "summary": "Toggle task title",
+        "description": "SuperAdmin/Admin activate or deactivate a title.",
+        "operationId": "toggleTaskTitle",
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/Success"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/Id"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "is_active"
+                ],
+                "properties": {
+                  "is_active": {
+                    "type": "boolean"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/database_management.php": {
+      "get": {
+        "tags": [
+          "Super Admin"
+        ],
+        "summary": "Inspect database metadata or rows",
+        "description": "SuperAdmin only. action=tables or action=table_data.",
+        "operationId": "inspectDatabase",
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/Success"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/Action"
+          },
+          {
+            "name": "table",
+            "in": "query",
+            "description": "Allowed table name.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "description": "Page number.",
+            "required": false,
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "description": "Rows per page.",
+            "required": false,
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "name": "search",
+            "in": "query",
+            "description": "Search term.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "sort",
+            "in": "query",
+            "description": "Sort column.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "order",
+            "in": "query",
+            "description": "Sort direction.",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "asc",
+                "desc"
+              ]
+            }
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "Super Admin"
+        ],
+        "summary": "Run database maintenance action",
+        "description": "SuperAdmin only. Destructive actions retain backend confirmation safeguards.",
+        "operationId": "maintainDatabase",
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/Success"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "action"
+                ],
+                "properties": {
+                  "action": {
+                    "type": "string",
+                    "enum": [
+                      "delete_rows",
+                      "truncate_table",
+                      "wipe_except"
+                    ]
+                  },
+                  "table": {
+                    "type": "string"
+                  },
+                  "ids": {
+                    "type": "array",
+                    "items": {
+                      "type": "integer"
+                    }
+                  },
+                  "idColumn": {
+                    "type": "string"
+                  },
+                  "preserveTables": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  },
+                  "confirmation": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/file.php": {
+      "get": {
+        "tags": [
+          "System"
+        ],
+        "summary": "Download protected file",
+        "description": "Streams a file after role and ownership checks. Use server-issued file URLs.",
+        "operationId": "getProtectedFile",
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/Success"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "path",
+            "in": "query",
+            "description": "Server-issued relative file identifier.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "auth_token",
+            "in": "query",
+            "description": "Bearer-token fallback for image/file elements. Prefer Authorize.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ]
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "bearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "HMAC-SHA256",
+        "description": "Paste the token returned by POST /api/login.php."
+      }
+    },
+    "parameters": {
+      "Id": {
+        "name": "id",
+        "in": "query",
+        "description": "Database record identifier.",
+        "schema": {
+          "type": "integer",
+          "minimum": 1
+        }
+      },
+      "Action": {
+        "name": "action",
+        "in": "query",
+        "description": "Endpoint-specific action.",
+        "schema": {
+          "type": "string"
+        }
+      },
+      "Public": {
+        "name": "public",
+        "in": "query",
+        "description": "Set to 1 to request the public view where supported.",
+        "schema": {
+          "type": "boolean"
+        }
+      }
+    },
+    "schemas": {
+      "Error": {
+        "type": "object",
+        "properties": {
+          "ok": {
+            "type": "boolean",
+            "const": false
+          },
+          "error": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "error"
+        ]
+      },
+      "Success": {
+        "type": "object",
+        "additionalProperties": true,
+        "properties": {
+          "ok": {
+            "type": "boolean"
+          },
+          "message": {
+            "type": "string"
+          },
+          "data": {}
+        }
+      },
+      "User": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "name": {
+            "type": "string"
+          },
+          "email": {
+            "type": "string",
+            "format": "email"
+          },
+          "role": {
+            "type": "string",
+            "enum": [
+              "SuperAdmin",
+              "Admin",
+              "Staff",
+              "Donor",
+              "Volunteer",
+              "Intern",
+              "Beneficiary"
+            ]
+          },
+          "mustChangePassword": {
+            "type": "boolean"
+          },
+          "profilePhoto": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
+      "LoginRequest": {
+        "type": "object",
+        "required": [
+          "email",
+          "password"
+        ],
+        "properties": {
+          "email": {
+            "type": "string",
+            "format": "email"
+          },
+          "password": {
+            "type": "string",
+            "format": "password"
+          },
+          "remember": {
+            "type": "boolean",
+            "default": false
+          }
+        }
+      },
+      "LoginResponse": {
+        "type": "object",
+        "required": [
+          "ok",
+          "user",
+          "token"
+        ],
+        "properties": {
+          "ok": {
+            "type": "boolean"
+          },
+          "user": {
+            "$ref": "#/components/schemas/User"
+          },
+          "token": {
+            "type": "string",
+            "description": "HMAC bearer token."
+          }
+        }
+      },
+      "SignupRequest": {
+        "type": "object",
+        "required": [
+          "email",
+          "password"
+        ],
+        "properties": {
+          "fullName": {
+            "type": "string"
+          },
+          "email": {
+            "type": "string",
+            "format": "email"
+          },
+          "password": {
+            "type": "string",
+            "format": "password"
+          },
+          "role": {
+            "type": "string"
+          }
+        }
+      },
+      "AccountUpdate": {
+        "type": "object",
+        "properties": {
+          "fullName": {
+            "type": "string"
+          },
+          "email": {
+            "type": "string",
+            "format": "email"
+          },
+          "phone": {
+            "type": "string"
+          },
+          "currentPassword": {
+            "type": "string",
+            "format": "password"
+          },
+          "newPassword": {
+            "type": "string",
+            "format": "password"
+          },
+          "acceptedTerms": {
+            "type": "boolean"
+          },
+          "acceptedPrivacy": {
+            "type": "boolean"
+          }
+        },
+        "additionalProperties": true
+      },
+      "Donation": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "trackingCode": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "Monetary",
+              "In-Kind"
+            ]
+          },
+          "amount": {
+            "type": [
+              "number",
+              "string"
+            ]
+          },
+          "donorName": {
+            "type": "string"
+          },
+          "donorEmail": {
+            "type": "string",
+            "format": "email"
+          },
+          "program": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "date": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": true
+      },
+      "DonationCreate": {
+        "type": "object",
+        "required": [
+          "type",
+          "email"
+        ],
+        "properties": {
+          "public": {
+            "type": "boolean"
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "Monetary",
+              "In-Kind"
+            ]
+          },
+          "donorName": {
+            "type": "string"
+          },
+          "email": {
+            "type": "string",
+            "format": "email"
+          },
+          "amount": {
+            "type": "number",
+            "minimum": 0
+          },
+          "paymentReference": {
+            "type": "string"
+          },
+          "program": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "acceptedTerms": {
+            "type": "boolean"
+          },
+          "acceptedPrivacy": {
+            "type": "boolean"
+          }
+        },
+        "additionalProperties": true
+      },
+      "ReliefRequest": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "requestCode": {
+            "type": "string"
+          },
+          "barangay": {
+            "type": "string"
+          },
+          "municipality": {
+            "type": "string"
+          },
+          "calamityType": {
+            "type": "string"
+          },
+          "affectedFamilies": {
+            "type": "integer"
+          },
+          "priority": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "requestDate": {
+            "type": "string",
+            "format": "date"
+          }
+        },
+        "additionalProperties": true
+      },
+      "ReliefRequestCreate": {
+        "type": "object",
+        "required": [
+          "calamityType",
+          "affectedFamilies"
+        ],
+        "properties": {
+          "public": {
+            "type": "boolean"
+          },
+          "beneficiaryId": {
+            "type": "integer"
+          },
+          "calamityType": {
+            "type": "string"
+          },
+          "affectedFamilies": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "needs": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "location": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": true
+      },
+      "VolunteerApplication": {
+        "type": "object",
+        "properties": {
+          "public": {
+            "type": "boolean"
+          },
+          "applicantType": {
+            "type": "string",
+            "enum": [
+              "Volunteer",
+              "Intern"
+            ]
+          },
+          "fullName": {
+            "type": "string"
+          },
+          "email": {
+            "type": "string",
+            "format": "email"
+          },
+          "phone": {
+            "type": "string"
+          },
+          "skills": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "program": {
+            "type": "string"
+          },
+          "requiredHours": {
+            "type": "number"
+          }
+        },
+        "additionalProperties": true
+      },
+      "GenericObject": {
+        "type": "object",
+        "description": "Endpoint-specific resource fields.",
+        "additionalProperties": true
+      }
+    },
+    "responses": {
+      "BadRequest": {
+        "description": "Invalid request or workflow transition.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
+      },
+      "Unauthorized": {
+        "description": "Missing or invalid session/bearer token.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
+      },
+      "Forbidden": {
+        "description": "Authenticated role is not allowed.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
+      },
+      "NotFound": {
+        "description": "Requested record was not found.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
+      },
+      "Success": {
+        "description": "Successful response.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Success"
+            }
+          }
+        }
+      }
+    }
+  }
+}
+
