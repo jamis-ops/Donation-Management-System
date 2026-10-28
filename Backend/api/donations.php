@@ -781,6 +781,8 @@ if ($method === 'POST') {
         $procurementRecord = [
           'mode' => $mode,
           'total_amount' => $allocatedAmount,
+          'donation_remaining_balance' => $newRemainingBalance,
+          'donation_fully_utilized' => $newRemainingBalance <= 0.009,
           'items' => $items,
           'receipt_number' => $receiptNumber,
           'supplier_name' => $supplierName,

@@ -782,50 +782,46 @@ if (!function_exists('send_donation_allocated_email')) {
   ): bool {
     $tracking = htmlspecialchars((string) ($donation['tracking_code'] ?? $donation['id'] ?? ''));
     $donorName = htmlspecialchars($toName ?: 'Valued Donor');
-    $totalAmount = number_format((float) ($procurement['total_amount'] ?? 0), 2);
-    $mode = htmlspecialchars((string) ($procurement['mode'] ?? 'Pack Sponsorship'));
+    // Always show the donation's original total, not one allocation amount.
+    $totalAmount = number_format((float) ($donation['amount'] ?? 0), 2);
     $barangayName = htmlspecialchars((string) ($beneficiary['full_name'] ?? $beneficiary['barangay'] ?? 'Partner Community'));
     $municipality = htmlspecialchars((string) ($beneficiary['municipality'] ?? 'Cebu'));
     $familiesSupported = (int) ($procurement['families_supported'] ?? 0);
     $items = is_array($procurement['items'] ?? null) ? $procurement['items'] : [];
-    $receiptNo = htmlspecialchars((string) ($procurement['receipt_number'] ?? ''));
-    $supplier = htmlspecialchars((string) ($procurement['supplier_name'] ?? ''));
+    $remainingBalance = max(0.0, (float) ($procurement['donation_remaining_balance'] ?? $donation['amount'] ?? 0));
+    $isFullyUtilized = array_key_exists('donation_fully_utilized', $procurement)
+      ? (bool) $procurement['donation_fully_utilized']
+      : $remainingBalance <= 0.009;
+
+    $itemNames = [];
+    foreach ($items as $item) {
+      $itemName = trim((string) ($item['item'] ?? $item['name'] ?? ''));
+      if ($itemName !== '' && !in_array($itemName, $itemNames, true)) {
+        $itemNames[] = $itemName;
+      }
+    }
+    $escapedItemNames = array_map(static fn(string $name): string => htmlspecialchars($name), $itemNames);
+    if (count($escapedItemNames) > 1) {
+      $lastItem = array_pop($escapedItemNames);
+      $assistanceItems = implode(', ', $escapedItemNames) . ' and ' . $lastItem;
+    } elseif (count($escapedItemNames) === 1) {
+      $assistanceItems = $escapedItemNames[0];
+    } else {
+      $assistanceItems = 'essential relief supplies';
+    }
+
+    $utilizationMessage = $isFullyUtilized
+      ? "has been fully utilized to provide emergency relief assistance to families in {$barangayName}, {$municipality}."
+      : "has contributed to providing emergency relief assistance to families in {$barangayName}, {$municipality}.";
+    $beneficiaryText = $familiesSupported > 0
+      ? number_format($familiesSupported) . ' affected ' . ($familiesSupported === 1 ? 'household' : 'households')
+      : 'affected families in the target community';
 
     $frontendUrl = rtrim(getenv('FRONTEND_URL') ?: 'https://donation-management-system-three.vercel.app', '/');
     if (!str_starts_with($frontendUrl, 'http://') && !str_starts_with($frontendUrl, 'https://')) {
       $frontendUrl = 'https://' . $frontendUrl;
     }
     $trackUrl = $frontendUrl . '/donor/donations';
-
-    $itemsHtml = '';
-    if (!empty($items)) {
-      $itemsHtml .= '<table style="width:100%; border-collapse:collapse; margin:16px 0; font-size:14px;">';
-      $itemsHtml .= '<tr style="background:#f8fafc; border-bottom:2px solid #e2e8f0; text-align:left;">';
-      $itemsHtml .= '<th style="padding:8px 12px; color:#475569;">Item / Package</th>';
-      $itemsHtml .= '<th style="padding:8px 12px; color:#475569; text-align:center;">Qty</th>';
-      $itemsHtml .= '<th style="padding:8px 12px; color:#475569; text-align:right;">Subtotal</th>';
-      $itemsHtml .= '</tr>';
-      foreach ($items as $it) {
-        $itemName = htmlspecialchars((string) ($it['item'] ?? $it['name'] ?? 'Relief Pack'));
-        $qty = htmlspecialchars((string) ($it['quantity'] ?? '1'));
-        $unit = htmlspecialchars((string) ($it['unit'] ?? 'packs'));
-        $cost = isset($it['totalCost']) ? '₱' . number_format((float) $it['totalCost'], 2) : (isset($it['unitCost']) ? '₱' . number_format((float) $it['unitCost'] * (float) $qty, 2) : '—');
-        $itemsHtml .= '<tr style="border-bottom:1px solid #f1f5f9;">';
-        $itemsHtml .= "<td style=\"padding:10px 12px; color:#1e293b; font-weight:500;\">{$itemName}</td>";
-        $itemsHtml .= "<td style=\"padding:10px 12px; color:#64748b; text-align:center;\">{$qty} {$unit}</td>";
-        $itemsHtml .= "<td style=\"padding:10px 12px; color:#0f172a; font-weight:600; text-align:right;\">{$cost}</td>";
-        $itemsHtml .= '</tr>';
-      }
-      $itemsHtml .= '</table>';
-    }
-
-    $receiptInfo = '';
-    if ($receiptNo !== '' || $supplier !== '') {
-      $receiptInfo = '<div style="background:#f1f5f9; padding:10px 14px; border-radius:6px; font-size:12px; color:#475569; margin-top:12px;">';
-      if ($receiptNo !== '') $receiptInfo .= "<strong>Official Receipt / Reference:</strong> {$receiptNo}<br/>";
-      if ($supplier !== '') $receiptInfo .= "<strong>Procured From:</strong> {$supplier}";
-      $receiptInfo .= '</div>';
-    }
 
     $subject = "Donation Allocated: Your contribution ({$tracking}) is on its way to {$barangayName}!";
 
@@ -840,23 +836,28 @@ if (!function_exists('send_donation_allocated_email')) {
     <p style="font-size: 16px; margin-top: 0;">Dear <strong>{$donorName}</strong>,</p>
     
     <p style="font-size: 15px; color: #334155;">
-      We are pleased to inform you that your monetary contribution of <strong>₱{$totalAmount}</strong> (Tracking Code: <strong>{$tracking}</strong>) has been officially <strong>allocated and converted into emergency relief assistance</strong>!
+      We are pleased to inform you that your generous monetary contribution of <strong>₱{$totalAmount}</strong> (Tracking Code: <strong>{$tracking}</strong>) {$utilizationMessage}
     </p>
 
     <div style="background: #fff5f5; border-left: 4px solid #AF101A; padding: 12px 16px; border-radius: 4px; margin: 20px 0;">
       <p style="margin: 0; font-size: 14px; color: #7f1d1d;">
         <strong>Target Community:</strong> {$barangayName}, {$municipality}<br/>
-        <strong>Allocation Method:</strong> {$mode}<br/>
-        <strong>Families Supported:</strong> {$familiesSupported} affected households
+        <strong>Assistance Provided:</strong> Emergency Relief<br/>
+        <strong>Beneficiaries:</strong> {$beneficiaryText}
       </p>
     </div>
 
     <h4 style="color: #0f172a; margin: 20px 0 8px 0; font-size: 14px; text-transform: uppercase; letter-spacing: 0.05em;">
-      Procurement & Resource Summary
+      How Your Donation Made a Difference
     </h4>
-    
-    {$itemsHtml}
-    {$receiptInfo}
+
+    <p style="font-size: 15px; color: #334155; margin: 0;">
+      Your contribution helped provide {$assistanceItems} to families affected by the emergency. Through this assistance, your generosity helped address the immediate needs of {$beneficiaryText} in the community.
+    </p>
+
+    <p style="font-size: 15px; color: #334155; margin: 16px 0 0 0;">
+      We sincerely appreciate your kindness and support. Your contribution has made a meaningful difference in helping vulnerable families receive the assistance they need during challenging times.
+    </p>
 
     <div style="text-align: center; margin: 30px 0 10px 0;">
       <a href="{$trackUrl}" style="background: #AF101A; color: #ffffff; padding: 12px 28px; border-radius: 8px; text-decoration: none; font-weight: bold; font-size: 14px; display: inline-block; box-shadow: 0 2px 5px rgba(175,16,26,0.25);">
