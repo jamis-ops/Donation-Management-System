@@ -35,6 +35,6 @@ json_response([
   'transport' => $transport,
   'error' => $result['error'] ?? '',
   'hint' => !$delivered
-    ? 'Start the mail service (`npm run mail`), set SMTP_USER/SMTP_PASS in mail-service/.env (Gmail App Password), and set MAIL_TRANSPORT=nodemailer in api/mail_config.php.'
+    ? 'For production, configure BREVO_API_KEY, a verified MAIL_FROM_EMAIL, and MAIL_TRANSPORT=auto. For local NodeMailer, start `npm run mail` and configure its SMTP credentials.'
     : '',
 ]);

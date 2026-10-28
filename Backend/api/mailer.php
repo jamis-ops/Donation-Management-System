@@ -95,6 +95,18 @@ if (!function_exists('mail_set_result')) {
   }
 }
 
+if (!function_exists('mail_brevo_api_key')) {
+  function mail_brevo_api_key(): string
+  {
+    $key = trim((string) (defined('BREVO_API_KEY') ? BREVO_API_KEY : (getenv('BREVO_API_KEY') ?: '')));
+    $normalized = strtolower($key);
+    if ($key === '' || str_contains($normalized, 'your-brevo') || str_contains($normalized, 'change-me') || str_contains($normalized, 'replace-me')) {
+      return '';
+    }
+    return $key;
+  }
+}
+
 if (!function_exists('mail_resolved_transport')) {
   function mail_resolved_transport(): string
   {
@@ -103,7 +115,7 @@ if (!function_exists('mail_resolved_transport')) {
       return $explicit;
     }
     // Brevo HTTPS API uses standard HTTPS port 443 (never blocked by cloud firewalls / port 587 timeouts)
-    $brevoKey = trim((string) (defined('BREVO_API_KEY') ? BREVO_API_KEY : (getenv('BREVO_API_KEY') ?: '')));
+    $brevoKey = mail_brevo_api_key();
     if ($brevoKey !== '') {
       return 'brevo';
     }
@@ -121,7 +133,12 @@ if (!function_exists('mail_from_address')) {
   function mail_from_address(): string
   {
     $configured = trim((string) (defined('MAIL_FROM_EMAIL') ? MAIL_FROM_EMAIL : (getenv('MAIL_FROM_EMAIL') ?: '')));
-    if ($configured !== '' && filter_var($configured, FILTER_VALIDATE_EMAIL)) {
+    $envAddress = trim((string) (getenv('MAIL_FROM_EMAIL') ?: ''));
+    $isPlaceholder = in_array(strtolower($configured), ['your.gmail@gmail.com', 'your@email.com', 'example@example.com'], true);
+    if ($isPlaceholder && $envAddress !== '' && filter_var($envAddress, FILTER_VALIDATE_EMAIL)) {
+      return $envAddress;
+    }
+    if (!$isPlaceholder && $configured !== '' && filter_var($configured, FILTER_VALIDATE_EMAIL)) {
       return $configured;
     }
     $user = trim((string) (defined('SMTP_USER') ? SMTP_USER : (getenv('SMTP_USER') ?: '')));
@@ -136,7 +153,12 @@ if (!function_exists('mail_reply_to_address')) {
   function mail_reply_to_address(): string
   {
     $reply = trim((string) MAIL_REPLY_TO);
-    if ($reply !== '' && filter_var($reply, FILTER_VALIDATE_EMAIL)) {
+    $envReply = trim((string) (getenv('MAIL_REPLY_TO') ?: ''));
+    $isPlaceholder = in_array(strtolower($reply), ['your.gmail@gmail.com', 'your@email.com', 'example@example.com'], true);
+    if ($isPlaceholder && $envReply !== '' && filter_var($envReply, FILTER_VALIDATE_EMAIL)) {
+      return $envReply;
+    }
+    if (!$isPlaceholder && $reply !== '' && filter_var($reply, FILTER_VALIDATE_EMAIL)) {
       return $reply;
     }
     return mail_from_address();
@@ -601,7 +623,7 @@ if (!function_exists('brevo_send')) {
    */
   function brevo_send(string $toEmail, string $toName, string $subject, string $html): bool
   {
-    $apiKey = trim((string) (defined('BREVO_API_KEY') ? BREVO_API_KEY : (getenv('BREVO_API_KEY') ?: '')));
+    $apiKey = mail_brevo_api_key();
     if ($apiKey === '') {
       mail_set_result(false, 'brevo', 'BREVO_API_KEY environment variable is not configured.');
       return false;
@@ -724,13 +746,31 @@ if (!function_exists('send_mail')) {
 
     if ($transport === 'nodemailer') {
       $sent = nodemailer_send($toEmail, $toName, $subject, $html);
-      mail_archive_outbox($toEmail, $toName, $subject, $html, $sent, $sent ? 'nodemailer-ok' : 'nodemailer-failed');
+      if (!$sent && mail_brevo_api_key() !== '') {
+        $nodeError = (string) (mail_last_result()['error'] ?? 'NodeMailer failed');
+        $sent = brevo_send($toEmail, $toName, $subject, $html);
+        $brevoResult = mail_last_result();
+        if (!$sent) {
+          mail_set_result(false, 'brevo', $nodeError . ' | Brevo fallback: ' . (string) ($brevoResult['error'] ?? 'failed'));
+        }
+      }
+      $resolved = (string) (mail_last_result()['transport'] ?? 'nodemailer');
+      mail_archive_outbox($toEmail, $toName, $subject, $html, $sent, $sent ? $resolved . '-ok' : $resolved . '-failed');
       return $sent;
     }
 
     if ($transport === 'smtp') {
       $sent = smtp_send($toEmail, $toName, $subject, $html);
-      mail_archive_outbox($toEmail, $toName, $subject, $html, $sent, $sent ? 'smtp-ok' : 'smtp-failed');
+      if (!$sent && mail_brevo_api_key() !== '') {
+        $smtpError = (string) (mail_last_result()['error'] ?? 'SMTP failed');
+        $sent = brevo_send($toEmail, $toName, $subject, $html);
+        $brevoResult = mail_last_result();
+        if (!$sent) {
+          mail_set_result(false, 'brevo', $smtpError . ' | Brevo fallback: ' . (string) ($brevoResult['error'] ?? 'failed'));
+        }
+      }
+      $resolved = (string) (mail_last_result()['transport'] ?? 'smtp');
+      mail_archive_outbox($toEmail, $toName, $subject, $html, $sent, $sent ? $resolved . '-ok' : $resolved . '-failed');
       return $sent;
     }
 

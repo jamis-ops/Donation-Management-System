@@ -474,7 +474,7 @@ function lifecycle_mail_allowed(string $domain, string $statusOrStage): bool
     'donation' => in_array($s, ['Verified', 'Rejected', 'Cancelled', 'Distributed', 'Completed'], true),
     'donation_stage' => in_array($s, ['Sorted', 'Repacked', 'In Transit', 'Delivered'], true),
     'request' => in_array($s, ['Approved', 'Rejected', 'Allocated', 'Completed'], true),
-    'distribution' => in_array($s, ['In Transit', 'Delivered', 'Completed'], true),
+    'distribution' => in_array($s, ['Preparing', 'In Transit', 'Delivered', 'Completed'], true),
     'proof' => in_array($s, ['Approved', 'Rejected'], true),
     'application' => in_array($s, ['Rejected'], true),
     default => false,
@@ -678,20 +678,248 @@ function notify_request_lifecycle(PDO $pdo, int $requestId, string $newStatus, ?
   );
 }
 
-/**
- * Notify the barangay when a distribution reaches In Transit / Delivered / Completed.
- */
-function notify_distribution_lifecycle(PDO $pdo, array $dist, string $newStatus, ?string $oldStatus = null): void
+/** Ensure one durable delivery record per donor, distribution, and email status. */
+function ensure_distribution_donor_email_schema(PDO $pdo): void
 {
+  static $ensured = false;
+  if ($ensured) return;
+  $pdo->exec(<<<SQL
+    CREATE TABLE IF NOT EXISTS distribution_donor_email_notifications (
+      id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+      distribution_id BIGINT UNSIGNED NOT NULL,
+      donation_id BIGINT UNSIGNED NOT NULL,
+      status VARCHAR(40) NOT NULL,
+      recipient_email VARCHAR(190) NOT NULL,
+      delivery_state VARCHAR(20) NOT NULL DEFAULT 'Pending',
+      transport VARCHAR(30) NULL,
+      attempts INT UNSIGNED NOT NULL DEFAULT 0,
+      last_error TEXT NULL,
+      sent_at TIMESTAMP NULL DEFAULT NULL,
+      created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+      UNIQUE KEY uq_distribution_donor_status (distribution_id, donation_id, status),
+      INDEX idx_distribution_donor_email_state (delivery_state, updated_at),
+      CONSTRAINT fk_distribution_donor_email_distribution FOREIGN KEY (distribution_id) REFERENCES distributions(id) ON DELETE CASCADE,
+      CONSTRAINT fk_distribution_donor_email_donation FOREIGN KEY (donation_id) REFERENCES donations(id) ON DELETE CASCADE
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+  SQL);
+  $ensured = true;
+}
+
+/**
+ * Build the donor-facing copy without changing donation or distribution data.
+ * @return array{subject:string,headline:string,body:string}|null
+ */
+function build_distribution_donor_status_email(array $donation, string $status, string $community): ?array
+{
+  $tracking = trim((string) ($donation['tracking_code'] ?? ''));
+  $safeTracking = htmlspecialchars($tracking !== '' ? $tracking : 'Donation', ENT_QUOTES, 'UTF-8');
+  $safeCommunity = htmlspecialchars($community !== '' ? $community : 'the beneficiary community', ENT_QUOTES, 'UTF-8');
+  $isMonetary = strcasecmp((string) ($donation['type'] ?? ''), 'Monetary') === 0;
+  if ($isMonetary) {
+    $donationValue = '₱' . number_format((float) ($donation['amount'] ?? 0), 2);
+  } else {
+    $description = trim((string) ($donation['items_description'] ?? ''));
+    $donationValue = $description !== '' ? $description : 'In-kind relief goods';
+  }
+  $safeDonationValue = htmlspecialchars($donationValue, ENT_QUOTES, 'UTF-8');
+
+  $copy = match ($status) {
+    'Preparing' => [
+      'subject' => "Donation {$safeTracking}: Relief supplies are being prepared",
+      'headline' => 'Your relief assistance is being prepared',
+      'message' => "The relief supplies supported by your donation are now being carefully prepared for distribution to families in <strong>{$safeCommunity}</strong>.",
+    ],
+    'In Transit' => [
+      'subject' => "Donation {$safeTracking}: Relief supplies are in transit",
+      'headline' => 'Your relief assistance is on the way',
+      'message' => "The relief supplies supported by your donation are now on their way to families in <strong>{$safeCommunity}</strong>.",
+    ],
+    'Delivered' => [
+      'subject' => "Donation {$safeTracking}: Relief supplies were delivered",
+      'headline' => 'Your relief assistance has been delivered',
+      'message' => "The relief supplies supported by your donation have been successfully delivered to the beneficiary community in <strong>{$safeCommunity}</strong>.",
+    ],
+    default => null,
+  };
+  if ($copy === null) return null;
+
+  $body = '<p style="margin:0 0 14px;line-height:1.65;color:#475569">' . $copy['message'] . '</p>'
+    . '<div style="background:#fff5f5;border-left:4px solid #AF101A;padding:12px 16px;border-radius:6px;margin:18px 0">'
+    . '<p style="margin:0;line-height:1.7;color:#7f1d1d">'
+    . '<strong>Total Donation:</strong> ' . $safeDonationValue . '<br>'
+    . '<strong>Tracking Code:</strong> ' . $safeTracking . '<br>'
+    . '<strong>Distribution Status:</strong> ' . htmlspecialchars($status, ENT_QUOTES, 'UTF-8') . '<br>'
+    . '<strong>Beneficiary Community:</strong> ' . $safeCommunity
+    . '</p></div>'
+    . '<p style="margin:0 0 12px;line-height:1.65;color:#475569">Thank you for your generosity. Your support is helping provide timely assistance to families who need it most.</p>';
+
+  return ['subject' => $copy['subject'], 'headline' => $copy['headline'], 'body' => $body];
+}
+
+/**
+ * Email every donation actually linked to this distribution exactly once per
+ * requested status. The donor profile email is preferred over stale snapshots.
+ * @return array{attempted:int,sent:int,failed:int,skipped:int,errors:array}
+ */
+function notify_distribution_donors(PDO $pdo, array $dist, string $newStatus): array
+{
+  $report = ['attempted' => 0, 'sent' => 0, 'failed' => 0, 'skipped' => 0, 'errors' => []];
+  if (!in_array($newStatus, ['Preparing', 'In Transit', 'Delivered'], true)) {
+    return $report;
+  }
+
+  $distributionId = (int) ($dist['id'] ?? 0);
+  if ($distributionId <= 0) return $report;
+
+  try {
+    ensure_distribution_donor_email_schema($pdo);
+    $stmt = $pdo->prepare(<<<SQL
+      SELECT DISTINCT d.id AS donation_id, d.tracking_code, d.type, d.amount, d.items_description,
+        COALESCE(NULLIF(TRIM(dn.full_name), ''), NULLIF(TRIM(d.donor_name), ''), 'Valued Donor') AS donor_name,
+        COALESCE(NULLIF(TRIM(dn.email), ''), NULLIF(TRIM(u.email), ''), NULLIF(TRIM(d.donor_email), '')) AS recipient_email
+      FROM donations d
+      LEFT JOIN donors dn ON dn.id = d.donor_id
+      LEFT JOIN users u ON u.id = dn.user_id
+      WHERE d.id IN (
+        SELECT dp.donation_id
+        FROM donation_procurements dp
+        JOIN allocations a ON a.id = dp.allocation_id
+        WHERE a.distribution_id = ?
+        UNION
+        SELECT ads.donation_id
+        FROM allocation_donation_sources ads
+        JOIN allocations a ON a.id = ads.allocation_id
+        WHERE a.distribution_id = ?
+      )
+    SQL);
+    $stmt->execute([$distributionId, $distributionId]);
+    $donations = $stmt->fetchAll();
+  } catch (Throwable $e) {
+    $report['failed'] = 1;
+    $report['errors'][] = 'Unable to resolve linked donors: ' . $e->getMessage();
+    error_log('[distribution_donor_email] ' . $e->getMessage());
+    return $report;
+  }
+
+  $community = trim((string) ($dist['location'] ?? ''));
+  $beneficiaryId = (int) ($dist['beneficiary_id'] ?? 0);
+  if ($beneficiaryId > 0) {
+    try {
+      $communityStmt = $pdo->prepare('SELECT full_name, barangay, municipality FROM beneficiaries WHERE id = ? LIMIT 1');
+      $communityStmt->execute([$beneficiaryId]);
+      $beneficiary = $communityStmt->fetch() ?: [];
+      $communityName = trim((string) ($beneficiary['full_name'] ?? $beneficiary['barangay'] ?? ''));
+      $municipality = trim((string) ($beneficiary['municipality'] ?? ''));
+      if ($communityName !== '') {
+        $community = $communityName . ($municipality !== '' ? ', ' . $municipality : '');
+      }
+    } catch (Throwable $e) {
+      // Distribution location remains a safe fallback.
+    }
+  }
+  if ($community === '') $community = 'the beneficiary community';
+
+  foreach ($donations as $donation) {
+    $donationId = (int) ($donation['donation_id'] ?? 0);
+    $recipient = strtolower(trim((string) ($donation['recipient_email'] ?? '')));
+    $donorName = trim((string) ($donation['donor_name'] ?? 'Valued Donor')) ?: 'Valued Donor';
+    $tracking = (string) ($donation['tracking_code'] ?? ('Donation #' . $donationId));
+    $copy = build_distribution_donor_status_email($donation, $newStatus, $community);
+    if ($copy === null) continue;
+
+    if ($recipient === '' || !filter_var($recipient, FILTER_VALIDATE_EMAIL)) {
+      $report['failed']++;
+      $report['errors'][] = "{$tracking}: no valid registered donor email address";
+      continue;
+    }
+
+    try {
+      $reserve = $pdo->prepare(<<<SQL
+        INSERT INTO distribution_donor_email_notifications
+          (distribution_id, donation_id, status, recipient_email, delivery_state)
+        VALUES (?, ?, ?, ?, 'Pending')
+        ON DUPLICATE KEY UPDATE recipient_email = VALUES(recipient_email)
+      SQL);
+      $reserve->execute([$distributionId, $donationId, $newStatus, $recipient]);
+      $claim = $pdo->prepare(<<<SQL
+        UPDATE distribution_donor_email_notifications
+        SET delivery_state = 'Sending', attempts = attempts + 1, last_error = NULL
+        WHERE distribution_id = ? AND donation_id = ? AND status = ? AND sent_at IS NULL
+          AND (delivery_state <> 'Sending' OR updated_at < DATE_SUB(NOW(), INTERVAL 10 MINUTE))
+      SQL);
+      $claim->execute([$distributionId, $donationId, $newStatus]);
+      if ($claim->rowCount() !== 1) {
+        $report['skipped']++;
+        continue;
+      }
+    } catch (Throwable $e) {
+      $report['failed']++;
+      $report['errors'][] = "{$tracking}: notification reservation failed";
+      error_log('[distribution_donor_email] reservation: ' . $e->getMessage());
+      continue;
+    }
+
+    $report['attempted']++;
+    $sent = send_lifecycle_email(
+      $recipient,
+      $donorName,
+      $copy['subject'],
+      $copy['headline'],
+      $copy['body'],
+      '/donor/donations',
+      'Track Live Distribution Journey'
+    );
+    $mailResult = function_exists('mail_last_result') ? mail_last_result() : [];
+    $transport = (string) ($mailResult['transport'] ?? '');
+    $delivered = $sent && in_array($transport, ['brevo', 'nodemailer', 'smtp', 'mail'], true);
+
+    if ($delivered) {
+      $pdo->prepare(<<<SQL
+        UPDATE distribution_donor_email_notifications
+        SET delivery_state = 'Sent', transport = ?, last_error = NULL, sent_at = NOW()
+        WHERE distribution_id = ? AND donation_id = ? AND status = ?
+      SQL)->execute([$transport, $distributionId, $donationId, $newStatus]);
+      $report['sent']++;
+    } else {
+      $error = trim((string) ($mailResult['error'] ?? 'Email provider did not confirm delivery'));
+      if ($error === '') $error = 'Email provider did not confirm delivery';
+      $pdo->prepare(<<<SQL
+        UPDATE distribution_donor_email_notifications
+        SET delivery_state = 'Failed', transport = ?, last_error = ?
+        WHERE distribution_id = ? AND donation_id = ? AND status = ?
+      SQL)->execute([$transport, $error, $distributionId, $donationId, $newStatus]);
+      $report['failed']++;
+      $report['errors'][] = "{$tracking}: {$error}";
+      error_log("[distribution_donor_email] {$tracking} {$newStatus}: {$error}");
+    }
+  }
+
+  if ($report['failed'] > 0) {
+    notify_admins(
+      $pdo,
+      'email_delivery_failed',
+      'Donor status email not delivered',
+      "{$report['failed']} donor email notification(s) for distribution " . (string) ($dist['code'] ?? $distributionId) . " ({$newStatus}) require attention.",
+      '/admin/distributions?id=' . $distributionId
+    );
+  }
+  return $report;
+}
+
+function notify_distribution_lifecycle(PDO $pdo, array $dist, string $newStatus, ?string $oldStatus = null): array
+{
+  $emptyReport = ['attempted' => 0, 'sent' => 0, 'failed' => 0, 'skipped' => 0, 'errors' => []];
   if ($oldStatus !== null && $oldStatus === $newStatus) {
-    return;
+    return $emptyReport;
   }
   if (!lifecycle_mail_allowed('distribution', $newStatus)) {
-    return;
+    return $emptyReport;
   }
+  $donorReport = notify_distribution_donors($pdo, $dist, $newStatus);
   $beneficiaryId = (int) ($dist['beneficiary_id'] ?? 0);
   if ($beneficiaryId <= 0) {
-    return;
+    return $donorReport;
   }
   $code = (string) ($dist['code'] ?? 'distribution');
   $safeCode = htmlspecialchars($code, ENT_QUOTES, 'UTF-8');
@@ -720,7 +948,7 @@ function notify_distribution_lifecycle(PDO $pdo, array $dist, string $newStatus,
     default => null,
   };
   if ($copy === null) {
-    return;
+    return $donorReport;
   }
   notify_beneficiary_lifecycle(
     $pdo,
@@ -735,6 +963,7 @@ function notify_distribution_lifecycle(PDO $pdo, array $dist, string $newStatus,
     true,
     $copy['cta']
   );
+  return $donorReport;
 }
 
 /**

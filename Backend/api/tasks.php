@@ -652,6 +652,7 @@ if ($method === 'PUT') {
   }
 
   $column = $body['boardColumn'] ?? $body['status'] ?? $existing['board_column'];
+  $donorEmailNotifications = null;
   if (isset(WORKFLOW_TASK_ALIASES[$column])) {
     $column = WORKFLOW_TASK_ALIASES[$column];
   }
@@ -767,12 +768,13 @@ if ($method === 'PUT') {
         "{$actor} updated {$code} to {$distributionStatus} via task {$existing['code']}.",
         '/admin/distributions'
       );
-      notify_distribution_lifecycle(
+      $donorEmailNotifications = notify_distribution_lifecycle(
         $pdo,
         $dist,
         $distributionStatus,
         (string) ($dist['status'] ?? '')
       );
+      sync_donations_for_distribution($pdo, (int) $linkedDistId, $distributionStatus);
       if (function_exists('audit_log')) {
         audit_log($pdo, 'status-update', 'distribution', $code, "{$actor} set status to {$distributionStatus} from task {$existing['code']}");
       }
@@ -787,7 +789,11 @@ if ($method === 'PUT') {
 
     $stmt = $pdo->prepare('SELECT * FROM tasks WHERE id = ?');
     $stmt->execute([$id]);
-    json_response(['ok' => true, 'data' => map_task($pdo, $stmt->fetch())]);
+    json_response([
+      'ok' => true,
+      'data' => map_task($pdo, $stmt->fetch()),
+      'donorEmailNotifications' => $donorEmailNotifications,
+    ]);
   }
 
   $assigneeUserId = array_key_exists('assigneeUserId', $body)

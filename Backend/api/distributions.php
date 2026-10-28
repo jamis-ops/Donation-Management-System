@@ -1353,6 +1353,7 @@ if ($method === 'PUT') {
     }
   }
 
+  $donorEmailNotifications = null;
   if ($newStatus !== $existing['status']) {
     notify_admins($pdo, 'status_update', 'Distribution status updated', "Distribution {$existing['code']} is now {$newStatus}", '/admin/distributions?id=' . (int) $id . '#distributions-table');
     if ($newStatus === 'In Transit') {
@@ -1401,7 +1402,7 @@ if ($method === 'PUT') {
       'status' => $newStatus,
       'beneficiary_id' => $beneficiaryId ?? ($existing['beneficiary_id'] ?? null),
     ]);
-    notify_distribution_lifecycle($pdo, $freshForMail, (string) $newStatus, (string) ($existing['status'] ?? ''));
+    $donorEmailNotifications = notify_distribution_lifecycle($pdo, $freshForMail, (string) $newStatus, (string) ($existing['status'] ?? ''));
     sync_donations_for_distribution($pdo, (int) $id, (string) $newStatus);
   }
 
@@ -1409,7 +1410,11 @@ if ($method === 'PUT') {
 
   $stmt = $pdo->prepare('SELECT * FROM distributions WHERE id = ?');
   $stmt->execute([$id]);
-  json_response(['ok' => true, 'data' => map_distribution($pdo, $stmt->fetch())]);
+  json_response([
+    'ok' => true,
+    'data' => map_distribution($pdo, $stmt->fetch()),
+    'donorEmailNotifications' => $donorEmailNotifications,
+  ]);
 }
 
 if ($method === 'DELETE') {

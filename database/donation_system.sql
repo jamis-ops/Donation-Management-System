@@ -368,6 +368,26 @@ CREATE TABLE IF NOT EXISTS distributions (
   CONSTRAINT fk_distributions_beneficiary FOREIGN KEY (beneficiary_id) REFERENCES beneficiaries(id) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
+-- Idempotent donor email delivery log for distribution status notifications.
+CREATE TABLE IF NOT EXISTS distribution_donor_email_notifications (
+  id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  distribution_id BIGINT UNSIGNED NOT NULL,
+  donation_id BIGINT UNSIGNED NOT NULL,
+  status VARCHAR(40) NOT NULL,
+  recipient_email VARCHAR(190) NOT NULL,
+  delivery_state VARCHAR(20) NOT NULL DEFAULT 'Pending',
+  transport VARCHAR(30) NULL,
+  attempts INT UNSIGNED NOT NULL DEFAULT 0,
+  last_error TEXT NULL,
+  sent_at TIMESTAMP NULL DEFAULT NULL,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  UNIQUE KEY uq_distribution_donor_status (distribution_id, donation_id, status),
+  INDEX idx_distribution_donor_email_state (delivery_state, updated_at),
+  CONSTRAINT fk_distribution_donor_email_distribution FOREIGN KEY (distribution_id) REFERENCES distributions(id) ON DELETE CASCADE,
+  CONSTRAINT fk_distribution_donor_email_donation FOREIGN KEY (donation_id) REFERENCES donations(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
 CREATE TABLE IF NOT EXISTS allocations (
   id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
   code VARCHAR(20) NOT NULL UNIQUE,
